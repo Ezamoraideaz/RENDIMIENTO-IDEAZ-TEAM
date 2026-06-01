@@ -1,0 +1,9 @@
+[x-cloak] { display: none !important; }
+.chart-container { position: relative; height: 260px; }
+.kanban-scroll { display:flex; gap:1rem; overflow-x:auto; padding-bottom:1rem; }
+.kanban-scroll::-webkit-scrollbar { height: 6px; }
+.kanban-scroll::-webkit-scrollbar-track { background: transparent; }
+.kanban-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius:3px; }
+.avatar-stack { display:flex; gap:2px; }
+.sort-ind { margin-left:4px; opacity:0.4; font-size:0.7em; transition:opacity 0.15s; }
+@media print { aside { display:none; } main { margin-left:0 !important; } }

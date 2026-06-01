@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configuración – IDEAZ Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          colors: {
+            brand: { DEFAULT: '#6366f1', light: '#818cf8', dark: '#4f46e5' }
+          }
+        }
+      }
+    }
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans">
+
+<!-- SIDEBAR -->
+<aside class="fixed left-0 top-0 h-screen w-64 bg-slate-900 border-r border-slate-700 flex flex-col z-50 overflow-y-auto">
+  <!-- Logo -->
+  <div class="p-5 border-b border-slate-700 flex-shrink-0">
+    <a href="index.html" class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center">
+        <span class="text-white font-black text-sm">I</span>
+      </div>
+      <div>
+        <div class="font-black text-slate-100 leading-none">IDEAZ</div>
+        <div class="text-xs text-slate-400 font-medium">Dashboard</div>
+      </div>
+    </a>
+  </div>
+
+  <!-- Nav links -->
+  <nav class="p-3 border-b border-slate-700 flex-shrink-0">
+    <a href="index.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-slate-400 hover:bg-slate-800 transition-colors">
+      <span>📊</span> Dashboard
+    </a>
+    <a href="configuracion.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold bg-indigo-600/20 text-indigo-400 hover:bg-slate-800 transition-colors">
+      <span>⚙️</span> Configuración
+    </a>
+  </nav>
+
+  <!-- Info -->
+  <div class="p-4 flex-1">
+    <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Ajustes</div>
+    <div class="text-xs text-slate-500 leading-relaxed">Conecta Trello, configura sueldos y datos financieros de cada proyecto.</div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="ml-64 min-h-screen">
+  <div class="p-6 max-w-4xl mx-auto">
+
+    <h1 class="text-2xl font-black text-slate-100 mb-6">⚙️ Configuración</h1>
+
+    <!-- TRELLO CREDENTIALS -->
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4">
+      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">🔑 Credenciales de Trello</h2>
+      <div id="cred-status"></div>
+
+      <div class="flex gap-3 p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-sm mb-4 flex-col items-start">
+        <strong class="text-slate-200">📋 Pasos para obtener tus credenciales:</strong>
+        <ol class="list-decimal ml-5 leading-8 text-slate-300">
+          <li>Abre en tu navegador: <code class="bg-white/10 px-1.5 py-0.5 rounded text-xs">https://trello.com/app-key</code> (debes estar con sesión iniciada en Trello)</li>
+          <li>En esa página verás tu <strong>API Key</strong> — es una cadena de ~32 caracteres. Cópiala.</li>
+          <li>En la misma página, haz clic en el enlace que dice <strong>"Token"</strong> (junto a la key) → aprueba el acceso → copia el token largo que aparece (~64 caracteres).</li>
+        </ol>
+        <div class="flex gap-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-sm w-full">
+          ⚠️ <strong>Error "invalid key"</strong>: asegúrate de copiar el <em>API Key</em> (no el "Secret"). El Key son ~32 caracteres alfanuméricos en minúsculas.
+        </div>
+      </div>
+
+      <div class="mb-4">
+        <label class="block text-xs text-slate-400 font-medium mb-1">
+          API Key de Trello
+          <span class="text-slate-500 font-normal"> (~32 caracteres, ej: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)</span>
+        </label>
+        <div class="flex gap-2">
+          <input id="inp-key" type="text" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 flex-1" placeholder="Pega aquí tu API Key" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+          <button class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-1.5 rounded-lg text-sm transition-colors flex-shrink-0 whitespace-nowrap" onclick="toggleVisibility('inp-key', this)">👁 Ver</button>
+        </div>
+        <div id="key-hint" class="text-xs text-slate-400 mt-1"></div>
+      </div>
+
+      <div class="mb-4">
+        <label class="block text-xs text-slate-400 font-medium mb-1">
+          Token de Acceso
+          <span class="text-slate-500 font-normal"> (~64 caracteres)</span>
+        </label>
+        <div class="flex gap-2">
+          <input id="inp-token" type="password" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 flex-1" placeholder="Pega aquí tu Token" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+          <button class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-1.5 rounded-lg text-sm transition-colors flex-shrink-0 whitespace-nowrap" onclick="toggleVisibility('inp-token', this)">👁 Ver</button>
+        </div>
+        <div id="token-hint" class="text-xs text-slate-400 mt-1"></div>
+      </div>
+
+      <div class="flex gap-2">
+        <button class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors" onclick="testAndSaveCredentials()">
+          Guardar y verificar conexión
+        </button>
+        <button class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-1.5 rounded-lg text-sm transition-colors" id="btn-clear-cred" onclick="clearCredentials()" style="display:none">
+          Desconectar
+        </button>
+      </div>
+
+      <div id="cred-result" class="mt-4"></div>
+    </div>
+
+    <!-- TEAM MEMBERS -->
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4" id="section-members" style="display:none">
+      <div class="flex justify-between items-center mb-3">
+        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-0">👥 Sueldos del Equipo (mensuales)</h2>
+        <div class="text-xs text-slate-400">Sueldo mensual por persona para calcular costos de proyectos</div>
+      </div>
+      <div class="flex gap-3 p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-sm mb-4">
+        El costo se calcula como: <strong class="text-slate-200">horas trabajadas × (sueldo mensual ÷ 160 h/mes)</strong>. Solo ingresas el sueldo — el sistema hace la conversión automáticamente.
+      </div>
+
+      <div class="overflow-x-auto rounded-xl border border-slate-700">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-slate-700 bg-slate-800/50">
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Miembro</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Username</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Sueldo Mensual (COP)</th>
+            </tr>
+          </thead>
+          <tbody id="members-table-body" class="divide-y divide-slate-700/50">
+            <tr><td colspan="4" class="text-slate-400 px-4 py-3">Cargando miembros...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="mt-2 text-xs text-slate-500">
+        Los miembros se obtienen de tus tableros de Trello. Las tarifas se guardan localmente.
+      </div>
+    </div>
+
+    <!-- PROJECTS FINANCIAL DATA -->
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4" id="section-projects" style="display:none">
+      <div class="flex justify-between items-center mb-3 flex-wrap gap-2">
+        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-0">💰 Datos Financieros por Proyecto</h2>
+        <button class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-1.5 rounded-lg text-sm transition-colors" onclick="autoDetectAllPeriods()" title="Detecta el mes/año desde el nombre del tablero">🗓 Auto-detectar periodos</button>
+      </div>
+      <div class="flex gap-3 p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-sm mb-4">
+        Si tienes tableros con el mismo nombre, usa <strong class="text-slate-200">Cliente / Etiqueta</strong> (ej: "Empresa ABC") para difernciarlos con un badge de color, y <strong class="text-slate-200">Alias</strong> para renombrarlos en el dashboard sin tocar Trello.
+      </div>
+
+      <div class="overflow-x-auto rounded-xl border border-slate-700">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-slate-700 bg-slate-800/50">
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Tablero (nombre en Trello)</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Tipo de proyecto</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Cliente / Etiqueta</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Alias (nombre en dashboard)</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Periodo</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Presupuesto</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Ingresos</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Horas Estim.</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Moneda</th>
+            </tr>
+          </thead>
+          <tbody id="projects-table-body" class="divide-y divide-slate-700/50">
+            <tr><td colspan="7" class="text-slate-400 px-4 py-3">Cargando proyectos...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="mt-4">
+        <button class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors" onclick="saveAllFinancial()">
+          💾 Guardar datos financieros
+        </button>
+      </div>
+    </div>
+
+    <!-- CACHE -->
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4">
+      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">⚡ Caché de Trello</h2>
+      <p class="text-sm text-slate-400 mb-3">
+        Los datos de Trello se guardan temporalmente en este navegador (tableros 30 min · tarjetas/acciones 20 min) para reducir las llamadas a la API. Si necesitas ver cambios recientes, limpia el caché o usa el botón <strong class="text-slate-200">↻ Actualizar</strong> del dashboard.
+      </p>
+      <button class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-1.5 rounded-lg text-sm transition-colors" onclick="clearTrelloCache()">↻ Limpiar caché de Trello</button>
+    </div>
+
+    <!-- DANGER ZONE -->
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5">
+      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">⚠️ Zona Peligrosa</h2>
+      <p class="text-sm text-slate-400 mb-3">Estas acciones borran datos guardados localmente y no se pueden deshacer.</p>
+      <div class="flex gap-2 flex-wrap">
+        <button class="bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 font-medium px-3 py-1.5 rounded-lg text-sm transition-colors" onclick="clearFinancial()">Borrar datos financieros</button>
+        <button class="bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 font-medium px-3 py-1.5 rounded-lg text-sm transition-colors" onclick="clearTime()">Borrar registros de tiempo</button>
+        <button class="bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 font-medium px-3 py-1.5 rounded-lg text-sm transition-colors" onclick="clearAll()">Borrar todo</button>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<script src="js/storage.js"></script>
+<script src="js/cache.js"></script>
+<script src="js/api.js"></script>
+<script src="js/utils.js"></script>
+<script>
+  let allBoards = [];
+  let allMembers = {};
+
+  function toggleVisibility(inputId, btn) {
+    const inp = document.getElementById(inputId);
+    if (inp.type === 'password') {
+      inp.type = 'text';
+      btn.textContent = '🙈 Ocultar';
+    } else {
+      inp.type = 'password';
+      btn.textContent = '👁 Ver';
+    }
+  }
+
+  function showHint(inputId, hintId, minLen, maxLen, label) {
+    const val = document.getElementById(inputId).value.trim();
+    const hint = document.getElementById(hintId);
+    if (!val) { hint.textContent = ''; return; }
+    if (val.length < minLen || val.length > maxLen) {
+      hint.innerHTML = `<span style="color:#f59e0b">⚠️ Longitud inusual: ${val.length} caracteres (esperado ~${minLen}-${maxLen})</span>`;
+    } else {
+      hint.innerHTML = `<span style="color:#10b981">✓ ${label} tiene ${val.length} caracteres — luce correcto</span>`;
+    }
+  }
+
+  // Load existing credentials on page load
+  window.addEventListener('DOMContentLoaded', () => {
+    const creds = Storage.getCredentials();
+    if (creds.key) document.getElementById('inp-key').value = creds.key;
+    if (creds.token) document.getElementById('inp-token').value = creds.token;
+
+    // Live length hints
+    document.getElementById('inp-key').addEventListener('input', () =>
+      showHint('inp-key', 'key-hint', 28, 36, 'API Key'));
+    document.getElementById('inp-token').addEventListener('input', () =>
+      showHint('inp-token', 'token-hint', 60, 70, 'Token'));
+
+    // Show hints for pre-filled values
+    if (creds.key)   showHint('inp-key',   'key-hint',   28, 36, 'API Key');
+    if (creds.token) showHint('inp-token', 'token-hint', 60, 70, 'Token');
+
+    if (Storage.hasCredentials()) {
+      document.getElementById('btn-clear-cred').style.display = 'inline-flex';
+      showConnectedStatus();
+      loadTrelloData();
+    }
+  });
+
+  function showConnectedStatus() {
+    document.getElementById('cred-status').innerHTML = `
+      <div class="flex gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm mb-4">
+        ✅ Conectado a Trello — credenciales guardadas en este navegador
+      </div>`;
+  }
+
+  async function testAndSaveCredentials() {
+    const key = document.getElementById('inp-key').value.trim();
+    const token = document.getElementById('inp-token').value.trim();
+    const resultEl = document.getElementById('cred-result');
+
+    if (!key || !token) {
+      resultEl.innerHTML = '<div class="flex gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-sm">Por favor ingresa API Key y Token.</div>';
+      return;
+    }
+
+    resultEl.innerHTML = '<div class="flex items-center gap-2 text-slate-400 text-sm"><div class="w-4 h-4 border-2 border-slate-600 border-t-indigo-500 rounded-full animate-spin"></div> Verificando conexión...</div>';
+
+    try {
+      const api = new TrelloAPI(key, token, { forceRefresh: true });
+      const me = await api.getMe();
+      Storage.saveCredentials(key, token);
+      TrelloCache.invalidateAll();
+      document.getElementById('btn-clear-cred').style.display = 'inline-flex';
+      resultEl.innerHTML = `
+        <div class="flex gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm">
+          ✅ Conectado como <strong>${me.fullName}</strong> (@${me.username})
+        </div>`;
+      showConnectedStatus();
+      loadTrelloData();
+    } catch (e) {
+      const msg = e.message || '';
+      let tip = '';
+      if (msg.includes('invalid key') || msg.includes('401')) {
+        tip = `<br><br><strong>Causa probable:</strong>
+          <ul style="margin:6px 0 0 1rem;line-height:1.8">
+            <li>El <strong>API Key</strong> es incorrecto. Ve a <code style="background:rgba(255,255,255,0.1);padding:1px 5px;border-radius:3px">trello.com/app-key</code> y copia el valor exacto del campo "<strong>Key</strong>" (no el Secret).</li>
+            <li>Asegúrate de no copiar espacios extra al inicio o al final.</li>
+            <li>El Key debe tener ~32 caracteres en minúsculas/números.</li>
+          </ul>`;
+      } else if (msg.includes('invalid token')) {
+        tip = `<br><br><strong>Causa probable:</strong> El <strong>Token</strong> expiró o fue revocado. En <code>trello.com/app-key</code> haz clic en "Token" de nuevo para generar uno nuevo.`;
+      }
+      resultEl.innerHTML = `
+        <div class="flex gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
+          ❌ <strong>Error de conexión:</strong> ${msg}${tip}
+        </div>`;
+    }
+  }
+
+  function clearCredentials() {
+    if (!confirm('¿Desconectar de Trello? Se mantienen los datos financieros guardados.')) return;
+    Storage.clearCredentials();
+    window.location.reload();
+  }
+
+  async function loadTrelloData() {
+    const creds = Storage.getCredentials();
+    const api = new TrelloAPI(creds.key, creds.token);
+
+    try {
+      allBoards = await api.getBoards();
+      // Collect unique members from all boards in parallel
+      const memberSet = {};
+      await Promise.allSettled(allBoards.map(async (board) => {
+        const members = await api.getMembers(board.id);
+        for (const m of members) {
+          memberSet[m.id] = m;
+          Storage.saveMemberName(m.id, m.fullName);
+        }
+      }));
+      allMembers = memberSet;
+      renderMembersTable();
+      renderProjectsTable();
+      document.getElementById('section-members').style.display = 'block';
+      document.getElementById('section-projects').style.display = 'block';
+    } catch (e) {
+      console.error('Error cargando datos de Trello:', e);
+    }
+  }
+
+  function renderMembersTable() {
+    const tbody = document.getElementById('members-table-body');
+    const members = Object.values(allMembers);
+
+    if (members.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-slate-400 px-4 py-3">No se encontraron miembros.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = members.map(m => {
+      const salary = Storage.getMemberRate(m.id);
+      return `
+        <tr class="hover:bg-slate-800/30 transition-colors">
+          <td class="px-4 py-3">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white" style="background:${Utils.avatarColor(m.id)}">${Utils.initials(m.fullName)}</div>
+              <span class="text-slate-100">${m.fullName}</span>
+            </div>
+          </td>
+          <td class="px-4 py-3 text-slate-400">@${m.username}</td>
+          <td class="px-4 py-3">
+            <input type="number" min="0" step="100000"
+              class="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 w-40"
+              value="${salary}"
+              onchange="Storage.saveMemberRate('${m.id}', this.value); Utils.showToast('Sueldo guardado ✓', 'success')"
+              placeholder="ej: 3000000">
+          </td>
+        </tr>`;
+    }).join('');
+    Utils.makeSortable(tbody.closest('table'));
+  }
+
+  function renderProjectsTable() {
+    const tbody = document.getElementById('projects-table-body');
+
+    if (allBoards.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="text-slate-400 px-4 py-3">No se encontraron tableros.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = allBoards.map(b => {
+      const pd     = Storage.getProjectData(b.id);
+      const wsName = b.organization?.displayName || b.organization?.name || '';
+      const catColor = pd.category ? Utils.categoryColor(pd.category) : '#6366f1';
+      return `
+        <tr class="hover:bg-slate-800/30 transition-colors">
+          <td class="px-4 py-3">
+            <div class="font-semibold text-sm text-slate-100">${b.name}</div>
+            <div class="text-xs text-slate-400">${wsName ? `🏢 ${wsName}` : b.id.slice(0,8) + '…'}</div>
+          </td>
+          <td class="px-4 py-3">
+            <select class="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500" style="width:160px" id="type-${b.id}">
+              <option value="" ${!pd.type ? 'selected' : ''}>Auto-detectar</option>
+              <option value="retencion" ${pd.type==='retencion' ? 'selected' : ''}>♻️ Retención mensual</option>
+              <option value="unico"     ${pd.type==='unico'     ? 'selected' : ''}>📦 Proyecto único</option>
+            </select>
+            <div class="text-xs text-slate-500 mt-1">Detectado: ${Utils.typeLabel(Utils.resolveType(pd.type, wsName, b.name))}</div>
+          </td>
+          <td class="px-4 py-3">
+            <input type="text"
+              class="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500" style="width:140px"
+              id="category-${b.id}" value="${pd.category || ''}"
+              oninput="updateCategoryPreview('${b.id}')"
+              placeholder="ej: Empresa ABC">
+            <div id="preview-${b.id}" style="margin-top:4px;min-height:18px">
+              ${pd.category ? `<span style="padding:1px 8px;border-radius:999px;font-size:0.65rem;font-weight:600;background:${catColor}22;color:${catColor};border:1px solid ${catColor}44">${pd.category}</span>` : ''}
+            </div>
+          </td>
+          <td class="px-4 py-3">
+            <input type="text"
+              class="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500" style="width:160px"
+              id="alias-${b.id}" value="${pd.alias || ''}"
+              placeholder="${b.name}">
+            <div class="text-xs text-slate-500 mt-1">Vacío = usa nombre de Trello</div>
+          </td>
+          <td class="px-4 py-3">
+            <input type="month"
+              class="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500" style="width:140px"
+              id="period-${b.id}" value="${pd.period || ''}"
+              title="Periodo al que corresponde este tablero (ej: servicio de febrero 2025)">
+            <div class="text-xs text-slate-500 mt-1">${pd.period ? Utils.formatPeriod(pd.period) : 'Sin periodo'}</div>
+          </td>
+          <td class="px-4 py-3">
+            <input type="number" min="0" step="100"
+              class="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500" style="width:120px"
+              id="budget-${b.id}" value="${pd.budget}"
+              placeholder="0.00">
+          </td>
+          <td class="px-4 py-3">
+            <input type="number" min="0" step="100"
+              class="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500" style="width:120px"
+              id="revenue-${b.id}" value="${pd.revenue}"
+              placeholder="0.00">
+          </td>
+          <td class="px-4 py-3">
+            <input type="number" min="0" step="1"
+              class="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500" style="width:90px"
+              id="hours-${b.id}" value="${pd.hoursEstimated}"
+              placeholder="0">
+          </td>
+          <td class="px-4 py-3">
+            <select class="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500" style="width:80px" id="currency-${b.id}">
+              <option value="COP" ${pd.currency==='COP'?'selected':''}>COP</option>
+              <option value="USD" ${pd.currency==='USD'?'selected':''}>USD</option>
+              <option value="MXN" ${pd.currency==='MXN'?'selected':''}>MXN</option>
+              <option value="EUR" ${pd.currency==='EUR'?'selected':''}>EUR</option>
+            </select>
+          </td>
+        </tr>`;
+    }).join('');
+    Utils.makeSortable(tbody.closest('table'));
+  }
+
+  function saveAllFinancial() {
+    for (const b of allBoards) {
+      const budget = parseFloat(document.getElementById(`budget-${b.id}`)?.value) || 0;
+      const revenue = parseFloat(document.getElementById(`revenue-${b.id}`)?.value) || 0;
+      const hoursEstimated = parseFloat(document.getElementById(`hours-${b.id}`)?.value) || 0;
+      const currency = document.getElementById(`currency-${b.id}`)?.value || 'COP';
+      const category = (document.getElementById(`category-${b.id}`)?.value || '').trim();
+      const alias    = (document.getElementById(`alias-${b.id}`)?.value  || '').trim();
+      const period   = (document.getElementById(`period-${b.id}`)?.value  || '').trim();
+      const type     =  document.getElementById(`type-${b.id}`)?.value    || '';
+      Storage.saveProjectData(b.id, { budget, revenue, hoursEstimated, currency, category, alias, period, type });
+    }
+    Utils.showToast('Datos guardados ✓', 'success');
+  }
+
+  function updateCategoryPreview(boardId) {
+    const val = (document.getElementById(`category-${boardId}`)?.value || '').trim();
+    const el = document.getElementById(`preview-${boardId}`);
+    if (!el) return;
+    if (!val) { el.innerHTML = ''; return; }
+    const c = Utils.categoryColor(val);
+    el.innerHTML = `<span style="padding:1px 8px;border-radius:999px;font-size:0.65rem;font-weight:600;background:${c}22;color:${c};border:1px solid ${c}44">${val}</span>`;
+  }
+
+  function clearFinancial() {
+    if (!confirm('¿Borrar todos los datos financieros de proyectos?')) return;
+    localStorage.removeItem('ideaz_projects');
+    Utils.showToast('Datos financieros eliminados', 'warning');
+    renderProjectsTable();
+  }
+
+  function clearTime() {
+    if (!confirm('¿Borrar todos los registros de tiempo?')) return;
+    localStorage.removeItem('ideaz_time');
+    Utils.showToast('Registros de tiempo eliminados', 'warning');
+  }
+
+  function clearAll() {
+    if (!confirm('¿Borrar TODOS los datos guardados (incluyendo credenciales)?')) return;
+    localStorage.clear();
+    Utils.showToast('Todo eliminado', 'danger');
+    setTimeout(() => window.location.reload(), 1000);
+  }
+
+  function autoDetectAllPeriods() {
+    let filled = 0;
+    for (const b of allBoards) {
+      const inp = document.getElementById(`period-${b.id}`);
+      if (!inp || inp.value) continue; // skip if already set
+      const detected = Utils.autoDetectPeriod(b.name, b.dateLastActivity);
+      if (detected) { inp.value = detected; filled++; }
+    }
+    Utils.showToast(filled > 0 ? `${filled} periodo${filled > 1 ? 's' : ''} detectado${filled > 1 ? 's' : ''} ✓` : 'No se detectaron periodos nuevos', filled > 0 ? 'success' : 'warning');
+  }
+
+  function clearTrelloCache() {
+    TrelloCache.invalidateAll();
+    Utils.showToast('Caché de Trello limpiado ✓', 'success');
+  }
+</script>
+</body>
+</html>

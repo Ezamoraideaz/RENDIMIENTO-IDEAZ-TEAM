@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IDEAZ Dashboard – Rendimiento del Equipo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          colors: {
+            brand: { DEFAULT: '#6366f1', light: '#818cf8', dark: '#4f46e5' }
+          }
+        }
+      }
+    }
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <link rel="stylesheet" href="css/main.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="js/timeCalc.js"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans">
+
+<!-- SIDEBAR -->
+<aside class="fixed left-0 top-0 h-screen w-64 bg-slate-900 border-r border-slate-700 flex flex-col z-50 overflow-y-auto">
+  <!-- Logo -->
+  <div class="p-5 border-b border-slate-700 flex-shrink-0">
+    <a href="index.html" class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center">
+        <span class="text-white font-black text-sm">I</span>
+      </div>
+      <div>
+        <div class="font-black text-slate-100 leading-none">IDEAZ</div>
+        <div class="text-xs text-slate-400 font-medium">Dashboard</div>
+      </div>
+    </a>
+  </div>
+
+  <!-- Nav links -->
+  <nav class="p-3 border-b border-slate-700 flex-shrink-0">
+    <a href="index.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold bg-indigo-600/20 text-indigo-400 hover:bg-slate-800 transition-colors">
+      <span>📊</span> Dashboard
+    </a>
+    <a href="configuracion.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-slate-400 hover:bg-slate-800 transition-colors">
+      <span>⚙️</span> Configuración
+    </a>
+  </nav>
+
+  <!-- Filters section -->
+  <div class="p-3 flex-1 overflow-y-auto" id="sidebar-filters" style="display:none">
+    <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 px-1">Filtros</div>
+
+    <div class="mb-2">
+      <select id="filter-workspace" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 w-full" onchange="applyFilters()">
+        <option value="">Todos los espacios</option>
+      </select>
+    </div>
+
+    <div class="mb-2">
+      <select id="filter-type" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 w-full" onchange="applyFilters()">
+        <option value="">Todos los tipos</option>
+        <option value="retencion">♻️ Retención mensual</option>
+        <option value="unico">📦 Proyecto único</option>
+      </select>
+    </div>
+
+    <div class="mb-2">
+      <select id="filter-category" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 w-full" onchange="applyFilters()">
+        <option value="">Todas las categorías</option>
+      </select>
+    </div>
+
+    <div class="mb-2">
+      <select id="filter-period" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 w-full" onchange="applyFilters()">
+        <option value="">Todos los periodos</option>
+      </select>
+    </div>
+
+    <div class="mb-2">
+      <input type="text" id="search-projects"
+        class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 w-full"
+        placeholder="Buscar proyecto..."
+        oninput="applyFilters()">
+    </div>
+
+    <button class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-1.5 rounded-lg text-sm transition-colors w-full" onclick="clearFilters()" id="btn-clear-filters" style="display:none">✕ Limpiar filtros</button>
+
+    <div id="filter-info" class="text-xs text-slate-400 mt-2 px-1" style="display:none"></div>
+  </div>
+
+  <!-- Bottom status -->
+  <div class="p-3 border-t border-slate-700 flex-shrink-0">
+    <div class="flex items-center justify-between">
+      <span class="text-xs text-slate-400" id="last-updated"></span>
+      <button class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-2 py-1 rounded-lg text-xs transition-colors" onclick="loadDashboard(true)">↻</button>
+    </div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="ml-64 min-h-screen">
+
+  <!-- NOT AUTHENTICATED STATE -->
+  <div id="state-auth" style="display:none">
+    <div class="max-w-lg mx-auto mt-16 px-4">
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-10">
+        <div class="text-center mb-6">
+          <div class="text-5xl mb-3">📊</div>
+          <h1 class="text-2xl font-black text-slate-100">IDEAZ Dashboard</h1>
+          <p class="text-slate-400 text-sm mt-1">Rendimiento del equipo y proyectos</p>
+        </div>
+        <div class="flex gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-sm mb-4">
+          ⚠️ Necesitas conectar tu cuenta de Trello para ver el dashboard.
+        </div>
+        <a href="configuracion.html" class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2 w-full">
+          🔑 Ir a Configuración
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOADING STATE -->
+  <div id="state-loading" style="display:none">
+    <div class="flex flex-col items-center justify-center py-24 gap-4 text-slate-400">
+      <div class="w-10 h-10 border-2 border-slate-700 border-t-indigo-500 rounded-full animate-spin"></div>
+      <div class="text-sm">Cargando datos de Trello...</div>
+    </div>
+  </div>
+
+  <!-- ERROR STATE -->
+  <div id="state-error" style="display:none">
+    <div class="max-w-xl mx-auto mt-12 px-6">
+      <div class="flex gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
+        <div>
+          <strong>Error al cargar datos</strong><br>
+          <span id="error-msg"></span><br>
+          <a href="configuracion.html" class="underline opacity-80 hover:opacity-100">Verificar configuración →</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN DASHBOARD -->
+  <div id="state-dashboard" style="display:none">
+    <div class="p-6 max-w-screen-2xl mx-auto">
+
+      <!-- Header -->
+      <div class="flex justify-between items-center mb-6">
+        <div>
+          <h1 class="text-2xl font-black text-slate-100">📊 Dashboard de Rendimiento</h1>
+          <div class="text-xs text-slate-400 mt-1" id="user-greeting"></div>
+        </div>
+        <div class="flex gap-2 items-center">
+          <span id="boards-count-badge" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30"></span>
+          <button class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors" onclick="loadDashboard(true)">↻ Actualizar</button>
+        </div>
+      </div>
+
+      <!-- KPI GLOBAL -->
+      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Resumen Global</h2>
+      <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 mb-6" id="kpi-global"></div>
+
+      <!-- FINANCIAL KPIs -->
+      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Financiero</h2>
+      <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 mb-6" id="kpi-financial"></div>
+
+      <!-- CHARTS ROW 1 -->
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5">
+          <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Progreso por Proyecto</h2>
+          <div class="chart-container">
+            <canvas id="chart-progress"></canvas>
+          </div>
+        </div>
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5">
+          <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Presupuesto vs Ingresos</h2>
+          <div class="chart-container">
+            <canvas id="chart-financial"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- CHARTS ROW 2 -->
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5">
+          <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">ROI por Proyecto (%)</h2>
+          <div class="chart-container">
+            <canvas id="chart-roi"></canvas>
+          </div>
+        </div>
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5">
+          <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Distribución de Tarjetas</h2>
+          <div class="chart-container">
+            <canvas id="chart-cards"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- TREND SECTION -->
+      <div id="trend-section" style="display:none" class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4">
+        <div class="flex justify-between items-center mb-3">
+          <div>
+            <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-0">📈 Evolución mensual — <span id="trend-cat-name" class="text-indigo-300 normal-case"></span></h2>
+            <div class="text-xs text-slate-400 mt-1">Comparativo mes a mes del servicio recurrente</div>
+          </div>
+        </div>
+        <div id="trend-table-wrap" class="overflow-x-auto rounded-xl border border-slate-700"></div>
+      </div>
+
+      <!-- PROJECTS TABLE -->
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4">
+        <div class="flex justify-between items-center mb-3 flex-wrap gap-2">
+          <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-0">Proyectos (Tableros de Trello)</h2>
+        </div>
+        <div class="overflow-x-auto rounded-xl border border-slate-700">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b border-slate-700 bg-slate-800/50">
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Proyecto</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Tarjetas</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Progreso</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Horas Lab.</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Revisiones</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">T. Ciclo Prom.</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Presupuesto</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Ingresos</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Costo</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">ROI</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Última actividad</th>
+                <th class="px-4 py-3"></th>
+              </tr>
+            </thead>
+            <tbody id="projects-table-body" class="divide-y divide-slate-700/50"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TEAM PERFORMANCE -->
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4">
+        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Rendimiento del Equipo</h2>
+        <div class="overflow-x-auto rounded-xl border border-slate-700">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b border-slate-700 bg-slate-800/50">
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Miembro</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Tarjetas asignadas</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Completadas</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">% Completado</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Horas Lab. (Trello)</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Revisiones</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Sueldo mensual</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Costo total</th>
+              </tr>
+            </thead>
+            <tbody id="team-table-body" class="divide-y divide-slate-700/50"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- PROJECT CARDS GRID -->
+      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Vista Rápida de Proyectos</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="project-cards-grid"></div>
+
+      <div class="h-8"></div>
+    </div>
+  </div>
+
+</main>
+
+<script src="js/storage.js"></script>
+<script src="js/cache.js"></script>
+<script src="js/api.js"></script>
+<script src="js/utils.js"></script>
+<script>
+  let dashboardData = null;
+  let chartProgress, chartFinancial, chartROI, chartCards;
+
+  Chart.defaults.color = '#94a3b8';
+  Chart.defaults.borderColor = '#2d2d4e';
+  Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
+
+  function setState(name) {
+    ['state-auth','state-loading','state-error','state-dashboard'].forEach(id => {
+      document.getElementById(id).style.display = 'none';
+    });
+    document.getElementById('state-' + name).style.display = 'block';
+  }
+
+  async function loadDashboard(forceRefresh = false) {
+    if (!Storage.hasCredentials()) { setState('auth'); return; }
+
+    setState('loading');
+    const creds = Storage.getCredentials();
+    const api = new TrelloAPI(creds.key, creds.token, { forceRefresh });
+
+    try {
+      const me = await api.getMe();
+      document.getElementById('user-greeting').textContent =
+        `Hola, ${me.fullName} — @${me.username}`;
+
+      const boards = await api.getBoards();
+      document.getElementById('boards-count-badge').textContent =
+        `${boards.length} proyecto${boards.length !== 1 ? 's' : ''}`;
+
+      // Load all board details in parallel
+      const details = await Promise.all(
+        boards.map(b => api.getBoardWithDetails(b.id).catch(() => null))
+      );
+
+      // Build aggregated data
+      dashboardData = buildDashboardData(boards, details);
+      renderDashboard(dashboardData);
+
+      const age = TrelloCache.ageMinutes('boards');
+      const lastUpdatedEl = document.getElementById('last-updated');
+      if (!forceRefresh && age !== null && age > 1) {
+        lastUpdatedEl.innerHTML =
+          `<span style="color:#f59e0b" title="Los datos provienen del caché. Haz clic en Actualizar para obtener datos frescos de Trello.">Caché · hace ${age} min</span>`;
+      } else {
+        lastUpdatedEl.textContent = 'Actualizado: ' + new Date().toLocaleTimeString('es-MX');
+      }
+      setState('dashboard');
+    } catch (e) {
+      document.getElementById('error-msg').textContent = e.message;
+      setState('error');
+    }
+  }
+
+  function buildDashboardData(boards, details) {
+    const projectsData = [];
+    const memberStats = {};
+
+    boards.forEach((board, idx) => {
+      const detail = details[idx];
+      if (!detail) return;
+
+      const { lists, cards, members, actions } = detail;
+      const pd = Storage.getProjectData(board.id);
+
+      // Classify lists by workflow stage
+      const doneListIds = new Set(
+        lists.filter(l => TimeCalc.classifyList(l.name) === 'done').map(l => l.id)
+      );
+      const inProgressListIds = new Set(
+        lists.filter(l => TimeCalc.classifyList(l.name) === 'inProgress').map(l => l.id)
+      );
+
+      const openCards = cards.filter(c => !c.closed);
+      const doneCards = openCards.filter(c => doneListIds.has(c.idList) || c.dueComplete);
+      const progress = openCards.length > 0
+        ? Math.round((doneCards.length / openCards.length) * 100) : 0;
+
+      // Calculate time from Trello action history
+      const timelines   = TimeCalc.buildCardTimelines(actions || [], openCards);
+      const timeSummary = TimeCalc.calcProjectSummary(timelines);
+      const totalHours  = timeSummary.totalWorkHours; // working hours Mon-Fri
+      const totalRevisions = timeSummary.totalRevisions;
+
+      // Cost from member monthly salaries
+      const memberIds = [...new Set(openCards.flatMap(c => c.idMembers))];
+      const avgSalary = memberIds.length > 0
+        ? memberIds.reduce((s, id) => s + Storage.getMemberRate(id), 0) / memberIds.length
+        : 0;
+      const totalCost = totalHours * (avgSalary / Utils.MONTHLY_HOURS);
+      const roi = Utils.calcROI(pd.revenue, totalCost);
+
+      // Member stats
+      for (const m of members) {
+        if (!memberStats[m.id]) {
+          memberStats[m.id] = { id: m.id, name: m.fullName, username: m.username, assigned: 0, done: 0, hours: 0, revisions: 0 };
+        }
+        const myCards = openCards.filter(c => c.idMembers.includes(m.id));
+        const myDone  = myCards.filter(c => doneListIds.has(c.idList) || c.dueComplete);
+        // Assign hours from timelines where this member is assigned
+        const myHours = myCards.reduce((s, c) => {
+          const tl = timelines[c.id];
+          if (!tl || !tl.isStarted) return s;
+          // Split hours equally among assigned members
+          const share = c.idMembers.length > 0 ? 1 / c.idMembers.length : 1;
+          return s + tl.workingHours * share;
+        }, 0);
+        const myRevisions = myCards.reduce((s, c) => s + (timelines[c.id]?.revisions || 0), 0);
+
+        memberStats[m.id].assigned  += myCards.length;
+        memberStats[m.id].done      += myDone.length;
+        memberStats[m.id].hours     += myHours;
+        memberStats[m.id].revisions += myRevisions;
+      }
+
+      projectsData.push({
+        id: board.id,
+        name: board.name,
+        displayName: pd.alias || board.name,
+        category:  pd.category || '',
+        period:    pd.period   || '',
+        workspace: board.organization?.displayName || board.organization?.name || '',
+        type:      Utils.resolveType(pd.type, board.organization?.displayName || board.organization?.name || '', board.name),
+        url: board.shortUrl,
+        lastActivity: board.dateLastActivity,
+        lists, cards: openCards, doneCards, doneListIds, members,
+        progress,
+        totalCards:     openCards.length,
+        completedCards: doneCards.length,
+        totalHours,
+        totalRevisions,
+        avgCycleTime:   timeSummary.avgCycleTime,
+        avgSalary,
+        totalCost,
+        budget:         pd.budget,
+        revenue:        pd.revenue,
+        hoursEstimated: pd.hoursEstimated,
+        currency:       pd.currency || 'COP',
+        roi
+      });
+    });
+
+    return { projects: projectsData, members: Object.values(memberStats) };
+  }
+
+  function renderDashboard(data) {
+    const { projects, members } = data;
+
+    // Aggregate KPIs
+    const totalCards = projects.reduce((s, p) => s + p.totalCards, 0);
+    const totalDone  = projects.reduce((s, p) => s + p.completedCards, 0);
+    const globalPct  = totalCards > 0 ? Math.round(totalDone / totalCards * 100) : 0;
+    const totalHours = projects.reduce((s, p) => s + p.totalHours, 0);
+    const totalBudget  = projects.reduce((s, p) => s + p.budget, 0);
+    const totalRevenue = projects.reduce((s, p) => s + p.revenue, 0);
+    const totalCost    = projects.reduce((s, p) => s + p.totalCost, 0);
+    const globalROI    = Utils.calcROI(totalRevenue, totalCost);
+
+    // Global KPIs
+    document.getElementById('kpi-global').innerHTML = `
+      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-violet-500 rounded-2xl p-5">
+        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">📁 Proyectos Activos</div>
+        <div class="text-3xl font-black text-slate-100">${projects.length}</div>
+        <div class="text-xs text-slate-400 mt-1">tableros en Trello</div>
+      </div>
+      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-indigo-500 rounded-2xl p-5">
+        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">🗂 Tarjetas Totales</div>
+        <div class="text-3xl font-black text-slate-100">${Utils.fmt(totalCards)}</div>
+        <div class="text-xs text-slate-400 mt-1">${Utils.fmt(totalDone)} completadas</div>
+      </div>
+      <div class="bg-slate-900 border border-l-4 border-slate-700 ${globalPct >= 75 ? 'border-l-emerald-500' : globalPct >= 40 ? 'border-l-amber-500' : 'border-l-red-500'} rounded-2xl p-5">
+        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">✅ Progreso Global</div>
+        <div class="text-3xl font-black text-slate-100">${globalPct}%</div>
+        <div class="text-xs text-slate-400 mt-1">${totalDone} de ${totalCards} tarjetas</div>
+      </div>
+      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-cyan-500 rounded-2xl p-5">
+        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">👥 Miembros del Equipo</div>
+        <div class="text-3xl font-black text-slate-100">${members.length}</div>
+        <div class="text-xs text-slate-400 mt-1">en todos los proyectos</div>
+      </div>
+      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-amber-500 rounded-2xl p-5">
+        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">⏱ Horas Laborales (Trello)</div>
+        <div class="text-3xl font-black text-slate-100">${Utils.fmt(totalHours, 1)}</div>
+        <div class="text-xs text-slate-400 mt-1">calculadas desde actividad real</div>
+      </div>
+      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-red-500 rounded-2xl p-5">
+        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">🔄 Total Revisiones</div>
+        <div class="text-3xl font-black text-slate-100">${projects.reduce((s,p)=>s+p.totalRevisions,0)}</div>
+        <div class="text-xs text-slate-400 mt-1">cambios del cliente (todos los proyectos)</div>
+      </div>`;
+
+    // Financial KPIs
+    document.getElementById('kpi-financial').innerHTML = `
+      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-indigo-500 rounded-2xl p-5">
+        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">💰 Presupuesto Total</div>
+        <div class="text-2xl font-black text-slate-100">${Utils.fmtMoney(totalBudget)}</div>
+        <div class="text-xs text-slate-400 mt-1">suma de todos los proyectos</div>
+      </div>
+      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-emerald-500 rounded-2xl p-5">
+        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">📈 Ingresos Totales</div>
+        <div class="text-2xl font-black text-slate-100">${Utils.fmtMoney(totalRevenue)}</div>
+        <div class="text-xs text-slate-400 mt-1">suma de todos los proyectos</div>
+      </div>
+      <div class="bg-slate-900 border border-l-4 border-slate-700 ${totalCost > totalBudget ? 'border-l-red-500' : 'border-l-amber-500'} rounded-2xl p-5">
+        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">💸 Costo Total (calculado)</div>
+        <div class="text-2xl font-black text-slate-100">${Utils.fmtMoney(totalCost)}</div>
+        <div class="text-xs text-slate-400 mt-1">horas × tarifa promedio</div>
+      </div>
+      <div class="bg-slate-900 border border-l-4 border-slate-700 ${globalROI !== null && globalROI >= 0 ? 'border-l-emerald-500' : 'border-l-red-500'} rounded-2xl p-5">
+        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">📊 ROI Global</div>
+        <div class="text-2xl font-black text-slate-100">
+          ${globalROI !== null ? Utils.fmtPercent(globalROI) : '—'}
+        </div>
+        <div class="text-xs text-slate-400 mt-1">(Ingresos - Costo) / Costo</div>
+      </div>
+      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-violet-500 rounded-2xl p-5">
+        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">📉 Margen Neto</div>
+        <div class="text-2xl font-black text-slate-100">${Utils.fmtMoney(totalRevenue - totalCost)}</div>
+        <div class="text-xs text-slate-400 mt-1">ingresos − costo calculado</div>
+      </div>`;
+
+    renderCharts(projects);
+    renderProjectsTable(projects);
+    renderTeamTable(members);
+    renderProjectCards(projects);
+    populateFilters(projects);
+    applyFilters();
+
+    // Show sidebar filters
+    document.getElementById('sidebar-filters').style.display = 'block';
+  }
+
+  function renderCharts(projects) {
+    const names = projects.map(p => p.name.length > 20 ? p.name.slice(0,18)+'…' : p.name);
+
+    const chartCfg = {
+      plugins: { legend: { display: false } },
+      responsive: true,
+      maintainAspectRatio: false
+    };
+
+    // Chart 1: Progress
+    if (chartProgress) chartProgress.destroy();
+    chartProgress = new Chart(document.getElementById('chart-progress'), {
+      type: 'bar',
+      data: {
+        labels: names,
+        datasets: [{
+          label: 'Progreso %',
+          data: projects.map(p => p.progress),
+          backgroundColor: projects.map(p =>
+            p.progress >= 75 ? 'rgba(16,185,129,0.7)' :
+            p.progress >= 40 ? 'rgba(245,158,11,0.7)' : 'rgba(239,68,68,0.7)'
+          ),
+          borderRadius: 6,
+          borderSkipped: false
+        }]
+      },
+      options: {
+        ...chartCfg,
+        indexAxis: 'y',
+        scales: {
+          x: { min: 0, max: 100, grid: { color: '#2d2d4e' }, ticks: { callback: v => v + '%' } },
+          y: { grid: { display: false } }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => ` ${ctx.raw}% completado` } }
+        }
+      }
+    });
+
+    // Chart 2: Budget vs Revenue
+    if (chartFinancial) chartFinancial.destroy();
+    chartFinancial = new Chart(document.getElementById('chart-financial'), {
+      type: 'bar',
+      data: {
+        labels: names,
+        datasets: [
+          { label: 'Presupuesto', data: projects.map(p => p.budget), backgroundColor: 'rgba(59,130,246,0.7)', borderRadius: 4 },
+          { label: 'Ingresos',   data: projects.map(p => p.revenue), backgroundColor: 'rgba(16,185,129,0.7)', borderRadius: 4 },
+          { label: 'Costo',      data: projects.map(p => p.totalCost), backgroundColor: 'rgba(245,158,11,0.7)', borderRadius: 4 }
+        ]
+      },
+      options: {
+        ...chartCfg,
+        plugins: { legend: { display: true, labels: { color: '#94a3b8', boxWidth: 12 } } },
+        scales: {
+          x: { grid: { display: false } },
+          y: { grid: { color: '#2d2d4e' } }
+        }
+      }
+    });
+
+    // Chart 3: ROI
+    if (chartROI) chartROI.destroy();
+    const roiData = projects.map(p => p.roi !== null ? parseFloat(p.roi.toFixed(1)) : 0);
+    chartROI = new Chart(document.getElementById('chart-roi'), {
+      type: 'bar',
+      data: {
+        labels: names,
+        datasets: [{
+          label: 'ROI %',
+          data: roiData,
+          backgroundColor: roiData.map(v => v >= 0 ? 'rgba(16,185,129,0.7)' : 'rgba(239,68,68,0.7)'),
+          borderRadius: 6
+        }]
+      },
+      options: {
+        ...chartCfg,
+        scales: {
+          x: { grid: { display: false } },
+          y: { grid: { color: '#2d2d4e' }, ticks: { callback: v => v + '%' } }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => ` ROI: ${ctx.raw}%` } }
+        }
+      }
+    });
+
+    // Chart 4: Doughnut cards
+    if (chartCards) chartCards.destroy();
+    const totalDone = projects.reduce((s, p) => s + p.completedCards, 0);
+    const totalOpen = projects.reduce((s, p) => s + (p.totalCards - p.completedCards), 0);
+    chartCards = new Chart(document.getElementById('chart-cards'), {
+      type: 'doughnut',
+      data: {
+        labels: ['Completadas', 'En proceso'],
+        datasets: [{
+          data: [totalDone, totalOpen],
+          backgroundColor: ['rgba(16,185,129,0.8)', 'rgba(99,102,241,0.8)'],
+          borderColor: '#0f0f1a',
+          borderWidth: 3,
+          hoverOffset: 6
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: true, position: 'bottom', labels: { color: '#94a3b8', boxWidth: 12 } }
+        }
+      }
+    });
+  }
+
+  let allProjects = [];
+  function renderProjectsTable(projects) {
+    allProjects = projects;
+    const tbody = document.getElementById('projects-table-body');
+    if (!projects.length) {
+      tbody.innerHTML = '<tr><td colspan="10" class="text-slate-400 text-center py-8">No hay proyectos.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = projects.map(p => {
+      const pColor = Utils.progressColor(p.progress);
+      const roiClass = p.roi !== null ? (p.roi >= 0 ? 'text-emerald-400' : 'text-red-400') : '';
+      const progressBarColor = pColor === 'green' ? 'bg-emerald-500' : pColor === 'yellow' ? 'bg-amber-500' : 'bg-red-500';
+      return `
+        <tr class="hover:bg-slate-800/30 transition-colors">
+          <td class="px-4 py-3">
+            <a href="proyecto.html?id=${p.id}" style="color:#a5b4fc;text-decoration:none;font-weight:600">
+              ${p.displayName}
+            </a>
+            ${p.displayName !== p.name ? `<div class="text-xs text-slate-400" style="margin-top:1px">${p.name}</div>` : ''}
+            <div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;align-items:center">
+              ${p.category ? (() => { const c = Utils.categoryColor(p.category); return `<span style="padding:1px 7px;border-radius:999px;font-size:0.65rem;font-weight:600;background:${c}22;color:${c};border:1px solid ${c}44">${p.category}</span>`; })() : ''}
+              ${p.type ? (() => { const c = Utils.typeColor(p.type); return `<span style="padding:1px 7px;border-radius:999px;font-size:0.65rem;font-weight:600;background:${c}22;color:${c};border:1px solid ${c}44">${Utils.typeLabel(p.type)}</span>`; })() : ''}
+              ${p.workspace ? `<span class="text-xs text-slate-400">${p.workspace}</span>` : ''}
+            </div>
+          </td>
+          <td class="px-4 py-3">
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">${p.completedCards}/${p.totalCards}</span>
+          </td>
+          <td class="px-4 py-3" style="min-width:120px">
+            <div class="flex items-center gap-2">
+              <div class="w-full bg-slate-700 rounded-full h-1.5" style="flex:1">
+                <div class="h-1.5 rounded-full ${progressBarColor}" style="width:${p.progress}%"></div>
+              </div>
+              <span class="text-xs text-slate-300" style="width:36px;text-align:right">${p.progress}%</span>
+            </div>
+          </td>
+          <td class="px-4 py-3 text-sm text-slate-300">${p.totalHours > 0 ? Utils.fmtHours(p.totalHours) : '<span class="text-slate-500">—</span>'}</td>
+          <td class="px-4 py-3 text-sm">
+            ${p.totalRevisions > 0
+              ? `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30" title="Veces que regresó a 'Cambios del Cliente'">🔄 ${p.totalRevisions}</span>`
+              : '<span class="text-slate-500">0</span>'}
+          </td>
+          <td class="px-4 py-3 text-sm text-slate-400">${p.avgCycleTime > 0 ? Utils.fmtHours(p.avgCycleTime) : '—'}</td>
+          <td class="px-4 py-3 text-sm text-slate-300">${p.budget > 0 ? Utils.fmtMoney(p.budget, p.currency) : '<span class="text-slate-500">—</span>'}</td>
+          <td class="px-4 py-3 text-sm text-slate-300">${p.revenue > 0 ? Utils.fmtMoney(p.revenue, p.currency) : '<span class="text-slate-500">—</span>'}</td>
+          <td class="px-4 py-3 text-sm text-slate-300">${p.totalCost > 0 ? Utils.fmtMoney(p.totalCost, p.currency) : '<span class="text-slate-500">—</span>'}</td>
+          <td class="px-4 py-3 text-sm font-semibold ${roiClass}">
+            ${p.roi !== null ? Utils.fmtPercent(p.roi) : '<span class="text-slate-500">—</span>'}
+          </td>
+          <td class="px-4 py-3 text-xs text-slate-400">${Utils.timeSince(p.lastActivity)}</td>
+          <td class="px-4 py-3">
+            <a href="proyecto.html?id=${p.id}" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-1.5 rounded-lg text-xs transition-colors">Ver →</a>
+          </td>
+        </tr>`;
+    }).join('');
+    Utils.makeSortable(tbody.closest('table'));
+  }
+
+  function populateFilters(projects) {
+    const workspaces = [...new Set(projects.map(p => p.workspace).filter(Boolean))].sort();
+    const cats       = [...new Set(projects.map(p => p.category).filter(Boolean))].sort();
+    const periods    = [...new Set(projects.map(p => p.period).filter(Boolean))].sort();
+
+    const wsSel  = document.getElementById('filter-workspace');
+    const catSel = document.getElementById('filter-category');
+    const perSel = document.getElementById('filter-period');
+    const prevWs  = wsSel.value;
+    const prevCat = catSel.value;
+    const prevPer = perSel.value;
+
+    wsSel.innerHTML  = '<option value="">Todos los espacios</option>' +
+      workspaces.map(w => `<option value="${w}" ${w === prevWs ? 'selected' : ''}>${w}</option>`).join('');
+    catSel.innerHTML = '<option value="">Todas las categorías</option>' +
+      cats.map(c => `<option value="${c}" ${c === prevCat ? 'selected' : ''}>${c}</option>`).join('');
+    perSel.innerHTML = '<option value="">Todos los periodos</option>' +
+      periods.map(p => `<option value="${p}" ${p === prevPer ? 'selected' : ''}>${Utils.formatPeriod(p)}</option>`).join('');
+  }
+
+  function applyFilters() {
+    if (!dashboardData) return;
+    const ws  = document.getElementById('filter-workspace').value;
+    const typ = document.getElementById('filter-type').value;
+    const cat = document.getElementById('filter-category').value;
+    const per = document.getElementById('filter-period').value;
+    const q   = (document.getElementById('search-projects')?.value || '').toLowerCase().trim();
+    const hasFilter = ws || typ || cat || per || q;
+
+    let filtered = dashboardData.projects;
+    if (ws)  filtered = filtered.filter(p => p.workspace === ws);
+    if (typ) filtered = filtered.filter(p => p.type      === typ);
+    if (cat) filtered = filtered.filter(p => p.category  === cat);
+    if (per) filtered = filtered.filter(p => p.period    === per);
+    if (q)   filtered = filtered.filter(p =>
+      p.displayName.toLowerCase().includes(q) || p.name.toLowerCase().includes(q) ||
+      (p.workspace || '').toLowerCase().includes(q) || (p.category || '').toLowerCase().includes(q));
+
+    document.getElementById('btn-clear-filters').style.display = hasFilter ? '' : 'none';
+    const info = document.getElementById('filter-info');
+    if (hasFilter) {
+      info.style.display = '';
+      info.textContent = `Mostrando ${filtered.length} de ${dashboardData.projects.length} proyectos`;
+    } else {
+      info.style.display = 'none';
+    }
+
+    renderProjectsTable(filtered);
+    renderProjectCards(filtered);
+
+    // Tendencia mensual: mostrar cuando se filtra por workspace o categoría con tipo retención
+    const trendKey = ws || cat;
+    if (trendKey) {
+      const trendProjects = dashboardData.projects.filter(p =>
+        (!ws  || p.workspace === ws) &&
+        (!cat || p.category  === cat) &&
+        p.type === 'retencion'
+      );
+      if (trendProjects.length > 0) renderTrendSection(trendKey, trendProjects);
+      else document.getElementById('trend-section').style.display = 'none';
+    } else {
+      document.getElementById('trend-section').style.display = 'none';
+    }
+  }
+
+  function clearFilters() {
+    ['filter-workspace','filter-type','filter-category','filter-period'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.value = '';
+    });
+    const srch = document.getElementById('search-projects');
+    if (srch) srch.value = '';
+    applyFilters();
+  }
+
+  function renderTrendSection(catName, projects) {
+    const section = document.getElementById('trend-section');
+    const byPeriod = {};
+    for (const p of projects) {
+      const key = p.period || '__sin_periodo__';
+      if (!byPeriod[key]) byPeriod[key] = [];
+      byPeriod[key].push(p);
+    }
+    const periods = Object.keys(byPeriod).sort();
+    if (periods.length < 2) { section.style.display = 'none'; return; }
+
+    document.getElementById('trend-cat-name').textContent = catName;
+
+    // Calculate prev-period deltas for trend arrows
+    const periodData = periods.map(per => {
+      const ps = byPeriod[per];
+      const hours    = ps.reduce((s, p) => s + p.totalHours, 0);
+      const cost     = ps.reduce((s, p) => s + p.totalCost, 0);
+      const revs     = ps.reduce((s, p) => s + p.totalRevisions, 0);
+      const revenue  = ps.reduce((s, p) => s + p.revenue, 0);
+      const roi      = Utils.calcROI(revenue, cost);
+      return { per, count: ps.length, hours, cost, revs, revenue, roi };
+    });
+
+    const arrow = (cur, prev, lowerIsBetter = false) => {
+      if (prev === undefined || prev === null || cur === null) return '';
+      const up = cur > prev;
+      const good = lowerIsBetter ? !up : up;
+      return up
+        ? `<span style="color:${good ? '#10b981' : '#ef4444'};font-size:0.75em">▲</span>`
+        : `<span style="color:${good ? '#10b981' : '#ef4444'};font-size:0.75em">▼</span>`;
+    };
+
+    const rows = periodData.map((d, i) => {
+      const prev = i > 0 ? periodData[i - 1] : null;
+      return `<tr class="hover:bg-slate-800/30 transition-colors">
+        <td class="px-4 py-3 font-semibold text-slate-100" style="white-space:nowrap">${d.per === '__sin_periodo__' ? '—' : Utils.formatPeriod(d.per)}</td>
+        <td class="px-4 py-3 text-slate-300">${d.count}</td>
+        <td class="px-4 py-3 text-slate-300">${Utils.fmtHours(d.hours)} ${arrow(d.hours, prev?.hours, true)}</td>
+        <td class="px-4 py-3 text-slate-300">${d.revs} ${arrow(d.revs, prev?.revs, true)}</td>
+        <td class="px-4 py-3 text-slate-300">${Utils.fmtMoney(d.cost, 'COP')} ${arrow(d.cost, prev?.cost, true)}</td>
+        <td class="px-4 py-3 text-slate-300">${d.revenue > 0 ? Utils.fmtMoney(d.revenue, 'COP') : '<span class="text-slate-500">—</span>'}</td>
+        <td class="px-4 py-3 ${d.roi !== null ? (d.roi >= 0 ? 'text-emerald-400' : 'text-red-400') : 'text-slate-400'}">
+          ${d.roi !== null ? Utils.fmtPercent(d.roi) : '<span class="text-slate-500">—</span>'}
+          ${arrow(d.roi, prev?.roi)}
+        </td>
+      </tr>`;
+    }).join('');
+
+    document.getElementById('trend-table-wrap').innerHTML = `
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-slate-700 bg-slate-800/50">
+            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Periodo</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Tableros</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Horas activas</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Revisiones</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Costo total</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Ingresos</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">ROI</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-700/50">${rows}</tbody>
+      </table>`;
+    Utils.makeSortable(document.getElementById('trend-table-wrap').querySelector('table'));
+    section.style.display = 'block';
+  }
+
+  function filterProjects(q) {
+    const rows = document.querySelectorAll('#projects-table-body tr');
+    rows.forEach(row => {
+      const text = row.textContent.toLowerCase();
+      row.style.display = text.includes(q.toLowerCase()) ? '' : 'none';
+    });
+  }
+
+  function renderTeamTable(members) {
+    const tbody = document.getElementById('team-table-body');
+    if (!members.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="text-slate-400 text-center py-8">No hay miembros.</td></tr>';
+      return;
+    }
+    const sorted = [...members].sort((a, b) => b.assigned - a.assigned);
+    tbody.innerHTML = sorted.map(m => {
+      const pct = m.assigned > 0 ? Math.round(m.done / m.assigned * 100) : 0;
+      const salary = Storage.getMemberRate(m.id);
+      const cost = m.hours * (salary / Utils.MONTHLY_HOURS);
+      const progressBarColor = Utils.progressColor(pct) === 'green' ? 'bg-emerald-500' : Utils.progressColor(pct) === 'yellow' ? 'bg-amber-500' : 'bg-red-500';
+      return `
+        <tr class="hover:bg-slate-800/30 transition-colors">
+          <td class="px-4 py-3">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white" style="background:${Utils.avatarColor(m.id)}">${Utils.initials(m.name)}</div>
+              <div>
+                <div class="font-semibold text-sm text-slate-100">${m.name}</div>
+                <div class="text-xs text-slate-400">@${m.username}</div>
+              </div>
+            </div>
+          </td>
+          <td class="px-4 py-3 text-slate-300">${Utils.fmt(m.assigned)}</td>
+          <td class="px-4 py-3 text-slate-300">${Utils.fmt(m.done)}</td>
+          <td class="px-4 py-3">
+            <div class="flex items-center gap-2">
+              <div class="w-full bg-slate-700 rounded-full h-1.5" style="width:80px">
+                <div class="h-1.5 rounded-full ${progressBarColor}" style="width:${pct}%"></div>
+              </div>
+              <span class="text-xs text-slate-300">${pct}%</span>
+            </div>
+          </td>
+          <td class="px-4 py-3 text-sm text-slate-300">${m.hours > 0 ? Utils.fmtHours(m.hours) : '<span class="text-slate-500">—</span>'}</td>
+          <td class="px-4 py-3 text-sm">${m.revisions > 0 ? `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30">🔄 ${m.revisions}</span>` : '<span class="text-slate-500">0</span>'}</td>
+          <td class="px-4 py-3 text-sm text-slate-300">${salary > 0 ? Utils.fmtMoney(salary, 'COP') + '/mes' : '<span class="text-slate-500">—</span>'}</td>
+          <td class="px-4 py-3 text-sm font-semibold text-slate-100">${cost > 0 ? Utils.fmtMoney(cost, 'COP') : '<span class="text-slate-500">—</span>'}</td>
+        </tr>`;
+    }).join('');
+    Utils.makeSortable(tbody.closest('table'));
+  }
+
+  function renderProjectCards(projects) {
+    const grid = document.getElementById('project-cards-grid');
+    grid.innerHTML = projects.map(p => {
+      const pColor = Utils.progressColor(p.progress);
+      const progressBarColor = pColor === 'green' ? 'bg-emerald-500' : pColor === 'yellow' ? 'bg-amber-500' : 'bg-red-500';
+      const roiText = p.roi !== null ? Utils.fmtPercent(p.roi) : '—';
+      const roiBadge = p.roi !== null
+        ? (p.roi >= 0
+          ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+          : 'bg-red-500/20 text-red-400 border-red-500/30')
+        : 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30';
+      const memberAvatars = p.members.slice(0, 5).map(m =>
+        `<div class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white" style="background:${Utils.avatarColor(m.id)}" title="${m.fullName}">${Utils.initials(m.fullName)}</div>`
+      ).join('');
+      return `
+        <a href="proyecto.html?id=${p.id}" class="bg-slate-900 border border-slate-700 rounded-2xl p-5 block cursor-pointer transition-all hover:border-indigo-500 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-500/10 text-inherit no-underline" style="text-decoration:none;color:inherit">
+          <div class="flex justify-between items-center mb-1">
+            <div class="font-semibold text-slate-100 truncate max-w-[200px]">${p.displayName}</div>
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${roiBadge}">ROI ${roiText}</span>
+          </div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:5px">
+            ${p.category ? (() => { const c = Utils.categoryColor(p.category); return `<span style="padding:1px 8px;border-radius:999px;font-size:0.65rem;font-weight:600;background:${c}22;color:${c};border:1px solid ${c}44">${p.category}</span>`; })() : ''}
+            ${p.type ? (() => { const c = Utils.typeColor(p.type); return `<span style="padding:1px 8px;border-radius:999px;font-size:0.65rem;font-weight:600;background:${c}22;color:${c};border:1px solid ${c}44">${Utils.typeLabel(p.type)}</span>`; })() : ''}
+          </div>
+          ${p.displayName !== p.name ? `<div class="text-xs text-slate-400 mb-1 -mt-0.5">${p.name}</div>` : ''}
+          <div class="flex justify-between text-xs text-slate-400 mb-2">
+            <span>${p.totalCards} tarjetas</span>
+            <span>${Utils.timeSince(p.lastActivity)}</span>
+          </div>
+          <div class="w-full bg-slate-700 rounded-full h-1.5 mb-2">
+            <div class="h-1.5 rounded-full ${progressBarColor}" style="width:${p.progress}%"></div>
+          </div>
+          <div class="flex justify-between items-center">
+            <div class="flex items-center gap-1 text-xs text-slate-400">
+              <span>${p.progress}% completado</span>
+            </div>
+            <div class="avatar-stack">${memberAvatars}</div>
+          </div>
+          ${p.revenue > 0 ? `
+          <div class="border-t border-slate-700 mt-3 pt-3 flex justify-between text-xs">
+            <span class="text-slate-400">Ingresos: <strong class="text-emerald-400">${Utils.fmtMoney(p.revenue, p.currency)}</strong></span>
+            <span class="text-slate-400">Ppto: <strong class="text-slate-200">${Utils.fmtMoney(p.budget, p.currency)}</strong></span>
+          </div>` : ''}
+        </a>`;
+    }).join('');
+  }
+
+  // Initial load
+  loadDashboard();
+</script>
+</body>
+</html>

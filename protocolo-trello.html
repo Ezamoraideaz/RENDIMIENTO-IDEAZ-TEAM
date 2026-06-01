@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Protocolo Trello · IDEAZ Agency</title>
+  <style>
+    :root {
+      --brand: #6366f1;
+      --brand2: #8b5cf6;
+      --green: #10b981;
+      --red: #ef4444;
+      --yellow: #f59e0b;
+      --cyan: #06b6d4;
+      --bg: #0a0a18;
+      --surface: #13132a;
+      --surface2: #1a1a35;
+      --border: #2a2a50;
+      --text: #e2e8f0;
+      --muted: #64748b;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    /* ── HERO ── */
+    .hero {
+      background: linear-gradient(135deg, #0d0d22 0%, #1a0a3a 50%, #0a1a2a 100%);
+      padding: 80px 24px 60px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      border-bottom: 1px solid var(--border);
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 70% 60% at 50% 0%, rgba(99,102,241,0.18) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-badge {
+      display: inline-block;
+      padding: 5px 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(99,102,241,0.5);
+      background: rgba(99,102,241,0.12);
+      color: #a5b4fc;
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+    }
+    .hero h1 {
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      margin-bottom: 16px;
+      background: linear-gradient(135deg, #e2e8f0 0%, #a5b4fc 50%, #818cf8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero p {
+      font-size: 1.05rem;
+      color: #94a3b8;
+      max-width: 560px;
+      margin: 0 auto 32px;
+    }
+    .hero-meta {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      flex-wrap: wrap;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+    .hero-meta span { display: flex; align-items: center; gap: 6px; }
+
+    /* ── NAV BAR ── */
+    nav.top-nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(10,10,24,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      gap: 0;
+      overflow-x: auto;
+    }
+    .nav-brand {
+      font-weight: 800;
+      font-size: 0.9rem;
+      color: #a5b4fc;
+      white-space: nowrap;
+      padding: 14px 20px 14px 0;
+      border-right: 1px solid var(--border);
+      margin-right: 16px;
+      flex-shrink: 0;
+    }
+    nav.top-nav a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.82rem;
+      font-weight: 500;
+      padding: 14px 14px;
+      white-space: nowrap;
+      transition: color 0.15s;
+    }
+    nav.top-nav a:hover { color: var(--text); }
+
+    /* ── LAYOUT ── */
+    .container { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+    .section { padding: 60px 0 20px; }
+    .section-title {
+      font-size: 1.4rem;
+      font-weight: 800;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .section-sub {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-bottom: 28px;
+    }
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 48px 0;
+    }
+
+    /* ── ALERT ── */
+    .alert {
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      font-size: 0.88rem;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .alert-warning { background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); color: #fcd34d; }
+    .alert-info    { background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.3); color: #a5b4fc; }
+    .alert-danger  { background: rgba(239,68,68,0.1);  border: 1px solid rgba(239,68,68,0.3);  color: #fca5a5; }
+
+    /* ── STAGES FLOW ── */
+    .stages-flow {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 32px;
+    }
+    .stage-row {
+      display: grid;
+      grid-template-columns: 28px 180px 1fr 120px;
+      align-items: center;
+      gap: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 16px;
+      transition: border-color 0.2s;
+    }
+    .stage-row:hover { border-color: var(--brand); }
+    .stage-num {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.75rem; font-weight: 700;
+      flex-shrink: 0;
+    }
+    .stage-name {
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+    .stage-desc {
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+    .stage-clock {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 999px;
+      text-align: center;
+      white-space: nowrap;
+    }
+    .clock-running { background: rgba(16,185,129,0.15); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.3); }
+    .clock-paused  { background: rgba(245,158,11,0.12); color: #fcd34d; border: 1px solid rgba(245,158,11,0.3); }
+    .clock-stopped { background: rgba(100,116,139,0.15); color: #94a3b8; border: 1px solid rgba(100,116,139,0.3); }
+
+    /* ── RULES ── */
+    .rule-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-bottom: 12px;
+    }
+    .rule-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .rule-code {
+      background: rgba(99,102,241,0.15);
+      border: 1px solid rgba(99,102,241,0.3);
+      color: #a5b4fc;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 2px 9px;
+      border-radius: 6px;
+      font-family: monospace;
+      flex-shrink: 0;
+    }
+    .rule-title {
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+    .rule-body {
+      font-size: 0.86rem;
+      color: #94a3b8;
+      line-height: 1.7;
+    }
+    .rule-body strong { color: var(--text); }
+    .rule-why {
+      margin-top: 10px;
+      padding: 10px 14px;
+      background: var(--surface2);
+      border-radius: 8px;
+      font-size: 0.8rem;
+      color: var(--muted);
+      border-left: 3px solid var(--brand);
+    }
+    .rule-why strong { color: #a5b4fc; }
+
+    /* ── MOVEMENT TABLE ── */
+    .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 24px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+    thead th {
+      background: var(--surface2);
+      padding: 12px 16px;
+      text-align: left;
+      font-weight: 700;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    tbody td {
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      vertical-align: top;
+    }
+    tbody tr:hover td { background: rgba(255,255,255,0.02); }
+    .pill {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .pill-pm   { background: rgba(99,102,241,0.15); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.3); }
+    .pill-cm   { background: rgba(6,182,212,0.15);  color: #67e8f9; border: 1px solid rgba(6,182,212,0.3); }
+    .pill-dis  { background: rgba(245,158,11,0.15); color: #fcd34d; border: 1px solid rgba(245,158,11,0.3); }
+
+    /* ── TIMELINE MILESTONES ── */
+    .milestones {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .milestone {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      text-align: center;
+    }
+    .milestone-day {
+      font-size: 1.8rem;
+      font-weight: 900;
+      color: var(--brand);
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+    .milestone-pct {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--green);
+      display: block;
+      margin-bottom: 4px;
+    }
+    .milestone-desc {
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    /* ── DASHBOARD MONITOR ── */
+    .monitor-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px;
+    }
+    .monitor-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 20px;
+    }
+    .monitor-indicator {
+      font-size: 1.2rem;
+      margin-bottom: 8px;
+    }
+    .monitor-title { font-weight: 700; font-size: 0.88rem; margin-bottom: 6px; }
+    .monitor-action { font-size: 0.8rem; color: var(--muted); }
+    .monitor-action strong { color: #fcd34d; }
+
+    /* ── CONSEQUENCES ── */
+    .consequence-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+    .consequence-list li {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      font-size: 0.88rem;
+      color: #94a3b8;
+    }
+    .consequence-list li strong { color: var(--text); }
+    .consequence-icon {
+      width: 28px; height: 28px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.85rem;
+      flex-shrink: 0;
+      margin-top: 1px;
+      background: rgba(239,68,68,0.12);
+    }
+
+    /* ── FOOTER ── */
+    .footer {
+      margin-top: 80px;
+      padding: 40px 24px;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+    .footer strong { color: var(--text); }
+
+    /* ── PRINT ── */
+    @media print {
+      nav.top-nav { display: none; }
+      .hero { padding: 40px 24px 30px; }
+      .section { padding: 30px 0 10px; }
+      .stage-row, .rule-card, .monitor-card, .milestone { break-inside: avoid; }
+      body { background: white; color: #111; }
+      :root { --bg: white; --surface: #f8f9fa; --surface2: #f1f3f5; --border: #dee2e6; --text: #111; --muted: #666; }
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 640px) {
+      .stage-row { grid-template-columns: 28px 1fr; }
+      .stage-clock { display: none; }
+      .hero h1 { font-size: 1.8rem; }
+    }
+  </style>
+</head>
+<body>
+
+<nav class="top-nav">
+  <span class="nav-brand">IDEAZ Agency</span>
+  <a href="#stages">Etapas</a>
+  <a href="#asignacion">Asignación</a>
+  <a href="#movimientos">Movimientos</a>
+  <a href="#tiempos">Tiempos</a>
+  <a href="#ciclo">Ciclo mensual</a>
+  <a href="#monitor">Dashboard</a>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-badge">Protocolo Oficial · Contratos de Marketing</div>
+  <h1>Protocolo de uso<br>de Trello</h1>
+  <p>Reglas obligatorias para garantizar mediciones precisas de tiempo, costo y rendimiento en todos los proyectos de marketing mensual.</p>
+  <div class="hero-meta">
+    <span>📋 8 secciones de reglas</span>
+    <span>👥 PM · Community Manager · Diseñadores</span>
+    <span>🔄 Contratos de retención mensual</span>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- WHY -->
+  <div class="section">
+    <div class="alert alert-warning">
+      <span style="font-size:1.2rem;flex-shrink:0">⚠️</span>
+      <div>
+        <strong>Por qué estas reglas son obligatorias:</strong> El dashboard calcula automáticamente el costo real de cada entregable, el ROI del cliente y el rendimiento del equipo <strong>basándose únicamente en cómo se mueven las tarjetas en Trello</strong>. Si el movimiento es incorrecto, los números son incorrectos. <strong>Un error en Trello es un error financiero.</strong>
+      </div>
+    </div>
+  </div>
+
+  <!-- STAGES -->
+  <div class="section" id="stages">
+    <div class="section-title">📋 Las 7 etapas del flujo</div>
+    <div class="section-sub">Cada lista en Trello tiene un significado exacto. <strong style="color:#fcd34d">Los nombres NO se pueden cambiar</strong> — el sistema los detecta por nombre exacto.</div>
+
+    <div class="stages-flow">
+
+      <div class="stage-row" style="border-left: 3px solid #64748b">
+        <div class="stage-num" style="background:rgba(100,116,139,0.2);color:#94a3b8">1</div>
+        <div class="stage-name" style="color:#94a3b8">Tareas</div>
+        <div class="stage-desc">Asignada por PM o CM. Pendiente de iniciar. El responsable aún no ha comenzado.</div>
+        <span class="stage-clock clock-stopped">⬜ Detenido</span>
+      </div>
+
+      <div class="stage-row" style="border-left: 3px solid #6366f1">
+        <div class="stage-num" style="background:rgba(99,102,241,0.2);color:#a5b4fc">2</div>
+        <div class="stage-name" style="color:#a5b4fc">En Proceso</div>
+        <div class="stage-desc">El responsable asignado está trabajando activamente en este momento.</div>
+        <span class="stage-clock clock-running">✅ Reloj corre</span>
+      </div>
+
+      <div class="stage-row" style="border-left: 3px solid #f59e0b">
+        <div class="stage-num" style="background:rgba(245,158,11,0.2);color:#fcd34d">3</div>
+        <div class="stage-name" style="color:#fcd34d">Enviado</div>
+        <div class="stage-desc">En espera de revisión interna o del cliente. El equipo no está trabajando en ella.</div>
+        <span class="stage-clock clock-paused">⏸ Pausado</span>
+      </div>
+
+      <div class="stage-row" style="border-left: 3px solid #ef4444">
+        <div class="stage-num" style="background:rgba(239,68,68,0.2);color:#fca5a5">4</div>
+        <div class="stage-name" style="color:#fca5a5">Cambios</div>
+        <div class="stage-desc">Con correcciones activas. El equipo está trabajando en los ajustes solicitados.</div>
+        <span class="stage-clock clock-running">✅ Reloj corre</span>
+      </div>
+
+      <div class="stage-row" style="border-left: 3px solid #10b981">
+        <div class="stage-num" style="background:rgba(16,185,129,0.2);color:#6ee7b7">5</div>
+        <div class="stage-name" style="color:#6ee7b7">Aprobado</div>
+        <div class="stage-desc">Aprobado por cliente y equipo interno. Listo para pasar a producción final.</div>
+        <span class="stage-clock clock-stopped">⬜ Detenido</span>
+      </div>
+
+      <div class="stage-row" style="border-left: 3px solid #10b981">
+        <div class="stage-num" style="background:rgba(16,185,129,0.2);color:#6ee7b7">6</div>
+        <div class="stage-name" style="color:#6ee7b7">Montado en Drive</div>
+        <div class="stage-desc">El diseñador subió los archivos finales al Drive compartido para publicación.</div>
+        <span class="stage-clock clock-stopped">⬜ Detenido</span>
+      </div>
+
+      <div class="stage-row" style="border-left: 3px solid #8b5cf6">
+        <div class="stage-num" style="background:rgba(139,92,246,0.2);color:#c4b5fd">7</div>
+        <div class="stage-name" style="color:#c4b5fd">Publicado</div>
+        <div class="stage-desc">Ejecutado y publicado en redes sociales según la estrategia definida. Ciclo completo.</div>
+        <span class="stage-clock clock-stopped">⬜ Detenido</span>
+      </div>
+
+    </div>
+
+    <div class="alert alert-info">
+      <span style="font-size:1.1rem;flex-shrink:0">💡</span>
+      <div>El <strong>costo real por tarjeta</strong> = horas que estuvo en <strong>En Proceso</strong> + horas que estuvo en <strong>Cambios</strong> × tarifa equivalente por hora del responsable. El reloj se pausa en <strong>Enviado</strong> porque el equipo está esperando, no trabajando.</div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ASIGNACION -->
+  <div class="section" id="asignacion">
+    <div class="section-title">👤 Reglas de asignación</div>
+    <div class="section-sub">Cómo se crean y asignan las tarjetas correctamente</div>
+
+    <div class="rule-card">
+      <div class="rule-header">
+        <span class="rule-code">R-01</span>
+        <span class="rule-title">Un contenido = una tarjeta = un responsable principal</span>
+      </div>
+      <div class="rule-body">
+        Cada pieza de contenido tiene <strong>una sola persona asignada</strong> como ejecutor. Si el diseñador hace el arte y la CM hace el copy, son <strong>dos tarjetas separadas</strong>.
+      </div>
+      <div class="rule-why">
+        <strong>¿Por qué?</strong> El sistema calcula el costo dividiendo el sueldo entre los asignados. Si hay 3 personas en una tarjeta que solo trabajó 1, el costo aparece 3 veces menor de lo real — el proyecto parecerá más rentable de lo que es.
+      </div>
+    </div>
+
+    <div class="rule-card">
+      <div class="rule-header">
+        <span class="rule-code">R-02</span>
+        <span class="rule-title">El PM o CM crea todas las tarjetas al inicio del ciclo</span>
+      </div>
+      <div class="rule-body">
+        Las tarjetas del mes deben estar creadas en <strong>Tareas</strong> dentro de los primeros <strong>3 días calendario</strong> del ciclo. <strong>El diseñador no crea sus propias tarjetas.</strong>
+      </div>
+    </div>
+
+    <div class="rule-card">
+      <div class="rule-header">
+        <span class="rule-code">R-03</span>
+        <span class="rule-title">Formato obligatorio del nombre de tarjeta</span>
+      </div>
+      <div class="rule-body">
+        Cada tarjeta debe seguir este formato:<br><br>
+        <code style="background:var(--surface2);padding:6px 12px;border-radius:6px;font-size:0.85rem;display:inline-block;margin-bottom:10px">[TIPO] Descripción del contenido — Red social</code><br><br>
+        <strong>Ejemplos correctos:</strong><br>
+        ✅ <code style="color:#6ee7b7">POST Lanzamiento Producto — Instagram</code><br>
+        ✅ <code style="color:#6ee7b7">REELS Tutorial Uso — TikTok</code><br>
+        ✅ <code style="color:#6ee7b7">STORY Promoción 2x1 — Facebook</code><br>
+        ✅ <code style="color:#6ee7b7">BANNER Campaña Mayo — Web</code><br><br>
+        Cada tarjeta también debe tener <strong>responsable asignado</strong> y <strong>fecha límite (due date)</strong>.
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- MOVIMIENTOS -->
+  <div class="section" id="movimientos">
+    <div class="section-title">🔄 Reglas de movimiento</div>
+    <div class="section-sub">Quién mueve cada tarjeta y en qué momento exacto</div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Movimiento</th>
+            <th>Quién lo hace</th>
+            <th>Cuándo exactamente</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Tareas → En Proceso</strong></td>
+            <td><span class="pill pill-dis">Diseñador / CM</span></td>
+            <td>En el momento <strong>exacto</strong> que comienza a trabajar. No antes, no después.</td>
+          </tr>
+          <tr>
+            <td><strong>En Proceso → Enviado</strong></td>
+            <td><span class="pill pill-dis">Diseñador / CM</span></td>
+            <td>En el momento <strong>exacto</strong> que envía para revisión.</td>
+          </tr>
+          <tr>
+            <td><strong>Enviado → Cambios</strong></td>
+            <td><span class="pill pill-pm">PM</span> <span class="pill pill-cm">CM</span></td>
+            <td>Cuando recibe las correcciones (del cliente o del equipo interno). <strong style="color:#fca5a5">El diseñador NO mueve esta tarjeta.</strong></td>
+          </tr>
+          <tr>
+            <td><strong>Cambios → En Proceso</strong></td>
+            <td><span class="pill pill-dis">Diseñador</span></td>
+            <td>Cuando retoma el trabajo sobre las correcciones.</td>
+          </tr>
+          <tr>
+            <td><strong>En Proceso / Cambios → Aprobado</strong></td>
+            <td><span class="pill pill-pm">PM</span> <span class="pill pill-cm">CM</span></td>
+            <td>Solo cuando hay aprobación completa: cliente + equipo interno. <strong style="color:#fca5a5">Nunca mover a Aprobado sin confirmación.</strong></td>
+          </tr>
+          <tr>
+            <td><strong>Aprobado → Montado en Drive</strong></td>
+            <td><span class="pill pill-dis">Diseñador</span></td>
+            <td>Cuando sube los archivos finales y organizados al Drive compartido.</td>
+          </tr>
+          <tr>
+            <td><strong>Montado en Drive → Publicado</strong></td>
+            <td><span class="pill pill-cm">CM</span></td>
+            <td>En el <strong>momento exacto</strong> de la publicación en redes sociales.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="rule-card" style="border-left: 3px solid var(--red)">
+      <div class="rule-header">
+        <span class="rule-code" style="background:rgba(239,68,68,0.15);color:#fca5a5;border-color:rgba(239,68,68,0.3)">R-04</span>
+        <span class="rule-title">Mover la tarjeta en el momento exacto — no después</span>
+      </div>
+      <div class="rule-body">
+        Mover la tarjeta a las 5pm una tarea que se empezó a las 9am y terminó a las 11am <strong>infla el tiempo en 6 horas</strong> y el costo se multiplica. El sistema registra la hora del movimiento, no la hora en que crees que lo hiciste.
+      </div>
+    </div>
+
+    <div class="rule-card" style="border-left: 3px solid var(--red)">
+      <div class="rule-header">
+        <span class="rule-code" style="background:rgba(239,68,68,0.15);color:#fca5a5;border-color:rgba(239,68,68,0.3)">R-05</span>
+        <span class="rule-title">No saltar etapas</span>
+      </div>
+      <div class="rule-body">
+        El flujo es secuencial. <strong>Prohibido:</strong><br>
+        ❌ Tareas → Aprobado (saltarse todo el proceso)<br>
+        ❌ En Proceso → Publicado (sin pasar por aprobación)<br>
+        ❌ Enviado → Publicado (sin pasar por Aprobado)<br><br>
+        Si una tarjeta llega a "Publicado" sin haber pasado por "En Proceso", el sistema reportará <strong>0 horas trabajadas y $0 de costo</strong> — como si el trabajo no existiera.
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- TIEMPOS -->
+  <div class="section" id="tiempos">
+    <div class="section-title">⏱ Reglas de tiempo</div>
+    <div class="section-sub">Las inconsistencias más comunes y cómo evitarlas</div>
+
+    <div class="rule-card">
+      <div class="rule-header">
+        <span class="rule-code">R-06</span>
+        <span class="rule-title">Tiempo mínimo en estado activo: 15 minutos</span>
+      </div>
+      <div class="rule-body">
+        Una tarjeta que pasa menos de <strong>15 minutos</strong> en "En Proceso" o "Cambios" antes de ser movida genera una <strong>advertencia ⚠️</strong> en el dashboard. Esto indica un posible error de clic o movimiento accidental. Si ves ese símbolo, el PM debe investigar antes de incluirlo en el reporte.
+      </div>
+    </div>
+
+    <div class="rule-card">
+      <div class="rule-header">
+        <span class="rule-code">R-07</span>
+        <span class="rule-title">Tiempo máximo en "En Proceso" o "Cambios" sin mover: 2 días hábiles</span>
+      </div>
+      <div class="rule-body">
+        Si una tarjeta lleva más de <strong>2 días hábiles</strong> en estado activo sin que se haya movido, el PM debe verificar si está bloqueada o si simplemente no se movió. <strong>El sistema acumula tiempo indefinidamente</strong> — una tarjeta olvidada en "En Proceso" puede mostrar costos de semanas.
+      </div>
+    </div>
+
+    <div class="rule-card" style="border-left: 3px solid var(--yellow)">
+      <div class="rule-header">
+        <span class="rule-code" style="background:rgba(245,158,11,0.15);color:#fcd34d;border-color:rgba(245,158,11,0.3)">R-08</span>
+        <span class="rule-title">Prohibido dejar tarjetas en "En Proceso" durante el fin de semana</span>
+      </div>
+      <div class="rule-body">
+        Si el trabajo del <strong>viernes termina</strong>, la tarjeta se mueve a "Enviado" o "Aprobado" antes de cerrar. No se deja en "En Proceso" hasta el lunes.<br><br>
+        <span style="color:#fcd34d">El sistema solo cuenta Lunes a Viernes, 9am–5pm</span>, pero si una tarjeta que debía moverse el viernes se mueve el lunes, hay <strong>un día de desfase</strong> en el cálculo que genera una inconsistencia.
+      </div>
+    </div>
+
+    <div class="rule-card">
+      <div class="rule-header">
+        <span class="rule-code">R-09</span>
+        <span class="rule-title">Tarjetas canceladas o en pausa: archivar inmediatamente</span>
+      </div>
+      <div class="rule-body">
+        Si un contenido se cancela o no se va a publicar en este ciclo, <strong>archivar la tarjeta en Trello de inmediato</strong>. No dejarla en "Tareas" ni en "En Proceso". Una tarjeta archivada no suma al costo ni a las métricas del mes.
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- REVISIONES -->
+  <div class="section" id="revisiones">
+    <div class="section-title">🔄 Reglas de revisiones</div>
+    <div class="section-sub">Cómo gestionar los cambios del cliente correctamente</div>
+
+    <div class="rule-card">
+      <div class="rule-header">
+        <span class="rule-code">R-10</span>
+        <span class="rule-title">Cada ronda de cambios = un solo movimiento a "Cambios"</span>
+      </div>
+      <div class="rule-body">
+        Si el cliente envía un batch de correcciones, la CM mueve la tarjeta a "Cambios" <strong>una sola vez</strong>. No mover y devolver múltiples veces el mismo día para el mismo paquete de correcciones. Cada movimiento a "Cambios" cuenta como una revisión en el dashboard.
+      </div>
+    </div>
+
+    <div class="rule-card" style="border-left: 3px solid var(--red)">
+      <div class="rule-header">
+        <span class="rule-code" style="background:rgba(239,68,68,0.15);color:#fca5a5;border-color:rgba(239,68,68,0.3)">R-11</span>
+        <span class="rule-title">Alerta obligatoria al cliente en más de 3 revisiones</span>
+      </div>
+      <div class="rule-body">
+        El dashboard muestra <strong>🔄 N revisiones</strong> por tarjeta. Si una tarjeta supera <strong>3 revisiones</strong>:
+        <br><br>
+        1. El PM es notificado automáticamente por el dashboard<br>
+        2. El PM evalúa si hay problema de brief, de ejecución o de expectativas del cliente<br>
+        3. Si corresponde, se notifica al cliente que las revisiones adicionales tienen costo
+      </div>
+      <div class="rule-why">
+        <strong>Regla de negocio:</strong> Las revisiones excesivas son el principal factor que convierte un proyecto rentable en deficitario. El contrato debe especificar el número de revisiones incluidas.
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- CICLO MENSUAL -->
+  <div class="section" id="ciclo">
+    <div class="section-title">📅 Ciclo mensual — fechas de corte</div>
+    <div class="section-sub">Hitos obligatorios de progreso durante los 30 días del contrato</div>
+
+    <div class="milestones">
+      <div class="milestone">
+        <div class="milestone-day">Día 3</div>
+        <span class="milestone-pct">100%</span>
+        <div class="milestone-desc">Tarjetas creadas en "Tareas"</div>
+      </div>
+      <div class="milestone">
+        <div class="milestone-day">Día 10</div>
+        <span class="milestone-pct">≥ 30%</span>
+        <div class="milestone-desc">En "Enviado" o superior</div>
+      </div>
+      <div class="milestone">
+        <div class="milestone-day">Día 20</div>
+        <span class="milestone-pct">≥ 80%</span>
+        <div class="milestone-desc">En "Aprobado" o superior</div>
+      </div>
+      <div class="milestone">
+        <div class="milestone-day">Día 28</div>
+        <span class="milestone-pct">100%</span>
+        <div class="milestone-desc">Todo en "Publicado"</div>
+      </div>
+      <div class="milestone">
+        <div class="milestone-day">Día 30</div>
+        <span class="milestone-pct">📊</span>
+        <div class="milestone-desc">Revisión de dashboard: costo real vs estimado</div>
+      </div>
+    </div>
+
+    <div class="alert alert-info">
+      <span style="font-size:1.1rem;flex-shrink:0">📊</span>
+      <div>La reunión del <strong>Día 30</strong> con el PM es para revisar el dashboard: si el costo real del mes superó el valor del contrato, se ajusta el precio en la próxima renovación. Esta reunión solo es válida si el protocolo fue cumplido durante el mes.</div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- DASHBOARD MONITOR -->
+  <div class="section" id="monitor">
+    <div class="section-title">📊 Lo que el PM monitorea en el dashboard</div>
+    <div class="section-sub">Alertas automáticas que requieren acción inmediata</div>
+
+    <div class="monitor-grid">
+      <div class="monitor-card">
+        <div class="monitor-indicator">⚠️</div>
+        <div class="monitor-title">Movimiento en menos de 5 minutos</div>
+        <div class="monitor-action">Posible error de clic o movimiento accidental.<br><strong>Acción: PM verifica con el responsable</strong></div>
+      </div>
+      <div class="monitor-card">
+        <div class="monitor-indicator">🔄 &gt;3</div>
+        <div class="monitor-title">Más de 3 revisiones en una tarjeta</div>
+        <div class="monitor-action">Revisar si hay problema de brief o expectativas del cliente.<br><strong>Acción: PM contacta al cliente</strong></div>
+      </div>
+      <div class="monitor-card">
+        <div class="monitor-indicator">💸</div>
+        <div class="monitor-title">Costo real &gt; Presupuesto del mes</div>
+        <div class="monitor-action">El servicio puede estar siendo deficitario.<br><strong>Acción: Revisar tarjetas mal movidas o ajustar precio</strong></div>
+      </div>
+      <div class="monitor-card">
+        <div class="monitor-indicator">⏱</div>
+        <div class="monitor-title">Horas reales &gt; Horas estimadas</div>
+        <div class="monitor-action">El equipo invierte más tiempo del contemplado.<br><strong>Acción: Ajustar precio en próxima renovación</strong></div>
+      </div>
+      <div class="monitor-card">
+        <div class="monitor-indicator">🚫</div>
+        <div class="monitor-title">Tarjeta sin mover &gt; 2 días hábiles</div>
+        <div class="monitor-action">Posible bloqueo o tarea olvidada acumulando tiempo.<br><strong>Acción: PM contacta al responsable ese mismo día</strong></div>
+      </div>
+      <div class="monitor-card">
+        <div class="monitor-indicator">📉</div>
+        <div class="monitor-title">ROI negativo en el proyecto</div>
+        <div class="monitor-action">El proyecto cuesta más de lo que genera.<br><strong>Acción: Revisión urgente de eficiencia y precio</strong></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- CONSECUENCIAS -->
+  <div class="section">
+    <div class="section-title">⛔ Consecuencias del incumplimiento</div>
+    <div class="section-sub">El incumplimiento de este protocolo genera daño financiero real a la agencia</div>
+
+    <ul class="consequence-list">
+      <li>
+        <div class="consequence-icon">💸</div>
+        <div><strong>Costos inflados:</strong> tarjetas acumulando tiempo sin trabajarse hacen que el costo por proyecto parezca mayor, generando reportes incorrectos para el cliente.</div>
+      </li>
+      <li>
+        <div class="consequence-icon">📊</div>
+        <div><strong>ROI incorrecto:</strong> si el costo está mal, el ROI está mal. Decisiones de renovación de contrato o ajuste de precio se toman sobre datos falsos.</div>
+      </li>
+      <li>
+        <div class="consequence-icon">🔄</div>
+        <div><strong>Revisiones ocultas:</strong> si "Cambios" no se usa correctamente, el número real de revisiones del cliente no queda registrado y no hay argumento para cobrarlas.</div>
+      </li>
+      <li>
+        <div class="consequence-icon">⏱</div>
+        <div><strong>Horas perdidas:</strong> si la tarjeta no se mueve a "En Proceso" al inicio, esas horas no se contabilizan — el equipo trabajó sin que quede evidencia del esfuerzo.</div>
+      </li>
+    </ul>
+
+    <div class="alert alert-danger">
+      <span style="font-size:1.1rem;flex-shrink:0">🔴</span>
+      <div>Este protocolo es <strong>obligatorio desde el inicio del próximo ciclo</strong>. Cualquier duda sobre cómo mover una tarjeta: <strong>consultar al PM antes de moverla incorrectamente</strong>. Es mejor preguntar 30 segundos que corregir un reporte financiero equivocado.</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <div class="container">
+    <strong>IDEAZ Agency · Protocolo de Trello</strong><br>
+    Contratos de Marketing Mensual · Uso interno del equipo
+  </div>
+</div>
+
+</body>
+</html>

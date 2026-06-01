@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Detalle de Proyecto – IDEAZ Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          colors: {
+            brand: { DEFAULT: '#6366f1', light: '#818cf8', dark: '#4f46e5' }
+          }
+        }
+      }
+    }
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <link rel="stylesheet" href="css/main.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="js/timeCalc.js"></script>
+  <style>
+    .kanban-list {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 1rem;
+      min-width: 280px;
+      max-width: 320px;
+      flex-shrink: 0;
+    }
+    .kanban-list-name {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #94a3b8;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .kanban-card {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      transition: border-color 0.2s;
+    }
+    .kanban-card:hover { border-color: #6366f1; }
+    .kanban-card-name { font-size: 0.85rem; font-weight: 500; margin-bottom: 6px; color: #e2e8f0; }
+    .done-list { border-color: rgba(16,185,129,0.3) !important; }
+    .done-list .kanban-list-name { color: #6ee7b7; }
+    .hours-input {
+      width: 70px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 3px 6px;
+      color: #e2e8f0;
+      font-size: 0.75rem;
+      text-align: right;
+    }
+    .hours-input:focus { outline: none; border-color: #6366f1; }
+    .label-chip {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 999px;
+      font-size: 0.65rem;
+      font-weight: 600;
+      margin-right: 3px;
+    }
+    .financial-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #334155;
+      font-size: 0.875rem;
+    }
+    .financial-row:last-child { border-bottom: none; }
+    .financial-row .label { color: #94a3b8; }
+    .financial-row .value { font-weight: 600; color: #e2e8f0; }
+    .stage-flow { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+    .stage-badge {
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.68rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .stage-arrow { color: #94a3b8; font-size: 0.7rem; }
+    .movement-list { list-style: none; padding: 0; }
+    .movement-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(51,65,85,0.5);
+      font-size: 0.78rem;
+    }
+    .movement-item:last-child { border-bottom: none; }
+    .movement-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 3px; flex-shrink: 0; }
+    .revision-warning {
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.3);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 0.8rem;
+      color: #fca5a5;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans">
+
+<!-- SIDEBAR -->
+<aside class="fixed left-0 top-0 h-screen w-64 bg-slate-900 border-r border-slate-700 flex flex-col z-50 overflow-y-auto">
+  <!-- Logo -->
+  <div class="p-5 border-b border-slate-700 flex-shrink-0">
+    <a href="index.html" class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center">
+        <span class="text-white font-black text-sm">I</span>
+      </div>
+      <div>
+        <div class="font-black text-slate-100 leading-none">IDEAZ</div>
+        <div class="text-xs text-slate-400 font-medium">Dashboard</div>
+      </div>
+    </a>
+  </div>
+
+  <!-- Nav links -->
+  <nav class="p-3 border-b border-slate-700 flex-shrink-0">
+    <a href="index.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-slate-400 hover:bg-slate-800 transition-colors">
+      <span>📊</span> Dashboard
+    </a>
+    <a href="configuracion.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-slate-400 hover:bg-slate-800 transition-colors">
+      <span>⚙️</span> Configuración
+    </a>
+  </nav>
+
+  <!-- Project info in sidebar -->
+  <div class="p-4 flex-1">
+    <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Proyecto actual</div>
+    <div class="text-sm font-semibold text-slate-200" id="sidebar-project-name">Cargando...</div>
+    <div id="sidebar-project-meta" class="mt-2 text-xs text-slate-400"></div>
+  </div>
+
+  <!-- Bottom status -->
+  <div class="p-3 border-t border-slate-700 flex-shrink-0">
+    <span class="text-xs text-slate-400" id="last-updated"></span>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="ml-64 min-h-screen">
+
+  <!-- Loading -->
+  <div id="state-loading">
+    <div class="flex flex-col items-center justify-center py-24 gap-4 text-slate-400">
+      <div class="w-10 h-10 border-2 border-slate-700 border-t-indigo-500 rounded-full animate-spin"></div>
+      <div class="text-sm">Cargando proyecto...</div>
+    </div>
+  </div>
+
+  <!-- Error -->
+  <div id="state-error" style="display:none">
+    <div class="max-w-xl mx-auto mt-12 px-6">
+      <div class="flex gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
+        <div><strong>Error</strong><br><span id="error-msg"></span></div>
+      </div>
+      <a href="index.html" class="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-1.5 rounded-lg text-sm transition-colors mt-3">← Volver al dashboard</a>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div id="state-main" style="display:none">
+    <div class="p-6 max-w-screen-2xl mx-auto">
+
+      <!-- Period filter bar (retención only) -->
+      <div id="period-filter-bar" style="display:none" class="mb-4">
+        <div class="flex items-center gap-3 flex-wrap p-4 rounded-xl bg-cyan-500/10 border border-cyan-500/30">
+          <span class="text-cyan-400 font-semibold text-sm">♻️ Retención mensual</span>
+          <span class="text-xs text-slate-400">Filtrar tarjetas por mes:</span>
+          <input type="month" id="card-month-filter"
+            class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 w-40"
+            onchange="applyMonthFilter()">
+          <button class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-1.5 rounded-lg text-sm transition-colors" onclick="clearMonthFilter()">Ver todas las tarjetas</button>
+          <span id="month-filter-count" class="text-xs text-slate-400"></span>
+        </div>
+      </div>
+
+      <!-- Breadcrumb & Header -->
+      <div class="mb-6">
+        <a href="index.html" class="text-xs text-slate-400 hover:text-slate-200 transition-colors">← Todos los proyectos</a>
+        <div class="flex justify-between items-center mt-2 flex-wrap gap-3">
+          <div>
+            <h1 class="text-2xl font-black text-slate-100" id="project-title"></h1>
+            <div class="flex items-center gap-2 mt-1 flex-wrap">
+              <span id="project-category"></span>
+              <span id="project-url-badge" class="text-xs text-slate-400"></span>
+              <span id="project-activity" class="text-xs text-slate-400"></span>
+            </div>
+          </div>
+          <div class="flex gap-2 flex-wrap items-center">
+            <button class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-1.5 rounded-lg text-sm transition-colors" onclick="loadProject(true)" title="Obtener datos frescos de Trello">↻ Actualizar</button>
+            <button class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-1.5 rounded-lg text-sm transition-colors" onclick="openModal('modal-financial')">
+              💰 Editar datos financieros
+            </button>
+            <button class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-1.5 rounded-lg text-sm transition-colors" id="btn-trello-link">
+              Abrir en Trello ↗
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI Cards -->
+      <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 mb-6" id="project-kpis"></div>
+
+      <!-- Charts & Financial panel -->
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5">
+          <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Tarjetas por Lista</h2>
+          <div class="chart-container">
+            <canvas id="chart-lists"></canvas>
+          </div>
+        </div>
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5">
+          <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">💰 Panel Financiero</h2>
+          <div id="financial-panel"></div>
+        </div>
+      </div>
+
+      <!-- Members row -->
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4">
+        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">👥 Equipo del Proyecto</h2>
+        <div id="members-row" class="flex gap-3 flex-wrap"></div>
+      </div>
+
+      <!-- Time summary from Trello activity -->
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4">
+        <div class="flex justify-between items-center mb-3">
+          <div>
+            <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-0">⏱ Tiempos por Tarjeta — desde actividad de Trello</h2>
+            <div class="text-xs text-slate-400 mt-1">
+              Reloj corre en <strong class="text-slate-200">En Proceso</strong> y <strong class="text-slate-200">Cambios del Cliente</strong> ·
+              Se pausa en <strong class="text-slate-200">Enviado al Cliente</strong> (esperando) y <strong class="text-slate-200">Montado a Drive</strong> ·
+              Lun–Vie, 9am–5pm
+            </div>
+          </div>
+          <button class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-1.5 rounded-lg text-sm transition-colors" onclick="recalcAndRefresh()">↻ Recalcular</button>
+        </div>
+
+        <!-- Summary stats row -->
+        <div id="time-summary-row" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 mb-4"></div>
+
+        <div class="overflow-x-auto rounded-xl border border-slate-700">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b border-slate-700 bg-slate-800/50">
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Tarjeta</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Asignados</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Etapa actual</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Inicio trabajo</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Completado</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Horas lab.</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">🔄 Revisiones</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Costo est.</th>
+              </tr>
+            </thead>
+            <tbody id="hours-table" class="divide-y divide-slate-700/50"></tbody>
+            <tfoot id="hours-tfoot"></tfoot>
+          </table>
+        </div>
+
+        <!-- Formula explanation -->
+        <div id="formula-box" style="display:none;margin-top:1rem" class="bg-slate-800 border border-slate-700 rounded-xl p-4">
+          <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">📐 Fórmula del Costo Estimado</div>
+          <div style="display:grid;gap:0.5rem;font-size:0.82rem">
+            <div class="bg-slate-950 rounded-lg px-3 py-2.5 font-mono text-indigo-300">
+              Costo por tarjeta = Horas laborales × (Sueldo mensual ÷ 160 h/mes)
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem">
+              <div class="bg-slate-950 rounded-lg px-3 py-2.5">
+                <div class="text-xs text-slate-400 mb-1">Horas laborales</div>
+                <div style="font-size:0.8rem" class="text-slate-300">
+                Corre en <strong style="color:#6366f1">En Proceso</strong> + <strong style="color:#ef4444">Cambios del Cliente</strong><br>
+                Se pausa en <strong style="color:#f59e0b">Enviado al Cliente</strong> (equipo espera)<br>
+                Solo <strong>Lun–Vie, 9am–5pm</strong></div>
+              </div>
+              <div class="bg-slate-950 rounded-lg px-3 py-2.5">
+                <div class="text-xs text-slate-400 mb-1">Sueldo mensual</div>
+                <div style="font-size:0.8rem" class="text-slate-300">Sueldo promedio de miembros asignados<br>÷ 160 horas hábiles por mes<br>
+                <span class="text-slate-500">(Configura sueldos en Configuración → Sueldos del Equipo)</span></div>
+              </div>
+            </div>
+            <div id="formula-example" class="bg-slate-950 rounded-lg px-3 py-2.5 text-sm"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Kanban view -->
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4">
+        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Tablero Kanban</h2>
+        <div class="kanban-scroll" id="kanban-board"></div>
+      </div>
+
+      <div class="h-8"></div>
+    </div>
+  </div>
+
+</main>
+
+<!-- Modal: Edit Financial Data -->
+<div id="modal-financial" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" style="display:none" onclick="if(event.target===this)closeModal('modal-financial')">
+  <div class="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+    <div class="text-lg font-semibold text-slate-100 mb-5">💰 Datos Financieros del Proyecto</div>
+    <div class="mb-4">
+      <label class="block text-xs text-slate-400 font-medium mb-1">Presupuesto</label>
+      <input type="number" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 w-full" id="f-budget" placeholder="0.00" min="0" step="100">
+    </div>
+    <div class="mb-4">
+      <label class="block text-xs text-slate-400 font-medium mb-1">Ingresos / Precio al cliente</label>
+      <input type="number" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 w-full" id="f-revenue" placeholder="0.00" min="0" step="100">
+    </div>
+    <div class="mb-4">
+      <label class="block text-xs text-slate-400 font-medium mb-1">Horas estimadas totales</label>
+      <input type="number" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 w-full" id="f-hours" placeholder="0" min="0" step="1">
+    </div>
+    <div class="mb-5">
+      <label class="block text-xs text-slate-400 font-medium mb-1">Moneda</label>
+      <select class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 w-full" id="f-currency">
+        <option value="COP">COP – Peso colombiano</option>
+        <option value="USD">USD – Dólar americano</option>
+        <option value="MXN">MXN – Peso mexicano</option>
+        <option value="EUR">EUR – Euro</option>
+      </select>
+    </div>
+    <div class="flex gap-2 justify-end">
+      <button class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-1.5 rounded-lg text-sm transition-colors" onclick="closeModal('modal-financial')">Cancelar</button>
+      <button class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors" onclick="saveFinancial()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/storage.js"></script>
+<script src="js/cache.js"></script>
+<script src="js/api.js"></script>
+<script src="js/utils.js"></script>
+<script>
+  Chart.defaults.color = '#94a3b8';
+  Chart.defaults.borderColor = '#2d2d4e';
+  Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
+
+  const boardId = Utils.getQueryParam('id');
+  let projectData = null;
+  let chartLists;
+  let globalTimelines = {};
+
+  if (!boardId) window.location.href = 'index.html';
+  if (!Storage.hasCredentials()) window.location.href = 'configuracion.html';
+
+  async function loadProject(forceRefresh = false) {
+    const creds = Storage.getCredentials();
+    const api = new TrelloAPI(creds.key, creds.token, { forceRefresh });
+
+    document.getElementById('state-loading').style.display = 'block';
+    document.getElementById('state-main').style.display = 'none';
+    document.getElementById('state-error').style.display = 'none';
+
+    try {
+      const { board, lists, cards, members, actions } = await api.getBoardWithDetails(boardId);
+      projectData = { board, lists, cards, members, actions };
+      for (const m of members) Storage.saveMemberName(m.id, m.fullName);
+
+      renderProject(board, lists, cards, members, actions);
+
+      const age = TrelloCache.ageMinutes(`cards_${boardId}`);
+      const el = document.getElementById('last-updated');
+      if (!forceRefresh && age !== null && age > 1) {
+        el.innerHTML = `<span style="color:#f59e0b" title="Datos del caché. Haz clic en Actualizar para ver cambios recientes.">Caché · hace ${age} min</span>`;
+      } else {
+        el.textContent = 'Actualizado: ' + new Date().toLocaleTimeString('es-MX');
+      }
+
+      document.getElementById('state-loading').style.display = 'none';
+      document.getElementById('state-main').style.display = 'block';
+    } catch (e) {
+      document.getElementById('error-msg').textContent = e.message;
+      document.getElementById('state-loading').style.display = 'none';
+      document.getElementById('state-error').style.display = 'block';
+    }
+  }
+
+  function renderProject(board, lists, cards, members, actions) {
+    const pd = Storage.getProjectData(boardId);
+
+    // Resolve project type and show/configure period filter bar
+    const wsName = board.organization?.displayName || board.organization?.name || '';
+    const projectType = Utils.resolveType(pd.type, wsName, board.name);
+    const filterBar = document.getElementById('period-filter-bar');
+    if (projectType === 'retencion') {
+      filterBar.style.display = 'block';
+      const monthInp = document.getElementById('card-month-filter');
+      if (!monthInp.value) {
+        const now = new Date();
+        monthInp.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      }
+    } else {
+      filterBar.style.display = 'none';
+    }
+
+    document.title = `${pd.alias || board.name} – IDEAZ Dashboard`;
+    document.getElementById('project-title').textContent = pd.alias || board.name;
+    document.getElementById('project-activity').textContent =
+      'Última actividad: ' + Utils.timeSince(board.dateLastActivity);
+    document.getElementById('btn-trello-link').onclick =
+      () => window.open(board.shortUrl, '_blank');
+
+    // Update sidebar
+    document.getElementById('sidebar-project-name').textContent = pd.alias || board.name;
+    document.getElementById('sidebar-project-meta').textContent = wsName || '';
+
+    const catEl = document.getElementById('project-category');
+    catEl.innerHTML = '';
+    if (pd.category) {
+      const c = Utils.categoryColor(pd.category);
+      catEl.innerHTML += `<span style="padding:2px 10px;border-radius:999px;font-size:0.75rem;font-weight:600;background:${c}22;color:${c};border:1px solid ${c}44">${pd.category}</span> `;
+    }
+    if (projectType) {
+      const tc = Utils.typeColor(projectType);
+      catEl.innerHTML += `<span style="padding:2px 10px;border-radius:999px;font-size:0.75rem;font-weight:600;background:${tc}22;color:${tc};border:1px solid ${tc}44">${Utils.typeLabel(projectType)}</span> `;
+    }
+    if (wsName) {
+      catEl.innerHTML += `<span class="text-xs text-slate-400">${wsName}</span>`;
+    }
+    if (pd.alias && pd.alias !== board.name) {
+      catEl.innerHTML += ` <span class="text-xs text-slate-400">${board.name}</span>`;
+    }
+
+    const openCards = cards.filter(c => !c.closed);
+
+    // Classify lists by stage
+    const listStageMap = {};
+    lists.forEach(l => { listStageMap[l.id] = TimeCalc.classifyList(l.name); });
+    const doneListIds = new Set(lists.filter(l => listStageMap[l.id] === 'done').map(l => l.id));
+
+    // Build timelines from Trello action history
+    globalTimelines = TimeCalc.buildCardTimelines(actions || [], openCards);
+    const summary   = TimeCalc.calcProjectSummary(globalTimelines);
+
+    const doneCards = openCards.filter(c => doneListIds.has(c.idList) || c.dueComplete);
+    const progress  = openCards.length > 0
+      ? Math.round(doneCards.length / openCards.length * 100) : 0;
+
+    // Financial calculations using working hours from Trello activity
+    const memberIds = [...new Set(openCards.flatMap(c => c.idMembers))];
+    const avgSalary = memberIds.length > 0
+      ? memberIds.reduce((s, id) => s + Storage.getMemberRate(id), 0) / memberIds.length : 0;
+    const avgRate   = avgSalary / Utils.MONTHLY_HOURS; // tarifa horaria equivalente
+    const totalCost = summary.totalWorkHours * avgRate;
+    const roi       = Utils.calcROI(pd.revenue, totalCost);
+    const budgetUtil = pd.budget > 0 ? (totalCost / pd.budget) * 100 : null;
+
+    // KPIs
+    document.getElementById('project-kpis').innerHTML = `
+      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-violet-500 rounded-2xl p-5">
+        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">🗂 Tarjetas Totales</div>
+        <div class="text-3xl font-black text-slate-100">${openCards.length}</div>
+        <div class="text-xs text-slate-400 mt-1">${doneCards.length} en Drive · ${summary.pendingCount} sin iniciar</div>
+      </div>
+      <div class="bg-slate-900 border border-l-4 border-slate-700 ${progress >= 75 ? 'border-l-emerald-500' : progress >= 40 ? 'border-l-amber-500' : 'border-l-red-500'} rounded-2xl p-5">
+        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">✅ Progreso</div>
+        <div class="text-3xl font-black text-slate-100">${progress}%</div>
+        <div class="text-xs text-slate-400 mt-1">${summary.startedCount} iniciadas · ${summary.doneCount} completadas</div>
+      </div>
+      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-amber-500 rounded-2xl p-5">
+        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">⏱ Horas Lab. (Trello)</div>
+        <div class="text-3xl font-black text-slate-100">${Utils.fmtHours(summary.totalWorkHours)}</div>
+        <div class="text-xs text-slate-400 mt-1">Lun-Vie · ${summary.startedCount} tarjetas activas</div>
+      </div>
+      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-red-500 rounded-2xl p-5">
+        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">🔄 Revisiones del Cliente</div>
+        <div class="text-3xl font-black text-slate-100">${summary.totalRevisions}</div>
+        <div class="text-xs text-slate-400 mt-1">prom. ${summary.avgRevisions.toFixed(1)} por tarjeta</div>
+      </div>
+      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-cyan-500 rounded-2xl p-5">
+        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">⏰ Tiempo Prom. de Ciclo</div>
+        <div class="text-3xl font-black text-slate-100">${summary.avgCycleTime > 0 ? Utils.fmtHours(summary.avgCycleTime) : '—'}</div>
+        <div class="text-xs text-slate-400 mt-1">desde En Proceso hasta Drive</div>
+      </div>
+      <div class="bg-slate-900 border border-l-4 border-slate-700 ${roi !== null && roi >= 0 ? 'border-l-emerald-500' : 'border-l-red-500'} rounded-2xl p-5">
+        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">📊 ROI del Proyecto</div>
+        <div class="text-3xl font-black text-slate-100">${roi !== null ? Utils.fmtPercent(roi) : '—'}</div>
+        <div class="text-xs text-slate-400 mt-1">${totalCost > 0 ? 'costo: ' + Utils.fmtMoney(totalCost, pd.currency) : 'configura sueldos →'}</div>
+      </div>`;
+
+    // Chart: cards per list with stage colors
+    const cardsByList = {};
+    lists.forEach(l => { cardsByList[l.id] = 0; });
+    openCards.forEach(c => { if (cardsByList[c.idList] !== undefined) cardsByList[c.idList]++; });
+
+    if (chartLists) chartLists.destroy();
+    chartLists = new Chart(document.getElementById('chart-lists'), {
+      type: 'bar',
+      data: {
+        labels: lists.map(l => l.name.length > 18 ? l.name.slice(0,16)+'…' : l.name),
+        datasets: [{
+          label: 'Tarjetas',
+          data: lists.map(l => cardsByList[l.id] || 0),
+          backgroundColor: lists.map(l => {
+            const stage = listStageMap[l.id];
+            return TimeCalc.stageBg(stage).replace('0.15', '0.7');
+          }),
+          borderColor: lists.map(l => TimeCalc.stageColor(listStageMap[l.id])),
+          borderWidth: 1,
+          borderRadius: 6
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false } },
+          y: { grid: { color: '#2d2d4e' }, ticks: { precision: 0 } }
+        }
+      }
+    });
+
+    renderFinancialPanel(summary.totalWorkHours, totalCost, avgSalary, roi, pd, budgetUtil, summary);
+    renderMembers(members, openCards, doneListIds, globalTimelines);
+    renderTimeTable(openCards, lists, members, globalTimelines, pd.currency, avgSalary);
+    renderKanban(lists, openCards, members, doneListIds, globalTimelines);
+  }
+
+  function renderFinancialPanel(totalHours, totalCost, avgSalary, roi, pd, budgetUtil, summary) {
+    const net = pd.revenue - totalCost;
+    const hourlyEq = avgSalary > 0 ? avgSalary / Utils.MONTHLY_HOURS : 0;
+    document.getElementById('financial-panel').innerHTML = `
+      <div class="financial-row">
+        <span class="label">Presupuesto del proyecto</span>
+        <span class="value">${pd.budget > 0 ? Utils.fmtMoney(pd.budget, pd.currency) : '<span style="color:#94a3b8">—</span>'}</span>
+      </div>
+      <div class="financial-row">
+        <span class="label">Ingresos / Precio al cliente</span>
+        <span class="value" style="color:#34d399">${pd.revenue > 0 ? Utils.fmtMoney(pd.revenue, pd.currency) : '<span style="color:#94a3b8">—</span>'}</span>
+      </div>
+      <div class="financial-row">
+        <span class="label">Horas laborales (Trello)</span>
+        <span class="value">${Utils.fmtHours(totalHours)}</span>
+      </div>
+      <div class="financial-row">
+        <span class="label">Horas estimadas</span>
+        <span class="value">${pd.hoursEstimated > 0 ? pd.hoursEstimated + 'h' : '<span style="color:#94a3b8">—</span>'}</span>
+      </div>
+      <div class="financial-row">
+        <span class="label">Sueldo promedio equipo</span>
+        <span class="value">${avgSalary > 0 ? Utils.fmtMoney(avgSalary, pd.currency) + '/mes' : '<span style="color:#94a3b8">Configura sueldos</span>'}</span>
+      </div>
+      <div class="financial-row">
+        <span class="label">Equivalente por hora</span>
+        <span class="value" style="font-size:0.8rem;color:#94a3b8">${hourlyEq > 0 ? Utils.fmtMoney(hourlyEq, pd.currency) + '/h' : '<span style="color:#94a3b8">—</span>'}</span>
+      </div>
+      <div class="financial-row">
+        <span class="label">Costo calculado (horas × eq/h)</span>
+        <span class="value ${totalCost > pd.budget && pd.budget > 0 ? 'text-red-400' : ''}">${totalCost > 0 ? Utils.fmtMoney(totalCost, pd.currency) : '<span style="color:#94a3b8">—</span>'}</span>
+      </div>
+      <div class="financial-row">
+        <span class="label">Uso del presupuesto</span>
+        <span class="value ${budgetUtil !== null && budgetUtil > 100 ? 'text-red-400' : 'text-amber-400'}">${budgetUtil !== null ? Utils.fmtPercent(budgetUtil) : '<span style="color:#94a3b8">—</span>'}</span>
+      </div>
+      <div class="financial-row">
+        <span class="label">🔄 Rework (revisiones)</span>
+        <span class="value ${summary.totalRevisions > 3 ? 'text-red-400' : ''}">${summary.totalRevisions} revisiones</span>
+      </div>
+      <div class="financial-row">
+        <span class="label">Margen neto</span>
+        <span class="value ${net >= 0 ? 'text-emerald-400' : 'text-red-400'}">${pd.revenue > 0 || totalCost > 0 ? Utils.fmtMoney(net, pd.currency) : '<span style="color:#94a3b8">—</span>'}</span>
+      </div>
+      <div class="financial-row">
+        <span class="label">ROI del proyecto</span>
+        <span class="value ${roi !== null && roi >= 0 ? 'text-emerald-400' : 'text-red-400'}">${roi !== null ? Utils.fmtPercent(roi) : '<span style="color:#94a3b8">—</span>'}</span>
+      </div>
+      <div style="margin-top:1rem">
+        <button class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-1.5 rounded-lg text-sm transition-colors w-full flex items-center justify-center gap-2" onclick="openModal('modal-financial')">
+          ✏️ Editar datos financieros
+        </button>
+      </div>`;
+  }
+
+  function renderMembers(members, cards, doneListIds, timelines) {
+    const el = document.getElementById('members-row');
+    if (!members.length) {
+      el.innerHTML = '<span class="text-slate-400 text-sm">Sin miembros asignados.</span>';
+      return;
+    }
+    el.innerHTML = members.map(m => {
+      const myCards = cards.filter(c => c.idMembers.includes(m.id));
+      const myDone  = myCards.filter(c => doneListIds.has(c.idList) || c.dueComplete);
+      const pct     = myCards.length > 0 ? Math.round(myDone.length / myCards.length * 100) : 0;
+      const salary  = Storage.getMemberRate(m.id);
+      const myHours = myCards.reduce((s, c) => {
+        const tl = timelines[c.id];
+        if (!tl || !tl.isStarted) return s;
+        return s + tl.workingHours / Math.max(c.idMembers.length, 1);
+      }, 0);
+      const myRevisions = myCards.reduce((s, c) => s + (timelines[c.id]?.revisions || 0), 0);
+      const myCost = myHours * (salary / Utils.MONTHLY_HOURS);
+      const progressBarColor = Utils.progressColor(pct) === 'green' ? 'bg-emerald-500' : Utils.progressColor(pct) === 'yellow' ? 'bg-amber-500' : 'bg-red-500';
+      return `
+        <div class="bg-slate-800 border border-slate-700 rounded-xl p-3" style="min-width:160px;flex:1">
+          <div class="flex items-center gap-2 mb-2">
+            <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white" style="background:${Utils.avatarColor(m.id)}">${Utils.initials(m.fullName)}</div>
+            <div>
+              <div class="font-semibold text-sm text-slate-100">${m.fullName}</div>
+              <div class="text-xs text-slate-400">@${m.username}</div>
+            </div>
+          </div>
+          <div class="text-xs text-slate-400 mb-1">${myDone.length}/${myCards.length} tarjetas · ${pct}%</div>
+          <div class="w-full bg-slate-700 rounded-full h-1.5 mb-2">
+            <div class="h-1.5 rounded-full ${progressBarColor}" style="width:${pct}%"></div>
+          </div>
+          <div class="text-xs flex justify-between">
+            <span class="text-slate-400">${myHours > 0 ? '⏱ ' + Utils.fmtHours(myHours) : ''}</span>
+            ${myRevisions > 0 ? `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30" style="font-size:0.65rem">🔄 ${myRevisions}</span>` : ''}
+          </div>
+          ${salary > 0 ? `<div class="text-xs text-slate-400 mt-1">Sueldo: ${Utils.fmtMoney(salary, 'COP')}/mes · costo: ${Utils.fmtMoney(myCost, 'COP')}</div>` : ''}
+        </div>`;
+    }).join('');
+  }
+
+  function renderTimeTable(cards, lists, members, timelines, currency, avgSalary) {
+    const tbody    = document.getElementById('hours-table');
+    const listMap  = {};
+    lists.forEach(l => { listMap[l.id] = l.name; });
+    const memberMap = {};
+    members.forEach(m => { memberMap[m.id] = m; });
+
+    // Summary stats
+    const summary = TimeCalc.calcProjectSummary(timelines);
+    document.getElementById('time-summary-row').innerHTML = `
+      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-violet-500 rounded-xl p-3">
+        <div class="text-xs text-slate-400 mb-1">Tarjetas iniciadas</div>
+        <div class="text-2xl font-black text-slate-100">${summary.startedCount}</div>
+      </div>
+      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-emerald-500 rounded-xl p-3">
+        <div class="text-xs text-slate-400 mb-1">Completadas (Drive)</div>
+        <div class="text-2xl font-black text-slate-100">${summary.doneCount}</div>
+      </div>
+      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-amber-500 rounded-xl p-3">
+        <div class="text-xs text-slate-400 mb-1">Total horas lab.</div>
+        <div class="text-2xl font-black text-slate-100">${Utils.fmtHours(summary.totalWorkHours)}</div>
+      </div>
+      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-red-500 rounded-xl p-3">
+        <div class="text-xs text-slate-400 mb-1">Total revisiones</div>
+        <div class="text-2xl font-black text-slate-100">${summary.totalRevisions}</div>
+      </div>
+      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-cyan-500 rounded-xl p-3">
+        <div class="text-xs text-slate-400 mb-1">Ciclo prom. completados</div>
+        <div class="text-2xl font-black text-slate-100">${summary.avgCycleTime > 0 ? Utils.fmtHours(summary.avgCycleTime) : '—'}</div>
+      </div>`;
+
+    if (!cards.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="text-slate-400 text-center py-8">No hay tarjetas.</td></tr>';
+      return;
+    }
+
+    // Sort: in progress first, done last, not started at end
+    const order = { inProgress: 0, sentToClient: 1, clientRevision: 2, done: 3, backlog: 4, other: 5 };
+    const sorted = [...cards].sort((a, b) => {
+      const tla = timelines[a.id]; const tlb = timelines[b.id];
+      const sa = order[tla?.currentStage || 'other'] ?? 5;
+      const sb = order[tlb?.currentStage || 'other'] ?? 5;
+      return sa - sb;
+    });
+
+    // Pre-calculate costs to build totals row
+    let totalCostSum   = 0;
+    let totalHoursSum  = 0;
+    let cardsWithCost  = 0;
+
+    const rows = sorted.map(card => {
+      const tl = timelines[card.id] || {};
+      const stage = tl.currentStage || 'backlog';
+
+      // Per-card cost: average monthly salary of assigned members ÷ MONTHLY_HOURS
+      let cardSalary = avgSalary;
+      if (card.idMembers.length > 0) {
+        const salaries = card.idMembers.map(id => Storage.getMemberRate(id)).filter(r => r > 0);
+        if (salaries.length > 0) cardSalary = salaries.reduce((s, r) => s + r, 0) / salaries.length;
+      }
+      const cost = (tl.workingHours || 0) * (cardSalary / Utils.MONTHLY_HOURS);
+
+      if (cost > 0)               { totalCostSum  += cost;              cardsWithCost++; }
+      if (tl.workingHours > 0)    { totalHoursSum += tl.workingHours; }
+
+      const assignees = card.idMembers.slice(0, 3).map(id => {
+        const m = memberMap[id];
+        if (!m) return '';
+        return `<div class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white" style="background:${Utils.avatarColor(id)};font-size:0.6rem" title="${m.fullName}">${Utils.initials(m.fullName)}</div>`;
+      }).join('');
+
+      const revBadge = tl.revisions > 0
+        ? `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30" title="${tl.revisions} veces devuelto a Cambios del Cliente">🔄 ${tl.revisions}</span>`
+        : '<span class="text-slate-500 text-xs">—</span>';
+
+      const stageBadge = `<span class="stage-badge" style="background:${TimeCalc.stageBg(stage)};color:${TimeCalc.stageColor(stage)}">${TimeCalc.stageLabel(stage) || tl.currentList || stage}</span>`;
+
+      const hourCell = tl.isStarted
+        ? `<strong class="text-slate-100">${Utils.fmtHours(tl.workingHours)}</strong>
+           <div class="text-xs text-slate-400" title="Tiempo transcurrido total desde En Proceso">transcurrido: ${TimeCalc.formatDuration(tl.totalHours)}</div>`
+        : '<span class="text-slate-500">Sin iniciar</span>';
+
+      // Desglose de períodos por etapa
+      const desgloseRows = (tl.periods || []).map(p => {
+        const stageColor = TimeCalc.stageColor(p.stage);
+        const stageBg    = TimeCalc.stageBg(p.stage);
+        const stageLabel = TimeCalc.stageLabel(p.stage) || p.listName || p.stage;
+        const calDur     = p.calendarMs > 0
+          ? TimeCalc.formatDuration(p.calendarMs / 3600000) : '< 1m';
+        const memberBadge = p.member
+          ? `<span style="font-size:0.68rem;color:#94a3b8">por <strong style="color:#e2e8f0">${p.member}</strong></span>`
+          : '';
+        const rowBg = p.isSameInterval
+          ? 'background:rgba(245,158,11,0.08);'
+          : (p.isActive ? 'background:rgba(99,102,241,0.05);' : '');
+        const warningFlag = p.isSameInterval
+          ? `<span style="color:#f59e0b;font-size:0.68rem;margin-left:6px" title="Movimiento casi inmediato — posible corrección manual o automatismo">⚠ ${calDur}</span>`
+          : `<span style="font-size:0.75rem;color:#94a3b8">${calDur}</span>`;
+        const countedCell = p.isActive
+          ? `<span style="color:#10b981;font-size:0.75rem;font-weight:600">✅ ${Utils.fmtHours(p.workingHours)}</span>`
+          : `<span style="font-size:0.75rem;color:#94a3b8">⏸ pausado</span>`;
+
+        return `<tr style="${rowBg}">
+          <td style="padding:5px 8px">
+            <span style="background:${stageBg};color:${stageColor};padding:1px 7px;border-radius:999px;font-size:0.68rem;font-weight:600">${stageLabel}</span>
+            ${p.listName !== stageLabel ? `<span class="text-xs text-slate-400" style="margin-left:4px">${p.listName}</span>` : ''}
+          </td>
+          <td style="padding:5px 8px;font-size:0.72rem;color:#94a3b8">${TimeCalc.formatDate(p.date)}</td>
+          <td style="padding:5px 8px">${warningFlag}</td>
+          <td style="padding:5px 8px">${countedCell}</td>
+          <td style="padding:5px 8px">${memberBadge}</td>
+        </tr>`;
+      }).join('');
+
+      const hasWarnings = (tl.periods || []).some(p => p.isSameInterval);
+      const desgloseHtml = tl.periods && tl.periods.length > 0
+        ? `<tr id="desglose-${card.id}" data-detail="true" style="display:none">
+            <td colspan="8" style="padding:0;border-top:none">
+              <div style="margin:0 0 8px 0;background:#1e293b;border:1px solid #334155;border-top:none;border-radius:0 0 8px 8px;padding:12px 16px">
+                <div class="flex justify-between items-center mb-2">
+                  <span class="text-xs font-semibold text-slate-400" style="text-transform:uppercase;letter-spacing:0.06em">Desglose de etapas — qué se contó</span>
+                  ${hasWarnings ? `<span style="color:#f59e0b;font-size:0.75rem">⚠ Hay movimientos casi inmediatos — posibles correcciones manuales</span>` : ''}
+                </div>
+                <table style="width:100%;border-collapse:collapse">
+                  <thead>
+                    <tr style="font-size:0.68rem;color:#94a3b8;text-transform:uppercase;border-bottom:1px solid #334155">
+                      <th style="padding:3px 8px;font-weight:600;text-align:left">Etapa → lista</th>
+                      <th style="padding:3px 8px;font-weight:600;text-align:left">Desde</th>
+                      <th style="padding:3px 8px;font-weight:600;text-align:left">Duración</th>
+                      <th style="padding:3px 8px;font-weight:600;text-align:left">¿Contado?</th>
+                      <th style="padding:3px 8px;font-weight:600;text-align:left">Movido por</th>
+                    </tr>
+                  </thead>
+                  <tbody>${desgloseRows}</tbody>
+                </table>
+                <div class="text-xs text-slate-400 mt-2" style="border-top:1px solid #334155;padding-top:8px">
+                  Total activo: <strong class="text-slate-200">${Utils.fmtHours(tl.workingHours)}</strong>
+                  · Cuentan: <strong>En Proceso</strong> + <strong>Cambios del Cliente</strong>
+                  · Pausa: <strong>Enviado al Cliente</strong>
+                  ${hasWarnings ? '· <span style="color:#f59e0b">⚠ Movimientos &lt;5min excluídos del conteo si eran pausas</span>' : ''}
+                </div>
+              </div>
+            </td>
+          </tr>`
+        : '';
+
+      return `
+        <tr style="cursor:pointer" class="hover:bg-slate-800/30 transition-colors" onclick="toggleDesglose('${card.id}', this)">
+          <td class="px-4 py-3">
+            <div class="font-semibold text-sm text-slate-100">${card.name}</div>
+            ${(card.labels||[]).map(l => `<span class="label-chip" style="background:${colorMap(l.color)}20;color:${colorMap(l.color)}">${l.name||l.color}</span>`).join('')}
+            ${tl.periods && tl.periods.length > 0 ? `<div class="text-xs mt-1" style="color:#6366f1">▶ ver desglose</div>` : ''}
+          </td>
+          <td class="px-4 py-3"><div class="avatar-stack">${assignees || '<span class="text-slate-500 text-xs">—</span>'}</div></td>
+          <td class="px-4 py-3">${stageBadge}</td>
+          <td class="px-4 py-3 text-xs text-slate-300">${tl.startDate ? TimeCalc.formatDate(tl.startDate) : '<span class="text-slate-500">—</span>'}</td>
+          <td class="px-4 py-3 text-xs text-slate-300">${tl.endDate   ? TimeCalc.formatDate(tl.endDate)   : '<span class="text-slate-500">—</span>'}</td>
+          <td class="px-4 py-3 text-sm">${hourCell}</td>
+          <td class="px-4 py-3">${revBadge}</td>
+          <td class="px-4 py-3 text-sm font-semibold text-slate-100">
+            ${cost > 0 ? Utils.fmtMoney(cost, currency) : '<span class="text-slate-500">—</span>'}
+          </td>
+        </tr>${desgloseHtml}`;
+    });
+
+    tbody.innerHTML = rows.join('');
+
+    // Totals footer row
+    const tfoot = document.getElementById('hours-tfoot');
+    tfoot.innerHTML = `
+      <tr style="background:rgba(99,102,241,0.08);border-top:2px solid #6366f1">
+        <td colspan="5" class="px-4 py-3 text-sm text-slate-400">
+          <strong class="text-slate-100">TOTAL</strong>
+          · ${cardsWithCost} tarjeta${cardsWithCost !== 1 ? 's' : ''} con costo calculado de ${sorted.length} en total
+        </td>
+        <td class="px-4 py-3 font-bold text-slate-100">
+          ${Utils.fmtHours(totalHoursSum)}
+        </td>
+        <td class="px-4 py-3"></td>
+        <td class="px-4 py-3" style="font-size:1rem;font-weight:700;color:${totalCostSum > 0 ? '#a5b4fc' : '#94a3b8'}">
+          ${totalCostSum > 0 ? Utils.fmtMoney(totalCostSum, currency) : '—'}
+          ${totalCostSum > 0 ? `<div class="text-xs font-semibold text-slate-400 mt-0.5">${Utils.fmtHours(totalHoursSum)} × (${Utils.fmtMoney(avgSalary, currency)}/mes ÷ ${Utils.MONTHLY_HOURS}h)</div>` : ''}
+        </td>
+      </tr>`;
+
+    // Show formula box with a real example from the first card with data
+    const exampleCard = sorted.find(c => {
+      const tl = timelines[c.id];
+      return tl?.isStarted && tl.workingHours > 0;
+    });
+    const fbox = document.getElementById('formula-box');
+    fbox.style.display = 'block';
+
+    const exEl = document.getElementById('formula-example');
+    if (exampleCard) {
+      const tl = timelines[exampleCard.id];
+      let exSalary = avgSalary;
+      if (exampleCard.idMembers.length > 0) {
+        const salaries = exampleCard.idMembers.map(id => Storage.getMemberRate(id)).filter(r => r > 0);
+        if (salaries.length > 0) exSalary = salaries.reduce((s, r) => s + r, 0) / salaries.length;
+      }
+      const exHourly = exSalary / Utils.MONTHLY_HOURS;
+      const exCost = tl.workingHours * exHourly;
+      exEl.innerHTML = exSalary > 0
+        ? `<span class="text-slate-400">Ejemplo real — <strong class="text-slate-200">"${exampleCard.name}"</strong>:</span>
+           <span style="color:#a5b4fc;font-family:monospace;display:block;margin-top:4px">
+             ${Utils.fmtMoney(exCost, currency)} = ${Utils.fmtHours(tl.workingHours)} × (${Utils.fmtMoney(exSalary, currency)}/mes ÷ ${Utils.MONTHLY_HOURS}h/mes)
+           </span>`
+        : `<span class="text-slate-400">Para ver un ejemplo real, configura los sueldos del equipo en <a href="configuracion.html" style="color:#a5b4fc">Configuración</a>.</span>`;
+    } else {
+      exEl.innerHTML = `<span class="text-slate-400">Aún no hay tarjetas con tiempo registrado desde "En Proceso".</span>`;
+    }
+    Utils.makeSortable(document.getElementById('hours-table').closest('table'));
+  }
+
+  function colorMap(name) {
+    const map = {
+      green: '#10b981', yellow: '#f59e0b', orange: '#f97316', red: '#ef4444',
+      purple: '#8b5cf6', blue: '#3b82f6', sky: '#06b6d4', lime: '#84cc16',
+      pink: '#ec4899', black: '#94a3b8', null: '#64748b'
+    };
+    return map[name] || '#6366f1';
+  }
+
+  function renderKanban(lists, cards, members, doneListIds, timelines) {
+    const memberMap = {};
+    members.forEach(m => { memberMap[m.id] = m; });
+    const cardsByList = {};
+    lists.forEach(l => { cardsByList[l.id] = []; });
+    cards.forEach(c => { if (cardsByList[c.idList]) cardsByList[c.idList].push(c); });
+
+    document.getElementById('kanban-board').innerHTML = lists.map(list => {
+      const stage = TimeCalc.classifyList(list.name);
+      const stageColor = TimeCalc.stageColor(stage);
+      const listCards  = cardsByList[list.id] || [];
+      return `
+        <div class="kanban-list" style="border-color:${stageColor}40">
+          <div class="kanban-list-name" style="color:${stageColor}">
+            ${list.name}
+            <span style="background:${stageColor}20;color:${stageColor};padding:1px 7px;border-radius:999px;font-size:0.65rem">${listCards.length}</span>
+          </div>
+          ${listCards.length === 0
+            ? '<div class="text-xs text-slate-400 text-center py-4">Sin tarjetas</div>'
+            : listCards.map(card => {
+                const tl = timelines[card.id] || {};
+                const assignees = card.idMembers.slice(0,3).map(id => {
+                  const m = memberMap[id];
+                  if (!m) return '';
+                  return `<div class="w-5 h-5 rounded-full flex items-center justify-center font-bold text-white" style="background:${Utils.avatarColor(id)};font-size:0.55rem" title="${m.fullName}">${Utils.initials(m.fullName)}</div>`;
+                }).join('');
+                const labels = (card.labels||[]).map(l =>
+                  `<span class="label-chip" style="background:${colorMap(l.color)}30;color:${colorMap(l.color)}">${l.name||l.color}</span>`
+                ).join('');
+                const revBadge = tl.revisions > 0
+                  ? `<span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30" style="font-size:0.6rem">🔄${tl.revisions}</span>` : '';
+                return `
+                  <div class="kanban-card">
+                    ${labels ? `<div class="mb-1">${labels}</div>` : ''}
+                    <div class="kanban-card-name">${card.name}</div>
+                    <div class="flex justify-between items-center mt-1">
+                      <div class="avatar-stack">${assignees}</div>
+                      <div class="flex items-center gap-1">
+                        ${revBadge}
+                        <span class="text-xs text-slate-400">${tl.workingHours > 0 ? '⏱' + Utils.fmtHours(tl.workingHours) : ''}</span>
+                      </div>
+                    </div>
+                  </div>`;
+              }).join('')}
+        </div>`;
+    }).join('');
+  }
+
+  function applyMonthFilter() {
+    if (!projectData) return;
+    const monthVal = document.getElementById('card-month-filter').value;
+    const { board, lists, cards, members, actions } = projectData;
+
+    let filtered = cards;
+    if (monthVal) {
+      const [y, m] = monthVal.split('-').map(Number);
+      // A card belongs to this month if any action occurred in it OR dateLastActivity is in it
+      const activeIds = new Set();
+      for (const a of actions) {
+        const d = new Date(a.date);
+        if (d.getFullYear() === y && d.getMonth() + 1 === m) {
+          const id = a.data?.card?.id;
+          if (id) activeIds.add(id);
+        }
+      }
+      for (const c of cards) {
+        if (c.dateLastActivity) {
+          const d = new Date(c.dateLastActivity);
+          if (d.getFullYear() === y && d.getMonth() + 1 === m) activeIds.add(c.id);
+        }
+      }
+      filtered = cards.filter(c => activeIds.has(c.id));
+      const countEl = document.getElementById('month-filter-count');
+      countEl.textContent = `${filtered.length} tarjeta${filtered.length !== 1 ? 's' : ''} activas en ${Utils.formatPeriod(monthVal)}`;
+    }
+    renderProject(board, lists, filtered, members, actions);
+  }
+
+  function clearMonthFilter() {
+    document.getElementById('card-month-filter').value = '';
+    document.getElementById('month-filter-count').textContent = '';
+    if (projectData) {
+      const { board, lists, cards, members, actions } = projectData;
+      renderProject(board, lists, cards, members, actions);
+    }
+  }
+
+  function toggleDesglose(cardId, row) {
+    const detail = document.getElementById('desglose-' + cardId);
+    if (!detail) return;
+    const visible = detail.style.display !== 'none';
+    detail.style.display = visible ? 'none' : 'table-row';
+    const hint = row.querySelector('.text-xs.mt-1');
+    if (hint) hint.textContent = visible ? '▶ ver desglose' : '▼ ocultar desglose';
+  }
+
+  function recalcAndRefresh() {
+    if (!projectData) return;
+    const { board, lists, cards, members, actions } = projectData;
+    renderProject(board, lists, cards, members, actions);
+    Utils.showToast('Totales recalculados ✓', 'success');
+  }
+
+  // Modal
+  function openModal(id) {
+    if (id === 'modal-financial') {
+      const pd = Storage.getProjectData(boardId);
+      document.getElementById('f-budget').value = pd.budget || '';
+      document.getElementById('f-revenue').value = pd.revenue || '';
+      document.getElementById('f-hours').value = pd.hoursEstimated || '';
+      document.getElementById('f-currency').value = pd.currency || 'USD';
+    }
+    document.getElementById(id).style.display = 'flex';
+  }
+
+  function closeModal(id) {
+    document.getElementById(id).style.display = 'none';
+  }
+
+  function saveFinancial() {
+    const data = {
+      budget: parseFloat(document.getElementById('f-budget').value) || 0,
+      revenue: parseFloat(document.getElementById('f-revenue').value) || 0,
+      hoursEstimated: parseFloat(document.getElementById('f-hours').value) || 0,
+      currency: document.getElementById('f-currency').value
+    };
+    Storage.saveProjectData(boardId, data);
+    closeModal('modal-financial');
+    Utils.showToast('Datos financieros guardados ✓', 'success');
+    recalcAndRefresh();
+  }
+
+  // Init
+  loadProject();
+</script>
+</body>
+</html>
