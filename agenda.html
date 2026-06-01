@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agenda – IDEAZ</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans">
+
+  <!-- State: auth -->
+  <div id="state-auth" style="display:none" class="min-h-screen flex items-center justify-center">
+    <div class="text-center">
+      <p class="text-slate-400 mb-4">Configura tus credenciales de Trello para continuar.</p>
+      <a href="configuracion.html" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-lg font-semibold text-sm transition-colors">
+        Ir a Configuración
+      </a>
+    </div>
+  </div>
+
+  <!-- State: loading -->
+  <div id="state-loading" style="display:none" class="min-h-screen flex items-center justify-center">
+    <div class="text-center">
+      <div class="w-10 h-10 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+      <p class="text-slate-400 text-sm">Cargando agenda…</p>
+    </div>
+  </div>
+
+  <!-- State: error -->
+  <div id="state-error" style="display:none" class="min-h-screen flex items-center justify-center">
+    <div class="text-center max-w-md">
+      <p class="text-red-400 text-lg font-semibold mb-2">Error al cargar datos</p>
+      <p id="error-msg" class="text-slate-400 text-sm mb-5"></p>
+      <button onclick="Agenda.load(true)" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-lg font-semibold text-sm transition-colors">
+        Reintentar
+      </button>
+    </div>
+  </div>
+
+  <!-- State: agenda -->
+  <div id="state-agenda" style="display:none" class="flex min-h-screen">
+
+    <!-- Sidebar -->
+    <aside class="w-64 bg-slate-900 border-r border-slate-800 flex flex-col fixed inset-y-0 left-0 z-10">
+      <div class="px-4 py-5 border-b border-slate-800">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center flex-shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+            </svg>
+          </div>
+          <span class="font-bold text-sm tracking-wide">IDEAZ</span>
+        </div>
+      </div>
+
+      <nav class="p-3 flex flex-col gap-1 flex-1">
+        <a href="index.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-slate-400 hover:bg-slate-800 transition-colors">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+          </svg>
+          Dashboard
+        </a>
+        <a href="agenda.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold bg-indigo-600/20 text-indigo-400 border border-indigo-600/30">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+          </svg>
+          Agenda
+        </a>
+        <a href="configuracion.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-slate-400 hover:bg-slate-800 transition-colors">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+            <circle cx="12" cy="12" r="3" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/>
+          </svg>
+          Configuración
+        </a>
+      </nav>
+
+      <div class="p-4 border-t border-slate-800">
+        <p id="last-updated" class="text-xs text-slate-600 mb-2"></p>
+        <button onclick="Agenda.load(true)" class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:bg-slate-800 transition-colors">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+          Actualizar
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="ml-64 flex-1 p-6 min-w-0">
+
+      <!-- Page header -->
+      <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div>
+          <h1 class="text-2xl font-bold">Agenda del Equipo</h1>
+          <p class="text-slate-400 text-sm mt-0.5">Tareas pendientes por fecha de entrega</p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <!-- Board filter -->
+          <select id="board-filter" onchange="Agenda._applyFilters()"
+            class="bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500 max-w-xs">
+          </select>
+
+          <!-- Member filter -->
+          <select id="member-filter" onchange="Agenda._applyFilters()"
+            class="bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-500 max-w-xs">
+          </select>
+
+          <!-- View toggle -->
+          <div class="flex bg-slate-800 rounded-lg p-1 gap-1">
+            <button id="btn-month" onclick="Agenda.setView('month')"
+              class="px-4 py-1.5 rounded-md text-sm font-semibold transition-colors bg-indigo-600 text-white">
+              Mes
+            </button>
+            <button id="btn-week" onclick="Agenda.setView('week')"
+              class="px-4 py-1.5 rounded-md text-sm font-semibold transition-colors text-slate-400 hover:text-white">
+              Semana
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Calendar nav -->
+      <div class="flex items-center gap-3 mb-4">
+        <button onclick="Agenda.navigate(-1)"
+          class="p-2 rounded-lg hover:bg-slate-800 transition-colors text-slate-400 hover:text-slate-200">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+          </svg>
+        </button>
+
+        <h2 id="cal-title" class="text-lg font-bold text-slate-100 min-w-64 text-center"></h2>
+
+        <button onclick="Agenda.navigate(1)"
+          class="p-2 rounded-lg hover:bg-slate-800 transition-colors text-slate-400 hover:text-slate-200">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+          </svg>
+        </button>
+
+        <button onclick="Agenda.goToday()"
+          class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors border border-slate-700">
+          Hoy
+        </button>
+
+        <!-- Status legend -->
+        <div id="legend" class="ml-auto flex flex-wrap items-center gap-3"></div>
+      </div>
+
+      <!-- Calendar -->
+      <div id="cal-container"></div>
+
+    </main>
+  </div>
+
+  <!-- Task detail modal -->
+  <div id="modal" style="display:none"
+    class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg shadow-2xl">
+
+      <div class="p-6">
+        <div class="flex items-start justify-between mb-4">
+          <div class="flex-1 pr-4 min-w-0">
+            <p id="modal-board" class="text-xs font-semibold text-indigo-400 mb-1 truncate"></p>
+            <h3 id="modal-title" class="text-lg font-bold text-slate-100 leading-snug"></h3>
+          </div>
+          <button onclick="Agenda.closeModal()"
+            class="text-slate-500 hover:text-slate-300 transition-colors flex-shrink-0 mt-0.5">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="space-y-3">
+          <!-- Status + list -->
+          <div class="flex items-center gap-2 flex-wrap">
+            <span id="modal-dot" class="w-2.5 h-2.5 rounded-full flex-shrink-0"></span>
+            <span id="modal-status" class="text-sm font-semibold text-slate-200"></span>
+            <span class="text-slate-700">·</span>
+            <span id="modal-list" class="text-sm text-slate-400"></span>
+          </div>
+
+          <!-- Due date -->
+          <div class="flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-slate-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+            </svg>
+            <span id="modal-due" class="text-sm text-slate-300"></span>
+          </div>
+
+          <!-- Members -->
+          <div id="modal-members" class="flex flex-col gap-1.5"></div>
+
+          <!-- Labels -->
+          <div id="modal-labels" class="flex flex-wrap gap-1.5" style="display:none"></div>
+
+          <!-- Description -->
+          <div id="modal-desc-wrap" style="display:none">
+            <p class="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">Descripción</p>
+            <p id="modal-desc" class="text-sm text-slate-300 leading-relaxed whitespace-pre-line bg-slate-800 rounded-lg p-3 max-h-40 overflow-y-auto"></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="px-6 pb-5 flex justify-end">
+        <button onclick="Agenda.closeModal()"
+          class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold rounded-lg transition-colors">
+          Cerrar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/timeCalc.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/cache.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/agenda.js"></script>
+  <script>
+    function setState(name) {
+      ['auth','loading','error','agenda'].forEach(s => {
+        const el = document.getElementById('state-' + s);
+        if (el) el.style.display = (name === s) ? (s === 'agenda' ? 'flex' : 'block') : 'none';
+      });
+    }
+
+    // Close modal on backdrop click
+    document.getElementById('modal').addEventListener('click', function(e) {
+      if (e.target === this) Agenda.closeModal();
+    });
+
+    // Render status legend
+    function renderLegend() {
+      const stages = TimeCalc.STAGES;
+      document.getElementById('legend').innerHTML = Object.entries(stages).map(([, s]) => `
+        <div class="flex items-center gap-1.5">
+          <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:${s.color}"></span>
+          <span class="text-xs text-slate-500">${s.label}</span>
+        </div>`).join('');
+    }
+
+    renderLegend();
+    Agenda.load();
+  </script>
+</body>
+</html>
