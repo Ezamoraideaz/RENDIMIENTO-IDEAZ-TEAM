@@ -1,6 +1,7 @@
 # CLAUDE.md — IDEAZ Dashboard · Reglas de colaboración
 
 Este archivo es leído automáticamente por Claude Code. Aplica para todos los developers del proyecto.
+<!-- deploy-test -->
 
 ---
 
