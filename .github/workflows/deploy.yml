@@ -27,3 +27,4 @@ jobs:
             **/CLAUDE.md
             **/.claude/**
             **/node_modules/**
+            **/.gitignore
