@@ -2,6 +2,7 @@ const Agenda = {
   cards: [],
   filtered: [],
   cardMap: {},
+  ghostMap: {},
   view: 'month',
   date: new Date(),
 
@@ -82,11 +83,16 @@ const Agenda = {
     }
   },
 
+  // --- Task 2: show workspace in board filter ---
   _populateFilters(boards) {
     const boardSel = document.getElementById('board-filter');
     const prevBoard = boardSel.value;
     boardSel.innerHTML = '<option value="">Todos los tableros</option>' +
-      boards.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
+      boards.map(b => {
+        const ws = b.organization?.displayName || b.organization?.name || '';
+        const label = ws ? `${b.name} · ${ws}` : b.name;
+        return `<option value="${b.id}">${label}</option>`;
+      }).join('');
     if (prevBoard) boardSel.value = prevBoard;
 
     const memberMap = new Map();
@@ -104,14 +110,114 @@ const Agenda = {
     if (prevMember) memberSel.value = prevMember;
   },
 
+  // --- Task 6: ghost history in localStorage ---
+  _getGhostHistory() {
+    try { return JSON.parse(localStorage.getItem('agenda_ghost_history') || '{}'); }
+    catch { return {}; }
+  },
+
+  _saveGhostHistory(h) {
+    localStorage.setItem('agenda_ghost_history', JSON.stringify(h));
+  },
+
+  // Builds ghost card objects for overdue backlog/clientRevision cards
+  _buildGhostCards() {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const history = this._getGhostHistory();
+    this.ghostMap = {};
+
+    const ghostStages = new Set(['backlog', 'clientRevision']);
+    const doneStages  = new Set(['approved', 'drive', 'published']);
+
+    // Update history entries
+    Object.keys(history).forEach(cardId => {
+      const entry = history[cardId];
+      const card  = this.cardMap[cardId];
+
+      // Remove entries for cards no longer loaded
+      if (!card && !entry.resolved) { delete history[cardId]; return; }
+
+      if (card && !entry.resolved) {
+        // Mark resolved when card moved to a done stage
+        if (doneStages.has(card.stageKey)) {
+          entry.resolved     = true;
+          entry.resolvedDate = new Date().toISOString();
+          entry.ghostDate    = today.toISOString(); // last active day = today
+        } else {
+          // Still active: update ghostDate to today so ghost shows on current day
+          entry.ghostDate = today.toISOString();
+        }
+      }
+
+      // Purge resolved entries older than 30 days
+      if (entry.resolved && entry.resolvedDate) {
+        const ageDays = (Date.now() - new Date(entry.resolvedDate)) / 86400000;
+        if (ageDays > 30) { delete history[cardId]; }
+      }
+    });
+
+    // Add newly detected ghost candidates
+    this.cards.forEach(card => {
+      if (!ghostStages.has(card.stageKey)) return;
+      const dueDay = new Date(card.due); dueDay.setHours(0, 0, 0, 0);
+      if (dueDay >= today) return;
+      if (!history[card.id]) {
+        history[card.id] = {
+          originStatus: card.stageKey,
+          ghostDate:    today.toISOString(),
+          resolved:     false
+        };
+      }
+    });
+
+    this._saveGhostHistory(history);
+
+    // Build ghost card objects
+    const ghosts = [];
+    Object.entries(history).forEach(([cardId, entry]) => {
+      const card = this.cardMap[cardId];
+      if (!card) return;
+
+      const ghostId        = 'ghost_' + cardId;
+      const originStage    = TimeCalc.STAGES[entry.originStatus] || TimeCalc.STAGES['backlog'];
+      const ghostDay       = new Date(entry.ghostDate); ghostDay.setHours(0, 0, 0, 0);
+
+      const ghost = {
+        ...card,
+        id:               ghostId,
+        originalId:       cardId,
+        isGhost:          true,
+        ghostResolved:    !!entry.resolved,
+        ghostOriginStatus: entry.originStatus,
+        due:              new Date(ghostDay),
+        stageInfo:        entry.resolved
+          ? { ...TimeCalc.STAGES['approved'], label: 'Aprobado ✓' }
+          : originStage,
+      };
+      ghosts.push(ghost);
+      this.ghostMap[ghostId] = ghost;
+    });
+
+    return ghosts;
+  },
+
   _applyFilters() {
     const boardId  = document.getElementById('board-filter').value;
     const memberId = document.getElementById('member-filter').value;
-    this.filtered = this.cards.filter(c => {
+
+    const base = this.cards.filter(c => {
       if (boardId  && c.boardId !== boardId) return false;
       if (memberId && !c.idMembers.includes(memberId)) return false;
       return true;
     });
+
+    const ghosts = this._buildGhostCards().filter(g => {
+      if (boardId  && g.boardId !== boardId) return false;
+      if (memberId && !g.idMembers.includes(memberId)) return false;
+      return true;
+    });
+
+    this.filtered = [...base, ...ghosts];
     this._render();
   },
 
@@ -123,16 +229,41 @@ const Agenda = {
   },
 
   _pill(card, compact) {
+    if (card.isGhost) return this._ghostPill(card, compact);
     const { color, bg } = card.stageInfo;
     const maxLen = compact ? 28 : 42;
     const label  = card.name.length > maxLen ? card.name.slice(0, maxLen) + '…' : card.name;
-    const textColor = color === '#64748b' ? '#cbd5e1' : color;
+    const textColor = color === '#94a3b8' ? '#cbd5e1' : color;
     return `
       <div data-card-id="${card.id}" class="agenda-card cursor-pointer rounded text-xs px-1.5 py-1 mb-1 hover:brightness-125 transition-all select-none"
            style="background:${bg}; border-left:3px solid ${color};"
            title="${card.name.replace(/"/g,'&quot;')}">
         <div class="font-medium leading-tight truncate" style="color:${textColor}">${label}</div>
         <div class="text-slate-400 truncate mt-0.5 leading-tight" style="font-size:0.65rem">${card.boardName}</div>
+      </div>`;
+  },
+
+  // --- Task 6: ghost pill rendering ---
+  _ghostPill(card, compact) {
+    const originStageInfo = TimeCalc.STAGES[card.ghostOriginStatus] || {};
+    const color = card.ghostResolved
+      ? (TimeCalc.STAGES['approved']?.color || '#10b981')
+      : (originStageInfo.color || '#94a3b8');
+    const maxLen   = compact ? 26 : 40;
+    const label    = card.name.length > maxLen ? card.name.slice(0, maxLen) + '…' : card.name;
+    const statusTag = card.ghostResolved
+      ? '✓ Aprobado'
+      : `👻 ${originStageInfo.label || 'Pendiente'}`;
+    const titleText = `${card.name} — Rezagada de ${originStageInfo.label || card.ghostOriginStatus}`;
+    return `
+      <div data-card-id="${card.id}" class="agenda-card cursor-pointer rounded text-xs px-1.5 py-1 mb-1 hover:brightness-125 transition-all select-none"
+           style="opacity:0.65; background:${color}12; border-left:3px dashed ${color}; border-top:1px dashed ${color}30; border-right:1px dashed ${color}30; border-bottom:1px dashed ${color}30;"
+           title="${titleText.replace(/"/g,'&quot;')}">
+        <div class="font-medium leading-tight truncate" style="color:${color}">${label}</div>
+        <div class="flex items-center justify-between gap-1 mt-0.5" style="font-size:0.6rem">
+          <span class="text-slate-500 truncate">${card.boardName}</span>
+          <span class="font-semibold flex-shrink-0" style="color:${color}">${statusTag}</span>
+        </div>
       </div>`;
   },
 
@@ -177,6 +308,11 @@ const Agenda = {
       const visible = cards.slice(0, 3);
       const extra   = cards.length - 3;
 
+      // --- Task 3: highlighted count badge ---
+      const countBadge = cards.length > 0
+        ? `<span class="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs font-bold bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 leading-none">${cards.length}</span>`
+        : '';
+
       html += `
         <div class="min-h-32 p-1.5 ${isToday ? 'bg-indigo-950/30' : ''} ${borderB}">
           <div class="flex items-center justify-between mb-1">
@@ -184,7 +320,7 @@ const Agenda = {
               ${isToday ? 'bg-indigo-600 text-white' : isPast ? 'text-slate-700' : 'text-slate-400'}">
               ${dayNum}
             </span>
-            ${cards.length > 0 ? `<span class="text-xs text-slate-600 font-medium leading-none">${cards.length}</span>` : ''}
+            ${countBadge}
           </div>
           ${visible.map(c => this._pill(c, true)).join('')}
           ${extra > 0 ? `<div class="text-xs text-indigo-400 font-semibold px-1 cursor-pointer hover:text-indigo-300"
@@ -285,15 +421,23 @@ const Agenda = {
     this._render();
   },
 
+  // --- Task 6: handle ghost card IDs in modal ---
   openModal(cardId) {
-    const card = this.cardMap[cardId];
+    const isGhost    = cardId.startsWith('ghost_');
+    const ghost      = isGhost ? this.ghostMap[cardId] : null;
+    const originalId = ghost ? ghost.originalId : cardId;
+    const card       = this.cardMap[originalId] || ghost;
     if (!card) return;
 
-    document.getElementById('modal-board').textContent  = card.boardName;
+    const displayStage = ghost ? ghost.stageInfo : card.stageInfo;
+
+    document.getElementById('modal-board').textContent = isGhost
+      ? `${card.boardName} · ${ghost.ghostResolved ? '✓ Resuelta' : '👻 Rezagada'}`
+      : card.boardName;
     document.getElementById('modal-title').textContent  = card.name;
 
-    document.getElementById('modal-dot').style.backgroundColor = card.stageInfo.color;
-    document.getElementById('modal-status').textContent = card.stageInfo.label;
+    document.getElementById('modal-dot').style.backgroundColor = displayStage.color;
+    document.getElementById('modal-status').textContent = displayStage.label;
     document.getElementById('modal-list').textContent   = card.listName;
 
     const today = new Date(); today.setHours(0,0,0,0);
@@ -305,7 +449,7 @@ const Agenda = {
     dueEl.className   = `text-sm font-medium ${overdue ? 'text-red-400' : 'text-slate-300'}`;
 
     const membersEl = document.getElementById('modal-members');
-    membersEl.innerHTML = card.memberNames.map((name, i) => {
+    membersEl.innerHTML = card.memberNames.map((name) => {
       const color = Utils.avatarColor(name);
       const init  = Utils.initials(name);
       return `
@@ -338,7 +482,7 @@ const Agenda = {
 
     const modal = document.getElementById('modal');
     modal.style.display = 'flex';
-    modal.offsetHeight; // reflow
+    modal.offsetHeight;
   },
 
   closeModal() {
