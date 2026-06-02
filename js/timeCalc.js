@@ -109,7 +109,8 @@ const TimeCalc = {
         member:       move.member,
         isActive,
         calendarMs,
-        isSameInterval: calendarMs < 5 * 60 * 1000, // menos de 5 min → movimiento casi inmediato
+        isSameInterval:  calendarMs < 5 * 60 * 1000,
+        isOutsideHours:  isActive && this.isOutsideOfficeHours(periodStart),
         workingHours: isActive ? this.calcWorkingHours(periodStart, periodEnd) : 0
       };
     });
@@ -132,32 +133,27 @@ const TimeCalc = {
       currentStage: lastMove?.toStage || 'backlog',
       currentList:  lastMove?.to || '',
       isDone:       !!endDate,
-      isStarted:    !!startDate
+      isStarted:    !!startDate,
+      hasOutsideHoursActivity: periods.some(p => p.isActive && p.isOutsideHours)
     };
   },
 
-  // Count working hours (Mon-Fri, 8h/day) between two dates
+  // Office hours: Mon-Fri 8:00-12:00 and 13:00-17:00
+  // Returns true if the given date falls outside those hours (night, lunch, weekend)
+  isOutsideOfficeHours(date) {
+    if (!date) return false;
+    const d = new Date(date);
+    const day = d.getDay();
+    if (day === 0 || day === 6) return true;
+    const h = d.getHours() + d.getMinutes() / 60;
+    return h < 8 || (h >= 12 && h < 13) || h >= 17;
+  },
+
+  // Count actual elapsed hours between two timestamps — no time restriction.
+  // Remote workers may work at any hour; every minute counts.
   calcWorkingHours(start, end) {
     if (!start || !end || end <= start) return 0;
-    let hours = 0;
-    const cur = new Date(start);
-    while (cur < end) {
-      const day = cur.getDay();
-      if (day !== 0 && day !== 6) { // not weekend
-        const dayEnd = new Date(cur);
-        dayEnd.setHours(17, 0, 0, 0);
-        const dayStart = new Date(cur);
-        dayStart.setHours(9, 0, 0, 0);
-        const periodStart = cur > dayStart ? cur : dayStart;
-        const periodEnd   = end < dayEnd  ? end : dayEnd;
-        if (periodEnd > periodStart) {
-          hours += (periodEnd - periodStart) / 3600000;
-        }
-      }
-      cur.setDate(cur.getDate() + 1);
-      cur.setHours(9, 0, 0, 0);
-    }
-    return Math.max(0, hours);
+    return Math.max(0, (end - start) / 3600000);
   },
 
   calcProjectSummary(timelines) {
@@ -179,9 +175,10 @@ const TimeCalc = {
       totalRevisions,
       avgRevisions,
       avgCycleTime,
-      startedCount:  started.length,
-      doneCount:     done.length,
-      pendingCount:  notStart.length
+      startedCount:       started.length,
+      doneCount:          done.length,
+      pendingCount:       notStart.length,
+      outsideHoursCount:  all.filter(t => t.hasOutsideHoursActivity).length
     };
   },
 

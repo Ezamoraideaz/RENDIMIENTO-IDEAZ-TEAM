@@ -498,7 +498,13 @@
         <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">📊 ROI del Proyecto</div>
         <div class="text-3xl font-black text-slate-100">${roi !== null ? Utils.fmtPercent(roi) : '—'}</div>
         <div class="text-xs text-slate-400 mt-1">${totalCost > 0 ? 'costo: ' + Utils.fmtMoney(totalCost, pd.currency) : 'configura sueldos →'}</div>
-      </div>`;
+      </div>
+      ${summary.outsideHoursCount > 0 ? `
+      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-indigo-400 rounded-2xl p-5">
+        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">🌙 Trabajo Fuera de Horario</div>
+        <div class="text-3xl font-black text-indigo-300">${summary.outsideHoursCount}</div>
+        <div class="text-xs text-slate-400 mt-1">tarjeta${summary.outsideHoursCount !== 1 ? 's' : ''} con actividad nocturna o de fin de semana — ver 🌙 en la tabla</div>
+      </div>` : ''}`;
 
     // Chart: cards per list with stage colors
     const cardsByList = {};
@@ -711,8 +717,11 @@
 
       const stageBadge = `<span class="stage-badge" style="background:${TimeCalc.stageBg(stage)};color:${TimeCalc.stageColor(stage)}">${TimeCalc.stageLabel(stage) || tl.currentList || stage}</span>`;
 
+      const outsideTag = tl.hasOutsideHoursActivity
+        ? `<span title="Tuvo actividad fuera del horario de oficina (noche, fin de semana o almuerzo)" style="cursor:default">🌙</span>`
+        : '';
       const hourCell = tl.isStarted
-        ? `<strong class="text-slate-100">${Utils.fmtHours(tl.workingHours)}</strong>
+        ? `<strong class="text-slate-100">${Utils.fmtHours(tl.workingHours)}</strong> ${outsideTag}
            <div class="text-xs text-slate-400" title="Tiempo transcurrido total desde En Proceso">transcurrido: ${TimeCalc.formatDuration(tl.totalHours)}</div>`
         : '<span class="text-slate-500">Sin iniciar</span>';
 
@@ -732,8 +741,11 @@
         const warningFlag = p.isSameInterval
           ? `<span style="color:#f59e0b;font-size:0.68rem;margin-left:6px" title="Movimiento casi inmediato — posible corrección manual o automatismo">⚠ ${calDur}</span>`
           : `<span style="font-size:0.75rem;color:#94a3b8">${calDur}</span>`;
+        const outsideFlag = p.isOutsideHours
+          ? `<span title="Actividad fuera de horario de oficina" style="margin-left:4px;cursor:default">🌙</span>`
+          : '';
         const countedCell = p.isActive
-          ? `<span style="color:#10b981;font-size:0.75rem;font-weight:600">✅ ${Utils.fmtHours(p.workingHours)}</span>`
+          ? `<span style="color:#10b981;font-size:0.75rem;font-weight:600">✅ ${Utils.fmtHours(p.workingHours)}</span>${outsideFlag}`
           : `<span style="font-size:0.75rem;color:#94a3b8">⏸ pausado</span>`;
 
         return `<tr style="${rowBg}">
@@ -748,7 +760,8 @@
         </tr>`;
       }).join('');
 
-      const hasWarnings = (tl.periods || []).some(p => p.isSameInterval);
+      const hasWarnings      = (tl.periods || []).some(p => p.isSameInterval);
+      const hasOutsideHours  = tl.hasOutsideHoursActivity;
       const desgloseHtml = tl.periods && tl.periods.length > 0
         ? `<tr id="desglose-${card.id}" data-detail="true" style="display:none">
             <td colspan="8" style="padding:0;border-top:none">
@@ -773,7 +786,8 @@
                   Total activo: <strong class="text-slate-200">${Utils.fmtHours(tl.workingHours)}</strong>
                   · Cuentan: <strong>En Proceso</strong> + <strong>Cambios del Cliente</strong>
                   · Pausa: <strong>Enviado al Cliente</strong>
-                  ${hasWarnings ? '· <span style="color:#f59e0b">⚠ Movimientos &lt;5min excluídos del conteo si eran pausas</span>' : ''}
+                  ${hasWarnings ? '· <span style="color:#f59e0b">⚠ Movimientos &lt;5min</span>' : ''}
+                  ${hasOutsideHours ? '· <span style="color:#818cf8">🌙 Incluye trabajo fuera del horario de oficina</span>' : ''}
                 </div>
               </div>
             </td>
