@@ -674,10 +674,62 @@
     Utils.makeSortable(tbody.closest('table'));
   }
 
+  // Returns a version of `project` with cards filtered to `monthVal` (YYYY-MM)
+  // and all stats recomputed from those filtered cards.
+  function filterProjectByMonth(project, monthVal) {
+    if (!monthVal) return project;
+    const [y, m] = monthVal.split('-').map(Number);
+    const inMonth = d => {
+      if (!d) return false;
+      const dt = new Date(d);
+      return dt.getFullYear() === y && dt.getMonth() + 1 === m;
+    };
+    const filteredCards = project.cards.filter(c =>
+      c.due ? inMonth(c.due) : inMonth(c.dateLastActivity)
+    );
+    if (filteredCards.length === 0) return null;
+
+    const filteredTimelines = {};
+    filteredCards.forEach(c => { if (project.timelines[c.id]) filteredTimelines[c.id] = project.timelines[c.id]; });
+
+    const filteredDoneCards = filteredCards.filter(c => project.doneListIds.has(c.idList) || c.dueComplete);
+    const progress   = Math.round(filteredDoneCards.length / filteredCards.length * 100);
+    const summary    = TimeCalc.calcProjectSummary(filteredTimelines);
+    const totalHours = summary.totalWorkHours;
+    const totalCost  = totalHours * (project.avgSalary / Utils.MONTHLY_HOURS);
+
+    return {
+      ...project,
+      cards:          filteredCards,
+      doneCards:      filteredDoneCards,
+      timelines:      filteredTimelines,
+      progress,
+      totalCards:     filteredCards.length,
+      completedCards: filteredDoneCards.length,
+      totalHours,
+      totalRevisions: summary.totalRevisions,
+      avgCycleTime:   summary.avgCycleTime,
+      totalCost,
+      roi: Utils.calcROI(project.revenue, totalCost)
+    };
+  }
+
   function populateFilters(projects) {
     const workspaces = [...new Set(projects.map(p => p.workspace).filter(Boolean))].sort();
     const cats       = [...new Set(projects.map(p => p.category).filter(Boolean))].sort();
-    const periods    = [...new Set(projects.map(p => p.period).filter(Boolean))].sort();
+
+    // Auto-detect available months from card due dates — no manual config needed
+    const monthSet = new Set();
+    for (const p of projects) {
+      for (const c of p.cards) {
+        const dateStr = c.due || c.dateLastActivity;
+        if (dateStr) {
+          const d = new Date(dateStr);
+          monthSet.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+        }
+      }
+    }
+    const periods = [...monthSet].sort();
 
     const wsSel  = document.getElementById('filter-workspace');
     const catSel = document.getElementById('filter-category');
@@ -707,10 +759,16 @@
     if (ws)  filtered = filtered.filter(p => p.workspace === ws);
     if (typ) filtered = filtered.filter(p => p.type      === typ);
     if (cat) filtered = filtered.filter(p => p.category  === cat);
-    if (per) filtered = filtered.filter(p => p.period    === per);
     if (q)   filtered = filtered.filter(p =>
       p.displayName.toLowerCase().includes(q) || p.name.toLowerCase().includes(q) ||
       (p.workspace || '').toLowerCase().includes(q) || (p.category || '').toLowerCase().includes(q));
+
+    // Period filter: operate at card level using due dates, then recompute project stats
+    if (per) {
+      filtered = filtered
+        .map(p => filterProjectByMonth(p, per))
+        .filter(Boolean); // remove projects with no cards in this period
+    }
 
     document.getElementById('btn-clear-filters').style.display = hasFilter ? '' : 'none';
     const info = document.getElementById('filter-info');
