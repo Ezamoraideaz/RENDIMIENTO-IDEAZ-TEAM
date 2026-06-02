@@ -5,6 +5,9 @@ on:
     branches:
       - main
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   deploy:
     name: FTP Deploy
@@ -21,6 +24,8 @@ jobs:
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
           server-dir: /public_html/dashboard/
+          timeout: 60000
+          dangerous-clean-slate: false
           exclude: |
             **/.git*
             **/.git*/**
