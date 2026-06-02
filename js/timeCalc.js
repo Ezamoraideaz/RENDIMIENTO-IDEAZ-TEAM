@@ -1,13 +1,13 @@
 const TimeCalc = {
   // Pattern matching for each workflow stage
   STAGES: {
-    backlog:        { label: 'Tareas',           color: '#64748b', bg: 'rgba(100,116,139,0.15)' },
-    inProgress:     { label: 'En Proceso',       color: '#6366f1', bg: 'rgba(99,102,241,0.15)' },
-    sentToClient:   { label: 'Enviado',          color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
-    clientRevision: { label: 'Cambios',          color: '#ef4444', bg: 'rgba(239,68,68,0.15)' },
-    approved:       { label: 'Aprobado',         color: '#10b981', bg: 'rgba(16,185,129,0.15)' },
-    drive:          { label: 'Montado en Drive', color: '#059669', bg: 'rgba(5,150,105,0.15)'  },
-    published:      { label: 'Publicado',        color: '#8b5cf6', bg: 'rgba(139,92,246,0.15)' },
+    backlog:        { label: 'Tareas',          color: '#94a3b8', bg: 'rgba(148,163,184,0.15)' },
+    inProgress:     { label: 'En Proceso',      color: '#6366f1', bg: 'rgba(99,102,241,0.15)'  },
+    sentToClient:   { label: 'Enviado',         color: '#f59e0b', bg: 'rgba(245,158,11,0.15)'  },
+    clientRevision: { label: 'Cambios',         color: '#ef4444', bg: 'rgba(239,68,68,0.15)'   },
+    approved:       { label: 'Aprobado',        color: '#10b981', bg: 'rgba(16,185,129,0.15)'  },
+    drive:          { label: 'Subido a Drive',  color: '#0ea5e9', bg: 'rgba(14,165,233,0.15)'  },
+    published:      { label: 'Publicado',       color: '#a855f7', bg: 'rgba(168,85,247,0.15)'  },
   },
 
   PATTERNS: {

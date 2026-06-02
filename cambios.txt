@@ -1,0 +1,13 @@
+realizar cambios
+
+1.[✓] trabajar la sección de aside del archivo index.html y agenda.html en un unico archivo separado y hacer el llamado en cada archivo donde corresponda, esta sección va a ser identica a la que actualmente se encuentra en index.html,agregarle la opción de Agenda con su correspondiente link.
+
+2.[✓] en el archivo agenda.html en el listado de todos los tableros mostrar a que espacio pertenece cada tablero.
+
+3.[✓] en agenda.html resaltar el número total de tareas que hay por día.
+
+4.[✓] en agenda.html el estado Aprobado / Drive separarlo en Aprobado y otro llamado Subido a Drive.
+
+5.[✓] en agenda.html cambiar color de los estados por colores que no se parezcan entre ellos.
+
+6.[✓] en agenda.html necesito que todos los días a las 12:00 am se ejecute la siguiente acción: en vista semana crear un duplicado como vista fantasma de las tareas en estado tareas o cambios que quedaron del día anterior, este duplicado va a tener una etiqueta que me indique si se encontraba en tareas o cambios, una vez haya sido marcada como aprobada dejar el duplicado donde se encontraba, en vista mes también mostrar este duplicado pero seguir mostrando solo 3 tareas por día y que muestre el número total de tareas + cambios duplicados.
