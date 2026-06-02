@@ -914,24 +914,32 @@
     let filtered = cards;
     if (monthVal) {
       const [y, m] = monthVal.split('-').map(Number);
-      // A card belongs to this month if any action occurred in it OR dateLastActivity is in it
+      const inMonth = d => d && new Date(d).getFullYear() === y && new Date(d).getMonth() + 1 === m;
+
       const activeIds = new Set();
-      for (const a of actions) {
-        const d = new Date(a.date);
-        if (d.getFullYear() === y && d.getMonth() + 1 === m) {
-          const id = a.data?.card?.id;
-          if (id) activeIds.add(id);
-        }
-      }
+
       for (const c of cards) {
-        if (c.dateLastActivity) {
-          const d = new Date(c.dateLastActivity);
-          if (d.getFullYear() === y && d.getMonth() + 1 === m) activeIds.add(c.id);
+        if (c.due) {
+          // PRIMARY: card belongs to the month of its due date.
+          // When PM reassigns the due date in Trello, this updates automatically.
+          if (inMonth(c.due)) activeIds.add(c.id);
+        } else {
+          // FALLBACK for cards without due date: use activity and list-movement actions.
+          if (inMonth(c.dateLastActivity)) activeIds.add(c.id);
         }
       }
+
+      // Also include due-date-less cards that had list movements in this month
+      for (const a of actions) {
+        const id = a.data?.card?.id;
+        if (!id) continue;
+        const card = cards.find(c => c.id === id);
+        if (card && !card.due && inMonth(a.date)) activeIds.add(id);
+      }
+
       filtered = cards.filter(c => activeIds.has(c.id));
       const countEl = document.getElementById('month-filter-count');
-      countEl.textContent = `${filtered.length} tarjeta${filtered.length !== 1 ? 's' : ''} activas en ${Utils.formatPeriod(monthVal)}`;
+      countEl.textContent = `${filtered.length} tarjeta${filtered.length !== 1 ? 's' : ''} en ${Utils.formatPeriod(monthVal)}`;
     }
     renderProject(board, lists, filtered, members, actions);
   }
