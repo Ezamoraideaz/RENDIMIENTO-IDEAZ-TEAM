@@ -334,7 +334,6 @@
 
   function buildDashboardData(boards, details) {
     const projectsData = [];
-    const memberStats = {};
 
     boards.forEach((board, idx) => {
       const detail = details[idx];
@@ -370,29 +369,6 @@
       const totalCost = totalHours * (avgSalary / Utils.MONTHLY_HOURS);
       const roi = Utils.calcROI(pd.revenue, totalCost);
 
-      // Member stats
-      for (const m of members) {
-        if (!memberStats[m.id]) {
-          memberStats[m.id] = { id: m.id, name: m.fullName, username: m.username, assigned: 0, done: 0, hours: 0, revisions: 0 };
-        }
-        const myCards = openCards.filter(c => c.idMembers.includes(m.id));
-        const myDone  = myCards.filter(c => doneListIds.has(c.idList) || c.dueComplete);
-        // Assign hours from timelines where this member is assigned
-        const myHours = myCards.reduce((s, c) => {
-          const tl = timelines[c.id];
-          if (!tl || !tl.isStarted) return s;
-          // Split hours equally among assigned members
-          const share = c.idMembers.length > 0 ? 1 / c.idMembers.length : 1;
-          return s + tl.workingHours * share;
-        }, 0);
-        const myRevisions = myCards.reduce((s, c) => s + (timelines[c.id]?.revisions || 0), 0);
-
-        memberStats[m.id].assigned  += myCards.length;
-        memberStats[m.id].done      += myDone.length;
-        memberStats[m.id].hours     += myHours;
-        memberStats[m.id].revisions += myRevisions;
-      }
-
       projectsData.push({
         id: board.id,
         name: board.name,
@@ -403,7 +379,7 @@
         type:      Utils.resolveType(pd.type, board.organization?.displayName || board.organization?.name || '', board.name),
         url: board.shortUrl,
         lastActivity: board.dateLastActivity,
-        lists, cards: openCards, doneCards, doneListIds, members,
+        lists, cards: openCards, doneCards, doneListIds, members, timelines,
         progress,
         totalCards:     openCards.length,
         completedCards: doneCards.length,
@@ -420,23 +396,39 @@
       });
     });
 
-    return { projects: projectsData, members: Object.values(memberStats) };
+    return { projects: projectsData };
   }
 
-  function renderDashboard(data) {
-    const { projects, members } = data;
+  function computeMemberStats(projects) {
+    const memberStats = {};
+    for (const p of projects) {
+      for (const m of p.members) {
+        if (!memberStats[m.id]) {
+          memberStats[m.id] = { id: m.id, name: m.fullName, username: m.username, assigned: 0, done: 0, hours: 0, revisions: 0 };
+        }
+        const myCards = p.cards.filter(c => c.idMembers.includes(m.id));
+        const myDone  = myCards.filter(c => p.doneListIds.has(c.idList) || c.dueComplete);
+        const myHours = myCards.reduce((s, c) => {
+          const tl = p.timelines[c.id];
+          if (!tl || !tl.isStarted) return s;
+          const share = c.idMembers.length > 0 ? 1 / c.idMembers.length : 1;
+          return s + tl.workingHours * share;
+        }, 0);
+        const myRevisions = myCards.reduce((s, c) => s + (p.timelines[c.id]?.revisions || 0), 0);
+        memberStats[m.id].assigned  += myCards.length;
+        memberStats[m.id].done      += myDone.length;
+        memberStats[m.id].hours     += myHours;
+        memberStats[m.id].revisions += myRevisions;
+      }
+    }
+    return Object.values(memberStats);
+  }
 
-    // Aggregate KPIs
+  function renderKPIGlobal(projects, members) {
     const totalCards = projects.reduce((s, p) => s + p.totalCards, 0);
     const totalDone  = projects.reduce((s, p) => s + p.completedCards, 0);
     const globalPct  = totalCards > 0 ? Math.round(totalDone / totalCards * 100) : 0;
     const totalHours = projects.reduce((s, p) => s + p.totalHours, 0);
-    const totalBudget  = projects.reduce((s, p) => s + p.budget, 0);
-    const totalRevenue = projects.reduce((s, p) => s + p.revenue, 0);
-    const totalCost    = projects.reduce((s, p) => s + p.totalCost, 0);
-    const globalROI    = Utils.calcROI(totalRevenue, totalCost);
-
-    // Global KPIs
     document.getElementById('kpi-global').innerHTML = `
       <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-violet-500 rounded-2xl p-5">
         <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">📁 Proyectos Activos</div>
@@ -456,7 +448,7 @@
       <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-cyan-500 rounded-2xl p-5">
         <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">👥 Miembros del Equipo</div>
         <div class="text-3xl font-black text-slate-100">${members.length}</div>
-        <div class="text-xs text-slate-400 mt-1">en todos los proyectos</div>
+        <div class="text-xs text-slate-400 mt-1">en los proyectos filtrados</div>
       </div>
       <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-amber-500 rounded-2xl p-5">
         <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">⏱ Horas Laborales (Trello)</div>
@@ -466,20 +458,25 @@
       <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-red-500 rounded-2xl p-5">
         <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">🔄 Total Revisiones</div>
         <div class="text-3xl font-black text-slate-100">${projects.reduce((s,p)=>s+p.totalRevisions,0)}</div>
-        <div class="text-xs text-slate-400 mt-1">cambios del cliente (todos los proyectos)</div>
+        <div class="text-xs text-slate-400 mt-1">cambios del cliente (proyectos filtrados)</div>
       </div>`;
+  }
 
-    // Financial KPIs
+  function renderKPIFinancial(projects) {
+    const totalBudget  = projects.reduce((s, p) => s + p.budget, 0);
+    const totalRevenue = projects.reduce((s, p) => s + p.revenue, 0);
+    const totalCost    = projects.reduce((s, p) => s + p.totalCost, 0);
+    const globalROI    = Utils.calcROI(totalRevenue, totalCost);
     document.getElementById('kpi-financial').innerHTML = `
       <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-indigo-500 rounded-2xl p-5">
         <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">💰 Presupuesto Total</div>
         <div class="text-2xl font-black text-slate-100">${Utils.fmtMoney(totalBudget)}</div>
-        <div class="text-xs text-slate-400 mt-1">suma de todos los proyectos</div>
+        <div class="text-xs text-slate-400 mt-1">suma de proyectos filtrados</div>
       </div>
       <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-emerald-500 rounded-2xl p-5">
         <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">📈 Ingresos Totales</div>
         <div class="text-2xl font-black text-slate-100">${Utils.fmtMoney(totalRevenue)}</div>
-        <div class="text-xs text-slate-400 mt-1">suma de todos los proyectos</div>
+        <div class="text-xs text-slate-400 mt-1">suma de proyectos filtrados</div>
       </div>
       <div class="bg-slate-900 border border-l-4 border-slate-700 ${totalCost > totalBudget ? 'border-l-red-500' : 'border-l-amber-500'} rounded-2xl p-5">
         <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">💸 Costo Total (calculado)</div>
@@ -488,9 +485,7 @@
       </div>
       <div class="bg-slate-900 border border-l-4 border-slate-700 ${globalROI !== null && globalROI >= 0 ? 'border-l-emerald-500' : 'border-l-red-500'} rounded-2xl p-5">
         <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">📊 ROI Global</div>
-        <div class="text-2xl font-black text-slate-100">
-          ${globalROI !== null ? Utils.fmtPercent(globalROI) : '—'}
-        </div>
+        <div class="text-2xl font-black text-slate-100">${globalROI !== null ? Utils.fmtPercent(globalROI) : '—'}</div>
         <div class="text-xs text-slate-400 mt-1">(Ingresos - Costo) / Costo</div>
       </div>
       <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-violet-500 rounded-2xl p-5">
@@ -498,15 +493,11 @@
         <div class="text-2xl font-black text-slate-100">${Utils.fmtMoney(totalRevenue - totalCost)}</div>
         <div class="text-xs text-slate-400 mt-1">ingresos − costo calculado</div>
       </div>`;
+  }
 
-    renderCharts(projects);
-    renderProjectsTable(projects);
-    renderTeamTable(members);
-    renderProjectCards(projects);
-    populateFilters(projects);
+  function renderDashboard(data) {
+    populateFilters(data.projects);
     applyFilters();
-
-    // Show sidebar filters
     document.getElementById('sidebar-filters').style.display = 'block';
   }
 
@@ -730,7 +721,12 @@
       info.style.display = 'none';
     }
 
+    const members = computeMemberStats(filtered);
+    renderKPIGlobal(filtered, members);
+    renderKPIFinancial(filtered);
+    renderCharts(filtered);
     renderProjectsTable(filtered);
+    renderTeamTable(members);
     renderProjectCards(filtered);
 
     // Tendencia mensual: mostrar cuando se filtra por workspace o categoría con tipo retención
