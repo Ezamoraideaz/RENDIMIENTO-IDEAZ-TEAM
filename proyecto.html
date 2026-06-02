@@ -448,7 +448,7 @@
     // Classify lists by stage
     const listStageMap = {};
     lists.forEach(l => { listStageMap[l.id] = TimeCalc.classifyList(l.name); });
-    const doneListIds = new Set(lists.filter(l => listStageMap[l.id] === 'done').map(l => l.id));
+    const doneListIds = new Set(lists.filter(l => ['approved','drive','published'].includes(listStageMap[l.id])).map(l => l.id));
 
     // Build timelines from Trello action history
     globalTimelines = TimeCalc.buildCardTimelines(actions || [], openCards);
@@ -472,7 +472,7 @@
       <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-violet-500 rounded-2xl p-5">
         <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">🗂 Tarjetas Totales</div>
         <div class="text-3xl font-black text-slate-100">${openCards.length}</div>
-        <div class="text-xs text-slate-400 mt-1">${doneCards.length} en Drive · ${summary.pendingCount} sin iniciar</div>
+        <div class="text-xs text-slate-400 mt-1">${doneCards.length} aprobadas o en Drive · ${summary.pendingCount} sin iniciar</div>
       </div>
       <div class="bg-slate-900 border border-l-4 border-slate-700 ${progress >= 75 ? 'border-l-emerald-500' : progress >= 40 ? 'border-l-amber-500' : 'border-l-red-500'} rounded-2xl p-5">
         <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">✅ Progreso</div>
@@ -677,7 +677,7 @@
     }
 
     // Sort: in progress first, done last, not started at end
-    const order = { inProgress: 0, sentToClient: 1, clientRevision: 2, done: 3, backlog: 4, other: 5 };
+    const order = { inProgress: 0, sentToClient: 1, clientRevision: 2, approved: 3, drive: 3, published: 3, backlog: 4, other: 5 };
     const sorted = [...cards].sort((a, b) => {
       const tla = timelines[a.id]; const tlb = timelines[b.id];
       const sa = order[tla?.currentStage || 'other'] ?? 5;

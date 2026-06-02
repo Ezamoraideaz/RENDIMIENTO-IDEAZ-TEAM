@@ -1,12 +1,13 @@
 const TimeCalc = {
   // Pattern matching for each workflow stage
   STAGES: {
-    backlog:        { label: 'Tareas',               color: '#64748b', bg: 'rgba(100,116,139,0.15)' },
-    inProgress:     { label: 'En Proceso',           color: '#6366f1', bg: 'rgba(99,102,241,0.15)' },
-    sentToClient:   { label: 'Enviado',              color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
-    clientRevision: { label: 'Cambios',              color: '#ef4444', bg: 'rgba(239,68,68,0.15)' },
-    done:           { label: 'Aprobado / Drive',     color: '#10b981', bg: 'rgba(16,185,129,0.15)' },
-    published:      { label: 'Publicado',            color: '#8b5cf6', bg: 'rgba(139,92,246,0.15)' },
+    backlog:        { label: 'Tareas',           color: '#64748b', bg: 'rgba(100,116,139,0.15)' },
+    inProgress:     { label: 'En Proceso',       color: '#6366f1', bg: 'rgba(99,102,241,0.15)' },
+    sentToClient:   { label: 'Enviado',          color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
+    clientRevision: { label: 'Cambios',          color: '#ef4444', bg: 'rgba(239,68,68,0.15)' },
+    approved:       { label: 'Aprobado',         color: '#10b981', bg: 'rgba(16,185,129,0.15)' },
+    drive:          { label: 'Montado en Drive', color: '#059669', bg: 'rgba(5,150,105,0.15)'  },
+    published:      { label: 'Publicado',        color: '#8b5cf6', bg: 'rgba(139,92,246,0.15)' },
   },
 
   PATTERNS: {
@@ -14,7 +15,8 @@ const TimeCalc = {
     inProgress:     /en\s*proceso|in\s*progress|trabajando|en\s*curso/i,
     sentToClient:   /^enviado$|al\s*cliente|sent|esperando\s*cliente|en\s*revisi[oó]n/i,
     clientRevision: /^cambios?$|feedback|correcciones|ajustes|del\s*cliente/i,
-    done:           /drive|montado|aprobado|finalizado|done|completado|terminado|entregado|listo/i,
+    drive:          /drive|montado/i,
+    approved:       /^aprobado$|aprobado|finalizado|done|completado|terminado|entregado|listo/i,
     published:      /^publicado$|publicado|published|posted|ejecutado/i,
   },
 
@@ -60,7 +62,7 @@ const TimeCalc = {
     const startDate = startMove?.date || null;
 
     // END = last time card entered Aprobado, Drive or Publicado
-    const doneMoves = movements.filter(m => m.toStage === 'done' || m.toStage === 'published');
+    const doneMoves = movements.filter(m => m.toStage === 'approved' || m.toStage === 'drive' || m.toStage === 'published');
     const endDate   = doneMoves.length > 0 ? doneMoves[doneMoves.length - 1].date : null;
 
     // Revisions = times card entered "Cambios del Cliente"

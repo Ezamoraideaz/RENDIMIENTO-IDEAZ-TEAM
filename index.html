@@ -345,7 +345,7 @@
 
       // Classify lists by workflow stage
       const doneListIds = new Set(
-        lists.filter(l => TimeCalc.classifyList(l.name) === 'done').map(l => l.id)
+        lists.filter(l => ['approved','drive','published'].includes(TimeCalc.classifyList(l.name))).map(l => l.id)
       );
       const inProgressListIds = new Set(
         lists.filter(l => TimeCalc.classifyList(l.name) === 'inProgress').map(l => l.id)
