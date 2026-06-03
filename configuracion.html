@@ -182,6 +182,66 @@
       </div>
     </div>
 
+    <!-- ACCESS CONTROL -->
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4">
+      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">🔐 Control de Acceso — Agenda</h2>
+      <div class="flex gap-3 p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-sm mb-5">
+        Genera URLs de acceso personalizadas para que cada persona vea únicamente la Agenda. Los permisos viajan dentro de la URL — no hay contraseñas ni cuentas.
+      </div>
+
+      <div class="grid grid-cols-1 gap-4 max-w-xl">
+        <!-- Nombre del usuario -->
+        <div>
+          <label class="block text-xs text-slate-400 font-medium mb-1">Nombre del usuario</label>
+          <input id="access-name" type="text"
+            class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 w-full"
+            placeholder="ej: María García">
+        </div>
+
+        <!-- Tipo de acceso -->
+        <div>
+          <label class="block text-xs text-slate-400 font-medium mb-1">Tipo de acceso</label>
+          <select id="access-role"
+            class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 w-full"
+            onchange="toggleAccessMemberRow()">
+            <option value="agenda-full">📅 Agenda completa — todos los filtros disponibles</option>
+            <option value="agenda-member">👤 Agenda bloqueada — solo ve sus propias tareas</option>
+          </select>
+        </div>
+
+        <!-- Miembro (solo para agenda-member) -->
+        <div id="access-member-row" style="display:none">
+          <label class="block text-xs text-slate-400 font-medium mb-1">Miembro del equipo</label>
+          <select id="access-member"
+            class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 w-full">
+            <option value="">— Carga los datos de Trello primero —</option>
+          </select>
+          <p class="text-xs text-slate-500 mt-1">Este usuario solo verá tareas asignadas a este miembro, sin poder cambiarlo.</p>
+        </div>
+
+        <button onclick="generateAccessURL()"
+          class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors w-fit">
+          Generar URL de acceso
+        </button>
+      </div>
+
+      <!-- Resultado -->
+      <div id="access-result" style="display:none" class="mt-5">
+        <div class="flex gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm mb-3">
+          ✅ URL generada correctamente. Compártela con el usuario — es su único acceso.
+        </div>
+        <div class="flex gap-2">
+          <input id="access-url" type="text" readonly
+            class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-xs text-slate-300 flex-1 font-mono focus:outline-none select-all">
+          <button onclick="copyAccessURL()"
+            class="bg-slate-700 hover:bg-slate-600 border border-slate-600 text-slate-200 font-semibold px-4 py-2 rounded-lg text-sm transition-colors flex-shrink-0">
+            Copiar
+          </button>
+        </div>
+        <p class="text-xs text-slate-500 mt-2">⚠️ Guarda esta URL — no se almacena aquí. Si se pierde, genera una nueva.</p>
+      </div>
+    </div>
+
     <!-- CACHE -->
     <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4">
       <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">⚡ Caché de Trello</h2>
@@ -209,6 +269,7 @@
 <script src="js/cache.js"></script>
 <script src="js/api.js"></script>
 <script src="js/utils.js"></script>
+<script src="js/auth.js"></script>
 <script>
   let allBoards = [];
   let allMembers = {};
@@ -333,6 +394,7 @@
       allMembers = memberSet;
       renderMembersTable();
       renderProjectsTable();
+      renderAccessMemberSelect();
       document.getElementById('section-members').style.display = 'block';
       document.getElementById('section-projects').style.display = 'block';
     } catch (e) {
@@ -511,6 +573,52 @@
   function clearTrelloCache() {
     TrelloCache.invalidateAll();
     Utils.showToast('Caché de Trello limpiado ✓', 'success');
+  }
+
+  // ---- Control de Acceso ----
+
+  function toggleAccessMemberRow() {
+    const role = document.getElementById('access-role').value;
+    document.getElementById('access-member-row').style.display =
+      role === 'agenda-member' ? 'block' : 'none';
+    document.getElementById('access-result').style.display = 'none';
+  }
+
+  function renderAccessMemberSelect() {
+    const sel = document.getElementById('access-member');
+    const members = Object.values(allMembers).sort((a, b) =>
+      (a.fullName || '').localeCompare(b.fullName || ''));
+    sel.innerHTML = '<option value="">— Selecciona un miembro —</option>' +
+      members.map(m =>
+        `<option value="${m.id}">${m.fullName} (@${m.username})</option>`
+      ).join('');
+  }
+
+  function generateAccessURL() {
+    const name = document.getElementById('access-name').value.trim();
+    const role = document.getElementById('access-role').value;
+    const memberId = document.getElementById('access-member').value;
+
+    if (!name) { Utils.showToast('Ingresa un nombre para el usuario', 'warning'); return; }
+    if (role === 'agenda-member' && !memberId) {
+      Utils.showToast('Selecciona un miembro del equipo', 'warning'); return;
+    }
+
+    const creds = Storage.getCredentials();
+    const url = Auth.generateURL(role, name, role === 'agenda-member' ? memberId : null, creds);
+    document.getElementById('access-url').value = url;
+    document.getElementById('access-result').style.display = 'block';
+  }
+
+  function copyAccessURL() {
+    const url = document.getElementById('access-url').value;
+    navigator.clipboard.writeText(url)
+      .then(() => Utils.showToast('URL copiada al portapapeles ✓', 'success'))
+      .catch(() => {
+        document.getElementById('access-url').select();
+        document.execCommand('copy');
+        Utils.showToast('URL copiada ✓', 'success');
+      });
   }
 </script>
 </body>
