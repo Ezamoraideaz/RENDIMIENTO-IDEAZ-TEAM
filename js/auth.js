@@ -39,31 +39,34 @@ const Auth = (() => {
     return { allowed: false };
   }
 
-  // Aplica las credenciales de Trello embebidas en el token al localStorage del usuario
-  function applyEmbeddedCredentials() {
-    const user = getCurrentUser();
-    if (!user || !user.trelloKey || !user.trelloToken) return false;
-    if (user.role === 'agenda-full' || user.role === 'agenda-member') {
-      Storage.saveCredentials(user.trelloKey, user.trelloToken);
-      return true;
-    }
-    return false;
+  // Genera un código corto con las credenciales de Trello para compartir con el equipo
+  function generateTeamCode(creds) {
+    if (!creds || !creds.key || !creds.token) return null;
+    return btoa(unescape(encodeURIComponent(JSON.stringify({ key: creds.key, token: creds.token }))));
   }
 
-  // creds: { key, token } — credenciales de Trello del admin para incluir en la URL
-  function generateURL(role, name, memberId, creds) {
+  // Decodifica el código de equipo y guarda las credenciales en localStorage
+  function applyTeamCode(code) {
+    try {
+      const creds = JSON.parse(decodeURIComponent(escape(atob(code.trim()))));
+      if (!creds.key || !creds.token) return false;
+      Storage.saveCredentials(creds.key, creds.token);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // URL de acceso — solo contiene rol, nombre y miembro (sin credenciales)
+  function generateURL(role, name, memberId) {
     const data = { role, name };
     if (memberId) data.memberId = memberId;
-    if (creds && creds.key && creds.token) {
-      data.trelloKey = creds.key;
-      data.trelloToken = creds.token;
-    }
     const token = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
     const base = window.location.href.replace(/\/[^/?#]*([?#].*)?$/, '/');
     return base + 'agenda.html?access=' + encodeURIComponent(token);
   }
 
-  return { getCurrentUser, checkPageAccess, generateURL, getCurrentToken, applyEmbeddedCredentials };
+  return { getCurrentUser, checkPageAccess, generateURL, getCurrentToken, generateTeamCode, applyTeamCode };
 })();
 
 window.Auth = Auth;
