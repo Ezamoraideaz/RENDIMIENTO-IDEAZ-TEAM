@@ -188,9 +188,16 @@
   <script src="js/cache.js"></script>
   <script src="js/api.js"></script>
   <script src="js/utils.js"></script>
+  <script src="js/auth.js"></script>
   <script src="js/sidebar.js"></script>
   <script src="js/agenda.js"></script>
   <script>
+    // Verificar acceso antes de mostrar cualquier contenido
+    const _access = Auth.checkPageAccess('agenda');
+    if (!_access.allowed) {
+      window.location.replace(_access.redirectTo || 'index.html');
+    }
+
     function setState(name) {
       ['auth','loading','error','agenda'].forEach(s => {
         const el = document.getElementById('state-' + s);
@@ -213,7 +220,23 @@
         </div>`).join('');
     }
 
-    Sidebar.init('agenda');
+    // Si el rol es agenda-member, bloquear filtro de miembro antes de que la página sea visible
+    if (_access.lockedMemberId) {
+      const _origPopulate = Agenda._populateFilters.bind(Agenda);
+      Agenda._populateFilters = function(boards) {
+        _origPopulate(boards);
+        const sel = document.getElementById('member-filter');
+        if (sel) {
+          sel.value = _access.lockedMemberId;
+          sel.disabled = true;
+          sel.title = 'Filtro de miembro bloqueado';
+          sel.classList.add('opacity-60', 'cursor-not-allowed');
+        }
+      };
+    }
+
+    const _sidebarKeys = _access.role === 'admin' ? null : ['agenda'];
+    Sidebar.init('agenda', { allowedKeys: _sidebarKeys });
     renderLegend();
     Agenda.load();
   </script>
