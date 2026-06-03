@@ -39,15 +39,31 @@ const Auth = (() => {
     return { allowed: false };
   }
 
-  function generateURL(role, name, memberId) {
+  // Aplica las credenciales de Trello embebidas en el token al localStorage del usuario
+  function applyEmbeddedCredentials() {
+    const user = getCurrentUser();
+    if (!user || !user.trelloKey || !user.trelloToken) return false;
+    if (user.role === 'agenda-full' || user.role === 'agenda-member') {
+      Storage.saveCredentials(user.trelloKey, user.trelloToken);
+      return true;
+    }
+    return false;
+  }
+
+  // creds: { key, token } — credenciales de Trello del admin para incluir en la URL
+  function generateURL(role, name, memberId, creds) {
     const data = { role, name };
     if (memberId) data.memberId = memberId;
+    if (creds && creds.key && creds.token) {
+      data.trelloKey = creds.key;
+      data.trelloToken = creds.token;
+    }
     const token = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
     const base = window.location.href.replace(/\/[^/?#]*([?#].*)?$/, '/');
     return base + 'agenda.html?access=' + encodeURIComponent(token);
   }
 
-  return { getCurrentUser, checkPageAccess, generateURL, getCurrentToken };
+  return { getCurrentUser, checkPageAccess, generateURL, getCurrentToken, applyEmbeddedCredentials };
 })();
 
 window.Auth = Auth;

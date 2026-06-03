@@ -604,7 +604,8 @@
       Utils.showToast('Selecciona un miembro del equipo', 'warning'); return;
     }
 
-    const url = Auth.generateURL(role, name, role === 'agenda-member' ? memberId : null);
+    const creds = Storage.getCredentials();
+    const url = Auth.generateURL(role, name, role === 'agenda-member' ? memberId : null, creds);
     document.getElementById('access-url').value = url;
     document.getElementById('access-result').style.display = 'block';
   }

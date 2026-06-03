@@ -235,6 +235,9 @@
       };
     }
 
+    // Aplicar credenciales de Trello embebidas en el token (usuarios sin configuración propia)
+    Auth.applyEmbeddedCredentials();
+
     const _sidebarKeys = _access.role === 'admin' ? null : ['agenda'];
     Sidebar.init('agenda', { allowedKeys: _sidebarKeys });
     renderLegend();
