@@ -34,24 +34,6 @@
     </div>
   </div>
 
-  <!-- State: setup (primer acceso con URL restringida — pide código de equipo) -->
-  <div id="state-setup" style="display:none" class="min-h-screen flex items-center justify-center">
-    <div class="text-center max-w-sm w-full px-4">
-      <div class="text-4xl mb-4">🔐</div>
-      <h2 class="text-lg font-bold text-slate-100 mb-2">Configura tu acceso</h2>
-      <p class="text-slate-400 text-sm mb-6">Ingresa el código de equipo que te compartió el administrador. Solo se te pedirá una vez en este dispositivo.</p>
-      <input id="team-code-input" type="text"
-        class="bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 w-full mb-2 font-mono"
-        placeholder="Pega aquí el código de equipo"
-        onkeydown="if(event.key==='Enter') submitTeamCode()">
-      <p id="team-code-error" style="display:none" class="text-red-400 text-xs mb-3">Código inválido. Pide el código al administrador.</p>
-      <button onclick="submitTeamCode()"
-        class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6 py-2.5 rounded-lg text-sm transition-colors w-full mt-2">
-        Continuar
-      </button>
-    </div>
-  </div>
-
   <!-- State: loading -->
   <div id="state-loading" style="display:none" class="min-h-screen flex items-center justify-center">
     <div class="text-center">
@@ -217,22 +199,10 @@
     }
 
     function setState(name) {
-      ['auth','setup','loading','error','agenda'].forEach(s => {
+      ['auth','loading','error','agenda'].forEach(s => {
         const el = document.getElementById('state-' + s);
         if (el) el.style.display = (name === s) ? 'block' : 'none';
       });
-    }
-
-    function submitTeamCode() {
-      const code = document.getElementById('team-code-input').value;
-      const errEl = document.getElementById('team-code-error');
-      if (Auth.applyTeamCode(code)) {
-        errEl.style.display = 'none';
-        setState('loading');
-        Agenda.load();
-      } else {
-        errEl.style.display = 'block';
-      }
     }
 
     // Close modal on backdrop click
@@ -265,16 +235,13 @@
       };
     }
 
+    // Aplicar credenciales de Trello embebidas en el token (usuarios sin configuración propia)
+    Auth.applyEmbeddedCredentials();
+
     const _sidebarKeys = _access.role === 'admin' ? null : ['agenda'];
     Sidebar.init('agenda', { allowedKeys: _sidebarKeys });
     renderLegend();
-
-    // Usuarios restringidos sin credenciales: mostrar pantalla de código de equipo
-    if (_access.role !== 'admin' && !Storage.hasCredentials()) {
-      setState('setup');
-    } else {
-      Agenda.load();
-    }
+    Agenda.load();
   </script>
 </body>
 </html>

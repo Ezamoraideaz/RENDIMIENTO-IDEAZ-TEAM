@@ -186,18 +186,7 @@
     <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4">
       <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">🔐 Control de Acceso — Agenda</h2>
       <div class="flex gap-3 p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-sm mb-5">
-        Genera URLs de acceso cortas para cada persona. Por separado, comparte el <strong class="text-slate-200">Código de equipo</strong> (una sola vez) — sin él la URL no funciona.
-      </div>
-
-      <!-- Código de equipo -->
-      <div class="mb-6 p-4 rounded-xl bg-slate-800 border border-slate-700">
-        <div class="flex items-center justify-between mb-2">
-          <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Código de equipo</span>
-          <span class="text-xs text-slate-500">Comparte este código una sola vez con cada persona</span>
-        </div>
-        <div id="team-code-wrap">
-          <p class="text-xs text-slate-500 italic">Guarda tus credenciales de Trello primero para generar el código.</p>
-        </div>
+        Genera URLs de acceso personalizadas para que cada persona vea únicamente la Agenda. Los permisos viajan dentro de la URL — no hay contraseñas ni cuentas.
       </div>
 
       <div class="grid grid-cols-1 gap-4 max-w-xl">
@@ -326,7 +315,6 @@
     if (Storage.hasCredentials()) {
       document.getElementById('btn-clear-cred').style.display = 'inline-flex';
       showConnectedStatus();
-      renderTeamCode();
       loadTrelloData();
     }
   });
@@ -361,7 +349,6 @@
           ✅ Conectado como <strong>${me.fullName}</strong> (@${me.username})
         </div>`;
       showConnectedStatus();
-      renderTeamCode();
       loadTrelloData();
     } catch (e) {
       const msg = e.message || '';
@@ -597,34 +584,6 @@
     document.getElementById('access-result').style.display = 'none';
   }
 
-  function renderTeamCode() {
-    const creds = Storage.getCredentials();
-    const code = Auth.generateTeamCode(creds);
-    const wrap = document.getElementById('team-code-wrap');
-    if (!wrap) return;
-    if (!code) {
-      wrap.innerHTML = '<p class="text-xs text-slate-500 italic">Guarda tus credenciales de Trello primero para generar el código.</p>';
-      return;
-    }
-    wrap.innerHTML = `
-      <div class="flex gap-2">
-        <input type="text" readonly value="${code}"
-          class="bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-xs text-slate-300 flex-1 font-mono focus:outline-none select-all">
-        <button onclick="copyTeamCode()"
-          class="bg-slate-700 hover:bg-slate-600 border border-slate-600 text-slate-200 font-semibold px-4 py-2 rounded-lg text-sm transition-colors flex-shrink-0">
-          Copiar
-        </button>
-      </div>`;
-  }
-
-  function copyTeamCode() {
-    const inp = document.querySelector('#team-code-wrap input');
-    if (!inp) return;
-    navigator.clipboard.writeText(inp.value)
-      .then(() => Utils.showToast('Código copiado ✓', 'success'))
-      .catch(() => { inp.select(); document.execCommand('copy'); Utils.showToast('Código copiado ✓', 'success'); });
-  }
-
   function renderAccessMemberSelect() {
     const sel = document.getElementById('access-member');
     const members = Object.values(allMembers).sort((a, b) =>
@@ -645,7 +604,8 @@
       Utils.showToast('Selecciona un miembro del equipo', 'warning'); return;
     }
 
-    const url = Auth.generateURL(role, name, role === 'agenda-member' ? memberId : null);
+    const creds = Storage.getCredentials();
+    const url = Auth.generateURL(role, name, role === 'agenda-member' ? memberId : null, creds);
     document.getElementById('access-url').value = url;
     document.getElementById('access-result').style.display = 'block';
   }
