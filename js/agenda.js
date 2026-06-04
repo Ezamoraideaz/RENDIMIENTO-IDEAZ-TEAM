@@ -242,7 +242,7 @@ const Agenda = {
     const label  = card.name.length > maxLen ? card.name.slice(0, maxLen) + '…' : card.name;
     const textColor = color === '#94a3b8' ? '#cbd5e1' : color;
     const ghostIcon = card.hasGhost ? '👻 ' : '';
-    const doneStyle = card.dueComplete ? 'opacity:0.55;' : '';
+    const doneStyle = card.dueComplete ? 'opacity:0.55; text-decoration:line-through;' : '';
     return `
       <div data-card-id="${card.id}" class="agenda-card cursor-pointer rounded text-xs px-1.5 py-1 mb-1 hover:brightness-125 transition-all select-none"
            style="background:${bg}; border-left:3px solid ${color}; ${doneStyle}"
