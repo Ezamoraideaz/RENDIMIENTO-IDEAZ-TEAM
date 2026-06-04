@@ -36,7 +36,7 @@ const Agenda = {
         }));
 
         cards.forEach(card => {
-          if (card.closed || card.dueComplete || !card.due) return;
+          if (card.closed || !card.due) return;
 
           const listName  = listMap[card.idList] || '';
           const stageKey  = TimeCalc.classifyList(listName);
@@ -51,6 +51,7 @@ const Agenda = {
             name: card.name,
             desc: card.desc || '',
             due: new Date(card.due),
+            dueComplete: !!card.dueComplete,
             idList: card.idList,
             idMembers: card.idMembers || [],
             labels: card.labels || [],
@@ -157,8 +158,9 @@ const Agenda = {
       }
     });
 
-    // Add newly detected ghost candidates
+    // Add newly detected ghost candidates (completed cards never generate ghosts)
     this.cards.forEach(card => {
+      if (card.dueComplete) return;
       if (!ghostStages.has(card.stageKey)) return;
       const dueDay = new Date(card.due); dueDay.setHours(0, 0, 0, 0);
       if (dueDay >= today) return;
@@ -197,6 +199,10 @@ const Agenda = {
       };
       ghosts.push(ghost);
       this.ghostMap[ghostId] = ghost;
+
+      // Mark the original card permanently so the ghost icon persists on it
+      const origCard = this.cardMap[cardId];
+      if (origCard) origCard.hasGhost = true;
     });
 
     return ghosts;
@@ -235,11 +241,13 @@ const Agenda = {
     const maxLen = compact ? 28 : 42;
     const label  = card.name.length > maxLen ? card.name.slice(0, maxLen) + '…' : card.name;
     const textColor = color === '#94a3b8' ? '#cbd5e1' : color;
+    const ghostIcon = card.hasGhost ? '👻 ' : '';
+    const doneStyle = card.dueComplete ? 'opacity:0.55; text-decoration:line-through;' : '';
     return `
       <div data-card-id="${card.id}" class="agenda-card cursor-pointer rounded text-xs px-1.5 py-1 mb-1 hover:brightness-125 transition-all select-none"
-           style="background:${bg}; border-left:3px solid ${color};"
+           style="background:${bg}; border-left:3px solid ${color}; ${doneStyle}"
            title="${card.name.replace(/"/g,'&quot;')}">
-        <div class="font-medium leading-tight truncate" style="color:${textColor}">${label}</div>
+        <div class="font-medium leading-tight truncate" style="color:${textColor}">${ghostIcon}${label}</div>
         <div class="text-slate-400 truncate mt-0.5 leading-tight" style="font-size:0.65rem">${card.boardName}</div>
       </div>`;
   },
