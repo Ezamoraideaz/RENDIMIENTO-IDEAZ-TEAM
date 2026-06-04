@@ -59,6 +59,7 @@ const Agenda = {
             listName,
             stageKey,
             stageInfo,
+            shortLink: card.shortLink || '',
             memberNames: (card.idMembers || []).map(
               mid => memberMap[mid] || Storage.getMemberName(mid) || '?'
             )
@@ -478,6 +479,14 @@ const Agenda = {
       descWrap.style.display = 'block';
     } else {
       descWrap.style.display = 'none';
+    }
+
+    const trelloBtn = document.getElementById('modal-trello-btn');
+    if (card.shortLink) {
+      trelloBtn.href = `https://trello.com/c/${card.shortLink}`;
+      trelloBtn.style.display = 'flex';
+    } else {
+      trelloBtn.style.display = 'none';
     }
 
     const modal = document.getElementById('modal');
