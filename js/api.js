@@ -62,7 +62,7 @@ class TrelloAPI {
   getCards(boardId) {
     return this._cached(`cards_${boardId}`, 20, () =>
       this._fetch(`/boards/${boardId}/cards`, {
-        fields: 'id,name,idList,idMembers,due,dueComplete,dateLastActivity,labels,desc,closed',
+        fields: 'id,name,idList,idMembers,due,dueComplete,dateLastActivity,labels,desc,closed,shortLink',
         filter: 'all'
       })
     );
