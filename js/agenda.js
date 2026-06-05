@@ -36,7 +36,7 @@ const Agenda = {
         }));
 
         cards.forEach(card => {
-          if (card.closed || card.dueComplete || !card.due) return;
+          if (card.closed || !card.due) return;
 
           const listName  = listMap[card.idList] || '';
           const stageKey  = TimeCalc.classifyList(listName);
@@ -60,6 +60,7 @@ const Agenda = {
             stageKey,
             stageInfo,
             shortLink: card.shortLink || '',
+            completed: card.dueComplete || false,
             memberNames: (card.idMembers || []).map(
               mid => memberMap[mid] || Storage.getMemberName(mid) || '?'
             )
@@ -235,6 +236,15 @@ const Agenda = {
     const maxLen = compact ? 28 : 42;
     const label  = card.name.length > maxLen ? card.name.slice(0, maxLen) + '…' : card.name;
     const textColor = color === '#94a3b8' ? '#cbd5e1' : color;
+    if (card.completed) {
+      return `
+        <div data-card-id="${card.id}" class="agenda-card cursor-pointer rounded text-xs px-1.5 py-1 mb-1 hover:brightness-125 transition-all select-none"
+             style="opacity:0.55; background:#10b98112; border-left:3px solid #10b981;"
+             title="${card.name.replace(/"/g,'&quot;')} — Completada">
+          <div class="font-medium leading-tight truncate" style="color:#10b981">✓ ${label}</div>
+          <div class="text-slate-500 truncate mt-0.5 leading-tight" style="font-size:0.65rem">${card.boardName}</div>
+        </div>`;
+    }
     return `
       <div data-card-id="${card.id}" class="agenda-card cursor-pointer rounded text-xs px-1.5 py-1 mb-1 hover:brightness-125 transition-all select-none"
            style="background:${bg}; border-left:3px solid ${color};"
@@ -434,7 +444,9 @@ const Agenda = {
 
     document.getElementById('modal-board').textContent = isGhost
       ? `${card.boardName} · ${ghost.ghostResolved ? '✓ Resuelta' : '👻 Rezagada'}`
-      : card.boardName;
+      : card.completed
+        ? `${card.boardName} · ✓ Completada`
+        : card.boardName;
     document.getElementById('modal-title').textContent  = card.name;
 
     document.getElementById('modal-dot').style.backgroundColor = displayStage.color;
