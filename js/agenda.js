@@ -27,13 +27,28 @@ const Agenda = {
       this.cards = [];
       this.cardMap = {};
 
-      details.forEach(({ board, lists, cards, members }) => {
+      details.forEach(({ board, lists, cards, members, actions }) => {
         const listMap   = Object.fromEntries(lists.map(l => [l.id, l.name]));
         const memberMap = Object.fromEntries(members.map(m => {
           const name = m.fullName || m.username;
           Storage.saveMemberName(m.id, name);
           return [m.id, name];
         }));
+
+        // Build a map: cardId → date when the card last entered a done stage
+        // This is the real "approved date" — more reliable than dateLastActivity
+        const DONE_STAGES = new Set(['approved', 'drive', 'published']);
+        const approvedDates = {};
+        for (const action of (actions || [])) {
+          const cardId = action.data?.card?.id;
+          const toName = action.data?.listAfter?.name;
+          if (!cardId || !toName) continue;
+          if (!DONE_STAGES.has(TimeCalc.classifyList(toName))) continue;
+          const d = new Date(action.date);
+          if (!approvedDates[cardId] || d > approvedDates[cardId]) {
+            approvedDates[cardId] = d;
+          }
+        }
 
         cards.forEach(card => {
           if (card.closed || !card.due) return;
@@ -45,6 +60,13 @@ const Agenda = {
             color: '#64748b',
             bg: 'rgba(100,116,139,0.15)'
           };
+
+          // A card is "completed late" when the date it was approved
+          // differs from its scheduled due date.
+          const approvedDate  = approvedDates[card.id] || null;
+          const dueDay        = new Date(card.due).toDateString();
+          const approvedDay   = approvedDate ? approvedDate.toDateString() : null;
+          const completedLate = card.dueComplete && approvedDay && approvedDay !== dueDay;
 
           const enriched = {
             id: card.id,
@@ -61,6 +83,8 @@ const Agenda = {
             stageInfo,
             shortLink: card.shortLink || '',
             completed: card.dueComplete || false,
+            completedLate,
+            approvedDate,
             memberNames: (card.idMembers || []).map(
               mid => memberMap[mid] || Storage.getMemberName(mid) || '?'
             )
@@ -237,12 +261,23 @@ const Agenda = {
     const label  = card.name.length > maxLen ? card.name.slice(0, maxLen) + '…' : card.name;
     const textColor = color === '#94a3b8' ? '#cbd5e1' : color;
     if (card.completed) {
+      const ghost = card.completedLate;
+      const border = ghost ? 'border-left:3px dashed #10b981;' : 'border-left:3px solid #10b981;';
+      const approvedStr = card.approvedDate
+        ? card.approvedDate.toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'2-digit' })
+        : '';
+      const title = ghost
+        ? `${card.name.replace(/"/g,'&quot;')} — Aprobada el ${approvedStr} (vencía ${card.due.toLocaleDateString('es-MX', { day:'2-digit', month:'short' })})`
+        : `${card.name.replace(/"/g,'&quot;')} — Completada en fecha`;
       return `
         <div data-card-id="${card.id}" class="agenda-card cursor-pointer rounded text-xs px-1.5 py-1 mb-1 hover:brightness-125 transition-all select-none"
-             style="opacity:0.55; background:#10b98112; border-left:3px solid #10b981;"
-             title="${card.name.replace(/"/g,'&quot;')} — Completada">
-          <div class="font-medium leading-tight truncate" style="color:#10b981">✓ ${label}</div>
-          <div class="text-slate-500 truncate mt-0.5 leading-tight" style="font-size:0.65rem">${card.boardName}</div>
+             style="opacity:0.65; background:#10b98112; ${border}"
+             title="${title}">
+          <div class="font-medium leading-tight truncate" style="color:#10b981">${ghost ? '👻' : '✓'} ${label}</div>
+          <div class="flex items-center justify-between gap-1 mt-0.5" style="font-size:0.65rem">
+            <span class="text-slate-500 truncate">${card.boardName}</span>
+            ${ghost ? '<span style="color:#94a3b8;flex-shrink:0">fuera de fecha</span>' : ''}
+          </div>
         </div>`;
     }
     return `

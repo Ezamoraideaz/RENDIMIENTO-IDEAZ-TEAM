@@ -1,0 +1,348 @@
+const Monitor = (() => {
+
+  const RULES = {
+    R07: { code: 'R-07', label: 'Movimiento rápido en "En Proceso"',         short: 'Mov. rápido',       color: '#f59e0b' },
+    R08: { code: 'R-08', label: 'Tarjeta olvidada en "En Proceso"',          short: 'Olvidada >2 días',  color: '#ef4444' },
+    R11: { code: 'R-11', label: '"Cambios" no retornó a "En Proceso"',       short: 'Bypass Cambios',    color: '#6366f1' },
+    R12: { code: 'R-12', label: 'Múltiples movimientos a "Cambios" el mismo día', short: 'Cambios duplicados', color: '#a855f7' },
+  };
+
+  const ROLE_LABELS = { diseñador: 'Diseñador', cm: 'CM', pm: 'PM', otro: 'Otro' };
+  const ROLE_COLORS = { diseñador: '#6366f1', cm: '#f59e0b', pm: '#10b981', otro: '#94a3b8' };
+
+  let _violations = [];
+  let _members    = {};
+  let _selected   = null;
+
+  // ── Violation scanners ────────────────────────────────────────────────────
+
+  function _nameToIdMap() {
+    const names = Storage.getAllMemberNames();
+    const map = {};
+    for (const [id, name] of Object.entries(names)) map[name] = id;
+    return map;
+  }
+
+  // Returns idMembers filtered by expected role; falls back to all if no roles configured
+  function _byRole(idMembers, role, roles) {
+    const filtered = (idMembers || []).filter(id => roles[id] === role);
+    return filtered.length > 0 ? filtered : (idMembers || []);
+  }
+
+  function _violation(memberId, rule, ctx) {
+    return { memberId, ...rule, ...ctx };
+  }
+
+  function _scanR07(card, tl, projectName, boardId, n2id, roles) {
+    return (tl.periods || [])
+      .filter(p => p.isSameInterval && p.stage === 'inProgress')
+      .flatMap(p => {
+        const ids = p.member && n2id[p.member]
+          ? [n2id[p.member]]
+          : _byRole(card.idMembers, 'diseñador', roles);
+        const min = Math.round(p.calendarMs / 60000);
+        return ids.map(id => _violation(id, RULES.R07, {
+          projectId: boardId, projectName,
+          cardId: card.id, cardName: card.name, shortLink: card.shortLink,
+          date: p.date,
+          detail: `Estuvo ${min} min en "En Proceso" — umbral: 5 min`
+        }));
+      });
+  }
+
+  function _scanR08(card, tl, projectName, boardId, roles) {
+    if (tl.currentStage !== 'inProgress' || tl.isDone) return [];
+    const lastMove = [...(tl.movements || [])].reverse().find(m => m.toStage === 'inProgress');
+    if (!lastMove) return [];
+    const hoursStuck = (Date.now() - lastMove.date.getTime()) / 3600000;
+    if (hoursStuck <= 48) return [];
+    const days = (hoursStuck / 24).toFixed(1);
+    return _byRole(card.idMembers, 'diseñador', roles).map(id =>
+      _violation(id, RULES.R08, {
+        projectId: boardId, projectName,
+        cardId: card.id, cardName: card.name, shortLink: card.shortLink,
+        date: lastMove.date,
+        detail: `Lleva ${days} días en "En Proceso" sin moverse (máx: 2 días)`
+      })
+    );
+  }
+
+  function _scanR11(card, tl, projectName, boardId, roles) {
+    const mvs = tl.movements || [];
+    return mvs.flatMap((m, i) => {
+      if (m.toStage !== 'clientRevision' || i >= mvs.length - 1) return [];
+      const next = mvs[i + 1];
+      if (next.toStage === 'inProgress') return [];
+      return _byRole(card.idMembers, 'diseñador', roles).map(id =>
+        _violation(id, RULES.R11, {
+          projectId: boardId, projectName,
+          cardId: card.id, cardName: card.name, shortLink: card.shortLink,
+          date: next.date,
+          detail: `De "Cambios" pasó directo a "${next.to}" sin volver a "En Proceso"`
+        })
+      );
+    });
+  }
+
+  function _scanR12(card, tl, projectName, boardId, n2id, roles) {
+    const cambios = (tl.movements || []).filter(m => m.toStage === 'clientRevision');
+    const byDay = {};
+    for (const m of cambios) {
+      const day = m.date.toDateString();
+      (byDay[day] = byDay[day] || []).push(m);
+    }
+    return Object.values(byDay).flatMap(moves => {
+      if (moves.length < 2) return [];
+      return moves.slice(1).flatMap(m => {
+        const ids = m.member && n2id[m.member]
+          ? [n2id[m.member]]
+          : _byRole(card.idMembers, 'cm', roles);
+        return ids.map(id => _violation(id, RULES.R12, {
+          projectId: boardId, projectName,
+          cardId: card.id, cardName: card.name, shortLink: card.shortLink,
+          date: m.date,
+          detail: `${moves.length}° movimiento a "Cambios" el ${m.date.toLocaleDateString('es-MX')} — deben agruparse en uno solo`
+        }));
+      });
+    });
+  }
+
+  function _scan(boards, details) {
+    const violations = [];
+    const roles = Storage.getAllRoles();
+
+    boards.forEach((board, i) => {
+      const detail = details[i];
+      if (!detail) return;
+      const { cards, members, actions } = detail;
+      for (const m of members) Storage.saveMemberName(m.id, m.fullName);
+
+      const n2id = _nameToIdMap();
+      const openCards = cards.filter(c => !c.closed);
+      const timelines = TimeCalc.buildCardTimelines(actions || [], openCards);
+
+      for (const card of openCards) {
+        const tl = timelines[card.id];
+        if (!tl) continue;
+        violations.push(
+          ..._scanR07(card, tl, board.name, board.id, n2id, roles),
+          ..._scanR08(card, tl, board.name, board.id, roles),
+          ..._scanR11(card, tl, board.name, board.id, roles),
+          ..._scanR12(card, tl, board.name, board.id, n2id, roles)
+        );
+      }
+    });
+
+    return violations;
+  }
+
+  // ── Filters ───────────────────────────────────────────────────────────────
+
+  function _filtered() {
+    const month = document.getElementById('f-month')?.value;
+    const day   = document.getElementById('f-day')?.value;
+    return _violations.filter(v => {
+      if (day)   return v.date.toISOString().slice(0, 10) === day;
+      if (month) return v.date.toISOString().slice(0, 7) === month;
+      return true;
+    });
+  }
+
+  // ── Rendering ─────────────────────────────────────────────────────────────
+
+  function _renderLegend(filtered) {
+    const counts = {};
+    for (const v of filtered) counts[v.code] = (counts[v.code] || 0) + 1;
+    document.getElementById('monitor-legend').innerHTML = Object.values(RULES).map(r => `
+      <div class="bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 flex items-center gap-3">
+        <span class="text-2xl font-black" style="color:${r.color}">${counts[r.code] || 0}</span>
+        <div>
+          <div class="text-xs font-bold" style="color:${r.color}">${r.code}</div>
+          <div class="text-xs text-slate-400 leading-tight">${r.short}</div>
+        </div>
+      </div>`).join('');
+  }
+
+  function _renderGrid(filtered) {
+    const roles = Storage.getAllRoles();
+    const counts = {};
+    for (const v of filtered) counts[v.memberId] = (counts[v.memberId] || 0) + 1;
+
+    const roledMembers = Object.values(_members)
+      .filter(m => roles[m.id])
+      .sort((a, b) => (counts[b.id] || 0) - (counts[a.id] || 0));
+
+    const grid = document.getElementById('monitor-grid');
+
+    if (roledMembers.length === 0) {
+      grid.innerHTML = `<div class="col-span-full text-center py-10 text-slate-400">
+        Sin roles configurados.
+        <a href="configuracion.html" class="text-indigo-400 hover:underline ml-1">Asigna roles en Configuración →</a>
+      </div>`;
+      return;
+    }
+
+    grid.innerHTML = roledMembers.map(m => {
+      const role    = roles[m.id];
+      const count   = counts[m.id] || 0;
+      const rc      = ROLE_COLORS[role] || '#94a3b8';
+      const active  = _selected === m.id;
+      const border  = active ? '#6366f1' : count > 0 ? '#ef444466' : '#1e293b';
+      return `
+        <div class="bg-slate-900 rounded-2xl p-6 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-xl"
+             style="border:2px solid ${border};${active ? 'box-shadow:0 0 0 2px #6366f1' : ''}"
+             onclick="Monitor.select('${m.id}')">
+          <div class="flex items-center gap-3 mb-5">
+            <div class="w-11 h-11 rounded-full flex items-center justify-center font-black text-white flex-shrink-0"
+                 style="background:${Utils.avatarColor(m.id)};font-size:0.85rem">
+              ${Utils.initials(m.name)}
+            </div>
+            <div class="min-w-0">
+              <div class="font-bold text-slate-100 text-sm truncate">${m.name}</div>
+              <span class="text-xs font-semibold px-2 py-0.5 rounded-full"
+                    style="background:${rc}20;color:${rc}">${ROLE_LABELS[role] || role}</span>
+            </div>
+          </div>
+          <div class="text-5xl font-black leading-none ${count > 0 ? 'text-red-400' : 'text-slate-700'}">${count}</div>
+          <div class="text-xs text-slate-500 mt-1.5">${count === 1 ? 'falta detectada' : 'faltas detectadas'}</div>
+        </div>`;
+    }).join('');
+  }
+
+  function _renderDetail(filtered) {
+    const panel = document.getElementById('monitor-detail');
+    if (!_selected) { panel.style.display = 'none'; return; }
+
+    const mv = filtered.filter(v => v.memberId === _selected)
+                       .sort((a, b) => b.date - a.date);
+    const m  = _members[_selected];
+    panel.style.display = 'block';
+
+    if (mv.length === 0) {
+      panel.innerHTML = `<div class="bg-slate-900 border border-slate-700 rounded-2xl p-6 mt-6 text-sm text-slate-400">
+        <strong class="text-slate-200">${m?.name}</strong> — sin faltas en el período seleccionado.
+      </div>`;
+      return;
+    }
+
+    panel.innerHTML = `
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl mt-6 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-700 flex items-center justify-between">
+          <div>
+            <span class="font-bold text-slate-100">${m?.name}</span>
+            <span class="text-slate-400 text-sm ml-2">— ${mv.length} falta${mv.length !== 1 ? 's' : ''} en el período</span>
+          </div>
+          <button onclick="Monitor.select('${_selected}')"
+                  class="text-slate-500 hover:text-slate-300 transition-colors text-lg leading-none">✕</button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b border-slate-700 bg-slate-800/50">
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider" style="width:12%">Regla</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider" style="width:18%">Proyecto</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider" style="width:22%">Tarjeta</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider" style="width:16%">Fecha y hora</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider" style="width:32%">Detalle</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-700/50">
+              ${mv.map(v => `
+                <tr class="hover:bg-slate-800/30 transition-colors">
+                  <td class="px-4 py-3">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold"
+                          style="background:${v.color}20;color:${v.color}">${v.code}</span>
+                    <div class="text-xs text-slate-500 mt-0.5">${v.short}</div>
+                  </td>
+                  <td class="px-4 py-3 text-xs text-slate-300">${v.projectName}</td>
+                  <td class="px-4 py-3">
+                    <div class="text-xs text-slate-200 font-medium">${v.cardName}</div>
+                    ${v.shortLink ? `<a href="https://trello.com/c/${v.shortLink}" target="_blank"
+                        class="text-xs text-blue-400 hover:underline">Ver en Trello →</a>` : ''}
+                  </td>
+                  <td class="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">
+                    ${v.date.toLocaleString('es-MX', { day:'2-digit', month:'short', year:'2-digit', hour:'2-digit', minute:'2-digit' })}
+                  </td>
+                  <td class="px-4 py-3 text-xs text-slate-300">${v.detail}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+  }
+
+  function _render() {
+    const f = _filtered();
+    _renderLegend(f);
+    _renderGrid(f);
+    _renderDetail(f);
+  }
+
+  // ── Public API ────────────────────────────────────────────────────────────
+
+  function select(memberId) {
+    _selected = _selected === memberId ? null : memberId;
+    _render();
+    if (_selected) document.getElementById('monitor-detail').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function applyFilters() {
+    if (document.getElementById('f-month').value) document.getElementById('f-day').value = '';
+    _selected = null;
+    _render();
+  }
+
+  function applyDayFilter() {
+    if (document.getElementById('f-day').value) document.getElementById('f-month').value = '';
+    _selected = null;
+    _render();
+  }
+
+  async function load(forceRefresh = false) {
+    document.getElementById('state-loading').style.display  = 'flex';
+    document.getElementById('state-main').style.display     = 'none';
+    document.getElementById('state-error').style.display    = 'none';
+
+    try {
+      const creds = Storage.getCredentials();
+      const api   = new TrelloAPI(creds.key, creds.token, { forceRefresh });
+      const boards = await api.getBoards();
+      const details = await Promise.all(boards.map(b => api.getBoardWithDetails(b.id).catch(() => null)));
+
+      // Build member map from all boards
+      _members = {};
+      for (const d of details) {
+        if (!d) continue;
+        for (const m of d.members) {
+          _members[m.id] = { id: m.id, name: m.fullName };
+          Storage.saveMemberName(m.id, m.fullName);
+        }
+      }
+
+      _violations = _scan(boards, details);
+
+      // Populate month filter
+      const months = [...new Set(_violations.map(v => v.date.toISOString().slice(0, 7)))].sort().reverse();
+      const mSel = document.getElementById('f-month');
+      mSel.innerHTML = '<option value="">Todos los períodos</option>' +
+        months.map(m => `<option value="${m}">${Utils.formatPeriod(m)}</option>`).join('');
+      const cur = new Date().toISOString().slice(0, 7);
+      if (months.includes(cur)) mSel.value = cur;
+
+      _selected = null;
+      _render();
+
+      document.getElementById('state-loading').style.display = 'none';
+      document.getElementById('state-main').style.display    = 'block';
+      document.getElementById('last-updated').textContent    = 'Actualizado: ' + new Date().toLocaleTimeString('es-MX');
+    } catch (e) {
+      document.getElementById('state-loading').style.display = 'none';
+      document.getElementById('state-error').style.display   = 'block';
+      document.getElementById('error-msg').textContent       = e.message;
+    }
+  }
+
+  return { load, select, applyFilters, applyDayFilter };
+})();
+
+window.Monitor = Monitor;

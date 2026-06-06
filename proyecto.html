@@ -120,32 +120,11 @@
 <body class="bg-slate-950 text-slate-100 font-sans">
 
 <!-- SIDEBAR -->
-<aside class="fixed left-0 top-0 h-screen w-64 bg-slate-900 border-r border-slate-700 flex flex-col z-50 overflow-y-auto">
-  <!-- Logo -->
-  <div class="p-5 border-b border-slate-700 flex-shrink-0">
-    <a href="index.html" class="flex items-center gap-3">
-      <div class="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center">
-        <span class="text-white font-black text-sm">I</span>
-      </div>
-      <div>
-        <div class="font-black text-slate-100 leading-none">IDEAZ</div>
-        <div class="text-xs text-slate-400 font-medium">Dashboard</div>
-      </div>
-    </a>
-  </div>
-
-  <!-- Nav links -->
-  <nav class="p-3 border-b border-slate-700 flex-shrink-0">
-    <a href="index.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-slate-400 hover:bg-slate-800 transition-colors">
-      <span>📊</span> Dashboard
-    </a>
-    <a href="configuracion.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-slate-400 hover:bg-slate-800 transition-colors">
-      <span>⚙️</span> Configuración
-    </a>
-  </nav>
+<aside id="app-sidebar" class="fixed left-0 top-0 h-screen w-64 bg-slate-900 border-r border-slate-700 flex flex-col z-50 overflow-y-auto">
+  <!-- Logo, nav y toggle inyectados por js/sidebar.js -->
 
   <!-- Project info in sidebar -->
-  <div class="p-4 flex-1">
+  <div class="p-4 flex-1 sidebar-page-content">
     <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Proyecto actual</div>
     <div class="text-sm font-semibold text-slate-200" id="sidebar-project-name">Cargando...</div>
     <div id="sidebar-project-meta" class="mt-2 text-xs text-slate-400"></div>
@@ -248,8 +227,8 @@
           <div>
             <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-0">⏱ Tiempos por Tarjeta — desde actividad de Trello</h2>
             <div class="text-xs text-slate-400 mt-1">
-              Reloj corre en <strong class="text-slate-200">En Proceso</strong> y <strong class="text-slate-200">Cambios del Cliente</strong> ·
-              Se pausa en <strong class="text-slate-200">Enviado al Cliente</strong> (esperando) y <strong class="text-slate-200">Montado a Drive</strong> ·
+              Reloj corre en <strong class="text-slate-200">En Proceso</strong> ·
+              Se pausa en <strong class="text-slate-200">Cambios</strong> (el diseñador debe mover a En Proceso para contabilizar), <strong class="text-slate-200">Enviado al Cliente</strong> (esperando) y <strong class="text-slate-200">Montado a Drive</strong> ·
               Lun–Vie, 9am–5pm
             </div>
           </div>
@@ -263,14 +242,15 @@
           <table class="w-full text-sm">
             <thead>
               <tr class="border-b border-slate-700 bg-slate-800/50">
-                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Tarjeta</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Asignados</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Etapa actual</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Inicio trabajo</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Completado</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Horas lab.</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">🔄 Revisiones</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Costo est.</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider" style="width:24%">Tarjeta</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider" style="width:8%">Asignados</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider" style="width:10%">Etapa actual</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider" style="width:12%">Inicio trabajo</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider" style="width:12%">Completado</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider" style="width:10%">Horas lab.</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider" style="width:8%">🔄 Revisiones</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider" style="width:10%">Costo est.</th>
+                <th class="px-4 py-3" style="width:10%"></th>
               </tr>
             </thead>
             <tbody id="hours-table" class="divide-y divide-slate-700/50"></tbody>
@@ -289,8 +269,8 @@
               <div class="bg-slate-950 rounded-lg px-3 py-2.5">
                 <div class="text-xs text-slate-400 mb-1">Horas laborales</div>
                 <div style="font-size:0.8rem" class="text-slate-300">
-                Corre en <strong style="color:#6366f1">En Proceso</strong> + <strong style="color:#ef4444">Cambios del Cliente</strong><br>
-                Se pausa en <strong style="color:#f59e0b">Enviado al Cliente</strong> (equipo espera)<br>
+                Corre en <strong style="color:#6366f1">En Proceso</strong><br>
+                Se pausa en <strong style="color:#ef4444">Cambios</strong> (diseñador debe mover a En Proceso) y <strong style="color:#f59e0b">Enviado al Cliente</strong> (equipo espera)<br>
                 Solo <strong>Lun–Vie, 9am–5pm</strong></div>
               </div>
               <div class="bg-slate-950 rounded-lg px-3 py-2.5">
@@ -352,6 +332,7 @@
 <script src="js/cache.js"></script>
 <script src="js/api.js"></script>
 <script src="js/utils.js"></script>
+<script src="js/sidebar.js"></script>
 <script>
   Chart.defaults.color = '#94a3b8';
   Chart.defaults.borderColor = '#2d2d4e';
@@ -378,7 +359,13 @@
       projectData = { board, lists, cards, members, actions };
       for (const m of members) Storage.saveMemberName(m.id, m.fullName);
 
+      const periodFromUrl = Utils.getQueryParam('period');
+      if (periodFromUrl) {
+        const monthInp = document.getElementById('card-month-filter');
+        if (monthInp && !monthInp.value) monthInp.value = periodFromUrl;
+      }
       renderProject(board, lists, cards, members, actions);
+      if (periodFromUrl) applyMonthFilter();
 
       const age = TrelloCache.ageMinutes(`cards_${boardId}`);
       const el = document.getElementById('last-updated');
@@ -717,11 +704,15 @@
 
       const stageBadge = `<span class="stage-badge" style="background:${TimeCalc.stageBg(stage)};color:${TimeCalc.stageColor(stage)}">${TimeCalc.stageLabel(stage) || tl.currentList || stage}</span>`;
 
+      const cardHasWarnings = (tl.periods || []).some(p => p.isSameInterval);
       const outsideTag = tl.hasOutsideHoursActivity
         ? `<span title="Tuvo actividad fuera del horario de oficina (noche, fin de semana o almuerzo)" style="cursor:default">🌙</span>`
         : '';
+      const warningTag = cardHasWarnings
+        ? `<span title="Tiene movimientos menores a 5 min — posible error de clic" style="cursor:default;color:#f59e0b">⚠</span>`
+        : '';
       const hourCell = tl.isStarted
-        ? `<strong class="text-slate-100">${Utils.fmtHours(tl.workingHours)}</strong> ${outsideTag}
+        ? `<strong class="text-slate-100">${Utils.fmtHours(tl.workingHours)}</strong> ${outsideTag}${warningTag}
            <div class="text-xs text-slate-400" title="Tiempo transcurrido total desde En Proceso">transcurrido: ${TimeCalc.formatDuration(tl.totalHours)}</div>`
         : '<span class="text-slate-500">Sin iniciar</span>';
 
@@ -760,11 +751,11 @@
         </tr>`;
       }).join('');
 
-      const hasWarnings      = (tl.periods || []).some(p => p.isSameInterval);
+      const hasWarnings      = cardHasWarnings;
       const hasOutsideHours  = tl.hasOutsideHoursActivity;
       const desgloseHtml = tl.periods && tl.periods.length > 0
         ? `<tr id="desglose-${card.id}" data-detail="true" style="display:none">
-            <td colspan="8" style="padding:0;border-top:none">
+            <td colspan="9" style="padding:0;border-top:none">
               <div style="margin:0 0 8px 0;background:#1e293b;border:1px solid #334155;border-top:none;border-radius:0 0 8px 8px;padding:12px 16px">
                 <div class="flex justify-between items-center mb-2">
                   <span class="text-xs font-semibold text-slate-400" style="text-transform:uppercase;letter-spacing:0.06em">Desglose de etapas — qué se contó</span>
@@ -784,8 +775,8 @@
                 </table>
                 <div class="text-xs text-slate-400 mt-2" style="border-top:1px solid #334155;padding-top:8px">
                   Total activo: <strong class="text-slate-200">${Utils.fmtHours(tl.workingHours)}</strong>
-                  · Cuentan: <strong>En Proceso</strong> + <strong>Cambios del Cliente</strong>
-                  · Pausa: <strong>Enviado al Cliente</strong>
+                  · Cuenta: <strong>En Proceso</strong>
+                  · Pausa: <strong>Cambios</strong> (mover a En Proceso para contabilizar) · <strong>Enviado al Cliente</strong>
                   ${hasWarnings ? '· <span style="color:#f59e0b">⚠ Movimientos &lt;5min</span>' : ''}
                   ${hasOutsideHours ? '· <span style="color:#818cf8">🌙 Incluye trabajo fuera del horario de oficina</span>' : ''}
                 </div>
@@ -810,6 +801,12 @@
           <td class="px-4 py-3 text-sm font-semibold text-slate-100">
             ${cost > 0 ? Utils.fmtMoney(cost, currency) : '<span class="text-slate-500">—</span>'}
           </td>
+          <td class="px-4 py-3">
+            ${card.shortLink ? `<a href="https://trello.com/c/${card.shortLink}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="flex items-center gap-1 bg-blue-600/15 hover:bg-blue-600/30 border border-blue-600/30 text-blue-400 px-2 py-1 rounded text-xs font-semibold transition-colors whitespace-nowrap" title="Abrir en Trello">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="2" width="9" height="13" rx="2"/><rect x="13" y="2" width="9" height="8" rx="2"/></svg>
+              Ver en Trello
+            </a>` : ''}
+          </td>
         </tr>${desgloseHtml}`;
     });
 
@@ -819,7 +816,7 @@
     const tfoot = document.getElementById('hours-tfoot');
     tfoot.innerHTML = `
       <tr style="background:rgba(99,102,241,0.08);border-top:2px solid #6366f1">
-        <td colspan="5" class="px-4 py-3 text-sm text-slate-400">
+        <td colspan="6" class="px-4 py-3 text-sm text-slate-400">
           <strong class="text-slate-100">TOTAL</strong>
           · ${cardsWithCost} tarjeta${cardsWithCost !== 1 ? 's' : ''} con costo calculado de ${sorted.length} en total
         </td>
@@ -1013,6 +1010,7 @@
   }
 
   // Init
+  Sidebar.init('proyecto', { onRefresh: () => loadProject(true) });
   loadProject();
 </script>
 </body>
