@@ -73,6 +73,19 @@ const Storage = {
   },
   getAllMemberNames() {
     return JSON.parse(localStorage.getItem('ideaz_members') || '{}');
+  },
+
+  // Member roles (diseñador | cm | pm | otro)
+  getMemberRole(memberId) {
+    return JSON.parse(localStorage.getItem('ideaz_roles') || '{}')[memberId] || '';
+  },
+  setMemberRole(memberId, role) {
+    const roles = JSON.parse(localStorage.getItem('ideaz_roles') || '{}');
+    roles[memberId] = role;
+    localStorage.setItem('ideaz_roles', JSON.stringify(roles));
+  },
+  getAllRoles() {
+    return JSON.parse(localStorage.getItem('ideaz_roles') || '{}');
   }
 };
 

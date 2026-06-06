@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monitor de Faltas – IDEAZ Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans">
+
+<!-- SIDEBAR -->
+<aside id="app-sidebar" class="fixed left-0 top-0 h-screen w-64 bg-slate-900 border-r border-slate-700 flex flex-col z-50 overflow-y-auto">
+  <!-- Logo, nav y toggle inyectados por js/sidebar.js -->
+  <div class="p-3 border-t border-slate-700 flex-shrink-0 sidebar-text mt-auto">
+    <span class="text-xs text-slate-400" id="last-updated"></span>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="ml-64 min-h-screen">
+  <div class="p-6 max-w-7xl mx-auto">
+
+    <!-- Header -->
+    <div class="flex items-start justify-between mb-6 flex-wrap gap-4">
+      <div>
+        <h1 class="text-2xl font-black text-slate-100">🚨 Monitor de Faltas</h1>
+        <p class="text-slate-400 text-sm mt-1">Detección automática de violaciones al protocolo de Trello por miembro</p>
+      </div>
+      <div class="flex items-center gap-2 flex-wrap">
+        <select id="f-month" onchange="Monitor.applyFilters()"
+          class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+          <option value="">Todos los períodos</option>
+        </select>
+        <input type="date" id="f-day" onchange="Monitor.applyDayFilter()"
+          class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+        <button onclick="Monitor.load(true)"
+          class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-2 rounded-lg text-sm transition-colors whitespace-nowrap">
+          ↻ Actualizar
+        </button>
+      </div>
+    </div>
+
+    <!-- STATE: loading -->
+    <div id="state-loading" class="hidden" style="display:flex;display:none">
+      <div class="flex flex-col items-center justify-center py-24 gap-4 text-slate-400 w-full">
+        <div class="w-10 h-10 border-2 border-slate-700 border-t-indigo-500 rounded-full animate-spin"></div>
+        <div class="text-sm">Escaneando violaciones en todos los proyectos…</div>
+      </div>
+    </div>
+
+    <!-- STATE: error -->
+    <div id="state-error" style="display:none">
+      <div class="max-w-xl mx-auto mt-12 px-6">
+        <div class="bg-slate-900 border border-red-500/30 rounded-2xl p-8 text-center">
+          <div class="text-4xl mb-3">⚠️</div>
+          <h2 class="text-lg font-bold text-slate-100 mb-2">Error al cargar datos</h2>
+          <p id="error-msg" class="text-slate-400 text-sm mb-4"></p>
+          <button onclick="Monitor.load()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors">
+            Reintentar
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- STATE: main -->
+    <div id="state-main" style="display:none">
+
+      <!-- Rule legend -->
+      <div id="monitor-legend" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8"></div>
+
+      <!-- Member grid -->
+      <div class="mb-2">
+        <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Miembros del equipo</h2>
+      </div>
+      <div id="monitor-grid" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4"></div>
+
+      <!-- Detail panel -->
+      <div id="monitor-detail" style="display:none"></div>
+
+      <!-- No roles notice -->
+      <div class="mt-8 p-4 rounded-xl bg-slate-800/50 border border-slate-700 text-xs text-slate-500">
+        <strong class="text-slate-400">Faltas detectadas automáticamente:</strong>
+        R-07 Movimiento rápido (&lt;5 min en En Proceso) ·
+        R-08 Tarjeta olvidada (&gt;2 días en En Proceso) ·
+        R-11 Cambios sin retornar a En Proceso ·
+        R-12 Múltiples Cambios el mismo día.
+        Los roles se configuran en <a href="configuracion.html" class="text-indigo-400 hover:underline">Configuración → Roles del Equipo</a>.
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<script src="js/storage.js"></script>
+<script src="js/cache.js"></script>
+<script src="js/api.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/timeCalc.js"></script>
+<script src="js/sidebar.js"></script>
+<script src="js/monitor.js"></script>
+<script>
+  if (!Storage.hasCredentials()) window.location.href = 'configuracion.html';
+  Sidebar.init('monitor', { onRefresh: () => Monitor.load(true) });
+  Monitor.load();
+</script>
+</body>
+</html>

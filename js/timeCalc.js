@@ -69,9 +69,12 @@ const TimeCalc = {
     const revisions = movements.filter(m => m.toStage === 'clientRevision').length;
     const sentCount = movements.filter(m => m.toStage === 'sentToClient').length;
 
-    // Active working hours = time in "En Proceso" + "Cambios"
-    // Clock pauses when Enviado (waiting review), stops when Aprobado/Drive/Publicado.
-    const ACTIVE_STAGES = new Set(['inProgress', 'clientRevision']);
+    // Active working hours = time in "En Proceso" ONLY.
+    // "Cambios" is a pause state: the CM puts the card there but the designer
+    // is not necessarily working — they must move it back to "En Proceso" to
+    // start counting the change work. Clock also pauses at Enviado (waiting
+    // for client review) and stops at Aprobado/Drive/Publicado.
+    const ACTIVE_STAGES = new Set(['inProgress']);
     let activeWorkingHours = 0;
     let activeSince = null;
     for (const move of movements) {
@@ -111,7 +114,7 @@ const TimeCalc = {
         member:       move.member,
         isActive,
         calendarMs,
-        isSameInterval:  calendarMs < 5 * 60 * 1000,
+        isSameInterval:  i < movements.length - 1 && calendarMs < 5 * 60 * 1000,
         isOutsideHours:  isActive && this.isOutsideOfficeHours(periodStart),
         workingHours: isActive ? this.calcWorkingHours(periodStart, periodEnd) : 0
       };

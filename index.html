@@ -74,11 +74,8 @@
   </div>
 
   <!-- Bottom status -->
-  <div class="p-3 border-t border-slate-700 flex-shrink-0">
-    <div class="flex items-center justify-between">
-      <span class="text-xs text-slate-400" id="last-updated"></span>
-      <button class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-2 py-1 rounded-lg text-xs transition-colors" onclick="loadDashboard(true)">↻</button>
-    </div>
+  <div class="p-3 border-t border-slate-700 flex-shrink-0 sidebar-text">
+    <span class="text-xs text-slate-400" id="last-updated"></span>
   </div>
 </aside>
 
@@ -604,6 +601,8 @@
       tbody.innerHTML = '<tr><td colspan="10" class="text-slate-400 text-center py-8">No hay proyectos.</td></tr>';
       return;
     }
+    const activePeriod = document.getElementById('filter-period').value;
+    const periodParam = activePeriod ? `&period=${activePeriod}` : '';
     tbody.innerHTML = projects.map(p => {
       const pColor = Utils.progressColor(p.progress);
       const roiClass = p.roi !== null ? (p.roi >= 0 ? 'text-emerald-400' : 'text-red-400') : '';
@@ -611,7 +610,7 @@
       return `
         <tr class="hover:bg-slate-800/30 transition-colors">
           <td class="px-4 py-3">
-            <a href="proyecto.html?id=${p.id}" style="color:#a5b4fc;text-decoration:none;font-weight:600">
+            <a href="proyecto.html?id=${p.id}${periodParam}" style="color:#a5b4fc;text-decoration:none;font-weight:600">
               ${p.displayName}
             </a>
             ${p.displayName !== p.name ? `<div class="text-xs text-slate-400" style="margin-top:1px">${p.name}</div>` : ''}
@@ -647,7 +646,7 @@
           </td>
           <td class="px-4 py-3 text-xs text-slate-400">${Utils.timeSince(p.lastActivity)}</td>
           <td class="px-4 py-3">
-            <a href="proyecto.html?id=${p.id}" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-1.5 rounded-lg text-xs transition-colors">Ver →</a>
+            <a href="proyecto.html?id=${p.id}${periodParam}" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-1.5 rounded-lg text-xs transition-colors whitespace-nowrap">Ver →</a>
           </td>
         </tr>`;
     }).join('');
@@ -765,7 +764,7 @@
     renderCharts(filtered);
     renderProjectsTable(filtered);
     renderTeamTable(members);
-    renderProjectCards(filtered);
+    renderProjectCards(filtered, per);
 
     // Tendencia mensual: mostrar cuando se filtra por workspace o categoría con tipo retención
     const trendKey = ws || cat;
@@ -909,7 +908,8 @@
     Utils.makeSortable(tbody.closest('table'));
   }
 
-  function renderProjectCards(projects) {
+  function renderProjectCards(projects, activePeriod = '') {
+    const periodParam = activePeriod ? `&period=${activePeriod}` : '';
     const grid = document.getElementById('project-cards-grid');
     grid.innerHTML = projects.map(p => {
       const pColor = Utils.progressColor(p.progress);
@@ -924,7 +924,7 @@
         `<div class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white" style="background:${Utils.avatarColor(m.id)}" title="${m.fullName}">${Utils.initials(m.fullName)}</div>`
       ).join('');
       return `
-        <a href="proyecto.html?id=${p.id}" class="bg-slate-900 border border-slate-700 rounded-2xl p-5 block cursor-pointer transition-all hover:border-indigo-500 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-500/10 text-inherit no-underline" style="text-decoration:none;color:inherit">
+        <a href="proyecto.html?id=${p.id}${periodParam}" class="bg-slate-900 border border-slate-700 rounded-2xl p-5 block cursor-pointer transition-all hover:border-indigo-500 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-500/10 text-inherit no-underline" style="text-decoration:none;color:inherit">
           <div class="flex justify-between items-center mb-1">
             <div class="font-semibold text-slate-100 truncate max-w-[200px]">${p.displayName}</div>
             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${roiBadge}">ROI ${roiText}</span>
@@ -957,7 +957,7 @@
   }
 
   // Initial load
-  Sidebar.init('dashboard');
+  Sidebar.init('dashboard', { onRefresh: () => loadDashboard(true) });
   loadDashboard();
 </script>
 </body>
