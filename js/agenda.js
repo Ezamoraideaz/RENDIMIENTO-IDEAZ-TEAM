@@ -677,6 +677,28 @@ const Agenda = {
       trelloBtn.style.display = 'none';
     }
 
+    // Drive button — only for cards in Drive stage
+    const driveBtn     = document.getElementById('modal-drive-btn');
+    const driveLoading = document.getElementById('modal-drive-loading');
+    driveBtn.style.display     = 'none';
+    driveLoading.style.display = 'none';
+
+    if (card.stageKey === 'drive' && DriveAPI.isConnected()) {
+      const rootFolder = DriveAPI.getFolderForBoard(card.boardId);
+      if (rootFolder) {
+        driveLoading.style.display = 'flex';
+        DriveAPI.findPostFolder(rootFolder, card.name, card.due)
+          .then(result => {
+            driveLoading.style.display = 'none';
+            if (result && result.files.length > 0) {
+              driveBtn.href = `https://drive.google.com/drive/folders/${result.folderId}`;
+              driveBtn.style.display = 'flex';
+            }
+          })
+          .catch(() => { driveLoading.style.display = 'none'; });
+      }
+    }
+
     const modal = document.getElementById('modal');
     modal.style.display = 'flex';
     modal.offsetHeight;
