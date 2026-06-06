@@ -35,18 +35,24 @@ const Agenda = {
           return [m.id, name];
         }));
 
-        // Build a map: cardId → date when the card last entered a done stage
-        // This is the real "approved date" — more reliable than dateLastActivity
+        // Build maps from action history:
+        // approvedDates: last time card entered a done stage (Aprobado/Drive/Publicado)
+        // sentDates:     last time card entered "Enviado al Cliente" — this is when
+        //                the designer finished; used to detect late delivery
         const DONE_STAGES = new Set(['approved', 'drive', 'published']);
         const approvedDates = {};
+        const sentDates     = {};
         for (const action of (actions || [])) {
           const cardId = action.data?.card?.id;
           const toName = action.data?.listAfter?.name;
           if (!cardId || !toName) continue;
-          if (!DONE_STAGES.has(TimeCalc.classifyList(toName))) continue;
+          const stage = TimeCalc.classifyList(toName);
           const d = new Date(action.date);
-          if (!approvedDates[cardId] || d > approvedDates[cardId]) {
-            approvedDates[cardId] = d;
+          if (DONE_STAGES.has(stage)) {
+            if (!approvedDates[cardId] || d > approvedDates[cardId]) approvedDates[cardId] = d;
+          }
+          if (stage === 'sentToClient') {
+            if (!sentDates[cardId] || d > sentDates[cardId]) sentDates[cardId] = d;
           }
         }
 
@@ -64,9 +70,15 @@ const Agenda = {
           // A card is "completed late" when the date it was approved
           // differs from its scheduled due date.
           const approvedDate  = approvedDates[card.id] || null;
-          const dueDay        = new Date(card.due).toDateString();
-          const approvedDay   = approvedDate ? approvedDate.toDateString() : null;
-          const completedLate = card.dueComplete && approvedDay && approvedDay !== dueDay;
+          const sentDate      = sentDates[card.id]    || null;
+          // completedLate: BOTH sent and approved happened after the due date.
+          const dueDay0      = new Date(card.due); dueDay0.setHours(0, 0, 0, 0);
+          const sentDay0     = sentDate    ? new Date(sentDate)    : null;
+          const approvedDay0 = approvedDate ? new Date(approvedDate) : null;
+          if (sentDay0)     sentDay0.setHours(0, 0, 0, 0);
+          if (approvedDay0) approvedDay0.setHours(0, 0, 0, 0);
+          const completedLate = sentDay0 && sentDay0 > dueDay0 &&
+                                approvedDay0 && approvedDay0 > dueDay0;
 
           const enriched = {
             id: card.id,
@@ -85,6 +97,7 @@ const Agenda = {
             completed: card.dueComplete || false,
             completedLate,
             approvedDate,
+            sentDate,
             memberNames: (card.idMembers || []).map(
               mid => memberMap[mid] || Storage.getMemberName(mid) || '?'
             )
@@ -243,19 +256,41 @@ const Agenda = {
       return true;
     });
 
-    this.filtered = [...base, ...ghosts];
+    // Late-delivery duplicates: show a copy on the sentDate so the PM can see
+    // when the work was actually submitted, regardless of when it was approved.
+    const lateDupes = base
+      .filter(c => c.completedLate && c.sentDate)
+      .map(c => {
+        const d = new Date(c.sentDate); d.setHours(0, 0, 0, 0);
+        return { ...c, id: 'latedupe_' + c.id, due: d, isLateDupe: true };
+      })
+      .filter(c => {
+        if (boardId  && c.boardId !== boardId) return false;
+        if (memberId && !c.idMembers.includes(memberId)) return false;
+        return true;
+      });
+
+    this.filtered = [...base, ...ghosts, ...lateDupes];
     this._render();
   },
 
   _cardsForDate(date) {
     const y = date.getFullYear(), mo = date.getMonth(), d = date.getDate();
-    return this.filtered.filter(c =>
-      c.due.getFullYear() === y && c.due.getMonth() === mo && c.due.getDate() === d
-    );
+    const order = c => {
+      if (c.completed && !c.completedLate && !c.isLateDupe) return 0; // on time
+      if (c.isLateDupe)  return 1; // delivered late, shown on sent date
+      if (c.isGhost)     return 3; // unfulfilled ghost
+      if (c.completedLate && !c.isLateDupe) return 2; // late marker on due date
+      return -1; // pending/active — first
+    };
+    return this.filtered
+      .filter(c => c.due.getFullYear() === y && c.due.getMonth() === mo && c.due.getDate() === d)
+      .sort((a, b) => order(a) - order(b));
   },
 
   _pill(card, compact) {
-    if (card.isGhost) return this._ghostPill(card, compact);
+    if (card.isGhost)    return this._ghostPill(card, compact);
+    if (card.isLateDupe) return this._lateDupePill(card, compact);
     const { color, bg } = card.stageInfo;
     const maxLen = compact ? 28 : 42;
     const label  = card.name.length > maxLen ? card.name.slice(0, maxLen) + '…' : card.name;
@@ -263,11 +298,11 @@ const Agenda = {
     if (card.completed) {
       const ghost = card.completedLate;
       const border = ghost ? 'border-left:3px dashed #10b981;' : 'border-left:3px solid #10b981;';
-      const approvedStr = card.approvedDate
-        ? card.approvedDate.toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'2-digit' })
+      const sentStr = card.sentDate
+        ? card.sentDate.toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'2-digit' })
         : '';
       const title = ghost
-        ? `${card.name.replace(/"/g,'&quot;')} — Aprobada el ${approvedStr} (vencía ${card.due.toLocaleDateString('es-MX', { day:'2-digit', month:'short' })})`
+        ? `${card.name.replace(/"/g,'&quot;')} — Enviada el ${sentStr} (vencía ${card.due.toLocaleDateString('es-MX', { day:'2-digit', month:'short' })})`
         : `${card.name.replace(/"/g,'&quot;')} — Completada en fecha`;
       return `
         <div data-card-id="${card.id}" class="agenda-card cursor-pointer rounded text-xs px-1.5 py-1 mb-1 hover:brightness-125 transition-all select-none"
@@ -286,6 +321,27 @@ const Agenda = {
            title="${card.name.replace(/"/g,'&quot;')}">
         <div class="font-medium leading-tight truncate" style="color:${textColor}">${label}</div>
         <div class="text-slate-400 truncate mt-0.5 leading-tight" style="font-size:0.65rem">${card.boardName}</div>
+      </div>`;
+  },
+
+  // Duplicate pill shown on sentDate for late-delivered cards
+  _lateDupePill(card, compact) {
+    const maxLen  = compact ? 28 : 42;
+    const label   = card.name.length > maxLen ? card.name.slice(0, maxLen) + '…' : card.name;
+    const origId  = card.id.replace('latedupe_', '');
+    const orig    = this.cardMap[origId];
+    const dueStr  = orig ? orig.due.toLocaleDateString('es-MX', { day:'2-digit', month:'short' }) : '';
+    const title   = `${card.name.replace(/"/g,'&quot;')} — Entregada aquí (vencía ${dueStr})`;
+    return `
+      <div data-card-id="${origId}"
+           class="agenda-card cursor-pointer rounded text-xs px-1.5 py-1 mb-1 hover:brightness-125 transition-all select-none"
+           style="background:rgba(99,102,241,0.10);border-left:3px dashed #6366f1;border-top:1px dashed #6366f130;border-right:1px dashed #6366f130;border-bottom:1px dashed #6366f130;"
+           title="${title}">
+        <div class="font-medium leading-tight truncate" style="color:#818cf8">👻 ${label}</div>
+        <div class="flex items-center justify-between gap-1 mt-0.5" style="font-size:0.6rem">
+          <span class="text-slate-500 truncate">${card.boardName}</span>
+          <span style="color:#6366f1;font-weight:700;flex-shrink:0">rezagada</span>
+        </div>
       </div>`;
   },
 
