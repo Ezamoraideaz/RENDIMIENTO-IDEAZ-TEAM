@@ -270,7 +270,12 @@ const Agenda = {
         return true;
       });
 
-    this.filtered = [...base, ...ghosts, ...lateDupes];
+    // Option A: if a lateDupe already covers a card's late story,
+    // suppress the _buildGhostCards ghost for that same card.
+    const lateDupeIds = new Set(lateDupes.map(c => c.id.replace('latedupe_', '')));
+    const filteredGhosts = ghosts.filter(g => !lateDupeIds.has(g.originalId));
+
+    this.filtered = [...base, ...filteredGhosts, ...lateDupes];
     this._render();
   },
 
@@ -315,11 +320,15 @@ const Agenda = {
           </div>
         </div>`;
     }
+    const today   = new Date(); today.setHours(0,0,0,0);
+    const dueDay  = new Date(card.due); dueDay.setHours(0,0,0,0);
+    const overdue = dueDay < today && !card.completed && (card.stageKey === 'backlog' || card.stageKey === 'clientRevision');
+    const prefix  = overdue ? '⚠ ' : '';
     return `
       <div data-card-id="${card.id}" class="agenda-card cursor-pointer rounded text-xs px-1.5 py-1 mb-1 hover:brightness-125 transition-all select-none"
            style="background:${bg}; border-left:3px solid ${color};"
-           title="${card.name.replace(/"/g,'&quot;')}">
-        <div class="font-medium leading-tight truncate" style="color:${textColor}">${label}</div>
+           title="${card.name.replace(/"/g,'&quot;')}${overdue ? ' — Vencida sin entregar' : ''}">
+        <div class="font-medium leading-tight truncate" style="color:${textColor}">${prefix}${label}</div>
         <div class="text-slate-400 truncate mt-0.5 leading-tight" style="font-size:0.65rem">${card.boardName}</div>
       </div>`;
   },
