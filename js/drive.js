@@ -1,18 +1,17 @@
 const DriveAPI = (() => {
-  const SCOPES   = 'https://www.googleapis.com/auth/drive.readonly';
-  const MONTHS   = ['enero','febrero','marzo','abril','mayo','junio',
-                    'julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const SCOPES  = 'https://www.googleapis.com/auth/drive.readonly';
+  const MONTHS  = ['enero','febrero','marzo','abril','mayo','junio',
+                   'julio','agosto','septiembre','octubre','noviembre','diciembre'];
 
-  // Build redirect URI dynamically so it works on any deployment
   function _redirectUri() {
     const loc = window.location;
     const base = loc.origin + loc.pathname.replace(/\/[^/]*$/, '/');
     return base + 'configuracion.html';
   }
 
-  // ── Credentials ────────────────────────────────────────────────────────────
-  function getClientId()     { return localStorage.getItem('ideaz_drive_client_id') || ''; }
-  function saveClientId(id)  { localStorage.setItem('ideaz_drive_client_id', id.trim()); }
+  // ── Credentials ──────────────────────────────────────────────────────────────
+  function getClientId()    { return localStorage.getItem('ideaz_drive_client_id') || ''; }
+  function saveClientId(id) { localStorage.setItem('ideaz_drive_client_id', id.trim()); }
 
   function getToken() {
     try {
@@ -27,10 +26,10 @@ const DriveAPI = (() => {
       expiry: Date.now() + (parseInt(expiresIn) - 60) * 1000
     }));
   }
-  function clearToken() { localStorage.removeItem('ideaz_drive_token'); }
+  function clearToken()  { localStorage.removeItem('ideaz_drive_token'); }
   function isConnected() { return !!getToken(); }
 
-  // ── Per-board folder ───────────────────────────────────────────────────────
+  // ── Per-board folder ──────────────────────────────────────────────────────────
   function getFolderForBoard(boardId) {
     return JSON.parse(localStorage.getItem('ideaz_drive_folders') || '{}')[boardId] || '';
   }
@@ -40,7 +39,7 @@ const DriveAPI = (() => {
     localStorage.setItem('ideaz_drive_folders', JSON.stringify(m));
   }
 
-  // ── OAuth ──────────────────────────────────────────────────────────────────
+  // ── OAuth ─────────────────────────────────────────────────────────────────────
   function connect() {
     const clientId = getClientId();
     if (!clientId) throw new Error('Guarda el Client ID antes de conectar');
@@ -54,11 +53,10 @@ const DriveAPI = (() => {
     window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${p}`;
   }
 
-  // Call on configuracion.html load — captures token from URL hash after redirect
   function handleCallback() {
     const hash = window.location.hash;
     if (!hash || !hash.includes('access_token')) return false;
-    const p = new URLSearchParams(hash.slice(1));
+    const p     = new URLSearchParams(hash.slice(1));
     const token = p.get('access_token');
     if (!token) return false;
     _saveToken(token, p.get('expires_in') || 3600);
@@ -67,7 +65,7 @@ const DriveAPI = (() => {
     return true;
   }
 
-  // ── Drive API v3 ───────────────────────────────────────────────────────────
+  // ── Drive API v3 ──────────────────────────────────────────────────────────────
   async function _fetch(endpoint, params = {}) {
     const token = getToken();
     if (!token) throw new Error('No autenticado con Google Drive');
@@ -79,13 +77,14 @@ const DriveAPI = (() => {
     return res.json();
   }
 
-  async function _findFolder(parentId, candidates) {
-    for (const name of candidates) {
-      const q = `'${parentId}' in parents and name='${name.replace(/'/g,"\\'")}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
-      const r = await _fetch('files', { q, fields: 'files(id,name)', pageSize: '1' });
-      if (r.files?.length) return r.files[0];
-    }
-    return null;
+  // List all subfolders of a parent (up to 100)
+  async function _listSubfolders(parentId) {
+    const r = await _fetch('files', {
+      q:        `'${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+      fields:   'files(id,name)',
+      pageSize: '100'
+    });
+    return r.files || [];
   }
 
   async function _listFiles(folderId) {
@@ -97,51 +96,54 @@ const DriveAPI = (() => {
     return r.files || [];
   }
 
-  // ── Main search ────────────────────────────────────────────────────────────
+  // ── Fuzzy matchers (client-side) ──────────────────────────────────────────────
+
+  // Year: exact match against the 4-digit year string
+  function _matchYear(folderName, year) {
+    return folderName.trim() === year;
+  }
+
+  // Month: folder name contains the month word (case-insensitive)
+  // e.g. "MAYO 2026", "mayo", "Mayo 2026" all match for "mayo"
+  function _matchMonth(folderName, monthName) {
+    return folderName.toLowerCase().includes(monthName);
+  }
+
+  // Post: extract short numbers (≤3 digits, i.e. not a year) from folder name
+  // and check if the target post number is among them
+  // e.g. "POST #27", "post #27", "post # 27", "Post27" all match for 27
+  function _matchPost(folderName, targetNum) {
+    const nums = (folderName.match(/\d+/g) || []).filter(n => n.length <= 3);
+    return nums.some(n => parseInt(n) === targetNum);
+  }
+
+  // ── Main search: artes → year → month → post ──────────────────────────────────
   async function findPostFolder(rootFolderId, cardName, dueDate) {
-    const year   = dueDate.getFullYear().toString();
-    const mName  = MONTHS[dueDate.getMonth()];
-    const mCap   = mName.charAt(0).toUpperCase() + mName.slice(1);
+    const year  = dueDate.getFullYear().toString();
+    const mName = MONTHS[dueDate.getMonth()]; // lowercase, e.g. "mayo"
 
-    const monthCandidates = [
-      mCap, mName, mName.toUpperCase(),
-      `${mCap} ${year}`, `${mName} ${year}`, `${mName.toUpperCase()} ${year}`
-    ];
+    // Extract post number from card name ("post #27 HISTORIA" → 27)
+    const match = cardName.match(/(?:post)\s*#?\s*(\d+)/i) || cardName.match(/\b(\d+)\b/);
+    if (!match) return null;
+    const targetNum = parseInt(match[1]);
 
-    // Extract post number from card name
-    const m = cardName.match(/(?:post)\s*#?\s*(\d+)/i) || cardName.match(/\b(\d+)\b/);
-    if (!m) return null;
-    const n = m[1];
-    const postCandidates = [
-      `POST #${n}`, `Post #${n}`, `post #${n}`,
-      `POST # ${n}`, `Post # ${n}`,
-      `POST${n}`, `Post${n}`, n
-    ];
+    // root → year
+    const rootFolders = await _listSubfolders(rootFolderId);
+    const yFolder = rootFolders.find(f => _matchYear(f.name, year));
+    if (!yFolder) return null;
 
-    // Strategy 1: root → month → post
-    let mFolder = await _findFolder(rootFolderId, monthCandidates);
-    if (mFolder) {
-      const pFolder = await _findFolder(mFolder.id, postCandidates);
-      if (pFolder) {
-        const files = await _listFiles(pFolder.id);
-        if (files.length) return { folderId: pFolder.id, folderName: pFolder.name, files };
-      }
-    }
+    // year → month (contains match — tolerates any prefix/suffix the CM adds)
+    const yearFolders = await _listSubfolders(yFolder.id);
+    const mFolder = yearFolders.find(f => _matchMonth(f.name, mName));
+    if (!mFolder) return null;
 
-    // Strategy 2: root → year → month → post
-    const yFolder = await _findFolder(rootFolderId, [year]);
-    if (yFolder) {
-      mFolder = await _findFolder(yFolder.id, monthCandidates);
-      if (mFolder) {
-        const pFolder = await _findFolder(mFolder.id, postCandidates);
-        if (pFolder) {
-          const files = await _listFiles(pFolder.id);
-          if (files.length) return { folderId: pFolder.id, folderName: pFolder.name, files };
-        }
-      }
-    }
+    // month → post (number match — ignores "POST", "#", spaces, case)
+    const monthFolders = await _listSubfolders(mFolder.id);
+    const pFolder = monthFolders.find(f => _matchPost(f.name, targetNum));
+    if (!pFolder) return null;
 
-    return null;
+    const files = await _listFiles(pFolder.id);
+    return { folderId: pFolder.id, folderName: pFolder.name, files };
   }
 
   return {

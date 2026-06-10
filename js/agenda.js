@@ -690,7 +690,7 @@ const Agenda = {
         DriveAPI.findPostFolder(rootFolder, card.name, card.due)
           .then(result => {
             driveLoading.style.display = 'none';
-            if (result && result.files.length > 0) {
+            if (result) {
               driveBtn.href = `https://drive.google.com/drive/folders/${result.folderId}`;
               driveBtn.style.display = 'flex';
             }
