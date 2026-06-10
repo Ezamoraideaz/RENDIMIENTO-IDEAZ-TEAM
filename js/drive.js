@@ -135,11 +135,13 @@ const DriveAPI = (() => {
     if (!yFolder) { console.warn(`[Drive] No se encontró carpeta de año "${year}"`); return null; }
     console.log(`[Drive] Año encontrado: "${yFolder.name}"`);
 
-    // year → month (contains match — tolerates any prefix/suffix the CM adds)
+    // year → month (contains match — also tries previous month as fallback)
     const yearFolders = await _listSubfolders(yFolder.id);
     console.log('[Drive] Carpetas en año:', yearFolders.map(f => f.name));
-    const mFolder = yearFolders.find(f => _matchMonth(f.name, mName));
-    if (!mFolder) { console.warn(`[Drive] No se encontró carpeta que contenga "${mName}"`); return null; }
+    const prevMName = MONTHS[(dueDate.getMonth() + 11) % 12];
+    const mFolder = yearFolders.find(f => _matchMonth(f.name, mName))
+                 || yearFolders.find(f => _matchMonth(f.name, prevMName));
+    if (!mFolder) { console.warn(`[Drive] No se encontró carpeta para "${mName}" ni "${prevMName}"`); return null; }
     console.log(`[Drive] Mes encontrado: "${mFolder.name}"`);
 
     // month → post (number match — ignores "POST", "#", spaces, case)
