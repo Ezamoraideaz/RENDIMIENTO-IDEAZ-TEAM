@@ -124,23 +124,30 @@ const DriveAPI = (() => {
 
     // Extract post number from card name ("post #27 HISTORIA" → 27)
     const match = cardName.match(/(?:post)\s*#?\s*(\d+)/i) || cardName.match(/\b(\d+)\b/);
-    if (!match) return null;
+    if (!match) { console.warn('[Drive] No se encontró número de post en:', cardName); return null; }
     const targetNum = parseInt(match[1]);
+    console.log(`[Drive] Buscando → año:${year} mes:${mName} post:#${targetNum} | root:${rootFolderId}`);
 
     // root → year
     const rootFolders = await _listSubfolders(rootFolderId);
+    console.log('[Drive] Carpetas en root:', rootFolders.map(f => f.name));
     const yFolder = rootFolders.find(f => _matchYear(f.name, year));
-    if (!yFolder) return null;
+    if (!yFolder) { console.warn(`[Drive] No se encontró carpeta de año "${year}"`); return null; }
+    console.log(`[Drive] Año encontrado: "${yFolder.name}"`);
 
     // year → month (contains match — tolerates any prefix/suffix the CM adds)
     const yearFolders = await _listSubfolders(yFolder.id);
+    console.log('[Drive] Carpetas en año:', yearFolders.map(f => f.name));
     const mFolder = yearFolders.find(f => _matchMonth(f.name, mName));
-    if (!mFolder) return null;
+    if (!mFolder) { console.warn(`[Drive] No se encontró carpeta que contenga "${mName}"`); return null; }
+    console.log(`[Drive] Mes encontrado: "${mFolder.name}"`);
 
     // month → post (number match — ignores "POST", "#", spaces, case)
     const monthFolders = await _listSubfolders(mFolder.id);
+    console.log('[Drive] Carpetas en mes:', monthFolders.map(f => f.name));
     const pFolder = monthFolders.find(f => _matchPost(f.name, targetNum));
-    if (!pFolder) return null;
+    if (!pFolder) { console.warn(`[Drive] No se encontró carpeta para post #${targetNum}`); return null; }
+    console.log(`[Drive] Post encontrado: "${pFolder.name}"`);
 
     const files = await _listFiles(pFolder.id);
     return { folderId: pFolder.id, folderName: pFolder.name, files };
