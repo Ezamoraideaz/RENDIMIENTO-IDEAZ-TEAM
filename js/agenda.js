@@ -547,13 +547,6 @@ const Agenda = {
 
     html += `</div>`;
 
-    if (spanning.length > 0) {
-      html += `
-        <div class="grid grid-cols-7 px-1 pt-1 pb-1 border-b border-slate-700/50 bg-slate-800/30" style="grid-auto-rows:auto">
-          ${spanning.map(c => this._spanningBlock(c, days)).join('')}
-        </div>`;
-    }
-
     html += `<div class="grid grid-cols-7 divide-x divide-slate-800/60">`;
 
     days.forEach((day, i) => {
@@ -566,7 +559,16 @@ const Agenda = {
       html += `</div>`;
     });
 
-    html += `</div></div>`;
+    html += `</div>`;
+
+    if (spanning.length > 0) {
+      html += `
+        <div class="grid grid-cols-7 px-1 pt-1 pb-1 border-t border-slate-700/50 bg-slate-800/30" style="grid-auto-rows:auto">
+          ${spanning.map(c => this._spanningBlock(c, days)).join('')}
+        </div>`;
+    }
+
+    html += `</div>`;
     document.getElementById('cal-container').innerHTML = html;
     this._bindCalendarEvents();
   },
