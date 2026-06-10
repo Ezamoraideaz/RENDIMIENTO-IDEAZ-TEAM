@@ -127,16 +127,33 @@ const DriveAPI = (() => {
     if (!match) return null;
     const targetNum = parseInt(match[1]);
 
+    const monthIdx  = dueDate.getMonth();
+    const prevMName = MONTHS[(monthIdx + 11) % 12];
+    const prevYear  = (monthIdx === 0 ? dueDate.getFullYear() - 1 : dueDate.getFullYear()).toString();
+
     // root → year
     const rootFolders = await _listSubfolders(rootFolderId);
     const yFolder = rootFolders.find(f => _matchYear(f.name, year));
     if (!yFolder) return null;
 
-    // year → month (contains match — also tries previous month as fallback)
+    // year → month (contains match)
+    // If month is January the fallback "december" lives in the previous year's folder
     const yearFolders = await _listSubfolders(yFolder.id);
-    const prevMName = MONTHS[(dueDate.getMonth() + 11) % 12];
-    const mFolder = yearFolders.find(f => _matchMonth(f.name, mName))
-                 || yearFolders.find(f => _matchMonth(f.name, prevMName));
+    let mFolder = yearFolders.find(f => _matchMonth(f.name, mName));
+
+    if (!mFolder) {
+      if (prevYear !== year) {
+        // Cross-year fallback: diciembre 2026 when card is due in enero 2027
+        const prevYFolder = rootFolders.find(f => _matchYear(f.name, prevYear));
+        if (prevYFolder) {
+          const prevYearFolders = await _listSubfolders(prevYFolder.id);
+          mFolder = prevYearFolders.find(f => _matchMonth(f.name, prevMName));
+        }
+      } else {
+        mFolder = yearFolders.find(f => _matchMonth(f.name, prevMName));
+      }
+    }
+
     if (!mFolder) return null;
 
     // month → post (number match — ignores "POST", "#", spaces, case)
