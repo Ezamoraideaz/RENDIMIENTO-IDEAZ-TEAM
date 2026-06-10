@@ -302,22 +302,24 @@ const Agenda = {
     const label  = card.name.length > maxLen ? card.name.slice(0, maxLen) + '…' : card.name;
     const textColor = color === '#94a3b8' ? '#cbd5e1' : color;
     if (card.completed) {
-      const ghost = card.completedLate;
-      const border = ghost ? 'border-left:3px dashed #10b981;' : 'border-left:3px solid #10b981;';
+      const late    = card.completedLate;
+      const cColor  = late ? textColor : '#10b981';
+      const cBg     = late ? bg        : '#10b98112';
+      const border  = late ? `border-left:3px dashed ${color};` : 'border-left:3px solid #10b981;';
       const sentStr = card.sentDate
         ? card.sentDate.toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'2-digit' })
         : '';
-      const title = ghost
+      const title = late
         ? `${card.name.replace(/"/g,'&quot;')} — Enviada el ${sentStr} (vencía ${card.due.toLocaleDateString('es-MX', { day:'2-digit', month:'short' })})`
         : `${card.name.replace(/"/g,'&quot;')} — Completada en fecha`;
       return `
         <div data-card-id="${card.id}" class="agenda-card cursor-pointer rounded text-xs px-1.5 py-1 mb-1 hover:brightness-125 transition-all select-none"
-             style="opacity:0.65; background:#10b98112; ${border}"
+             style="opacity:0.65; background:${cBg}; ${border}"
              title="${title}">
-          <div class="font-medium leading-tight truncate" style="color:#10b981">${ghost ? '👻' : '✓'} ${label}</div>
+          <div class="font-medium leading-tight truncate" style="color:${cColor}">${late ? '👻' : '✓'} ${label}</div>
           <div class="flex items-center justify-between gap-1 mt-0.5" style="font-size:0.65rem">
             <span class="text-slate-500 truncate">${card.boardName}</span>
-            ${ghost ? '<span style="color:#94a3b8;flex-shrink:0">fuera de fecha</span>' : ''}
+            ${late ? `<span style="color:${cColor};opacity:0.8;flex-shrink:0">fuera de fecha</span>` : ''}
           </div>
         </div>`;
     }
@@ -336,6 +338,8 @@ const Agenda = {
 
   // Duplicate pill shown on sentDate for late-delivered cards
   _lateDupePill(card, compact) {
+    const { color, bg } = card.stageInfo;
+    const textColor = color === '#94a3b8' ? '#cbd5e1' : color;
     const maxLen  = compact ? 28 : 42;
     const label   = card.name.length > maxLen ? card.name.slice(0, maxLen) + '…' : card.name;
     const origId  = card.id.replace('latedupe_', '');
@@ -345,12 +349,12 @@ const Agenda = {
     return `
       <div data-card-id="${origId}"
            class="agenda-card cursor-pointer rounded text-xs px-1.5 py-1 mb-1 hover:brightness-125 transition-all select-none"
-           style="background:rgba(99,102,241,0.10);border-left:3px dashed #6366f1;border-top:1px dashed #6366f130;border-right:1px dashed #6366f130;border-bottom:1px dashed #6366f130;"
+           style="opacity:0.65; background:${bg}; border-left:3px dashed ${color}; border-top:1px dashed ${color}30; border-right:1px dashed ${color}30; border-bottom:1px dashed ${color}30;"
            title="${title}">
-        <div class="font-medium leading-tight truncate" style="color:#818cf8">👻 ${label}</div>
+        <div class="font-medium leading-tight truncate" style="color:${textColor}">👻 ${label}</div>
         <div class="flex items-center justify-between gap-1 mt-0.5" style="font-size:0.6rem">
           <span class="text-slate-500 truncate">${card.boardName}</span>
-          <span style="color:#6366f1;font-weight:700;flex-shrink:0">rezagada</span>
+          <span style="color:${textColor};opacity:0.8;font-weight:700;flex-shrink:0">rezagada</span>
         </div>
       </div>`;
   },
