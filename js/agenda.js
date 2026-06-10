@@ -677,6 +677,46 @@ const Agenda = {
       trelloBtn.style.display = 'none';
     }
 
+    // Drive button — only for cards in Drive stage
+    const driveBtn     = document.getElementById('modal-drive-btn');
+    const driveLoading = document.getElementById('modal-drive-loading');
+    const driveMsg     = document.getElementById('modal-drive-msg');
+    driveBtn.style.display     = 'none';
+    driveLoading.style.display = 'none';
+    driveMsg.style.display     = 'none';
+    driveMsg.textContent       = '';
+
+    if (card.stageKey === 'drive') {
+      if (!DriveAPI.isConnected()) {
+        driveMsg.textContent   = '⚠ Drive no conectado — ve a Configuración';
+        driveMsg.style.display = 'inline';
+      } else {
+        const rootFolder = DriveAPI.getFolderForBoard(card.boardId);
+        if (!rootFolder) {
+          driveMsg.textContent   = '⚠ Carpeta Drive no configurada para este tablero';
+          driveMsg.style.display = 'inline';
+        } else {
+          driveLoading.style.display = 'flex';
+          DriveAPI.findPostFolder(rootFolder, card.name, card.due)
+            .then(result => {
+              driveLoading.style.display = 'none';
+              if (result) {
+                driveBtn.href = `https://drive.google.com/drive/folders/${result.folderId}`;
+                driveBtn.style.display = 'flex';
+              } else {
+                driveMsg.textContent   = '📁 Carpeta no encontrada en Drive';
+                driveMsg.style.display = 'inline';
+              }
+            })
+            .catch(err => {
+              driveLoading.style.display = 'none';
+              driveMsg.textContent   = `✕ Error Drive: ${err.message}`;
+              driveMsg.style.display = 'inline';
+            });
+        }
+      }
+    }
+
     const modal = document.getElementById('modal');
     modal.style.display = 'flex';
     modal.offsetHeight;

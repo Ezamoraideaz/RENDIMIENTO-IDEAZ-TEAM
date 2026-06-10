@@ -149,6 +149,47 @@
       </div>
     </div>
 
+    <!-- GOOGLE DRIVE -->
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4" id="section-drive" style="display:none">
+      <div class="flex justify-between items-center mb-3">
+        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-0">📁 Google Drive</h2>
+        <div id="drive-status-badge"></div>
+      </div>
+
+      <div class="flex gap-3 p-4 rounded-xl bg-slate-800/50 border border-slate-700 text-slate-400 text-xs mb-4 leading-relaxed">
+        <div>
+          <strong class="text-slate-300">Setup (una sola vez):</strong>
+          Crea un proyecto en <strong class="text-slate-300">console.cloud.google.com</strong> →
+          habilita <strong class="text-slate-300">Google Drive API</strong> →
+          crea credenciales <strong class="text-slate-300">OAuth 2.0 (Web app)</strong> →
+          agrega como redirect URI:
+          <code class="bg-slate-700 px-1.5 py-0.5 rounded text-slate-200" id="drive-redirect-uri">cargando…</code>
+        </div>
+      </div>
+
+      <div class="flex gap-3 items-end mb-4 flex-wrap">
+        <div class="flex-1 min-w-0" style="max-width:480px">
+          <label class="block text-xs text-slate-400 font-medium mb-1">Client ID de Google Cloud</label>
+          <input id="drive-client-id-input" type="text"
+            class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 w-full"
+            placeholder="xxxxxx.apps.googleusercontent.com"
+            autocomplete="off">
+        </div>
+        <button onclick="saveDriveClientId()"
+          class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-2 rounded-lg text-sm transition-colors whitespace-nowrap">
+          Guardar Client ID
+        </button>
+        <button id="btn-drive-connect" onclick="connectDrive()"
+          class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors whitespace-nowrap">
+          Conectar Google Drive
+        </button>
+        <button id="btn-drive-disconnect" onclick="disconnectDrive()" style="display:none"
+          class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-2 rounded-lg text-sm transition-colors whitespace-nowrap">
+          Desconectar
+        </button>
+      </div>
+    </div>
+
     <!-- PROJECTS FINANCIAL DATA -->
     <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4" id="section-projects" style="display:none">
       <div class="flex justify-between items-center mb-3 flex-wrap gap-2">
@@ -172,6 +213,7 @@
               <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Ingresos</th>
               <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Horas Estim.</th>
               <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Moneda</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">📁 Carpeta ARTES (Drive ID)</th>
             </tr>
           </thead>
           <tbody id="projects-table-body" class="divide-y divide-slate-700/50">
@@ -275,8 +317,51 @@
 <script src="js/utils.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/sidebar.js"></script>
+<script src="js/drive.js"></script>
 <script>
   Sidebar.init('configuracion');
+
+  // Handle Google Drive OAuth callback
+  (function() {
+    const connected = DriveAPI.handleCallback();
+    if (connected) Utils.showToast('Google Drive conectado ✓', 'success');
+    _updateDriveUI();
+    document.getElementById('section-drive').style.display = 'block';
+    const el = document.getElementById('drive-redirect-uri');
+    if (el) el.textContent = location.origin + location.pathname;
+    const inp = document.getElementById('drive-client-id-input');
+    if (inp) inp.value = DriveAPI.getClientId();
+  })();
+
+  function _updateDriveUI() {
+    const connected = DriveAPI.isConnected();
+    const badge  = document.getElementById('drive-status-badge');
+    const btnC   = document.getElementById('btn-drive-connect');
+    const btnD   = document.getElementById('btn-drive-disconnect');
+    if (badge) badge.innerHTML = connected
+      ? `<span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">✓ Conectado</span>`
+      : `<span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-700 text-slate-400">Sin conectar</span>`;
+    if (btnC) btnC.style.display = connected ? 'none' : '';
+    if (btnD) btnD.style.display = connected ? '' : 'none';
+  }
+
+  function saveDriveClientId() {
+    const val = document.getElementById('drive-client-id-input')?.value.trim();
+    if (!val) return;
+    DriveAPI.saveClientId(val);
+    Utils.showToast('Client ID guardado ✓', 'success');
+  }
+
+  function connectDrive() {
+    try { DriveAPI.connect(); }
+    catch (e) { Utils.showToast(e.message, 'error'); }
+  }
+
+  function disconnectDrive() {
+    DriveAPI.clearToken();
+    _updateDriveUI();
+    Utils.showToast('Google Drive desconectado', 'success');
+  }
 
   let allBoards = [];
   let allMembers = {};
@@ -405,6 +490,7 @@
       renderAccessMemberSelect();
       document.getElementById('section-members').style.display = 'block';
       document.getElementById('section-roles').style.display = 'block';
+      document.getElementById('section-drive').style.display = 'block';
       document.getElementById('section-projects').style.display = 'block';
     } catch (e) {
       console.error('Error cargando datos de Trello:', e);
@@ -556,6 +642,15 @@
               <option value="MXN" ${pd.currency==='MXN'?'selected':''}>MXN</option>
               <option value="EUR" ${pd.currency==='EUR'?'selected':''}>EUR</option>
             </select>
+          </td>
+          <td class="px-4 py-3">
+            <input type="text"
+              class="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 font-mono" style="width:200px"
+              id="drive-folder-${b.id}"
+              value="${DriveAPI.getFolderForBoard(b.id)}"
+              placeholder="ID de carpeta ARTES"
+              onchange="DriveAPI.saveFolderForBoard('${b.id}', this.value); Utils.showToast('Carpeta Drive guardada ✓', 'success')">
+            <div class="text-xs text-slate-500 mt-1">ID de la URL de Drive</div>
           </td>
         </tr>`;
     }).join('');
