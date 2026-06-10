@@ -85,6 +85,7 @@ const Agenda = {
             name: card.name,
             desc: card.desc || '',
             due: new Date(card.due),
+            start: card.start ? new Date(card.start) : null,
             idList: card.idList,
             idMembers: card.idMembers || [],
             labels: card.labels || [],
@@ -378,6 +379,68 @@ const Agenda = {
       </div>`;
   },
 
+  // Returns cards with start < due that overlap the given 7-day window (week view only)
+  _weekSpanningCards(days) {
+    const weekStart = days[0];
+    const weekEnd   = days[6];
+    return this.filtered.filter(c => {
+      if (c.isGhost || c.isLateDupe) return false;
+      if (!c.start) return false;
+      const s = new Date(c.start); s.setHours(0,0,0,0);
+      const d = new Date(c.due);   d.setHours(0,0,0,0);
+      if (s >= d) return false;
+      return d >= weekStart && s <= weekEnd;
+    });
+  },
+
+  _spanningBlock(card, days) {
+    const weekStart = days[0];
+    const weekEnd   = days[6];
+
+    const cardStart = new Date(card.start); cardStart.setHours(0,0,0,0);
+    const cardDue   = new Date(card.due);   cardDue.setHours(0,0,0,0);
+
+    const visStart = cardStart < weekStart ? weekStart : cardStart;
+    const visEnd   = cardDue   > weekEnd   ? weekEnd   : cardDue;
+
+    const colStart = days.findIndex(d => d.getTime() === visStart.getTime()) + 1;
+    const colEnd   = days.findIndex(d => d.getTime() === visEnd.getTime())   + 2;
+
+    const clippedLeft  = cardStart < weekStart;
+    const clippedRight = cardDue   > weekEnd;
+
+    const { color, bg } = card.stageInfo;
+    const textColor = color === '#94a3b8' ? '#cbd5e1' : color;
+
+    const totalDays = Math.round((cardDue - cardStart) / 86400000) + 1;
+    const dueStr    = card.due.toLocaleDateString('es-MX', { day:'2-digit', month:'short' });
+    const title     = `${card.name.replace(/"/g,'&quot;')} — ${totalDays} días · vence ${dueStr}`;
+
+    const radiusTL = clippedLeft  ? '2px' : '5px';
+    const radiusBL = clippedLeft  ? '2px' : '5px';
+    const radiusTR = clippedRight ? '2px' : '5px';
+    const radiusBR = clippedRight ? '2px' : '5px';
+    const borderRadius = `${radiusTL} ${radiusTR} ${radiusBR} ${radiusBL}`;
+    const borderLeft   = clippedLeft  ? `border-left:2px dashed ${color}60;` : `border-left:3px solid ${color};`;
+    const borderRight  = clippedRight ? `border-right:2px dashed ${color}60;` : '';
+
+    const prefixIcon = clippedLeft  ? '← ' : '';
+    const suffixIcon = clippedRight ? ' →' : '';
+
+    const today   = new Date(); today.setHours(0,0,0,0);
+    const overdue = cardDue < today && !card.completed;
+    const labelColor = overdue ? '#f87171' : textColor;
+
+    return `
+      <div data-card-id="${card.id}"
+           class="agenda-card cursor-pointer text-xs px-2 py-1 mb-0.5 hover:brightness-125 transition-all select-none overflow-hidden"
+           style="grid-column:${colStart}/${colEnd}; background:${bg}; ${borderLeft}${borderRight} border-radius:${borderRadius};"
+           title="${title}">
+        <div class="font-medium truncate leading-tight" style="color:${labelColor}">${prefixIcon}${card.name}${suffixIcon}</div>
+        <div class="truncate leading-tight mt-0.5" style="font-size:0.6rem;color:${textColor}80">${card.boardName} · ${totalDays}d${overdue ? ' · ⚠ vencida' : ''}</div>
+      </div>`;
+  },
+
   _render() {
     if (this.view === 'month') this._renderMonth();
     else this._renderWeek();
@@ -460,7 +523,9 @@ const Agenda = {
       : `${mon.getDate()} ${this.MONTHS[mon.getMonth()]} – ${sun.getDate()} ${this.MONTHS[sun.getMonth()]} ${sun.getFullYear()}`;
     document.getElementById('cal-title').textContent = title;
 
-    const today = new Date(); today.setHours(0,0,0,0);
+    const today    = new Date(); today.setHours(0,0,0,0);
+    const spanning = this._weekSpanningCards(days);
+    const spanIds  = new Set(spanning.map(c => c.id));
 
     let html = `
       <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
@@ -480,10 +545,19 @@ const Agenda = {
         </div>`;
     });
 
-    html += `</div><div class="grid grid-cols-7 divide-x divide-slate-800/60">`;
+    html += `</div>`;
+
+    if (spanning.length > 0) {
+      html += `
+        <div class="grid grid-cols-7 px-1 pt-1 pb-1 border-b border-slate-700/50 bg-slate-800/30" style="grid-auto-rows:auto">
+          ${spanning.map(c => this._spanningBlock(c, days)).join('')}
+        </div>`;
+    }
+
+    html += `<div class="grid grid-cols-7 divide-x divide-slate-800/60">`;
 
     days.forEach((day, i) => {
-      const cards   = this._cardsForDate(day);
+      const cards   = this._cardsForDate(day).filter(c => !spanIds.has(c.id));
       const isToday = day.getTime() === today.getTime();
       html += `<div class="min-h-52 p-1.5 ${isToday ? 'bg-indigo-950/15' : ''}">`;
       html += cards.length === 0
