@@ -1,7 +1,9 @@
 const DriveAPI = (() => {
-  const SCOPES  = 'https://www.googleapis.com/auth/drive.readonly';
+  const SCOPES  = 'https://www.googleapis.com/auth/drive';
   const MONTHS  = ['enero','febrero','marzo','abril','mayo','junio',
                    'julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const MONTHS_UPPER = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO',
+                        'JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
 
   function _redirectUri() {
     const loc = window.location;
@@ -165,11 +167,73 @@ const DriveAPI = (() => {
     return { folderId: pFolder.id, folderName: pFolder.name, files };
   }
 
+  // ── Create folders ────────────────────────────────────────────────────────────
+  async function _createFolder(name, parentId) {
+    const token = getToken();
+    if (!token) throw new Error('No autenticado con Google Drive');
+    const res = await fetch('https://www.googleapis.com/drive/v3/files', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name,
+        mimeType: 'application/vnd.google-apps.folder',
+        parents: [parentId]
+      })
+    });
+    if (res.status === 401) { clearToken(); throw new Error('Sesión de Drive expirada — reconecta en Configuración'); }
+    if (!res.ok) throw new Error(`Drive API ${res.status}`);
+    return res.json();
+  }
+
+  // Creates year/month/POST#1..N under rootFolderId, skipping folders that already exist.
+  // onProgress(i, total) is called for each post checked.
+  async function createStructure(rootFolderId, year, monthIdx, postCount, onProgress) {
+    const yearStr    = year.toString();
+    const monthName  = MONTHS[monthIdx];
+    const monthLabel = `${MONTHS_UPPER[monthIdx]} ${yearStr}`;
+    const results    = { created: [], skipped: [] };
+
+    const rootFolders = await _listSubfolders(rootFolderId);
+    let yFolder = rootFolders.find(f => _matchYear(f.name, yearStr));
+    if (yFolder) {
+      results.skipped.push(yearStr);
+    } else {
+      yFolder = await _createFolder(yearStr, rootFolderId);
+      results.created.push(yearStr);
+    }
+
+    const yearFolders = await _listSubfolders(yFolder.id);
+    let mFolder = yearFolders.find(f => _matchMonth(f.name, monthName));
+    if (mFolder) {
+      results.skipped.push(mFolder.name);
+    } else {
+      mFolder = await _createFolder(monthLabel, yFolder.id);
+      results.created.push(monthLabel);
+    }
+
+    const monthFolders = await _listSubfolders(mFolder.id);
+    for (let i = 1; i <= postCount; i++) {
+      if (onProgress) onProgress(i, postCount);
+      const exists = monthFolders.find(f => _matchPost(f.name, i));
+      if (exists) {
+        results.skipped.push(exists.name);
+      } else {
+        await _createFolder(`POST #${i}`, mFolder.id);
+        results.created.push(`POST #${i}`);
+      }
+    }
+
+    return results;
+  }
+
   return {
     getClientId, saveClientId,
     isConnected, connect, handleCallback, clearToken,
     getFolderForBoard, saveFolderForBoard,
-    findPostFolder
+    findPostFolder, createStructure
   };
 })();
 

@@ -95,16 +95,15 @@
       <div id="cred-result" class="mt-4"></div>
     </div>
 
-    <!-- TEAM MEMBERS -->
-    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4" id="section-members" style="display:none">
+    <!-- EQUIPO -->
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4" id="section-team" style="display:none">
       <div class="flex justify-between items-center mb-3">
-        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-0">👥 Sueldos del Equipo (mensuales)</h2>
-        <div class="text-xs text-slate-400">Sueldo mensual por persona para calcular costos de proyectos</div>
+        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-0">👥 Equipo</h2>
+        <div class="text-xs text-slate-400">Sueldos para calcular costos · Roles para el Monitor de Faltas</div>
       </div>
       <div class="flex gap-3 p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-sm mb-4">
-        El costo se calcula como: <strong class="text-slate-200">horas trabajadas × (sueldo mensual ÷ 160 h/mes)</strong>. Solo ingresas el sueldo — el sistema hace la conversión automáticamente.
+        Costo = <strong class="text-slate-200">horas × (sueldo ÷ 160 h/mes)</strong>. Los roles permiten atribuir faltas correctamente en el Monitor.
       </div>
-
       <div class="overflow-x-auto rounded-xl border border-slate-700">
         <table class="w-full text-sm">
           <thead>
@@ -112,40 +111,16 @@
               <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Miembro</th>
               <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Username</th>
               <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Sueldo Mensual (COP)</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Rol</th>
             </tr>
           </thead>
-          <tbody id="members-table-body" class="divide-y divide-slate-700/50">
+          <tbody id="team-table-body" class="divide-y divide-slate-700/50">
             <tr><td colspan="4" class="text-slate-400 px-4 py-3">Cargando miembros...</td></tr>
           </tbody>
         </table>
       </div>
       <div class="mt-2 text-xs text-slate-500">
-        Los miembros se obtienen de tus tableros de Trello. Las tarifas se guardan localmente.
-      </div>
-    </div>
-
-    <!-- ROLES DEL EQUIPO -->
-    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4" id="section-roles" style="display:none">
-      <div class="flex justify-between items-center mb-3">
-        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-0">🎭 Roles del Equipo</h2>
-        <div class="text-xs text-slate-400">Asigna roles para que el Monitor de Faltas identifique responsabilidades</div>
-      </div>
-      <div class="flex gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-sm mb-4">
-        ⚠️ Trello no tiene un campo de "rol" por persona — aquí puedes asignarlo una sola vez. El Monitor usa estos roles para atribuir faltas correctamente.
-      </div>
-      <div class="overflow-x-auto rounded-xl border border-slate-700">
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="border-b border-slate-700 bg-slate-800/50">
-              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Miembro</th>
-              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Username</th>
-              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Rol</th>
-            </tr>
-          </thead>
-          <tbody id="roles-table-body" class="divide-y divide-slate-700/50">
-            <tr><td colspan="3" class="text-slate-400 px-4 py-3">Cargando miembros...</td></tr>
-          </tbody>
-        </table>
+        Miembros de tus tableros de Trello. Datos guardados localmente.
       </div>
     </div>
 
@@ -187,6 +162,56 @@
           class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-2 rounded-lg text-sm transition-colors whitespace-nowrap">
           Desconectar
         </button>
+      </div>
+
+      <!-- CREAR CARPETAS -->
+      <div id="section-drive-creator" style="display:none" class="mt-4 pt-4 border-t border-slate-700">
+        <h3 class="text-sm font-semibold text-slate-300 mb-1">📂 Crear estructura de carpetas</h3>
+        <p class="text-xs text-slate-500 mb-4">Crea año / mes / POST #1…N sin errores de escritura. Solo se crean las carpetas que no existen.</p>
+        <div class="grid grid-cols-2 gap-3 mb-4" style="max-width:540px">
+          <div>
+            <label class="block text-xs text-slate-400 font-medium mb-1">Proyecto</label>
+            <select id="fc-project"
+              class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 w-full">
+              <option value="">— Selecciona proyecto —</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 font-medium mb-1">Año</label>
+            <input id="fc-year" type="number" min="2020" max="2099"
+              class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 w-full"
+              placeholder="2026">
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 font-medium mb-1">Mes</label>
+            <select id="fc-month"
+              class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 w-full">
+              <option value="0">Enero</option>
+              <option value="1">Febrero</option>
+              <option value="2">Marzo</option>
+              <option value="3">Abril</option>
+              <option value="4">Mayo</option>
+              <option value="5">Junio</option>
+              <option value="6">Julio</option>
+              <option value="7">Agosto</option>
+              <option value="8">Septiembre</option>
+              <option value="9">Octubre</option>
+              <option value="10">Noviembre</option>
+              <option value="11">Diciembre</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 font-medium mb-1">N° de posts</label>
+            <input id="fc-posts" type="number" min="1" max="200"
+              class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 w-full"
+              placeholder="30">
+          </div>
+        </div>
+        <button onclick="createDriveFolders()"
+          class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors">
+          Crear carpetas
+        </button>
+        <div id="fc-result" class="mt-4"></div>
       </div>
     </div>
 
@@ -331,18 +356,27 @@
     if (el) el.textContent = location.origin + location.pathname;
     const inp = document.getElementById('drive-client-id-input');
     if (inp) inp.value = DriveAPI.getClientId();
+
+    // Default year/month for folder creator
+    const now = new Date();
+    const yearInp = document.getElementById('fc-year');
+    const monthSel = document.getElementById('fc-month');
+    if (yearInp) yearInp.value = now.getFullYear();
+    if (monthSel) monthSel.value = now.getMonth();
   })();
 
   function _updateDriveUI() {
     const connected = DriveAPI.isConnected();
-    const badge  = document.getElementById('drive-status-badge');
-    const btnC   = document.getElementById('btn-drive-connect');
-    const btnD   = document.getElementById('btn-drive-disconnect');
+    const badge   = document.getElementById('drive-status-badge');
+    const btnC    = document.getElementById('btn-drive-connect');
+    const btnD    = document.getElementById('btn-drive-disconnect');
+    const creator = document.getElementById('section-drive-creator');
     if (badge) badge.innerHTML = connected
       ? `<span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">✓ Conectado</span>`
       : `<span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-700 text-slate-400">Sin conectar</span>`;
-    if (btnC) btnC.style.display = connected ? 'none' : '';
-    if (btnD) btnD.style.display = connected ? '' : 'none';
+    if (btnC)    btnC.style.display    = connected ? 'none' : '';
+    if (btnD)    btnD.style.display    = connected ? '' : 'none';
+    if (creator) creator.style.display = connected ? 'block' : 'none';
   }
 
   function saveDriveClientId() {
@@ -484,12 +518,11 @@
         }
       }));
       allMembers = memberSet;
-      renderMembersTable();
-      renderRolesTable();
+      renderTeamTable();
       renderProjectsTable();
       renderAccessMemberSelect();
-      document.getElementById('section-members').style.display = 'block';
-      document.getElementById('section-roles').style.display = 'block';
+      renderDriveProjectSelect();
+      document.getElementById('section-team').style.display = 'block';
       document.getElementById('section-drive').style.display = 'block';
       document.getElementById('section-projects').style.display = 'block';
     } catch (e) {
@@ -497,11 +530,11 @@
     }
   }
 
-  function renderRolesTable() {
-    const tbody = document.getElementById('roles-table-body');
+  function renderTeamTable() {
+    const tbody = document.getElementById('team-table-body');
     const members = Object.values(allMembers);
     if (members.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="3" class="text-slate-400 px-4 py-3">No se encontraron miembros.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="4" class="text-slate-400 px-4 py-3">No se encontraron miembros.</td></tr>';
       return;
     }
     const ROLE_OPTIONS = [
@@ -512,40 +545,11 @@
       { value: 'otro',      label: 'Otro' },
     ];
     tbody.innerHTML = members.map(m => {
+      const salary  = Storage.getMemberRate(m.id);
       const current = Storage.getMemberRole(m.id);
       const options = ROLE_OPTIONS.map(o =>
         `<option value="${o.value}" ${o.value === current ? 'selected' : ''}>${o.label}</option>`
       ).join('');
-      return `
-        <tr class="hover:bg-slate-800/30 transition-colors">
-          <td class="px-4 py-3">
-            <div class="flex items-center gap-2">
-              <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white" style="background:${Utils.avatarColor(m.id)}">${Utils.initials(m.fullName)}</div>
-              <span class="text-slate-100">${m.fullName}</span>
-            </div>
-          </td>
-          <td class="px-4 py-3 text-slate-400">@${m.username}</td>
-          <td class="px-4 py-3">
-            <select class="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
-              onchange="Storage.setMemberRole('${m.id}', this.value); Utils.showToast('Rol guardado ✓', 'success')">
-              ${options}
-            </select>
-          </td>
-        </tr>`;
-    }).join('');
-  }
-
-  function renderMembersTable() {
-    const tbody = document.getElementById('members-table-body');
-    const members = Object.values(allMembers);
-
-    if (members.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="4" class="text-slate-400 px-4 py-3">No se encontraron miembros.</td></tr>';
-      return;
-    }
-
-    tbody.innerHTML = members.map(m => {
-      const salary = Storage.getMemberRate(m.id);
       return `
         <tr class="hover:bg-slate-800/30 transition-colors">
           <td class="px-4 py-3">
@@ -561,6 +565,12 @@
               value="${salary}"
               onchange="Storage.saveMemberRate('${m.id}', this.value); Utils.showToast('Sueldo guardado ✓', 'success')"
               placeholder="ej: 3000000">
+          </td>
+          <td class="px-4 py-3">
+            <select class="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"
+              onchange="Storage.setMemberRole('${m.id}', this.value); Utils.showToast('Rol guardado ✓', 'success')">
+              ${options}
+            </select>
           </td>
         </tr>`;
     }).join('');
@@ -715,6 +725,70 @@
   function clearTrelloCache() {
     TrelloCache.invalidateAll();
     Utils.showToast('Caché de Trello limpiado ✓', 'success');
+  }
+
+  // ── Drive folder creator ──────────────────────────────────────────────────────
+
+  function renderDriveProjectSelect() {
+    const sel = document.getElementById('fc-project');
+    if (!sel) return;
+    const boards = allBoards.filter(b => DriveAPI.getFolderForBoard(b.id));
+    if (boards.length === 0) {
+      sel.innerHTML = '<option value="">Sin proyectos con Carpeta ARTES configurada</option>';
+      return;
+    }
+    sel.innerHTML = '<option value="">— Selecciona proyecto —</option>' +
+      boards.map(b => {
+        const pd = Storage.getProjectData(b.id);
+        return `<option value="${b.id}">${pd.alias || b.name}</option>`;
+      }).join('');
+  }
+
+  async function createDriveFolders() {
+    const boardId  = document.getElementById('fc-project').value;
+    const year     = parseInt(document.getElementById('fc-year').value);
+    const monthIdx = parseInt(document.getElementById('fc-month').value);
+    const posts    = parseInt(document.getElementById('fc-posts').value);
+    const result   = document.getElementById('fc-result');
+
+    if (!boardId) { Utils.showToast('Selecciona un proyecto', 'warning'); return; }
+    if (!year || year < 2020 || year > 2099) { Utils.showToast('Año inválido', 'warning'); return; }
+    if (!posts || posts < 1) { Utils.showToast('Número de posts inválido', 'warning'); return; }
+
+    const rootFolderId = DriveAPI.getFolderForBoard(boardId);
+    if (!rootFolderId) {
+      result.innerHTML = `<div class="flex gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-sm">
+        ⚠️ Este proyecto no tiene Carpeta ARTES configurada. Agrégala en la tabla de proyectos de abajo.
+      </div>`;
+      return;
+    }
+
+    result.innerHTML = `<div class="flex items-center gap-2 text-slate-400 text-sm">
+      <div class="w-4 h-4 border-2 border-slate-600 border-t-indigo-500 rounded-full animate-spin"></div>
+      Creando carpetas… <span id="fc-progress"></span>
+    </div>`;
+
+    try {
+      const r = await DriveAPI.createStructure(rootFolderId, year, monthIdx, posts, (i, total) => {
+        const el = document.getElementById('fc-progress');
+        if (el) el.textContent = `POST ${i}/${total}`;
+      });
+
+      const nc = r.created.length;
+      const ns = r.skipped.length;
+      result.innerHTML = `
+        <div class="flex gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm mb-3">
+          ✅ <strong>${nc} carpeta${nc !== 1 ? 's' : ''} creada${nc !== 1 ? 's' : ''}</strong>${ns > 0 ? ` · ${ns} ya existían` : ''}
+        </div>
+        ${nc > 0 ? `<div class="text-xs text-slate-400">
+          <div class="font-semibold text-slate-300 mb-1">Creadas:</div>
+          ${r.created.map(n => `<div class="ml-2 py-0.5">📁 ${n}</div>`).join('')}
+        </div>` : ''}`;
+    } catch (e) {
+      result.innerHTML = `<div class="flex gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
+        ❌ ${e.message}
+      </div>`;
+    }
   }
 
   // ---- Control de Acceso ----
