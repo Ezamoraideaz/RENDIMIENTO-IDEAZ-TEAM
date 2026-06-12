@@ -59,7 +59,14 @@ const DriveAPI = (() => {
 
   function handleCallback() {
     const hash = window.location.hash;
-    if (!hash || !hash.includes('access_token')) return false;
+    if (!hash) return false;
+    if (hash.includes('error=')) {
+      const err = new URLSearchParams(hash.slice(1)).get('error') || 'oauth_error';
+      window.history.replaceState({}, document.title,
+        window.location.pathname + window.location.search);
+      throw new Error(err);
+    }
+    if (!hash.includes('access_token')) return false;
     const p     = new URLSearchParams(hash.slice(1));
     const token = p.get('access_token');
     if (!token) return false;

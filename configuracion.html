@@ -370,7 +370,15 @@
 
   // Handle Google Drive OAuth callback
   (function() {
-    const connected = DriveAPI.handleCallback();
+    let connected = false;
+    try {
+      connected = DriveAPI.handleCallback();
+    } catch (e) {
+      const msg = e.message === 'access_denied'
+        ? 'Acceso denegado — agrega esta cuenta como usuario de prueba en Google Cloud Console'
+        : 'Error Drive: ' + e.message;
+      Utils.showToast(msg, 'error');
+    }
     if (connected) Utils.showToast('Google Drive conectado ✓', 'success');
     _updateDriveUI();
     document.getElementById('section-drive').style.display = 'block';
