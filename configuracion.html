@@ -43,7 +43,7 @@
     <h1 class="text-2xl font-black text-slate-100 mb-6">⚙️ Configuración</h1>
 
     <!-- TRELLO CREDENTIALS -->
-    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4" id="section-trello">
       <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">🔑 Credenciales de Trello</h2>
       <div id="cred-status"></div>
 
@@ -254,8 +254,8 @@
     </div>
 
     <!-- ACCESS CONTROL -->
-    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4">
-      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">🔐 Control de Acceso — Agenda</h2>
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4" id="section-access">
+      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">🔐 Control de Acceso</h2>
       <div class="flex gap-3 p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-sm mb-5">
         Genera URLs de acceso personalizadas para que cada persona vea únicamente la Agenda. Los permisos viajan dentro de la URL — no hay contraseñas ni cuentas.
       </div>
@@ -277,6 +277,7 @@
             onchange="toggleAccessMemberRow()">
             <option value="agenda-full">📅 Agenda completa — todos los filtros disponibles</option>
             <option value="agenda-member">👤 Agenda bloqueada — solo ve sus propias tareas</option>
+            <option value="cm">🎨 CM — Drive + Carpetas + Agenda</option>
           </select>
         </div>
 
@@ -314,7 +315,7 @@
     </div>
 
     <!-- CACHE -->
-    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4" id="section-cache">
       <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">⚡ Caché de Trello</h2>
       <p class="text-sm text-slate-400 mb-3">
         Los datos de Trello se guardan temporalmente en este navegador (tableros 30 min · tarjetas/acciones 20 min) para reducir las llamadas a la API. Si necesitas ver cambios recientes, limpia el caché o usa el botón <strong class="text-slate-200">↻ Actualizar</strong> del dashboard.
@@ -323,7 +324,7 @@
     </div>
 
     <!-- DANGER ZONE -->
-    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5" id="section-danger">
       <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">⚠️ Zona Peligrosa</h2>
       <p class="text-sm text-slate-400 mb-3">Estas acciones borran datos guardados localmente y no se pueden deshacer.</p>
       <div class="flex gap-2 flex-wrap">
@@ -344,7 +345,28 @@
 <script src="js/sidebar.js"></script>
 <script src="js/drive.js"></script>
 <script>
-  Sidebar.init('configuracion');
+  // Restore access token lost during Google OAuth redirect
+  (function() {
+    const pending = sessionStorage.getItem('ideaz_pending_access');
+    if (pending && !new URLSearchParams(window.location.search).get('access')) {
+      sessionStorage.removeItem('ideaz_pending_access');
+      window.history.replaceState({}, document.title,
+        window.location.pathname + '?access=' + encodeURIComponent(pending));
+    }
+  })();
+
+  const _access = Auth.checkPageAccess('configuracion');
+  if (!_access.allowed) window.location.replace(_access.redirectTo || 'agenda.html');
+  const _cmMode = _access.role === 'cm';
+
+  if (_cmMode) {
+    Auth.applyEmbeddedCredentials();
+    ['section-trello', 'section-team', 'section-cache', 'section-danger', 'section-access'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+  }
+  Sidebar.init('configuracion', _cmMode ? { allowedKeys: ['agenda', 'configuracion'] } : {});
 
   // Handle Google Drive OAuth callback
   (function() {
@@ -518,11 +540,15 @@
         }
       }));
       allMembers = memberSet;
-      renderTeamTable();
-      renderProjectsTable();
-      renderAccessMemberSelect();
+      if (_cmMode) {
+        renderProjectsTableCM();
+      } else {
+        renderTeamTable();
+        renderProjectsTable();
+        renderAccessMemberSelect();
+        document.getElementById('section-team').style.display = 'block';
+      }
       renderDriveProjectSelect();
-      document.getElementById('section-team').style.display = 'block';
       document.getElementById('section-drive').style.display = 'block';
       document.getElementById('section-projects').style.display = 'block';
     } catch (e) {
@@ -667,17 +693,61 @@
     Utils.makeSortable(tbody.closest('table'));
   }
 
+  function renderProjectsTableCM() {
+    const table = document.querySelector('#projects-table-body').closest('table');
+    table.querySelector('thead tr').innerHTML = `
+      <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Proyecto</th>
+      <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Tipo</th>
+      <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">📁 Carpeta ARTES (Drive ID)</th>`;
+    const tbody = document.getElementById('projects-table-body');
+    if (allBoards.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="3" class="text-slate-400 px-4 py-3">No se encontraron tableros.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = allBoards.map(b => {
+      const pd = Storage.getProjectData(b.id);
+      const wsName = b.organization?.displayName || b.organization?.name || '';
+      return `
+        <tr class="hover:bg-slate-800/30 transition-colors">
+          <td class="px-4 py-3">
+            <div class="font-semibold text-sm text-slate-100">${pd.alias || b.name}</div>
+            <div class="text-xs text-slate-400">${wsName ? `🏢 ${wsName}` : b.id.slice(0,8) + '…'}</div>
+          </td>
+          <td class="px-4 py-3">
+            <select class="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500" style="width:160px" id="type-${b.id}">
+              <option value="" ${!pd.type ? 'selected' : ''}>Auto-detectar</option>
+              <option value="retencion" ${pd.type==='retencion' ? 'selected' : ''}>♻️ Retención mensual</option>
+              <option value="unico"     ${pd.type==='unico'     ? 'selected' : ''}>📦 Proyecto único</option>
+            </select>
+          </td>
+          <td class="px-4 py-3">
+            <input type="text"
+              class="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 font-mono" style="width:220px"
+              id="drive-folder-${b.id}"
+              value="${DriveAPI.getFolderForBoard(b.id)}"
+              placeholder="ID de carpeta ARTES"
+              onchange="DriveAPI.saveFolderForBoard('${b.id}', this.value); Utils.showToast('Carpeta Drive guardada ✓', 'success')">
+            <div class="text-xs text-slate-500 mt-1">ID de la URL de Drive</div>
+          </td>
+        </tr>`;
+    }).join('');
+  }
+
   function saveAllFinancial() {
     for (const b of allBoards) {
-      const budget = parseFloat(document.getElementById(`budget-${b.id}`)?.value) || 0;
-      const revenue = parseFloat(document.getElementById(`revenue-${b.id}`)?.value) || 0;
-      const hoursEstimated = parseFloat(document.getElementById(`hours-${b.id}`)?.value) || 0;
-      const currency = document.getElementById(`currency-${b.id}`)?.value || 'COP';
-      const category = (document.getElementById(`category-${b.id}`)?.value || '').trim();
-      const alias    = (document.getElementById(`alias-${b.id}`)?.value  || '').trim();
-      const period   = (document.getElementById(`period-${b.id}`)?.value  || '').trim();
-      const type     =  document.getElementById(`type-${b.id}`)?.value    || '';
-      Storage.saveProjectData(b.id, { budget, revenue, hoursEstimated, currency, category, alias, period, type });
+      const ex = Storage.getProjectData(b.id);
+      const _n = (id, fb) => { const v = parseFloat(document.getElementById(id)?.value); return isNaN(v) ? (fb ?? 0) : v; };
+      const _s = (id, fb) => (document.getElementById(id)?.value ?? fb ?? '').trim();
+      Storage.saveProjectData(b.id, {
+        budget:         _n(`budget-${b.id}`,   ex.budget),
+        revenue:        _n(`revenue-${b.id}`,  ex.revenue),
+        hoursEstimated: _n(`hours-${b.id}`,    ex.hoursEstimated),
+        currency:       document.getElementById(`currency-${b.id}`)?.value || ex.currency || 'COP',
+        category:       _s(`category-${b.id}`, ex.category),
+        alias:          _s(`alias-${b.id}`,    ex.alias),
+        period:         _s(`period-${b.id}`,   ex.period),
+        type:           document.getElementById(`type-${b.id}`)?.value || ex.type || '',
+      });
     }
     Utils.showToast('Datos guardados ✓', 'success');
   }

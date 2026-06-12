@@ -45,6 +45,8 @@ const DriveAPI = (() => {
   function connect() {
     const clientId = getClientId();
     if (!clientId) throw new Error('Guarda el Client ID antes de conectar');
+    const accessParam = new URLSearchParams(window.location.search).get('access');
+    if (accessParam) sessionStorage.setItem('ideaz_pending_access', accessParam);
     const p = new URLSearchParams({
       client_id:     clientId,
       redirect_uri:  _redirectUri(),

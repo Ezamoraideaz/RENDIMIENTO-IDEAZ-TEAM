@@ -36,6 +36,13 @@ const Auth = (() => {
       return { allowed: false, redirectTo: 'agenda.html?access=' + encodeURIComponent(getCurrentToken()) };
     }
 
+    if (user.role === 'cm') {
+      if (page === 'agenda' || page === 'configuracion') {
+        return { allowed: true, role: 'cm', name: user.name || null };
+      }
+      return { allowed: false, redirectTo: 'configuracion.html?access=' + encodeURIComponent(getCurrentToken()) };
+    }
+
     return { allowed: false };
   }
 
@@ -43,7 +50,7 @@ const Auth = (() => {
   function applyEmbeddedCredentials() {
     const user = getCurrentUser();
     if (!user || !user.trelloKey || !user.trelloToken) return false;
-    if (user.role === 'agenda-full' || user.role === 'agenda-member') {
+    if (user.role === 'agenda-full' || user.role === 'agenda-member' || user.role === 'cm') {
       Storage.saveCredentials(user.trelloKey, user.trelloToken);
       return true;
     }
@@ -60,7 +67,8 @@ const Auth = (() => {
     }
     const token = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
     const base = window.location.href.replace(/\/[^/?#]*([?#].*)?$/, '/');
-    return base + 'agenda.html?access=' + encodeURIComponent(token);
+    const page = role === 'cm' ? 'configuracion.html' : 'agenda.html';
+    return base + page + '?access=' + encodeURIComponent(token);
   }
 
   return { getCurrentUser, checkPageAccess, generateURL, getCurrentToken, applyEmbeddedCredentials };

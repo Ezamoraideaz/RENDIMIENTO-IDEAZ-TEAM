@@ -263,7 +263,8 @@
     // Aplicar credenciales de Trello embebidas en el token (usuarios sin configuración propia)
     Auth.applyEmbeddedCredentials();
 
-    const _sidebarKeys = _access.role === 'admin' ? null : ['agenda'];
+    const _sidebarKeys = _access.role === 'admin' ? null :
+      _access.role === 'cm' ? ['agenda', 'configuracion'] : ['agenda'];
     Sidebar.init('agenda', { allowedKeys: _sidebarKeys, onRefresh: () => Agenda.load(true) });
     renderLegend();
     Agenda.load();
