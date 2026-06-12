@@ -1,0 +1,10 @@
+# Block direct access to config.php
+<Files "config.php">
+    Order Allow,Deny
+    Deny from all
+</Files>
+
+# Allow CORS only from same domain
+Header set Access-Control-Allow-Origin "https://marketingdigitalideaz.com"
+Header set Access-Control-Allow-Methods "GET"
+Header set Content-Security-Policy "default-src 'none'"

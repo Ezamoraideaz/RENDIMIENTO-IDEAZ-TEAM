@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monitor de Pauta – IDEAZ Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          colors: { brand: { DEFAULT: '#6366f1', light: '#818cf8', dark: '#4f46e5' } }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans">
+
+<!-- SIDEBAR -->
+<aside id="app-sidebar" class="fixed left-0 top-0 h-screen w-64 bg-slate-900 border-r border-slate-700 flex flex-col z-50 overflow-y-auto">
+  <div class="p-3 border-t border-slate-700 flex-shrink-0 sidebar-text mt-auto">
+    <span class="text-xs text-slate-400" id="last-updated"></span>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="ml-64 min-h-screen">
+  <div class="p-6 max-w-7xl mx-auto">
+
+    <!-- Header -->
+    <div class="flex items-start justify-between mb-6 flex-wrap gap-4">
+      <div>
+        <h1 class="text-2xl font-black text-slate-100">💰 Monitor de Pauta Digital</h1>
+        <p class="text-slate-400 text-sm mt-1">Seguimiento de presupuesto por cliente y plataforma en tiempo real</p>
+      </div>
+
+      <!-- Controls -->
+      <div class="flex items-center gap-2 flex-wrap">
+        <!-- Quick buttons -->
+        <button id="btn-this" onclick="PautaMonitor.setThisMonth(); PautaMonitor.loadData()"
+          class="bg-indigo-600 text-white font-semibold px-3 py-2 rounded-lg text-sm transition-colors">
+          Este mes
+        </button>
+        <button id="btn-last" onclick="PautaMonitor.setLastMonth(); PautaMonitor.loadData()"
+          class="bg-slate-800 text-slate-300 border border-slate-600 font-semibold px-3 py-2 rounded-lg text-sm transition-colors">
+          Mes anterior
+        </button>
+
+        <!-- Date range -->
+        <input type="date" id="p-from" onchange="PautaMonitor._markQuick('custom')"
+          class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+        <span class="text-slate-500 text-sm">→</span>
+        <input type="date" id="p-to" onchange="PautaMonitor._markQuick('custom')"
+          class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+
+        <!-- Refresh -->
+        <button id="p-refresh" onclick="PautaMonitor.loadData()"
+          class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-2 rounded-lg text-sm transition-colors whitespace-nowrap flex items-center gap-2">
+          <span id="p-spinner" style="display:none" class="w-3.5 h-3.5 border-2 border-slate-600 border-t-indigo-400 rounded-full animate-spin"></span>
+          ↻ Actualizar
+        </button>
+
+        <!-- Add client -->
+        <button onclick="PautaMonitor.openClientModal()"
+          class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-3 py-2 rounded-lg text-sm transition-colors whitespace-nowrap">
+          + Cliente
+        </button>
+      </div>
+    </div>
+
+    <!-- Leyenda de alertas -->
+    <div class="flex items-center gap-4 mb-6 text-xs text-slate-400 flex-wrap">
+      <span class="flex items-center gap-1.5">
+        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span> En presupuesto
+      </span>
+      <span class="flex items-center gap-1.5">
+        <span class="w-2.5 h-2.5 rounded-full bg-yellow-500 inline-block"></span> Por encima del ritmo diario (+5%) o cerca del límite (+85%)
+      </span>
+      <span class="flex items-center gap-1.5">
+        <span class="w-2.5 h-2.5 rounded-full bg-red-500 inline-block"></span> Ritmo diario excedido (+20%) o presupuesto superado
+      </span>
+      <span class="ml-auto flex items-center gap-3">
+        <span>⚡ = gasto diario elevado</span>
+        <span>🔴 = presupuesto en riesgo</span>
+        <span>✓ = ritmo normal</span>
+      </span>
+    </div>
+
+    <!-- Cards grid -->
+    <div id="pauta-cards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"></div>
+
+  </div>
+</main>
+
+<script src="js/storage.js"></script>
+<script src="js/sidebar.js"></script>
+<script src="js/pauta.js"></script>
+<script>
+  if (!Storage.hasCredentials()) window.location.href = 'configuracion.html';
+  Sidebar.init('pauta');
+  PautaMonitor.init();
+</script>
+</body>
+</html>

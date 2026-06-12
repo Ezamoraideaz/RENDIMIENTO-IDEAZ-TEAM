@@ -3,6 +3,7 @@ const Sidebar = (() => {
     { href: 'index.html',         icon: '📊', label: 'Dashboard',     key: 'dashboard'     },
     { href: 'agenda.html',        icon: '📅', label: 'Agenda',        key: 'agenda'        },
     { href: 'monitor.html',       icon: '🚨', label: 'Monitor',       key: 'monitor'       },
+    { href: 'pauta.html',         icon: '💰', label: 'Pauta',         key: 'pauta'         },
     { href: 'configuracion.html', icon: '⚙️', label: 'Configuración', key: 'configuracion' },
   ];
 
