@@ -351,7 +351,7 @@
     if (pending && !new URLSearchParams(window.location.search).get('access')) {
       sessionStorage.removeItem('ideaz_pending_access');
       window.history.replaceState({}, document.title,
-        window.location.pathname + '?access=' + encodeURIComponent(pending));
+        window.location.pathname + '?access=' + encodeURIComponent(pending) + window.location.hash);
     }
   })();
 
