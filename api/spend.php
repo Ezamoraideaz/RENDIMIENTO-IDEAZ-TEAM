@@ -102,7 +102,7 @@ function getGoogleSpend(string $customer_id, string $date_from, string $date_to,
 
     $ch = curl_init();
     curl_setopt_array($ch, [
-        CURLOPT_URL            => "https://googleads.googleapis.com/v17/customers/{$cid}/googleAds:search",
+        CURLOPT_URL            => "https://googleads.googleapis.com/v19/customers/{$cid}/googleAds:search",
         CURLOPT_POST           => true,
         CURLOPT_POSTFIELDS     => json_encode(['query' => $query]),
         CURLOPT_RETURNTRANSFER => true,
