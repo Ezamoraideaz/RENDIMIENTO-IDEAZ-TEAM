@@ -21,6 +21,7 @@ $platform   = trim($_GET['platform']   ?? '');
 $account_id = trim($_GET['account_id'] ?? '');
 $date_from  = trim($_GET['from']       ?? date('Y-m-01'));
 $date_to    = trim($_GET['to']         ?? date('Y-m-d'));
+$debug      = isset($_GET['debug']) && $_GET['debug'] === '1';
 
 // Validate dates
 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date_from) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date_to)) {
@@ -37,10 +38,10 @@ if (empty($platform) || empty($account_id)) {
 
 switch ($platform) {
     case 'meta':
-        echo json_encode(getMetaSpend($account_id, $date_from, $date_to));
+        echo json_encode(getMetaSpend($account_id, $date_from, $date_to, $debug));
         break;
     case 'google':
-        echo json_encode(getGoogleSpend($account_id, $date_from, $date_to));
+        echo json_encode(getGoogleSpend($account_id, $date_from, $date_to, $debug));
         break;
     case 'tiktok':
         echo json_encode(['error' => 'TikTok Ads — próximamente', 'platform' => 'tiktok']);
@@ -78,7 +79,7 @@ function getGoogleAccessToken(): array {
     return $data;
 }
 
-function getGoogleSpend(string $customer_id, string $date_from, string $date_to): array {
+function getGoogleSpend(string $customer_id, string $date_from, string $date_to, bool $debug = false): array {
     if (!defined('GOOGLE_DEVELOPER_TOKEN') || !defined('GOOGLE_MCC_ID')) {
         return ['error' => 'GOOGLE_DEVELOPER_TOKEN o GOOGLE_MCC_ID no configurados en config.php', 'platform' => 'google'];
     }
@@ -92,9 +93,11 @@ function getGoogleSpend(string $customer_id, string $date_from, string $date_to)
     $cid = preg_replace('/[^0-9]/', '', $customer_id);
     $mcc = preg_replace('/[^0-9]/', '', GOOGLE_MCC_ID);
 
-    $query = "SELECT segments.date, metrics.cost_micros
+    // campaign.id es requerido; sin él la API puede devolver 0 filas silenciosamente
+    $query = "SELECT campaign.id, campaign.name, campaign.status, segments.date, metrics.cost_micros
               FROM campaign
               WHERE segments.date BETWEEN '{$date_from}' AND '{$date_to}'
+                AND campaign.status != 'REMOVED'
               ORDER BY segments.date ASC";
 
     $ch = curl_init();
@@ -112,7 +115,8 @@ function getGoogleSpend(string $customer_id, string $date_from, string $date_to)
         ],
     ]);
     $response = curl_exec($ch);
-    $curl_err = curl_error($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curl_err  = curl_error($ch);
     curl_close($ch);
 
     if ($curl_err) {
@@ -120,6 +124,17 @@ function getGoogleSpend(string $customer_id, string $date_from, string $date_to)
     }
 
     $data = json_decode($response, true);
+
+    if ($debug) {
+        return [
+            'debug'       => true,
+            'http_code'   => $http_code,
+            'customer_id' => $cid,
+            'mcc_id'      => $mcc,
+            'query'       => $query,
+            'raw'         => $data,
+        ];
+    }
 
     if (isset($data['error'])) {
         $msg = $data['error']['message'] ?? ($data['error']['details'][0]['errors'][0]['message'] ?? 'Error desconocido de Google Ads API');
@@ -129,9 +144,9 @@ function getGoogleSpend(string $customer_id, string $date_from, string $date_to)
     // Agrupar cost_micros por día
     $byDate = [];
     foreach ($data['results'] ?? [] as $row) {
-        $date  = $row['segments']['date']          ?? '';
+        $date   = $row['segments']['date']          ?? '';
         $micros = (int)($row['metrics']['costMicros'] ?? 0);
-        $byDate[$date] = ($byDate[$date] ?? 0) + $micros;
+        if ($date) $byDate[$date] = ($byDate[$date] ?? 0) + $micros;
     }
 
     $daily = [];
@@ -144,19 +159,20 @@ function getGoogleSpend(string $customer_id, string $date_from, string $date_to)
     usort($daily, fn($a, $b) => strcmp($a['date'], $b['date']));
 
     return [
-        'platform'    => 'google',
-        'account_id'  => $customer_id,
-        'total_spend' => round($total, 2),
-        'currency'    => 'USD',
-        'daily_data'  => $daily,
-        'date_from'   => $date_from,
-        'date_to'     => $date_to,
+        'platform'     => 'google',
+        'account_id'   => $customer_id,
+        'total_spend'  => round($total, 2),
+        'currency'     => 'USD',
+        'daily_data'   => $daily,
+        'date_from'    => $date_from,
+        'date_to'      => $date_to,
+        '_rows'        => count($data['results'] ?? []),
     ];
 }
 
 // ─── META ADS ────────────────────────────────────────────────────────────────
 
-function getMetaSpend(string $account_id, string $date_from, string $date_to): array {
+function getMetaSpend(string $account_id, string $date_from, string $date_to, bool $debug = false): array {
     if (!defined('META_ACCESS_TOKEN') || META_ACCESS_TOKEN === 'YOUR_META_SYSTEM_USER_TOKEN_HERE') {
         return ['error' => 'Meta Access Token no configurado en config.php'];
     }
@@ -191,6 +207,15 @@ function getMetaSpend(string $account_id, string $date_from, string $date_to): a
 
     $data = json_decode($response, true);
 
+    if ($debug) {
+        return [
+            'debug'      => true,
+            'http_code'  => $http_code,
+            'account_id' => $account_id,
+            'raw'        => $data,
+        ];
+    }
+
     if (isset($data['error'])) {
         return [
             'error'    => $data['error']['message'] ?? 'Error desconocido de Meta API',
@@ -199,8 +224,8 @@ function getMetaSpend(string $account_id, string $date_from, string $date_to): a
         ];
     }
 
-    $daily   = [];
-    $total   = 0.0;
+    $daily    = [];
+    $total    = 0.0;
     $currency = 'USD';
 
     foreach ($data['data'] ?? [] as $row) {
@@ -218,5 +243,6 @@ function getMetaSpend(string $account_id, string $date_from, string $date_to): a
         'daily_data'  => $daily,
         'date_from'   => $date_from,
         'date_to'     => $date_to,
+        '_rows'       => count($data['data'] ?? []),
     ];
 }
