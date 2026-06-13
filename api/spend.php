@@ -100,24 +100,36 @@ function getGoogleSpend(string $customer_id, string $date_from, string $date_to,
                 AND campaign.status != 'REMOVED'
               ORDER BY segments.date ASC";
 
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL            => "https://googleads.googleapis.com/v19/customers/{$cid}/googleAds:search",
-        CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => json_encode(['query' => $query]),
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 15,
-        CURLOPT_HTTPHEADER     => [
-            'Authorization: Bearer ' . $token['access_token'],
-            'developer-token: '      . GOOGLE_DEVELOPER_TOKEN,
-            'login-customer-id: '    . $mcc,
-            'Content-Type: application/json',
-        ],
-    ]);
-    $response = curl_exec($ch);
-    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curl_err  = curl_error($ch);
-    curl_close($ch);
+    // Probar versiones de más nueva a más antigua hasta encontrar una activa
+    $versions  = ['v20', 'v19', 'v18'];
+    $response  = null;
+    $http_code = 0;
+    $curl_err  = '';
+    $used_ver  = '';
+
+    foreach ($versions as $ver) {
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL            => "https://googleads.googleapis.com/{$ver}/customers/{$cid}/googleAds:search",
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => json_encode(['query' => $query]),
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 15,
+            CURLOPT_HTTPHEADER     => [
+                'Authorization: Bearer ' . $token['access_token'],
+                'developer-token: '      . GOOGLE_DEVELOPER_TOKEN,
+                'login-customer-id: '    . $mcc,
+                'Content-Type: application/json',
+            ],
+        ]);
+        $response  = curl_exec($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curl_err  = curl_error($ch);
+        curl_close($ch);
+
+        if ($curl_err) break;
+        if ($http_code !== 404) { $used_ver = $ver; break; }
+    }
 
     if ($curl_err) {
         return ['error' => "cURL error: {$curl_err}", 'platform' => 'google'];
@@ -128,6 +140,7 @@ function getGoogleSpend(string $customer_id, string $date_from, string $date_to,
     if ($debug) {
         return [
             'debug'       => true,
+            'api_version' => $used_ver ?: '404-en-todas',
             'http_code'   => $http_code,
             'customer_id' => $cid,
             'mcc_id'      => $mcc,
@@ -167,6 +180,7 @@ function getGoogleSpend(string $customer_id, string $date_from, string $date_to,
         'date_from'    => $date_from,
         'date_to'      => $date_to,
         '_rows'        => count($data['results'] ?? []),
+        '_api_version' => $used_ver,
     ];
 }
 
