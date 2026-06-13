@@ -40,7 +40,7 @@ switch ($platform) {
         echo json_encode(getMetaSpend($account_id, $date_from, $date_to));
         break;
     case 'google':
-        echo json_encode(['error' => 'Google Ads — próximamente', 'platform' => 'google']);
+        echo json_encode(getGoogleSpend($account_id, $date_from, $date_to));
         break;
     case 'tiktok':
         echo json_encode(['error' => 'TikTok Ads — próximamente', 'platform' => 'tiktok']);
@@ -48,6 +48,110 @@ switch ($platform) {
     default:
         http_response_code(400);
         echo json_encode(['error' => "Plataforma no soportada: {$platform}"]);
+}
+
+// ─── GOOGLE ADS ──────────────────────────────────────────────────────────────
+
+function getGoogleAccessToken(): array {
+    if (!defined('GOOGLE_CLIENT_ID') || !defined('GOOGLE_CLIENT_SECRET') || !defined('GOOGLE_REFRESH_TOKEN')) {
+        return ['error' => 'Credenciales de Google Ads no configuradas en config.php'];
+    }
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL            => 'https://oauth2.googleapis.com/token',
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => http_build_query([
+            'client_id'     => GOOGLE_CLIENT_ID,
+            'client_secret' => GOOGLE_CLIENT_SECRET,
+            'refresh_token' => GOOGLE_REFRESH_TOKEN,
+            'grant_type'    => 'refresh_token',
+        ]),
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 10,
+    ]);
+    $response = curl_exec($ch);
+    $curl_err = curl_error($ch);
+    curl_close($ch);
+    if ($curl_err) return ['error' => "cURL error obteniendo token: {$curl_err}"];
+    $data = json_decode($response, true);
+    if (isset($data['error'])) return ['error' => "OAuth error: {$data['error_description']}"];
+    return $data;
+}
+
+function getGoogleSpend(string $customer_id, string $date_from, string $date_to): array {
+    if (!defined('GOOGLE_DEVELOPER_TOKEN') || !defined('GOOGLE_MCC_ID')) {
+        return ['error' => 'GOOGLE_DEVELOPER_TOKEN o GOOGLE_MCC_ID no configurados en config.php', 'platform' => 'google'];
+    }
+
+    $token = getGoogleAccessToken();
+    if (isset($token['error'])) {
+        return ['error' => $token['error'], 'platform' => 'google'];
+    }
+
+    // Customer ID sin guiones para la URL
+    $cid = preg_replace('/[^0-9]/', '', $customer_id);
+    $mcc = preg_replace('/[^0-9]/', '', GOOGLE_MCC_ID);
+
+    $query = "SELECT segments.date, metrics.cost_micros
+              FROM campaign
+              WHERE segments.date BETWEEN '{$date_from}' AND '{$date_to}'
+              ORDER BY segments.date ASC";
+
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL            => "https://googleads.googleapis.com/v17/customers/{$cid}/googleAds:search",
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => json_encode(['query' => $query]),
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 15,
+        CURLOPT_HTTPHEADER     => [
+            'Authorization: Bearer ' . $token['access_token'],
+            'developer-token: '      . GOOGLE_DEVELOPER_TOKEN,
+            'login-customer-id: '    . $mcc,
+            'Content-Type: application/json',
+        ],
+    ]);
+    $response = curl_exec($ch);
+    $curl_err = curl_error($ch);
+    curl_close($ch);
+
+    if ($curl_err) {
+        return ['error' => "cURL error: {$curl_err}", 'platform' => 'google'];
+    }
+
+    $data = json_decode($response, true);
+
+    if (isset($data['error'])) {
+        $msg = $data['error']['message'] ?? ($data['error']['details'][0]['errors'][0]['message'] ?? 'Error desconocido de Google Ads API');
+        return ['error' => $msg, 'platform' => 'google'];
+    }
+
+    // Agrupar cost_micros por día
+    $byDate = [];
+    foreach ($data['results'] ?? [] as $row) {
+        $date  = $row['segments']['date']          ?? '';
+        $micros = (int)($row['metrics']['costMicros'] ?? 0);
+        $byDate[$date] = ($byDate[$date] ?? 0) + $micros;
+    }
+
+    $daily = [];
+    $total = 0.0;
+    foreach ($byDate as $date => $micros) {
+        $spend   = round($micros / 1000000, 2);
+        $total  += $spend;
+        $daily[] = ['date' => $date, 'spend' => $spend];
+    }
+    usort($daily, fn($a, $b) => strcmp($a['date'], $b['date']));
+
+    return [
+        'platform'    => 'google',
+        'account_id'  => $customer_id,
+        'total_spend' => round($total, 2),
+        'currency'    => 'USD',
+        'daily_data'  => $daily,
+        'date_from'   => $date_from,
+        'date_to'     => $date_to,
+    ];
 }
 
 // ─── META ADS ────────────────────────────────────────────────────────────────
