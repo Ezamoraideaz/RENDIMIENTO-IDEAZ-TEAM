@@ -93,8 +93,8 @@ function getGoogleSpend(string $customer_id, string $date_from, string $date_to,
     $cid = preg_replace('/[^0-9]/', '', $customer_id);
     $mcc = preg_replace('/[^0-9]/', '', GOOGLE_MCC_ID);
 
-    // campaign.id es requerido; sin él la API puede devolver 0 filas silenciosamente
-    $query = "SELECT campaign.id, campaign.name, campaign.status, segments.date, metrics.cost_micros
+    // campaign.id es requerido; customer.currency_code trae la moneda real de la cuenta
+    $query = "SELECT campaign.id, campaign.name, campaign.status, customer.currency_code, segments.date, metrics.cost_micros
               FROM campaign
               WHERE segments.date BETWEEN '{$date_from}' AND '{$date_to}'
                 AND campaign.status != 'REMOVED'
@@ -154,11 +154,13 @@ function getGoogleSpend(string $customer_id, string $date_from, string $date_to,
         return ['error' => $msg, 'platform' => 'google'];
     }
 
-    // Agrupar cost_micros por día
-    $byDate = [];
+    // Agrupar cost_micros por día y detectar moneda real de la cuenta
+    $byDate   = [];
+    $currency = 'USD';
     foreach ($data['results'] ?? [] as $row) {
-        $date   = $row['segments']['date']          ?? '';
-        $micros = (int)($row['metrics']['costMicros'] ?? 0);
+        $date   = $row['segments']['date']             ?? '';
+        $micros = (int)($row['metrics']['costMicros']  ?? 0);
+        if ($row['customer']['currencyCode'] ?? '') $currency = $row['customer']['currencyCode'];
         if ($date) $byDate[$date] = ($byDate[$date] ?? 0) + $micros;
     }
 
@@ -175,7 +177,7 @@ function getGoogleSpend(string $customer_id, string $date_from, string $date_to,
         'platform'     => 'google',
         'account_id'   => $customer_id,
         'total_spend'  => round($total, 2),
-        'currency'     => 'USD',
+        'currency'     => $currency,
         'daily_data'   => $daily,
         'date_from'    => $date_from,
         'date_to'      => $date_to,
