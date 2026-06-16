@@ -148,6 +148,10 @@ const Monitor = (() => {
     });
   }
 
+  function _isLastWeek(date) {
+    return date.getTime() >= Date.now() - 7 * 24 * 60 * 60 * 1000;
+  }
+
   // ── Rendering ─────────────────────────────────────────────────────────────
 
   function _renderLegend(filtered) {
@@ -166,7 +170,11 @@ const Monitor = (() => {
   function _renderGrid(filtered) {
     const roles = Storage.getAllRoles();
     const counts = {};
-    for (const v of filtered) counts[v.memberId] = (counts[v.memberId] || 0) + 1;
+    const lastWeekCounts = {};
+    for (const v of filtered) {
+      counts[v.memberId] = (counts[v.memberId] || 0) + 1;
+      if (_isLastWeek(v.date)) lastWeekCounts[v.memberId] = (lastWeekCounts[v.memberId] || 0) + 1;
+    }
 
     const roledMembers = Object.values(_members)
       .filter(m => roles[m.id])
@@ -183,11 +191,12 @@ const Monitor = (() => {
     }
 
     grid.innerHTML = roledMembers.map(m => {
-      const role    = roles[m.id];
-      const count   = counts[m.id] || 0;
-      const rc      = ROLE_COLORS[role] || '#94a3b8';
-      const active  = _selected === m.id;
-      const border  = active ? '#6366f1' : count > 0 ? '#ef444466' : '#1e293b';
+      const role     = roles[m.id];
+      const count    = counts[m.id] || 0;
+      const lastWeek = lastWeekCounts[m.id] || 0;
+      const rc       = ROLE_COLORS[role] || '#94a3b8';
+      const active   = _selected === m.id;
+      const border   = active ? '#6366f1' : count > 0 ? '#ef444466' : '#1e293b';
       return `
         <div class="bg-slate-900 rounded-2xl p-6 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-xl"
              style="border:2px solid ${border};${active ? 'box-shadow:0 0 0 2px #6366f1' : ''}"
@@ -203,7 +212,10 @@ const Monitor = (() => {
                     style="background:${rc}20;color:${rc}">${ROLE_LABELS[role] || role}</span>
             </div>
           </div>
-          <div class="text-5xl font-black leading-none ${count > 0 ? 'text-red-400' : 'text-slate-700'}">${count}</div>
+          <div class="flex items-baseline gap-2">
+            <div class="text-5xl font-black leading-none ${count > 0 ? 'text-red-400' : 'text-slate-700'}">${count}</div>
+            ${lastWeek > 0 ? `<span class="text-xs font-bold px-2 py-1 rounded-full bg-amber-500/15 text-amber-400 whitespace-nowrap">+${lastWeek} últ. semana</span>` : ''}
+          </div>
           <div class="text-xs text-slate-500 mt-1.5">${count === 1 ? 'falta detectada' : 'faltas detectadas'}</div>
         </div>`;
     }).join('');
@@ -216,6 +228,7 @@ const Monitor = (() => {
     const mv = filtered.filter(v => v.memberId === _selected)
                        .sort((a, b) => b.date - a.date);
     const m  = _members[_selected];
+    const lastWeekCount = mv.filter(v => _isLastWeek(v.date)).length;
     panel.style.display = 'block';
 
     if (mv.length === 0) {
@@ -231,6 +244,7 @@ const Monitor = (() => {
           <div>
             <span class="font-bold text-slate-100">${m?.name}</span>
             <span class="text-slate-400 text-sm ml-2">— ${mv.length} falta${mv.length !== 1 ? 's' : ''} en el período</span>
+            ${lastWeekCount > 0 ? `<span class="ml-2 text-xs font-bold px-2 py-1 rounded-full bg-amber-500/15 text-amber-400">${lastWeekCount} en la última semana</span>` : ''}
           </div>
           <button onclick="Monitor.select('${_selected}')"
                   class="text-slate-500 hover:text-slate-300 transition-colors text-lg leading-none">✕</button>
@@ -247,8 +261,10 @@ const Monitor = (() => {
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-700/50">
-              ${mv.map(v => `
-                <tr class="hover:bg-slate-800/30 transition-colors">
+              ${mv.map(v => {
+                const isLastWeek = _isLastWeek(v.date);
+                return `
+                <tr class="hover:bg-slate-800/30 transition-colors ${isLastWeek ? 'bg-amber-500/5' : ''}">
                   <td class="px-4 py-3">
                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold"
                           style="background:${v.color}20;color:${v.color}">${v.code}</span>
@@ -262,9 +278,11 @@ const Monitor = (() => {
                   </td>
                   <td class="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">
                     ${v.date.toLocaleString('es-MX', { day:'2-digit', month:'short', year:'2-digit', hour:'2-digit', minute:'2-digit' })}
+                    ${isLastWeek ? '<span class="ml-1.5 inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 whitespace-nowrap">Últ. semana</span>' : ''}
                   </td>
                   <td class="px-4 py-3 text-xs text-slate-300">${v.detail}</td>
-                </tr>`).join('')}
+                </tr>`;
+              }).join('')}
             </tbody>
           </table>
         </div>
