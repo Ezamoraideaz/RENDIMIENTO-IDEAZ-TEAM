@@ -15,6 +15,16 @@ const Agenda = {
     pink:'#ff78cb', black:'#4d4d4d'
   },
 
+  // Paleta de colores distintivos por miembro (asignados por orden alfabético en _populateFilters)
+  MEMBER_COLOR_PALETTE: [
+    '#6366f1', '#ec4899', '#10b981', '#f59e0b', '#3b82f6', '#a855f7',
+    '#ef4444', '#06b6d4', '#84cc16', '#f97316', '#14b8a6', '#d946ef'
+  ],
+
+  selectedMembers: new Set(),
+  _memberNameMap:  {},
+  _memberColorMap: {},
+
   async load(forceRefresh = false) {
     if (!Storage.hasCredentials()) { setState('auth'); return; }
     setState('loading');
@@ -141,13 +151,101 @@ const Agenda = {
         if (!memberMap.has(mid)) memberMap.set(mid, c.memberNames[i] || mid);
       })
     );
-    const memberSel = document.getElementById('member-filter');
-    const prevMember = memberSel.value;
-    memberSel.innerHTML = '<option value="">Todos los miembros</option>' +
-      [...memberMap.entries()]
-        .sort((a, b) => a[1].localeCompare(b[1]))
-        .map(([id, name]) => `<option value="${id}">${name}</option>`).join('');
-    if (prevMember) memberSel.value = prevMember;
+    const sortedMembers = [...memberMap.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+
+    this._memberNameMap  = Object.fromEntries(sortedMembers);
+    this._memberColorMap = {};
+    sortedMembers.forEach(([id], i) => {
+      this._memberColorMap[id] = this.MEMBER_COLOR_PALETTE[i % this.MEMBER_COLOR_PALETTE.length];
+    });
+
+    // Descarta selecciones de miembros que ya no aparecen en ningún tablero
+    this.selectedMembers = new Set([...this.selectedMembers].filter(id => this._memberNameMap[id]));
+
+    this._renderMemberFilterList(sortedMembers);
+    this._updateMemberFilterLabel();
+  },
+
+  _memberColor(memberId) {
+    return this._memberColorMap[memberId] || '#94a3b8';
+  },
+
+  _memberDots(card) {
+    if (!card.idMembers || card.idMembers.length === 0) return '';
+    return `<span class="flex items-center gap-0.5 flex-shrink-0">` +
+      card.idMembers.map((mid, i) => {
+        const name  = (card.memberNames && card.memberNames[i]) || '';
+        const color = this._memberColor(mid);
+        return `<span class="w-1.5 h-1.5 rounded-full flex-shrink-0" style="background:${color}" title="${name.replace(/"/g,'&quot;')}"></span>`;
+      }).join('') +
+      `</span>`;
+  },
+
+  _renderMemberFilterList(sortedMembers) {
+    const list = document.getElementById('member-filter-list');
+    if (!list) return;
+    const members = sortedMembers || Object.entries(this._memberNameMap || {});
+
+    if (members.length === 0) {
+      list.innerHTML = '<div class="text-xs text-slate-500 px-2 py-3 text-center">Sin miembros</div>';
+      return;
+    }
+
+    list.innerHTML = members.map(([id, name]) => {
+      const checked = this.selectedMembers.has(id);
+      const color   = this._memberColor(id);
+      return `
+        <label class="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-700/50 cursor-pointer text-sm">
+          <input type="checkbox" data-member-id="${id}" ${checked ? 'checked' : ''}
+            class="rounded border-slate-600 bg-slate-900 text-indigo-500 focus:ring-0 focus:ring-offset-0">
+          <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:${color}"></span>
+          <span class="text-slate-200 truncate">${name}</span>
+        </label>`;
+    }).join('');
+
+    list.querySelectorAll('input[type=checkbox]').forEach(cb => {
+      cb.addEventListener('change', () => this._toggleMember(cb.dataset.memberId));
+    });
+  },
+
+  _updateMemberFilterLabel() {
+    const label = document.getElementById('member-filter-label');
+    if (!label) return;
+    const n = this.selectedMembers.size;
+    if (n === 0) label.textContent = 'Todos los miembros';
+    else if (n === 1) label.textContent = this._memberNameMap[[...this.selectedMembers][0]] || '1 miembro';
+    else label.textContent = `${n} miembros`;
+  },
+
+  _toggleMemberDropdown() {
+    const dd = document.getElementById('member-filter-dropdown');
+    if (!dd || dd.dataset.locked === '1') return;
+    dd.classList.toggle('hidden');
+  },
+
+  _closeMemberDropdown() {
+    document.getElementById('member-filter-dropdown')?.classList.add('hidden');
+  },
+
+  _toggleMember(id) {
+    if (this.selectedMembers.has(id)) this.selectedMembers.delete(id);
+    else this.selectedMembers.add(id);
+    this._updateMemberFilterLabel();
+    this._applyFilters();
+  },
+
+  _selectAllMembers() {
+    this.selectedMembers = new Set(Object.keys(this._memberNameMap || {}));
+    this._renderMemberFilterList();
+    this._updateMemberFilterLabel();
+    this._applyFilters();
+  },
+
+  _clearMembers() {
+    this.selectedMembers.clear();
+    this._renderMemberFilterList();
+    this._updateMemberFilterLabel();
+    this._applyFilters();
   },
 
   // --- Task 6: ghost history in localStorage ---
@@ -243,17 +341,18 @@ const Agenda = {
 
   _applyFilters() {
     const boardId  = document.getElementById('board-filter').value;
-    const memberId = document.getElementById('member-filter').value;
+    const selected = this.selectedMembers || new Set();
+    const matchesMember = c => selected.size === 0 || c.idMembers.some(id => selected.has(id));
 
     const base = this.cards.filter(c => {
-      if (boardId  && c.boardId !== boardId) return false;
-      if (memberId && !c.idMembers.includes(memberId)) return false;
+      if (boardId && c.boardId !== boardId) return false;
+      if (!matchesMember(c)) return false;
       return true;
     });
 
     const ghosts = this._buildGhostCards().filter(g => {
-      if (boardId  && g.boardId !== boardId) return false;
-      if (memberId && !g.idMembers.includes(memberId)) return false;
+      if (boardId && g.boardId !== boardId) return false;
+      if (!matchesMember(g)) return false;
       return true;
     });
 
@@ -266,8 +365,8 @@ const Agenda = {
         return { ...c, id: 'latedupe_' + c.id, due: d, isLateDupe: true };
       })
       .filter(c => {
-        if (boardId  && c.boardId !== boardId) return false;
-        if (memberId && !c.idMembers.includes(memberId)) return false;
+        if (boardId && c.boardId !== boardId) return false;
+        if (!matchesMember(c)) return false;
         return true;
       });
 
@@ -319,7 +418,10 @@ const Agenda = {
           <div class="font-medium leading-tight truncate" style="color:${cColor}">${late ? '👻' : '✓'} ${label}</div>
           <div class="flex items-center justify-between gap-1 mt-0.5" style="font-size:0.65rem">
             <span class="text-slate-500 truncate">${card.boardName}</span>
-            ${late ? `<span style="color:${cColor};opacity:0.8;flex-shrink:0">fuera de fecha</span>` : ''}
+            <span class="flex items-center gap-1 flex-shrink-0">
+              ${this._memberDots(card)}
+              ${ghost ? '<span style="color:#94a3b8">fuera de fecha</span>' : ''}
+            </span>
           </div>
         </div>`;
     }
@@ -332,7 +434,10 @@ const Agenda = {
            style="background:${bg}; border-left:3px solid ${color};"
            title="${card.name.replace(/"/g,'&quot;')}${overdue ? ' — Vencida sin entregar' : ''}">
         <div class="font-medium leading-tight truncate" style="color:${textColor}">${prefix}${label}</div>
-        <div class="text-slate-400 truncate mt-0.5 leading-tight" style="font-size:0.65rem">${card.boardName}</div>
+        <div class="flex items-center justify-between gap-1 mt-0.5" style="font-size:0.65rem">
+          <span class="text-slate-400 truncate">${card.boardName}</span>
+          ${this._memberDots(card)}
+        </div>
       </div>`;
   },
 
@@ -354,7 +459,10 @@ const Agenda = {
         <div class="font-medium leading-tight truncate" style="color:${textColor}">👻 ${label}</div>
         <div class="flex items-center justify-between gap-1 mt-0.5" style="font-size:0.6rem">
           <span class="text-slate-500 truncate">${card.boardName}</span>
-          <span style="color:${textColor};opacity:0.8;font-weight:700;flex-shrink:0">rezagada</span>
+          <span class="flex items-center gap-1 flex-shrink-0">
+            ${this._memberDots(card)}
+            <span style="color:#6366f1;font-weight:700">rezagada</span>
+          </span>
         </div>
       </div>`;
   },
@@ -378,7 +486,10 @@ const Agenda = {
         <div class="font-medium leading-tight truncate" style="color:${color}">${label}</div>
         <div class="flex items-center justify-between gap-1 mt-0.5" style="font-size:0.6rem">
           <span class="text-slate-500 truncate">${card.boardName}</span>
-          <span class="font-semibold flex-shrink-0" style="color:${color}">${statusTag}</span>
+          <span class="flex items-center gap-1 flex-shrink-0">
+            ${this._memberDots(card)}
+            <span class="font-semibold" style="color:${color}">${statusTag}</span>
+          </span>
         </div>
       </div>`;
   },
@@ -441,7 +552,10 @@ const Agenda = {
            style="grid-column:${colStart}/${colEnd}; background:${bg}; ${borderLeft}${borderRight} border-radius:${borderRadius};"
            title="${title}">
         <div class="font-medium truncate leading-tight" style="color:${labelColor}">${prefixIcon}${card.name}${suffixIcon}</div>
-        <div class="truncate leading-tight mt-0.5" style="font-size:0.6rem;color:${textColor}80">${card.boardName} · ${totalDays}d${overdue ? ' · ⚠ vencida' : ''}</div>
+        <div class="flex items-center justify-between gap-1 mt-0.5" style="font-size:0.6rem">
+          <span class="truncate" style="color:${textColor}80">${card.boardName} · ${totalDays}d${overdue ? ' · ⚠ vencida' : ''}</span>
+          ${this._memberDots(card)}
+        </div>
       </div>`;
   },
 
@@ -730,5 +844,11 @@ const Agenda = {
     document.getElementById('modal').style.display = 'none';
   }
 };
+
+// Cierra el dropdown de miembros al hacer clic fuera de él
+document.addEventListener('click', (e) => {
+  const btn = document.getElementById('member-filter-btn');
+  if (!btn || !btn.parentElement.contains(e.target)) Agenda._closeMemberDropdown();
+});
 
 window.Agenda = Agenda;
