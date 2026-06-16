@@ -276,6 +276,10 @@ const Agenda = {
       if (!card && !entry.resolved) { delete history[cardId]; return; }
 
       if (card && !entry.resolved) {
+        // Due date was rescheduled to today or later: no longer overdue, drop the ghost
+        const dueDay = new Date(card.due); dueDay.setHours(0, 0, 0, 0);
+        if (dueDay >= today) { delete history[cardId]; return; }
+
         // Mark resolved when card moved to a done stage
         if (doneStages.has(card.stageKey)) {
           entry.resolved     = true;
