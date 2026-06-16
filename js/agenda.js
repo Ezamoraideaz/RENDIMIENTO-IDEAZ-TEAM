@@ -176,7 +176,9 @@ const Agenda = {
       card.idMembers.map((mid, i) => {
         const name  = (card.memberNames && card.memberNames[i]) || '';
         const color = this._memberColor(mid);
-        return `<span class="w-1.5 h-1.5 rounded-full flex-shrink-0" style="background:${color}" title="${name.replace(/"/g,'&quot;')}"></span>`;
+        const init  = Utils.initials(name);
+        return `<span class="w-3 h-3 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-white leading-none"
+          style="background:${color};font-size:5.5px" title="${name.replace(/"/g,'&quot;')}">${init}</span>`;
       }).join('') +
       `</span>`;
   },
@@ -194,11 +196,12 @@ const Agenda = {
     list.innerHTML = members.map(([id, name]) => {
       const checked = this.selectedMembers.has(id);
       const color   = this._memberColor(id);
+      const init    = Utils.initials(name);
       return `
         <label class="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-700/50 cursor-pointer text-sm">
           <input type="checkbox" data-member-id="${id}" ${checked ? 'checked' : ''}
             class="rounded border-slate-600 bg-slate-900 text-indigo-500 focus:ring-0 focus:ring-offset-0">
-          <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:${color}"></span>
+          <span class="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-white" style="background:${color};font-size:0.55rem">${init}</span>
           <span class="text-slate-200 truncate">${name}</span>
         </label>`;
     }).join('');
