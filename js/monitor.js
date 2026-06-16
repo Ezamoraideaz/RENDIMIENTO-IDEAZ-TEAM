@@ -140,9 +140,15 @@ const Monitor = (() => {
 
   function _filtered() {
     const month = document.getElementById('f-month')?.value;
-    const day   = document.getElementById('f-day')?.value;
+    const from  = document.getElementById('f-date-from')?.value;
+    const to    = document.getElementById('f-date-to')?.value;
     return _violations.filter(v => {
-      if (day)   return v.date.toISOString().slice(0, 10) === day;
+      if (from || to) {
+        const d = v.date.toISOString().slice(0, 10);
+        if (from && d < from) return false;
+        if (to   && d > to)   return false;
+        return true;
+      }
       if (month) return v.date.toISOString().slice(0, 7) === month;
       return true;
     });
@@ -305,13 +311,27 @@ const Monitor = (() => {
   }
 
   function applyFilters() {
-    if (document.getElementById('f-month').value) document.getElementById('f-day').value = '';
+    if (document.getElementById('f-month').value) {
+      document.getElementById('f-date-from').value = '';
+      document.getElementById('f-date-to').value   = '';
+    }
     _selected = null;
     _render();
   }
 
-  function applyDayFilter() {
-    if (document.getElementById('f-day').value) document.getElementById('f-month').value = '';
+  function applyDateRange() {
+    const from = document.getElementById('f-date-from');
+    const to   = document.getElementById('f-date-to');
+    // Si "desde" queda después de "hasta", ajusta "hasta" para mantener el rango válido
+    if (from.value && to.value && from.value > to.value) to.value = from.value;
+    if (from.value || to.value) document.getElementById('f-month').value = '';
+    _selected = null;
+    _render();
+  }
+
+  function clearDateRange() {
+    document.getElementById('f-date-from').value = '';
+    document.getElementById('f-date-to').value   = '';
     _selected = null;
     _render();
   }
@@ -360,7 +380,7 @@ const Monitor = (() => {
     }
   }
 
-  return { load, select, applyFilters, applyDayFilter };
+  return { load, select, applyFilters, applyDateRange, clearDateRange };
 })();
 
 window.Monitor = Monitor;
