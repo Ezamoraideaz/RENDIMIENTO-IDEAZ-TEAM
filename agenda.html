@@ -32,10 +32,16 @@
   </div>
 
   <!-- State: loading -->
-  <div id="state-loading" style="display:none" class="min-h-screen flex items-center justify-center">
-    <div class="text-center">
-      <div class="w-10 h-10 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-      <p class="text-slate-400 text-sm">Cargando agenda…</p>
+  <div id="state-loading" style="display:none">
+    <div class="fixed inset-0 flex items-center justify-center">
+      <div class="text-center w-72">
+        <div class="w-10 h-10 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+        <p id="loading-msg" class="text-slate-400 text-sm mb-3">Conectando con Trello…</p>
+        <div class="w-full bg-slate-800 rounded-full h-1.5">
+          <div id="loading-bar" class="bg-indigo-600 h-1.5 rounded-full transition-all duration-500" style="width:0%"></div>
+        </div>
+        <p id="loading-pct" class="text-slate-600 text-xs mt-2">0%</p>
+      </div>
     </div>
   </div>
 

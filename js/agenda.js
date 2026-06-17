@@ -15,14 +15,33 @@ const Agenda = {
     pink:'#ff78cb', black:'#4d4d4d'
   },
 
+  _setProgress(pct, msg) {
+    const bar   = document.getElementById('loading-bar');
+    const label = document.getElementById('loading-msg');
+    const pctEl = document.getElementById('loading-pct');
+    if (bar)   bar.style.width      = pct + '%';
+    if (pctEl) pctEl.textContent    = Math.round(pct) + '%';
+    if (msg && label) label.textContent = msg;
+  },
+
   async load(forceRefresh = false) {
     if (!Storage.hasCredentials()) { setState('auth'); return; }
     setState('loading');
+    this._setProgress(0, 'Conectando con Trello…');
     try {
       const { key, token } = Storage.getCredentials();
       const api = new TrelloAPI(key, token, { forceRefresh });
       const boards = await api.getBoards();
-      const details = await Promise.all(boards.map(b => api.getBoardWithDetails(b.id)));
+      this._setProgress(10, `${boards.length} tablero${boards.length !== 1 ? 's' : ''} encontrado${boards.length !== 1 ? 's' : ''}…`);
+
+      // Carga secuencial para mostrar progreso real y reducir burst de requests
+      const details = [];
+      const step = boards.length > 0 ? 80 / boards.length : 80;
+      for (let i = 0; i < boards.length; i++) {
+        this._setProgress(10 + step * i, `Cargando ${boards[i].name}…`);
+        details.push(await api.getBoardWithDetails(boards[i].id));
+        this._setProgress(10 + step * (i + 1));
+      }
 
       this.cards = [];
       this.cardMap = {};
@@ -110,6 +129,7 @@ const Agenda = {
 
       this._populateFilters(boards);
       this._applyFilters();
+      this._setProgress(100, 'Listo');
       setState('agenda');
 
       const t = new Date();
