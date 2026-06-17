@@ -30,6 +30,10 @@ if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date_from) || !preg_match('/^\d{4}-\d{
     exit;
 }
 
+// Truncar date_to a hoy si viene una fecha futura (ej. bug de timezone en el cliente)
+$today_server = date('Y-m-d');
+if ($date_to > $today_server) $date_to = $today_server;
+
 if (empty($platform) || empty($account_id)) {
     http_response_code(400);
     echo json_encode(['error' => 'Parámetros requeridos: platform, account_id, from, to']);
