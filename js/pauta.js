@@ -159,24 +159,51 @@ const PautaMonitor = (() => {
 
   function _sparkline(dailyArr, color) {
     if (!dailyArr || dailyArr.length < 2) return '';
-    const values = dailyArr.map(d => d.spend);
-    const max    = Math.max(...values, 0.01);
-    const H = 28, gap = 1;
-    const barW   = Math.max(2, Math.floor((300 - gap * (dailyArr.length - 1)) / dailyArr.length));
-    const totalW = dailyArr.length * (barW + gap) - gap;
-    const bars   = values.map((v, i) => {
-      const h = Math.max(2, Math.round((v / max) * H));
-      return `<rect x="${i * (barW + gap)}" y="${H - h}" width="${barW}" height="${h}" rx="1" fill="${color}" opacity="0.75">
-        <title>${dailyArr[i].date}  $${_fmt(v)}</title></rect>`;
-    }).join('');
-    return `<svg viewBox="0 0 ${totalW} ${H}" width="100%" height="28" preserveAspectRatio="none">${bars}</svg>`;
+    const values  = dailyArr.map(d => d.spend);
+    const max     = Math.max(...values, 0.01);
+    const W = 300, H = 40, pad = 3;
+
+    const pts = values.map((v, i) => ({
+      x: Math.round((i / (values.length - 1)) * W),
+      y: Math.round(H - pad - ((v / max) * (H - pad * 2))),
+      v, date: dailyArr[i].date
+    }));
+
+    // Smooth cubic bezier path
+    const linePath = pts.map((p, i) => {
+      if (i === 0) return `M ${p.x} ${p.y}`;
+      const prev = pts[i - 1];
+      const cx   = (prev.x + p.x) / 2;
+      return `C ${cx} ${prev.y} ${cx} ${p.y} ${p.x} ${p.y}`;
+    }).join(' ');
+
+    const areaPath = `${linePath} L ${pts[pts.length-1].x} ${H} L 0 ${H} Z`;
+    const gradId   = 'sg' + color.replace('#', '');
+    const dots     = pts.map(p =>
+      `<circle cx="${p.x}" cy="${p.y}" r="2.5" fill="${color}" stroke="#0f172a" stroke-width="1.5">
+        <title>${p.date}  $${_fmt(p.v)}</title>
+      </circle>`
+    ).join('');
+
+    return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="40" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${color}" stop-opacity="0.25"/>
+          <stop offset="100%" stop-color="${color}" stop-opacity="0.02"/>
+        </linearGradient>
+      </defs>
+      <path d="${areaPath}" fill="url(#${gradId})"/>
+      <path d="${linePath}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      ${dots}
+    </svg>`;
   }
 
   function _insightsHtml(spend, budget, dailyAvg, days, from, to) {
     if (budget <= 0 || spend <= 0 || days <= 0) return '';
-    const now      = new Date();
-    const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-    if (to !== todayStr) return '';
+    const now    = new Date();
+    const toDate = new Date(to + 'T00:00:00');
+    // Mostrar solo si el período consultado es el mes actual (sin importar zona horaria)
+    if (toDate.getFullYear() !== now.getFullYear() || toDate.getMonth() !== now.getMonth()) return '';
     const year = parseInt(to.slice(0, 4)), month = parseInt(to.slice(5, 7));
     const remainingDays = _daysInMonth(year, month) - now.getDate();
     if (remainingDays <= 0) return '';
