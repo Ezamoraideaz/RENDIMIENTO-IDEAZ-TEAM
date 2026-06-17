@@ -448,9 +448,9 @@ const PautaMonitor = (() => {
     const now   = new Date();
     const y     = now.getFullYear();
     const m     = String(now.getMonth() + 1).padStart(2, '0');
-    const d     = String(now.getDate()).padStart(2, '0');
+    const today = now.toISOString().slice(0, 10);
     document.getElementById('p-from').value = `${y}-${m}-01`;
-    document.getElementById('p-to').value   = `${y}-${m}-${d}`;
+    document.getElementById('p-to').value   = today;
     _markQuick('this');
   }
 
