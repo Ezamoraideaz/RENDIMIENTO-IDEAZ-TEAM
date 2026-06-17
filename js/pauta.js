@@ -483,16 +483,18 @@ const PautaMonitor = (() => {
   // ── Modal: add / edit client ────────────────────────────────────────────────
 
   function openClientModal(clientId) {
-    const client = clientId ? _clients.find(c => c.id === clientId) : null;
-    const { from } = _dateRange();
-    const monthKey  = _monthKey(from || new Date().toISOString());
+    const client       = clientId ? _clients.find(c => c.id === clientId) : null;
+    const { from }     = _dateRange();
+    const monthKey     = _monthKey(from || new Date().toISOString());
+    const globalBudget = parseFloat(client?.budgets?.[monthKey] || 0) || 0;
 
     const platformFields = PLATFORMS.map(p => {
       const existing  = client?.platforms?.find(pl => pl.platform === p.key) || {};
       const enabled   = existing.enabled ?? false;
       const accountId = existing.account_id || existing.customer_id || existing.advertiser_id || '';
-      const budget    = existing.budgets?.[monthKey] || '';
-      const fieldId   = `platform_${p.key}`;
+      const budget    = parseFloat(existing.budgets?.[monthKey] || 0) || 0;
+      const pctVal    = (globalBudget > 0 && budget > 0) ? (budget / globalBudget * 100).toFixed(1) : '';
+      const dis       = globalBudget > 0 ? '' : 'disabled';
       const accLabel  = p.key === 'google' ? 'Customer ID' : p.key === 'tiktok' ? 'Advertiser ID' : 'Ad Account ID';
       return `
         <div class="bg-slate-800 rounded-xl p-4 border border-slate-700" id="plat-block-${p.key}">
@@ -503,21 +505,40 @@ const PautaMonitor = (() => {
             <span class="font-semibold text-slate-200 text-sm">${p.icon} ${p.label}</span>
           </label>
           <div id="plat-fields-${p.key}" style="${enabled ? '' : 'display:none'}">
-            <div class="mb-2">
+            <div class="mb-3">
               <label class="text-xs text-slate-400 block mb-1">${accLabel}</label>
               <input type="text" id="plat-account-${p.key}" value="${_esc(accountId)}" placeholder="ej. act_123456789"
                 class="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
             </div>
             <div>
-              <label class="text-xs text-slate-400 block mb-1">Presupuesto ${monthKey} ($)</label>
-              <input type="number" id="plat-budget-${p.key}" value="${budget}" min="0" step="0.01" placeholder="0.00"
-                class="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+              <label class="text-xs text-slate-400 block mb-1">Presupuesto ${monthKey}</label>
+              <div class="flex gap-2">
+                <div class="relative flex-1">
+                  <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-xs pointer-events-none">$</span>
+                  <input type="number" id="plat-budget-${p.key}" value="${budget || ''}" min="0" step="0.01" placeholder="0.00" ${dis}
+                    oninput="PautaMonitor._onPlatBudgetChange('${p.key}','value')"
+                    class="w-full bg-slate-900 border border-slate-600 rounded-lg pl-6 pr-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed">
+                </div>
+                <div class="relative w-24">
+                  <input type="number" id="plat-pct-${p.key}" value="${pctVal}" min="0" max="100" step="0.1" placeholder="0" ${dis}
+                    oninput="PautaMonitor._onPlatBudgetChange('${p.key}','pct')"
+                    class="w-full bg-slate-900 border border-slate-600 rounded-lg pl-3 pr-7 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed">
+                  <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-xs pointer-events-none">%</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>`;
     }).join('');
 
-    const globalBudget = client?.budgets?.[monthKey] || '';
+    // Resumen inicial de asignación
+    const initAssigned = (client?.platforms || []).reduce((sum, pl) => {
+      if (!pl.enabled) return sum;
+      return sum + (parseFloat(pl.budgets?.[monthKey] || 0) || 0);
+    }, 0);
+    const initOver      = initAssigned > globalBudget && globalBudget > 0;
+    const initRemaining = Math.abs(globalBudget - initAssigned);
+    const remColor      = initOver ? 'text-red-400' : 'text-emerald-400';
 
     const html = `
     <div id="pauta-modal-overlay" onclick="PautaMonitor._overlayClose(event)"
@@ -535,11 +556,18 @@ const PautaMonitor = (() => {
           </div>
           <div>
             <label class="text-xs text-slate-400 block mb-1">Presupuesto global ${monthKey} ($)</label>
-            <input type="number" id="modal-global-budget" value="${globalBudget}" min="0" step="0.01" placeholder="0.00"
+            <input type="number" id="modal-global-budget" value="${globalBudget || ''}" min="0" step="0.01" placeholder="0.00"
+              oninput="PautaMonitor._onGlobalBudgetChange()"
               class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+            <p class="text-xs text-slate-600 mt-1">Define el presupuesto global para habilitar la asignación por plataforma.</p>
           </div>
           <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Plataformas</div>
           ${platformFields}
+          <div id="plat-budget-summary" class="bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-xs flex items-center justify-between${globalBudget > 0 ? '' : ' hidden'}">
+            <span class="text-slate-400">Asignado: <strong id="plat-assigned" class="text-slate-200">$${_fmt(initAssigned)}</strong></span>
+            <span id="plat-budget-warn" class="text-red-400 font-semibold${initOver ? '' : ' hidden'}">Excede el global</span>
+            <span class="text-slate-400">Disponible: <strong id="plat-remaining" class="${remColor}">$${_fmt(initRemaining)}${initOver ? ' excedido' : ''}</strong></span>
+          </div>
         </div>
         <div class="p-5 border-t border-slate-700 flex items-center justify-between gap-3 sticky bottom-0 bg-slate-900">
           ${client ? `<button onclick="PautaMonitor.deleteClient('${client.id}')"
@@ -561,10 +589,67 @@ const PautaMonitor = (() => {
     document.body.insertAdjacentHTML('beforeend', html);
   }
 
+  function _onGlobalBudgetChange() {
+    const globalBudget = parseFloat(document.getElementById('modal-global-budget')?.value || '0') || 0;
+    document.getElementById('plat-budget-summary')?.classList.toggle('hidden', globalBudget <= 0);
+    for (const p of PLATFORMS) {
+      const valueEl = document.getElementById(`plat-budget-${p.key}`);
+      const pctEl   = document.getElementById(`plat-pct-${p.key}`);
+      if (!valueEl || !pctEl) continue;
+      valueEl.disabled = globalBudget <= 0;
+      pctEl.disabled   = globalBudget <= 0;
+      if (globalBudget > 0) {
+        const val = parseFloat(valueEl.value || '0') || 0;
+        pctEl.value = val > 0 ? (val / globalBudget * 100).toFixed(1) : '';
+      } else {
+        valueEl.value = '';
+        pctEl.value   = '';
+      }
+    }
+    _updateBudgetSummary(globalBudget);
+  }
+
+  function _onPlatBudgetChange(platKey, source) {
+    const globalBudget = parseFloat(document.getElementById('modal-global-budget')?.value || '0') || 0;
+    if (globalBudget <= 0) return;
+    const valueEl = document.getElementById(`plat-budget-${platKey}`);
+    const pctEl   = document.getElementById(`plat-pct-${platKey}`);
+    if (!valueEl || !pctEl) return;
+    if (source === 'value') {
+      const val = parseFloat(valueEl.value || '0') || 0;
+      pctEl.value = val > 0 ? (val / globalBudget * 100).toFixed(1) : '';
+    } else {
+      const pct = parseFloat(pctEl.value || '0') || 0;
+      valueEl.value = pct > 0 ? (pct / 100 * globalBudget).toFixed(2) : '';
+    }
+    _updateBudgetSummary(globalBudget);
+  }
+
+  function _updateBudgetSummary(globalBudget) {
+    let assigned = 0;
+    for (const p of PLATFORMS) {
+      if (!document.getElementById(`plat-enabled-${p.key}`)?.checked) continue;
+      assigned += parseFloat(document.getElementById(`plat-budget-${p.key}`)?.value || '0') || 0;
+    }
+    const isOver      = globalBudget > 0 && assigned > globalBudget + 0.005;
+    const remaining   = Math.abs(globalBudget - assigned);
+    const assignedEl  = document.getElementById('plat-assigned');
+    const remainingEl = document.getElementById('plat-remaining');
+    const warnEl      = document.getElementById('plat-budget-warn');
+    if (assignedEl)  assignedEl.textContent = `$${_fmt(assigned)}`;
+    if (remainingEl) {
+      remainingEl.textContent = `$${_fmt(remaining)}${isOver ? ' excedido' : ''}`;
+      remainingEl.className   = isOver ? 'text-red-400' : 'text-emerald-400';
+    }
+    if (warnEl) warnEl.classList.toggle('hidden', !isOver);
+  }
+
   function _togglePlatBlock(platformKey) {
     const checked = document.getElementById(`plat-enabled-${platformKey}`)?.checked;
     const fields  = document.getElementById(`plat-fields-${platformKey}`);
     if (fields) fields.style.display = checked ? '' : 'none';
+    const globalBudget = parseFloat(document.getElementById('modal-global-budget')?.value || '0') || 0;
+    if (globalBudget > 0) _updateBudgetSummary(globalBudget);
   }
 
   function _overlayClose(e) {
@@ -582,6 +667,16 @@ const PautaMonitor = (() => {
     const monthKey      = _monthKey(from || new Date().toISOString());
 
     if (!name) { alert('El nombre del cliente es requerido.'); return; }
+
+    // Validar que la suma de plataformas no supere el global
+    const totalPlat = PLATFORMS.reduce((sum, p) => {
+      if (!document.getElementById(`plat-enabled-${p.key}`)?.checked) return sum;
+      return sum + (parseFloat(document.getElementById(`plat-budget-${p.key}`)?.value || '0') || 0);
+    }, 0);
+    if (globalBudget > 0 && totalPlat > globalBudget + 0.005) {
+      alert(`La suma de presupuestos por plataforma ($${_fmt(totalPlat)}) supera el presupuesto global ($${_fmt(globalBudget)}).`);
+      return;
+    }
 
     const platforms = PLATFORMS.map(p => {
       const enabled   = document.getElementById(`plat-enabled-${p.key}`)?.checked || false;
@@ -688,5 +783,7 @@ const PautaMonitor = (() => {
     _markQuick,
     _togglePlatBlock,
     _overlayClose,
+    _onGlobalBudgetChange,
+    _onPlatBudgetChange,
   };
 })();
