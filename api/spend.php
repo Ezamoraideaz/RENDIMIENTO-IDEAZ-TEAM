@@ -131,10 +131,15 @@ function getGoogleSpend(string $customer_id, string $date_from, string $date_to,
         if ($curl_err) break;
         if ($http_code === 200) { $used_ver = $ver; break; }
 
-        // Si la versión está deprecada, probar la siguiente; cualquier otro error es real
+        // Continuar al siguiente si: versión no existe (404) o está deprecada (UNSUPPORTED_VERSION)
+        // Parar si es cualquier otro error real (autenticación, query inválido, etc.)
         $tmp    = json_decode($response, true);
         $reqErr = $tmp['error']['details'][0]['errors'][0]['errorCode']['requestError'] ?? '';
-        if ($reqErr !== 'UNSUPPORTED_VERSION') { $used_ver = $ver; break; }
+        if ($http_code !== 404 && $reqErr !== 'UNSUPPORTED_VERSION') { $used_ver = $ver; break; }
+    }
+
+    if (!$used_ver && !$curl_err) {
+        return ['error' => 'Ninguna versión de Google Ads API respondió correctamente para esta cuenta', 'platform' => 'google'];
     }
 
     if ($curl_err) {
