@@ -101,7 +101,8 @@ function getGoogleSpend(string $customer_id, string $date_from, string $date_to,
               ORDER BY segments.date ASC";
 
     // Probar versiones de más nueva a más antigua hasta encontrar una activa
-    $versions  = ['v20', 'v19', 'v18'];
+    // v20 removida: deprecada y bloqueada por Google (devuelve UNSUPPORTED_VERSION)
+    $versions  = ['v19', 'v18', 'v17'];
     $response  = null;
     $http_code = 0;
     $curl_err  = '';
@@ -128,7 +129,12 @@ function getGoogleSpend(string $customer_id, string $date_from, string $date_to,
         curl_close($ch);
 
         if ($curl_err) break;
-        if ($http_code !== 404) { $used_ver = $ver; break; }
+        if ($http_code === 200) { $used_ver = $ver; break; }
+
+        // Si la versión está deprecada, probar la siguiente; cualquier otro error es real
+        $tmp    = json_decode($response, true);
+        $reqErr = $tmp['error']['details'][0]['errors'][0]['errorCode']['requestError'] ?? '';
+        if ($reqErr !== 'UNSUPPORTED_VERSION') { $used_ver = $ver; break; }
     }
 
     if ($curl_err) {
