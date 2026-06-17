@@ -258,20 +258,19 @@ const PautaMonitor = (() => {
   }
 
   function _clientIsActiveNow(client) {
-    const { to } = _dateRange();
-    if (!to) return true;
-    const toDate = new Date(to + 'T00:00:00');
-    const cutoff = new Date(toDate);
-    cutoff.setDate(cutoff.getDate() - 2); // últimos 3 días del período
-    const pad = n => String(n).padStart(2, '0');
+    const now    = new Date();
+    const cutoff = new Date(now);
+    cutoff.setDate(cutoff.getDate() - 2); // últimos 3 días desde hoy real
+    const pad       = n => String(n).padStart(2, '0');
     const cutoffStr = `${cutoff.getFullYear()}-${pad(cutoff.getMonth()+1)}-${pad(cutoff.getDate())}`;
+    const todayStr  = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
 
     for (const plat of (client.platforms || [])) {
       if (!plat.enabled) continue;
       const accountId = plat.account_id || plat.customer_id || plat.advertiser_id || '';
       const result    = _spend[`${plat.platform}:${accountId}`];
       if (!result || result.error) continue;
-      if ((result.daily_data || []).some(d => d.date >= cutoffStr && d.spend > 0)) return true;
+      if ((result.daily_data || []).some(d => d.date >= cutoffStr && d.date <= todayStr && d.spend > 0)) return true;
     }
     return false;
   }
