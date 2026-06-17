@@ -155,6 +155,66 @@ const PautaMonitor = (() => {
     if (spinner) spinner.style.display = on ? 'inline-block' : 'none';
   }
 
+  // ── Render helpers ────────────────────────────────────────────────────────
+
+  function _sparkline(dailyArr, color) {
+    if (!dailyArr || dailyArr.length < 2) return '';
+    const values = dailyArr.map(d => d.spend);
+    const max    = Math.max(...values, 0.01);
+    const H = 28, gap = 1;
+    const barW   = Math.max(2, Math.floor((300 - gap * (dailyArr.length - 1)) / dailyArr.length));
+    const totalW = dailyArr.length * (barW + gap) - gap;
+    const bars   = values.map((v, i) => {
+      const h = Math.max(2, Math.round((v / max) * H));
+      return `<rect x="${i * (barW + gap)}" y="${H - h}" width="${barW}" height="${h}" rx="1" fill="${color}" opacity="0.75">
+        <title>${dailyArr[i].date}  $${_fmt(v)}</title></rect>`;
+    }).join('');
+    return `<svg viewBox="0 0 ${totalW} ${H}" width="100%" height="28" preserveAspectRatio="none">${bars}</svg>`;
+  }
+
+  function _insightsHtml(spend, budget, dailyAvg, days, from, to) {
+    if (budget <= 0 || spend <= 0 || days <= 0) return '';
+    const now      = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+    if (to !== todayStr) return '';
+    const year = parseInt(to.slice(0, 4)), month = parseInt(to.slice(5, 7));
+    const remainingDays = _daysInMonth(year, month) - now.getDate();
+    if (remainingDays <= 0) return '';
+
+    const projected  = spend + dailyAvg * remainingDays;
+    const projPct    = (projected / budget * 100);
+    const projColor  = projected > budget ? 'text-red-400' : projPct >= 85 ? 'text-yellow-400' : 'text-emerald-400';
+
+    let runsOutStr = '';
+    if (projected > budget && dailyAvg > 0) {
+      const daysLeft  = Math.floor(Math.max(0, budget - spend) / dailyAvg);
+      const runsOut   = new Date(now);
+      runsOut.setDate(now.getDate() + daysLeft);
+      runsOutStr = ` · se agota el día ${runsOut.getDate()}`;
+    }
+
+    const reqDaily   = Math.max(0, budget - spend) / remainingDays;
+    const paceRatio  = reqDaily > 0 ? dailyAvg / reqDaily : 1;
+    const reqColor   = paceRatio > 1.1 ? 'text-red-400' : paceRatio < 0.9 ? 'text-yellow-400' : 'text-emerald-400';
+    const reqLabel   = paceRatio > 1.1 ? 'reducir a' : paceRatio < 0.9 ? 'aumentar a' : 'mantener';
+
+    return `
+    <div class="flex flex-col gap-1.5 border-t border-slate-800 pt-3 text-xs">
+      <div class="flex items-center justify-between">
+        <span class="text-slate-500">Proyección fin de mes</span>
+        <span class="${projColor} font-semibold">$${_fmt(projected)}
+          <span class="opacity-60 font-normal">${projPct.toFixed(1)}%${runsOutStr}</span>
+        </span>
+      </div>
+      <div class="flex items-center justify-between">
+        <span class="text-slate-500">Ritmo requerido <span class="text-slate-600">(${remainingDays}d restantes)</span></span>
+        <span class="${reqColor} font-semibold">${reqLabel} $${_fmt(reqDaily)}/día
+          <span class="opacity-60 font-normal">· actual $${_fmt(dailyAvg)}/día</span>
+        </span>
+      </div>
+    </div>`;
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   function render() {
@@ -184,8 +244,9 @@ const PautaMonitor = (() => {
     const globalBudget = _budgetForRange(client.budgets, from, to);
     const globalDaily  = _dailyBudget(client.budgets, from);
 
-    // Sum spend across enabled platforms
+    // Sum spend across enabled platforms and aggregate daily data
     let globalSpend = 0;
+    const globalDailyMap = {};
     const platformRows = (client.platforms || []).map(plat => {
       if (!plat.enabled) return null;
       const accountId = plat.account_id || plat.customer_id || plat.advertiser_id || '';
@@ -199,9 +260,15 @@ const PautaMonitor = (() => {
 
       const spend     = result.total_spend || 0;
       globalSpend    += spend;
-      return _renderPlatformRow(plat, spend, budget, dailyB, days, 'ok');
+      (result.daily_data || []).forEach(d => {
+        globalDailyMap[d.date] = (globalDailyMap[d.date] || 0) + d.spend;
+      });
+      return _renderPlatformRow(plat, spend, budget, dailyB, days, 'ok', null, result.daily_data || []);
     }).filter(Boolean).join('');
 
+    const globalDailyArr    = Object.entries(globalDailyMap)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, spend]) => ({ date, spend }));
     const globalActualDaily = days > 0 ? globalSpend / days : 0;
     const budgetAlert = _budgetAlert(globalSpend, globalBudget);
     const paceAlert   = _paceAlert(globalActualDaily, globalDaily);
@@ -216,6 +283,13 @@ const PautaMonitor = (() => {
         ${paceAlert === 'ok' ? '✓' : paceAlert === 'warn' ? '⚡' : '🔴'}
         $${_fmt(globalActualDaily)}/día vs $${_fmt(globalDaily)}/día meta
       </span>` : '';
+
+    const sparkHexColors = { ok: '#10b981', warn: '#eab308', over: '#ef4444' };
+    const globalSparkHtml = globalDailyArr.length > 1 ? `
+      <div class="border-t border-slate-800 pt-3">
+        <div class="text-xs text-slate-500 mb-1.5">Gasto diario</div>
+        ${_sparkline(globalDailyArr, sparkHexColors[overallAlert])}
+      </div>` : '';
 
     return `
     <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 flex flex-col gap-4">
@@ -247,12 +321,18 @@ const PautaMonitor = (() => {
         </div>
       </div>
 
+      <!-- Proyección + ritmo requerido (solo mes en curso) -->
+      ${_insightsHtml(globalSpend, globalBudget, globalActualDaily, days, from, to)}
+
+      <!-- Gráfica de gasto diario -->
+      ${globalSparkHtml}
+
       <!-- Platform breakdown -->
-      ${platformRows ? `<div class="flex flex-col gap-2 border-t border-slate-800 pt-3">${platformRows}</div>` : ''}
+      ${platformRows ? `<div class="flex flex-col gap-3 border-t border-slate-800 pt-3">${platformRows}</div>` : ''}
     </div>`;
   }
 
-  function _renderPlatformRow(plat, spend, budget, dailyB, days, status, errMsg) {
+  function _renderPlatformRow(plat, spend, budget, dailyB, days, status, errMsg, dailyArr = []) {
     const meta  = PLATFORMS.find(p => p.key === plat.platform) || { label: plat.platform, icon: '📡' };
     const accountId = plat.account_id || plat.customer_id || plat.advertiser_id || '—';
 
@@ -283,6 +363,11 @@ const PautaMonitor = (() => {
         ${paceAlert === 'ok' ? '✓' : paceAlert === 'warn' ? '⚡' : '🔴'} $${_fmt(actualDaily)}/d
       </span>` : '';
 
+    const sparkHexColors = { ok: '#10b981', warn: '#eab308', over: '#ef4444' };
+    const sparkHtml = dailyArr.length > 1
+      ? `<div class="mt-2">${_sparkline(dailyArr, sparkHexColors[alert])}</div>`
+      : '';
+
     return `
     <div>
       <div class="flex justify-between items-center text-xs mb-1">
@@ -297,6 +382,7 @@ const PautaMonitor = (() => {
         </div>
         <span class="text-xs text-slate-400 w-28 text-right">$${_fmt(spend)} / $${_fmt(budget)}</span>
       </div>
+      ${sparkHtml}
     </div>`;
   }
 
