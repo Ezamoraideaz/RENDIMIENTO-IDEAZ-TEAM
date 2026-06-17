@@ -491,7 +491,7 @@ const PautaMonitor = (() => {
   function init() {
     _load();
     setThisMonth();
-    render();
+    loadData();
   }
 
   return {
@@ -504,6 +504,7 @@ const PautaMonitor = (() => {
     deleteClient,
     setThisMonth,
     setLastMonth,
+    _markQuick,
     _togglePlatBlock,
     _overlayClose,
   };
