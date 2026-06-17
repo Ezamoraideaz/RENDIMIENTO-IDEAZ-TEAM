@@ -101,8 +101,10 @@ function getGoogleSpend(string $customer_id, string $date_from, string $date_to,
               ORDER BY segments.date ASC";
 
     // Probar versiones de más nueva a más antigua hasta encontrar una activa
-    // v20 removida: deprecada y bloqueada por Google (devuelve UNSUPPORTED_VERSION)
-    $versions     = ['v19', 'v18', 'v17'];
+    // v17/v18/v19: eliminadas del servidor Google (devuelven HTML 404)
+    // v20: bloqueada con UNSUPPORTED_VERSION
+    // v21/v22: versiones activas en Jun 2026
+    $versions     = ['v22', 'v21'];
     $response     = null;
     $http_code    = 0;
     $curl_err     = '';
