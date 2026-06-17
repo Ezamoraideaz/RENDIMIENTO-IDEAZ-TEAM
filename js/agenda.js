@@ -427,7 +427,7 @@ const Agenda = {
             <span class="text-slate-500 truncate">${card.boardName}</span>
             <span class="flex items-center gap-1 flex-shrink-0">
               ${this._memberDots(card)}
-              ${ghost ? '<span style="color:#94a3b8">fuera de fecha</span>' : ''}
+              ${late ? '<span style="color:#94a3b8">fuera de fecha</span>' : ''}
             </span>
           </div>
         </div>`;
