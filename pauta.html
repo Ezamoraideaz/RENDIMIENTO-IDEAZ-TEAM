@@ -92,6 +92,24 @@
       </span>
     </div>
 
+    <!-- Filtros -->
+    <div class="flex items-center gap-2 mb-5 flex-wrap">
+      <span class="text-xs text-slate-500 mr-1">Filtrar:</span>
+      <button id="f-period-label"
+        onclick="PautaMonitor.toggleFilter('period')"
+        class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-700 text-slate-400 text-xs hover:border-slate-500 transition-colors select-none">
+        <span id="f-period-dot" class="w-2 h-2 rounded-full bg-slate-600 flex-shrink-0"></span>
+        Con pauta en el período
+      </button>
+      <button id="f-now-label"
+        onclick="PautaMonitor.toggleFilter('now')"
+        class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-700 text-slate-400 text-xs hover:border-slate-500 transition-colors select-none">
+        <span id="f-now-dot" class="w-2 h-2 rounded-full bg-slate-600 flex-shrink-0"></span>
+        Solo activos ahora
+      </button>
+      <span id="pauta-count" class="ml-auto text-xs text-slate-500"></span>
+    </div>
+
     <!-- Cards grid -->
     <div id="pauta-cards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"></div>
 

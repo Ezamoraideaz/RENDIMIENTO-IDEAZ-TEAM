@@ -12,6 +12,7 @@ const PautaMonitor = (() => {
   let _clients  = [];
   let _spend    = {};   // { 'clientId:platform:accountId': { total_spend, daily_data, currency, error } }
   let _loading  = false;
+  const _filters = { period: false, now: false };
 
   // ── Storage ────────────────────────────────────────────────────────────────
 
@@ -244,8 +245,56 @@ const PautaMonitor = (() => {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
+  // ── Filtros ────────────────────────────────────────────────────────────────
+
+  function _clientHasSpendInPeriod(client) {
+    for (const plat of (client.platforms || [])) {
+      if (!plat.enabled) continue;
+      const accountId = plat.account_id || plat.customer_id || plat.advertiser_id || '';
+      const result    = _spend[`${plat.platform}:${accountId}`];
+      if (result && !result.error && (result.total_spend || 0) > 0) return true;
+    }
+    return false;
+  }
+
+  function _clientIsActiveNow(client) {
+    const { to } = _dateRange();
+    if (!to) return true;
+    const toDate = new Date(to + 'T00:00:00');
+    const cutoff = new Date(toDate);
+    cutoff.setDate(cutoff.getDate() - 2); // últimos 3 días del período
+    const pad = n => String(n).padStart(2, '0');
+    const cutoffStr = `${cutoff.getFullYear()}-${pad(cutoff.getMonth()+1)}-${pad(cutoff.getDate())}`;
+
+    for (const plat of (client.platforms || [])) {
+      if (!plat.enabled) continue;
+      const accountId = plat.account_id || plat.customer_id || plat.advertiser_id || '';
+      const result    = _spend[`${plat.platform}:${accountId}`];
+      if (!result || result.error) continue;
+      if ((result.daily_data || []).some(d => d.date >= cutoffStr && d.spend > 0)) return true;
+    }
+    return false;
+  }
+
+  function toggleFilter(type) {
+    _filters[type] = !_filters[type];
+    const label = document.getElementById(`f-${type}-label`);
+    const dot   = document.getElementById(`f-${type}-dot`);
+    if (_filters[type]) {
+      label?.classList.add('border-indigo-600', 'text-indigo-400', 'bg-indigo-950');
+      label?.classList.remove('border-slate-700', 'text-slate-400');
+      dot?.classList.replace('bg-slate-600', 'bg-indigo-400');
+    } else {
+      label?.classList.remove('border-indigo-600', 'text-indigo-400', 'bg-indigo-950');
+      label?.classList.add('border-slate-700', 'text-slate-400');
+      dot?.classList.replace('bg-indigo-400', 'bg-slate-600');
+    }
+    render();
+  }
+
   function render() {
     const container = document.getElementById('pauta-cards');
+    const countEl   = document.getElementById('pauta-count');
     if (!container) return;
 
     if (_clients.length === 0) {
@@ -257,10 +306,28 @@ const PautaMonitor = (() => {
             + Agregar primer cliente
           </button>
         </div>`;
+      if (countEl) countEl.textContent = '';
       return;
     }
 
-    container.innerHTML = _clients.map(c => _renderCard(c)).join('');
+    let visible = _clients;
+    if (_filters.period) visible = visible.filter(_clientHasSpendInPeriod);
+    if (_filters.now)    visible = visible.filter(_clientIsActiveNow);
+
+    if (countEl) {
+      countEl.textContent = (_filters.period || _filters.now)
+        ? `${visible.length} de ${_clients.length} clientes` : '';
+    }
+
+    if (visible.length === 0) {
+      container.innerHTML = `
+        <div class="col-span-full flex flex-col items-center justify-center py-20 text-slate-500 gap-3">
+          <p class="text-sm">Ningún cliente coincide con los filtros activos.</p>
+        </div>`;
+      return;
+    }
+
+    container.innerHTML = visible.map(c => _renderCard(c)).join('');
   }
 
   function _renderCard(client) {
@@ -611,6 +678,7 @@ const PautaMonitor = (() => {
     init,
     loadData,
     render,
+    toggleFilter,
     openClientModal,
     closeModal,
     saveClient,
