@@ -102,11 +102,12 @@ function getGoogleSpend(string $customer_id, string $date_from, string $date_to,
 
     // Probar versiones de más nueva a más antigua hasta encontrar una activa
     // v20 removida: deprecada y bloqueada por Google (devuelve UNSUPPORTED_VERSION)
-    $versions  = ['v19', 'v18', 'v17'];
-    $response  = null;
-    $http_code = 0;
-    $curl_err  = '';
-    $used_ver  = '';
+    $versions     = ['v19', 'v18', 'v17'];
+    $response     = null;
+    $http_code    = 0;
+    $curl_err     = '';
+    $used_ver     = '';
+    $debug_probes = []; // solo se llena cuando debug=1
 
     foreach ($versions as $ver) {
         $ch = curl_init();
@@ -128,6 +129,10 @@ function getGoogleSpend(string $customer_id, string $date_from, string $date_to,
         $curl_err  = curl_error($ch);
         curl_close($ch);
 
+        if ($debug) {
+            $debug_probes[$ver] = ['http_code' => $http_code, 'body' => json_decode($response, true) ?? $response];
+        }
+
         if ($curl_err) break;
         if ($http_code === 200) { $used_ver = $ver; break; }
 
@@ -136,6 +141,17 @@ function getGoogleSpend(string $customer_id, string $date_from, string $date_to,
         $tmp    = json_decode($response, true);
         $reqErr = $tmp['error']['details'][0]['errors'][0]['errorCode']['requestError'] ?? '';
         if ($http_code !== 404 && $reqErr !== 'UNSUPPORTED_VERSION') { $used_ver = $ver; break; }
+    }
+
+    if ($debug && !$used_ver) {
+        return [
+            'debug'       => true,
+            'api_version' => 'ninguna',
+            'customer_id' => $cid,
+            'mcc_id'      => $mcc,
+            'query'       => $query,
+            'probes'      => $debug_probes,
+        ];
     }
 
     if (!$used_ver && !$curl_err) {
