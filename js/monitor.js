@@ -13,6 +13,29 @@ const Monitor = (() => {
   let _violations = [];
   let _members    = {};
   let _selected   = null;
+  let _notasMap   = {}; // cardId → { 'R-07': [{ text, date, author }], ... }
+
+  function _buildNotasMap(commentActions) {
+    for (const a of commentActions) {
+      const cardId = a.data?.card?.id;
+      const text   = a.data?.text || '';
+      if (!cardId) continue;
+      const ruleMatch  = text.match(/IDEAZ_NOTA_FALTA:\s*(R-\d+)/);
+      if (!ruleMatch) continue;
+      const ruleCode   = ruleMatch[1];
+      const motivoMatch = text.match(/\nMotivo: (.+)/);
+      if (!_notasMap[cardId])            _notasMap[cardId] = {};
+      if (!_notasMap[cardId][ruleCode])  _notasMap[cardId][ruleCode] = [];
+      _notasMap[cardId][ruleCode].push({
+        text:   motivoMatch ? motivoMatch[1].trim() : text,
+        date:   new Date(a.date),
+        author: a.memberCreator?.fullName || ''
+      });
+    }
+    for (const cardId of Object.keys(_notasMap))
+      for (const code of Object.keys(_notasMap[cardId]))
+        _notasMap[cardId][code].sort((a, b) => b.date - a.date);
+  }
 
   // ── Violation scanners ────────────────────────────────────────────────────
 
@@ -266,11 +289,44 @@ const Monitor = (() => {
                 <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider" style="width:32%">Detalle</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-700/50">
+            <tbody>
               ${mv.map(v => {
                 const isLastWeek = _isLastWeek(v.date);
+                const notas      = (_notasMap[v.cardId] || {})[v.code] || [];
+                const panelId    = `np-${v.cardId}-${v.code.replace('-','')}`;
+
+                const notasListHtml = notas.map(n => `
+                  <div style="padding:7px 10px;background:#0f172a;border-radius:6px;margin-bottom:5px">
+                    <div style="font-size:0.78rem;color:#e2e8f0">${n.text}</div>
+                    <div style="font-size:0.65rem;color:#64748b;margin-top:3px">${n.author} · ${n.date.toLocaleDateString('es-CO', { dateStyle: 'medium' })}</div>
+                  </div>`).join('');
+
+                const notasPanel = `
+                  <tr id="${panelId}" data-card-id="${v.cardId}" data-board-id="${v.projectId}" data-rule-code="${v.code}" style="display:none;border-top:none">
+                    <td colspan="5" style="padding:0;border-top:none">
+                      <div style="margin:0 0 4px 0;background:#1e293b;border:1px solid #334155;border-top:none;border-radius:0 0 10px 10px;padding:12px 16px">
+                        ${notas.length > 0 ? `<div style="margin-bottom:10px">${notasListHtml}</div>` : ''}
+                        <div style="font-size:0.72rem;font-weight:600;color:#94a3b8;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">${notas.length > 0 ? '+ Agregar otra nota' : 'Agregar nota'}</div>
+                        <textarea placeholder="Explica por qué se generó esta falta o el contexto del error..."
+                          style="width:100%;box-sizing:border-box;background:#0f172a;border:1px solid #475569;border-radius:6px;padding:8px 10px;color:#f1f5f9;font-size:0.8rem;resize:vertical;outline:none;font-family:inherit;min-height:64px"
+                          onfocus="this.style.borderColor='#6366f1'" onblur="this.style.borderColor='#475569'"></textarea>
+                        <div style="display:flex;justify-content:flex-end;margin-top:8px">
+                          <button class="nota-save-btn" onclick="Monitor.addNota('${panelId}')"
+                            style="padding:6px 16px;border-radius:6px;font-size:0.8rem;font-weight:600;color:#fff;background:#6366f1;border:none;cursor:pointer">
+                            Guardar en Trello
+                          </button>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>`;
+
+                const notaBtn = `<button onclick="Monitor.toggleNotas('${panelId}')"
+                  style="margin-top:6px;display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:4px;font-size:0.68rem;font-weight:600;cursor:pointer;border:1px solid rgba(99,102,241,0.4);background:rgba(99,102,241,0.1);color:#a5b4fc">
+                  📝 ${notas.length > 0 ? notas.length + ' nota' + (notas.length > 1 ? 's' : '') : '+ Nota'}
+                </button>`;
+
                 return `
-                <tr class="hover:bg-slate-800/30 transition-colors ${isLastWeek ? 'bg-amber-500/5' : ''}">
+                <tr class="hover:bg-slate-800/30 transition-colors ${isLastWeek ? 'bg-amber-500/5' : ''}" style="border-top:1px solid rgba(51,65,85,0.5)">
                   <td class="px-4 py-3">
                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold"
                           style="background:${v.color}20;color:${v.color}">${v.code}</span>
@@ -286,8 +342,11 @@ const Monitor = (() => {
                     ${v.date.toLocaleString('es-MX', { day:'2-digit', month:'short', year:'2-digit', hour:'2-digit', minute:'2-digit' })}
                     ${isLastWeek ? '<span class="ml-1.5 inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 whitespace-nowrap">Últ. semana</span>' : ''}
                   </td>
-                  <td class="px-4 py-3 text-xs text-slate-300">${v.detail}</td>
-                </tr>`;
+                  <td class="px-4 py-3 text-xs text-slate-300">
+                    ${v.detail}
+                    ${notaBtn}
+                  </td>
+                </tr>${notasPanel}`;
               }).join('')}
             </tbody>
           </table>
@@ -345,7 +404,13 @@ const Monitor = (() => {
       const creds = Storage.getCredentials();
       const api   = new TrelloAPI(creds.key, creds.token, { forceRefresh });
       const boards = await api.getBoards();
-      const details = await Promise.all(boards.map(b => api.getBoardWithDetails(b.id).catch(() => null)));
+      const [details, commentArrays] = await Promise.all([
+        Promise.all(boards.map(b => api.getBoardWithDetails(b.id).catch(() => null))),
+        Promise.all(boards.map(b => api.getBoardCommentActions(b.id).catch(() => [])))
+      ]);
+
+      _notasMap = {};
+      commentArrays.forEach(ca => _buildNotasMap(ca || []));
 
       // Build member map from all boards
       _members = {};
@@ -380,7 +445,49 @@ const Monitor = (() => {
     }
   }
 
-  return { load, select, applyFilters, applyDateRange, clearDateRange };
+  function toggleNotas(panelId) {
+    const row = document.getElementById(panelId);
+    if (!row) return;
+    row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+  }
+
+  async function addNota(panelId) {
+    const row      = document.getElementById(panelId);
+    const cardId   = row.dataset.cardId;
+    const boardId  = row.dataset.boardId;
+    const ruleCode = row.dataset.ruleCode;
+    const textarea = row.querySelector('textarea');
+    const text     = textarea.value.trim();
+    if (!text) { Utils.showToast('Escribe el motivo antes de guardar', 'error'); return; }
+
+    const saveBtn = row.querySelector('.nota-save-btn');
+    saveBtn.disabled    = true;
+    saveBtn.textContent = 'Guardando…';
+
+    const { key, token } = Storage.getCredentials();
+    const api   = new TrelloAPI(key, token);
+    const fecha = new Date().toLocaleDateString('es-CO', { dateStyle: 'long' });
+    const trelloText =
+      `📝 [NOTA DE FALTA — ${ruleCode} — ${fecha}]\n` +
+      `IDEAZ_NOTA_FALTA: ${ruleCode}\n\n` +
+      `Motivo: ${text}`;
+
+    try {
+      await api.postComment(cardId, trelloText);
+      TrelloCache.invalidate(`comments_${boardId}`);
+      if (!_notasMap[cardId])           _notasMap[cardId] = {};
+      if (!_notasMap[cardId][ruleCode]) _notasMap[cardId][ruleCode] = [];
+      _notasMap[cardId][ruleCode].unshift({ text, date: new Date(), author: 'Tú' });
+      Utils.showToast('Nota guardada en Trello ✓', 'success');
+      _render();
+    } catch (e) {
+      Utils.showToast('Error al guardar nota: ' + e.message, 'error');
+      saveBtn.disabled    = false;
+      saveBtn.textContent = 'Guardar en Trello';
+    }
+  }
+
+  return { load, select, applyFilters, applyDateRange, clearDateRange, toggleNotas, addNota };
 })();
 
 window.Monitor = Monitor;

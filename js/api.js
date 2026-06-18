@@ -112,6 +112,42 @@ class TrelloAPI {
       this.getBoardActions(boardId)
     ]).then(([board, lists, cards, members, actions]) => ({ board, lists, cards, members, actions }));
   }
+
+  getBoardCommentActions(boardId) {
+    return this._cached(`comments_${boardId}`, 60, () =>
+      this._fetch(`/boards/${boardId}/actions`, {
+        filter: 'commentCard',
+        limit: 1000,
+        fields: 'date,data,memberCreator,type'
+      })
+    );
+  }
+
+  async moveCard(cardId, listId) {
+    const url = new URL(`${this.base}/cards/${cardId}`);
+    url.searchParams.set('key', this.key);
+    url.searchParams.set('token', this.token);
+    const res = await fetch(url.toString(), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idList: listId })
+    });
+    if (!res.ok) throw new Error(`Trello ${res.status}: ${await res.text()}`);
+    return res.json();
+  }
+
+  async postComment(cardId, text) {
+    const url = new URL(`${this.base}/cards/${cardId}/actions/comments`);
+    url.searchParams.set('key', this.key);
+    url.searchParams.set('token', this.token);
+    const res = await fetch(url.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text })
+    });
+    if (!res.ok) throw new Error(`Trello ${res.status}: ${await res.text()}`);
+    return res.json();
+  }
 }
 
 // Mapa estático compartido entre todas las instancias para deduplicar requests en vuelo

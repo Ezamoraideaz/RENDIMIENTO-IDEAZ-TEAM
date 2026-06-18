@@ -61,6 +61,27 @@ const Storage = {
     return JSON.parse(localStorage.getItem('ideaz_time') || '{}');
   },
 
+  // Time overrides with reason (boardId -> cardId -> { hours, comment, editedAt, originalHours })
+  getTimeOverride(boardId, cardId) {
+    const all = JSON.parse(localStorage.getItem('ideaz_overrides') || '{}');
+    return (all[boardId] || {})[cardId] || null;
+  },
+  saveTimeOverride(boardId, cardId, override) {
+    const all = JSON.parse(localStorage.getItem('ideaz_overrides') || '{}');
+    if (!all[boardId]) all[boardId] = {};
+    all[boardId][cardId] = { ...override, editedAt: new Date().toISOString() };
+    localStorage.setItem('ideaz_overrides', JSON.stringify(all));
+  },
+  removeTimeOverride(boardId, cardId) {
+    const all = JSON.parse(localStorage.getItem('ideaz_overrides') || '{}');
+    if (all[boardId]) delete all[boardId][cardId];
+    localStorage.setItem('ideaz_overrides', JSON.stringify(all));
+  },
+  getBoardTimeOverrides(boardId) {
+    const all = JSON.parse(localStorage.getItem('ideaz_overrides') || '{}');
+    return all[boardId] || {};
+  },
+
   // Member names cache
   saveMemberName(memberId, name) {
     const names = JSON.parse(localStorage.getItem('ideaz_members') || '{}');

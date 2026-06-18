@@ -221,6 +221,9 @@
         <div id="members-row" class="flex gap-3 flex-wrap"></div>
       </div>
 
+      <!-- Panel: tarjetas atascadas en En Proceso -->
+      <div id="stuck-cards-panel"></div>
+
       <!-- Time summary from Trello activity -->
       <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4">
         <div class="flex justify-between items-center mb-3">
@@ -342,6 +345,34 @@
   let projectData = null;
   let chartLists;
   let globalTimelines = {};
+  let globalCorrections = {}; // cardId → { hours, motivo, date, author }
+
+  function buildCorrectionMap(commentActions) {
+    const byCard = {};
+    for (const a of commentActions) {
+      const cardId = a.data?.card?.id;
+      const text = a.data?.text || '';
+      if (!cardId) continue;
+      const overrideMatch = text.match(/IDEAZ_OVERRIDE:\s*([\d.]+)/);
+      const isRestore = /IDEAZ_RESTORE/.test(text);
+      if (!overrideMatch && !isRestore) continue;
+      if (!byCard[cardId] || a.date > byCard[cardId].date) {
+        const motivoMatch = text.match(/\nMotivo: (.+)/);
+        byCard[cardId] = {
+          hours: overrideMatch ? parseFloat(overrideMatch[1]) : null,
+          isRestore,
+          motivo: motivoMatch ? motivoMatch[1].trim() : '',
+          date: a.date,
+          author: a.memberCreator?.fullName || ''
+        };
+      }
+    }
+    const result = {};
+    for (const [id, entry] of Object.entries(byCard)) {
+      if (!entry.isRestore) result[id] = entry;
+    }
+    return result;
+  }
 
   if (!boardId) window.location.href = 'index.html';
   if (!Storage.hasCredentials()) window.location.href = 'configuracion.html';
@@ -355,8 +386,12 @@
     document.getElementById('state-error').style.display = 'none';
 
     try {
-      const { board, lists, cards, members, actions } = await api.getBoardWithDetails(boardId);
-      projectData = { board, lists, cards, members, actions };
+      const [{ board, lists, cards, members, actions }, commentActions] = await Promise.all([
+        api.getBoardWithDetails(boardId),
+        api.getBoardCommentActions(boardId)
+      ]);
+      projectData = { board, lists, cards, members, actions, commentActions };
+      globalCorrections = buildCorrectionMap(commentActions);
       for (const m of members) Storage.saveMemberName(m.id, m.fullName);
 
       const periodFromUrl = Utils.getQueryParam('period');
@@ -527,6 +562,7 @@
 
     renderFinancialPanel(summary.totalWorkHours, totalCost, avgSalary, roi, pd, budgetUtil, summary);
     renderMembers(members, openCards, doneListIds, globalTimelines);
+    renderStuckPanel(openCards, lists, actions);
     renderTimeTable(openCards, lists, members, globalTimelines, pd.currency, avgSalary);
     renderKanban(lists, openCards, members, doneListIds, globalTimelines);
   }
@@ -676,10 +712,13 @@
     let totalCostSum   = 0;
     let totalHoursSum  = 0;
     let cardsWithCost  = 0;
+    const boardOverrides = globalCorrections;
 
     const rows = sorted.map(card => {
       const tl = timelines[card.id] || {};
       const stage = tl.currentStage || 'backlog';
+      const override = boardOverrides[card.id] || null;
+      const displayHours = override !== null ? override.hours : (tl.workingHours || 0);
 
       // Per-card cost: average monthly salary of assigned members ÷ MONTHLY_HOURS
       let cardSalary = avgSalary;
@@ -687,10 +726,10 @@
         const salaries = card.idMembers.map(id => Storage.getMemberRate(id)).filter(r => r > 0);
         if (salaries.length > 0) cardSalary = salaries.reduce((s, r) => s + r, 0) / salaries.length;
       }
-      const cost = (tl.workingHours || 0) * (cardSalary / Utils.MONTHLY_HOURS);
+      const cost = displayHours * (cardSalary / Utils.MONTHLY_HOURS);
 
-      if (cost > 0)               { totalCostSum  += cost;              cardsWithCost++; }
-      if (tl.workingHours > 0)    { totalHoursSum += tl.workingHours; }
+      if (cost > 0)             { totalCostSum  += cost;          cardsWithCost++; }
+      if (displayHours > 0)     { totalHoursSum += displayHours; }
 
       const assignees = card.idMembers.slice(0, 3).map(id => {
         const m = memberMap[id];
@@ -711,10 +750,22 @@
       const warningTag = cardHasWarnings
         ? `<span title="Tiene movimientos menores a 5 min — posible error de clic" style="cursor:default;color:#f59e0b">⚠</span>`
         : '';
+      const editBtn = `<button
+        data-card-id="${card.id}"
+        data-original-hours="${tl.workingHours || 0}"
+        onclick="event.stopPropagation(); openTimeEditModal(this)"
+        title="Corregir tiempo manualmente"
+        style="margin-left:6px;padding:1px 5px;border-radius:4px;font-size:0.68rem;cursor:pointer;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.35);color:#a5b4fc;transition:all .15s"
+        onmouseover="this.style.background='rgba(99,102,241,0.3)'" onmouseout="this.style.background='rgba(99,102,241,0.15)'">✎</button>`;
       const hourCell = tl.isStarted
-        ? `<strong class="text-slate-100">${Utils.fmtHours(tl.workingHours)}</strong> ${outsideTag}${warningTag}
+        ? `<div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px">
+             <strong class="text-slate-100">${Utils.fmtHours(displayHours)}</strong>
+             ${override ? `<span style="margin-left:4px;padding:1px 6px;border-radius:999px;font-size:0.65rem;font-weight:700;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);color:#fbbf24" title="Motivo: ${(override.motivo || '').replace(/"/g, '&quot;')}">✎ Editado</span>` : `${outsideTag}${warningTag}`}
+             ${editBtn}
+           </div>
+           ${override ? `<div class="text-xs text-slate-500" style="text-decoration:line-through">calc: ${Utils.fmtHours(tl.workingHours)}</div>` : ''}
            <div class="text-xs text-slate-400" title="Tiempo transcurrido total desde En Proceso">transcurrido: ${TimeCalc.formatDuration(tl.totalHours)}</div>`
-        : '<span class="text-slate-500">Sin iniciar</span>';
+        : `<span class="text-slate-500">Sin iniciar</span>${editBtn}`;
 
       // Desglose de períodos por etapa
       const desgloseRows = (tl.periods || []).map(p => {
@@ -774,12 +825,18 @@
                   <tbody>${desgloseRows}</tbody>
                 </table>
                 <div class="text-xs text-slate-400 mt-2" style="border-top:1px solid #334155;padding-top:8px">
-                  Total activo: <strong class="text-slate-200">${Utils.fmtHours(tl.workingHours)}</strong>
+                  Total activo (Trello): <strong class="text-slate-200">${Utils.fmtHours(tl.workingHours)}</strong>
+                  ${override ? `→ <strong style="color:#fbbf24">Corregido: ${Utils.fmtHours(override.hours)}</strong>` : ''}
                   · Cuenta: <strong>En Proceso</strong>
                   · Pausa: <strong>Cambios</strong> (mover a En Proceso para contabilizar) · <strong>Enviado al Cliente</strong>
                   ${hasWarnings ? '· <span style="color:#f59e0b">⚠ Movimientos &lt;5min</span>' : ''}
                   ${hasOutsideHours ? '· <span style="color:#818cf8">🌙 Incluye trabajo fuera del horario de oficina</span>' : ''}
                 </div>
+                ${override ? `<div style="margin-top:8px;padding:8px 12px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:6px;font-size:0.72rem;color:#fbbf24">
+                  ✎ <strong>Tiempo editado manualmente</strong> · Original: ${Utils.fmtHours(tl.workingHours)} → Corregido: ${Utils.fmtHours(override.hours)}<br>
+                  <span style="color:#94a3b8">Motivo: "${override.motivo || '—'}"</span>
+                  <span style="float:right;color:#64748b">${override.author ? override.author + ' · ' : ''}${new Date(override.date).toLocaleDateString('es-CO', { dateStyle: 'medium' })}</span>
+                </div>` : ''}
               </div>
             </td>
           </tr>`
@@ -1012,6 +1069,230 @@
   // Init
   Sidebar.init('proyecto', { onRefresh: () => loadProject(true) });
   loadProject();
+
+  // ── Tarjetas atascadas en En Proceso ──────────────────────────────────────
+  const STUCK_THRESHOLD_HOURS = 5;
+
+  function detectStuckCards(cards, lists, actions) {
+    const enProcesoList = lists.find(l => /en\s*proceso/i.test(l.name));
+    if (!enProcesoList) return [];
+
+    const inProgress = cards.filter(c => c.idList === enProcesoList.id && !c.closed);
+    const now = Date.now();
+    const result = [];
+
+    for (const card of inProgress) {
+      const entries = actions
+        .filter(a => a.data?.card?.id === card.id && a.data?.listAfter?.id === enProcesoList.id)
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      if (!entries.length) continue;
+
+      const last = entries[0];
+      const elapsedHours = (now - new Date(last.date)) / 3600000;
+      if (elapsedHours < STUCK_THRESHOLD_HOURS) continue;
+
+      result.push({
+        card,
+        elapsedHours,
+        prevListId: last.data?.listBefore?.id || null,
+        prevListName: last.data?.listBefore?.name || '—'
+      });
+    }
+
+    return result.sort((a, b) => b.elapsedHours - a.elapsedHours);
+  }
+
+  function renderStuckPanel(cards, lists, actions) {
+    const panel = document.getElementById('stuck-cards-panel');
+    const stuck = detectStuckCards(cards, lists, actions);
+    if (!stuck.length) { panel.innerHTML = ''; return; }
+
+    const hasPrev = stuck.some(s => s.prevListId);
+    const rows = stuck.map(s => `
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:#1e293b;border-radius:8px;margin-bottom:6px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:0.85rem;font-weight:600;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${s.card.name}">${s.card.name}</div>
+          <div style="font-size:0.72rem;color:#94a3b8;margin-top:2px">
+            En Proceso hace <strong style="color:#f87171">${TimeCalc.formatDuration(s.elapsedHours)}</strong>
+            · Lista anterior: <strong style="color:#e2e8f0">${s.prevListName}</strong>
+          </div>
+        </div>
+        ${s.prevListId
+          ? `<button onclick="moveCardBack('${s.card.id}','${s.prevListId}')"
+               style="padding:6px 14px;border-radius:6px;font-size:0.78rem;font-weight:600;color:#fff;background:#f97316;border:none;cursor:pointer;white-space:nowrap;flex-shrink:0">
+               ← Devolver
+             </button>`
+          : `<span style="font-size:0.72rem;color:#64748b;flex-shrink:0">Sin lista anterior</span>`}
+      </div>`).join('');
+
+    panel.innerHTML = `
+      <div style="background:rgba(249,115,22,0.06);border:1px solid rgba(249,115,22,0.35);border-radius:14px;padding:16px;margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px">
+          <div>
+            <div style="font-size:0.9rem;font-weight:700;color:#fb923c">
+              ⚠ ${stuck.length} tarjeta${stuck.length !== 1 ? 's' : ''} atascada${stuck.length !== 1 ? 's' : ''} en "En Proceso" (más de ${STUCK_THRESHOLD_HOURS}h)
+            </div>
+            <div style="font-size:0.72rem;color:#94a3b8;margin-top:2px">Devuélvelas a su lista anterior para reiniciar el flujo correctamente</div>
+          </div>
+          ${hasPrev ? `<button onclick="moveAllBack()"
+            style="padding:7px 16px;border-radius:8px;font-size:0.8rem;font-weight:700;color:#fff;background:#f97316;border:none;cursor:pointer;white-space:nowrap;flex-shrink:0">
+            ← Devolver todas
+          </button>` : ''}
+        </div>
+        ${rows}
+      </div>`;
+  }
+
+  async function moveCardBack(cardId, listId) {
+    const card = projectData?.cards?.find(c => c.id === cardId);
+    const cardName = card?.name || cardId;
+    const { key, token } = Storage.getCredentials();
+    const api = new TrelloAPI(key, token);
+    try {
+      await api.moveCard(cardId, listId);
+      TrelloCache.invalidate(`cards_${boardId}`, `actions_${boardId}`);
+      Utils.showToast(`"${cardName}" devuelta a la lista anterior ✓`, 'success');
+      await loadProject(false);
+    } catch (e) {
+      Utils.showToast('Error al mover la tarjeta: ' + e.message, 'error');
+    }
+  }
+
+  async function moveAllBack() {
+    const stuck = detectStuckCards(projectData.cards, projectData.lists, projectData.actions).filter(s => s.prevListId);
+    if (!stuck.length) return;
+    if (!confirm(`¿Devolver las ${stuck.length} tarjeta${stuck.length !== 1 ? 's' : ''} atascadas a su lista anterior?`)) return;
+
+    const { key, token } = Storage.getCredentials();
+    const api = new TrelloAPI(key, token);
+    let success = 0;
+    for (const s of stuck) {
+      try { await api.moveCard(s.card.id, s.prevListId); success++; }
+      catch (e) { Utils.showToast(`Error moviendo "${s.card.name}": ${e.message}`, 'error'); }
+    }
+    TrelloCache.invalidate(`cards_${boardId}`, `actions_${boardId}`);
+    Utils.showToast(`${success} tarjeta${success !== 1 ? 's' : ''} devuelta${success !== 1 ? 's' : ''} ✓`, 'success');
+    await loadProject(false);
+  }
+
+  // ── Time override modal ────────────────────────────────────────────────────
+  let _teCardId = null;
+  let _teOriginalHours = null;
+
+  function openTimeEditModal(btn) {
+    _teCardId = btn.dataset.cardId;
+    _teOriginalHours = parseFloat(btn.dataset.originalHours) || 0;
+    const row = btn.closest('tr');
+    const cardName = row.querySelector('.font-semibold.text-sm.text-slate-100')?.textContent?.trim() || _teCardId;
+    const existing = globalCorrections[_teCardId] || null;
+
+    document.getElementById('te-card-name').textContent = cardName;
+    document.getElementById('te-original').textContent = Utils.fmtHours(_teOriginalHours);
+    document.getElementById('te-hours').value = existing ? existing.hours : '';
+    document.getElementById('te-comment').value = existing ? existing.motivo : '';
+    document.getElementById('te-remove-btn').style.display = existing ? 'block' : 'none';
+
+    document.getElementById('modal-time-edit').style.display = 'flex';
+    setTimeout(() => document.getElementById('te-hours').focus(), 50);
+  }
+
+  function closeTimeEditModal() {
+    document.getElementById('modal-time-edit').style.display = 'none';
+    _teCardId = null;
+  }
+
+  async function confirmSaveTimeOverride() {
+    const hours = parseFloat(document.getElementById('te-hours').value);
+    const comment = document.getElementById('te-comment').value.trim();
+    if (isNaN(hours) || hours < 0) { Utils.showToast('Ingresa un número de horas válido', 'error'); return; }
+    if (!comment) { Utils.showToast('El motivo de la corrección es obligatorio', 'error'); return; }
+
+    const { key, token } = Storage.getCredentials();
+    const trelloApi = new TrelloAPI(key, token);
+    const fecha = new Date().toLocaleDateString('es-CO', { dateStyle: 'long' });
+    const trelloText =
+      `✎ [CORRECCIÓN DE TIEMPO — ${fecha}]\n` +
+      `IDEAZ_OVERRIDE: ${hours}\n\n` +
+      `Horas ajustadas: ${Utils.fmtHours(_teOriginalHours)} (calculado por Trello) → ${Utils.fmtHours(hours)} (corregido manualmente)\n` +
+      `Motivo: ${comment}`;
+
+    try {
+      await trelloApi.postComment(_teCardId, trelloText);
+      TrelloCache.invalidate(`comments_${boardId}`);
+      closeTimeEditModal();
+      Utils.showToast('Corrección guardada en Trello — recargando...', 'success');
+      await loadProject(false);
+    } catch (e) {
+      Utils.showToast('Error al comentar en Trello: ' + e.message, 'error');
+    }
+  }
+
+  async function confirmRemoveTimeOverride() {
+    const { key, token } = Storage.getCredentials();
+    const trelloApi = new TrelloAPI(key, token);
+    const fecha = new Date().toLocaleDateString('es-CO', { dateStyle: 'long' });
+    const trelloText =
+      `✎ [RESTAURACIÓN DE TIEMPO — ${fecha}]\n` +
+      `IDEAZ_RESTORE\n\n` +
+      `Tiempo restaurado al valor original calculado por Trello.`;
+
+    try {
+      await trelloApi.postComment(_teCardId, trelloText);
+      TrelloCache.invalidate(`comments_${boardId}`);
+      closeTimeEditModal();
+      Utils.showToast('Corrección eliminada — tiempo restaurado', 'info');
+      await loadProject(false);
+    } catch (e) {
+      Utils.showToast('Error al publicar restauración en Trello: ' + e.message, 'error');
+    }
+  }
 </script>
+
+<!-- Modal: Corrección de tiempo -->
+<div id="modal-time-edit" style="display:none;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center">
+  <div style="position:absolute;inset:0;background:rgba(0,0,0,0.65);backdrop-filter:blur(3px)" onclick="closeTimeEditModal()"></div>
+  <div style="position:relative;background:#0f172a;border:1px solid #334155;border-radius:14px;padding:24px;width:100%;max-width:440px;margin:16px;box-shadow:0 25px 50px rgba(0,0,0,0.5)">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
+      <h3 style="margin:0;font-size:1rem;font-weight:700;color:#f1f5f9">✎ Corregir tiempo</h3>
+      <button onclick="closeTimeEditModal()" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:1.2rem;line-height:1;padding:0 2px">&times;</button>
+    </div>
+    <p id="te-card-name" style="margin:0 0 16px;font-size:0.8rem;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></p>
+
+    <div style="background:#1e293b;border-radius:8px;padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:0.72rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">Calculado por Trello</span>
+      <strong id="te-original" style="color:#cbd5e1;font-size:0.95rem"></strong>
+    </div>
+
+    <label style="display:block;font-size:0.72rem;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">
+      Horas corregidas <span style="color:#ef4444">*</span>
+    </label>
+    <input id="te-hours" type="number" min="0" step="0.25" placeholder="ej: 3.5"
+      style="width:100%;box-sizing:border-box;background:#1e293b;border:1px solid #475569;border-radius:8px;padding:8px 12px;color:#f1f5f9;font-size:0.9rem;margin-bottom:14px;outline:none"
+      onfocus="this.style.borderColor='#6366f1'" onblur="this.style.borderColor='#475569'">
+
+    <label style="display:block;font-size:0.72rem;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">
+      Motivo de la corrección <span style="color:#ef4444">*</span>
+    </label>
+    <textarea id="te-comment" rows="3"
+      placeholder="Ej: Tarea quedó en 'En Proceso' durante el fin de semana sin actividad real. Tiempo real: 2h de trabajo efectivo."
+      style="width:100%;box-sizing:border-box;background:#1e293b;border:1px solid #475569;border-radius:8px;padding:8px 12px;color:#f1f5f9;font-size:0.82rem;resize:vertical;margin-bottom:20px;outline:none;font-family:inherit"
+      onfocus="this.style.borderColor='#6366f1'" onblur="this.style.borderColor='#475569'"></textarea>
+
+    <div style="display:flex;gap:8px;align-items:center">
+      <button id="te-remove-btn" onclick="confirmRemoveTimeOverride()" style="display:none;padding:8px 12px;border-radius:8px;font-size:0.8rem;font-weight:600;color:#f87171;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);cursor:pointer">
+        🗑 Quitar corrección
+      </button>
+      <div style="margin-left:auto;display:flex;gap:8px">
+        <button onclick="closeTimeEditModal()" style="padding:8px 16px;border-radius:8px;font-size:0.85rem;font-weight:600;color:#94a3b8;background:#1e293b;border:1px solid #334155;cursor:pointer">
+          Cancelar
+        </button>
+        <button onclick="confirmSaveTimeOverride()" style="padding:8px 16px;border-radius:8px;font-size:0.85rem;font-weight:600;color:#fff;background:#4f46e5;border:none;cursor:pointer">
+          Guardar y comentar en Trello
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 </body>
 </html>
