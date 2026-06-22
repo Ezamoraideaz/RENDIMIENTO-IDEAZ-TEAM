@@ -25,7 +25,8 @@ const Auth = (() => {
     if (user.role === 'admin') return { allowed: true, role: 'admin' };
 
     if (user.role === 'agenda-full' || user.role === 'agenda-member') {
-      if (page === 'agenda') {
+      const allowedPages = user.role === 'agenda-member' ? ['agenda', 'monitor'] : ['agenda'];
+      if (allowedPages.includes(page)) {
         return {
           allowed: true,
           role: user.role,

@@ -288,7 +288,8 @@
     Auth.applyEmbeddedCredentials();
 
     const _sidebarKeys = _access.role === 'admin' ? null :
-      _access.role === 'cm' ? ['agenda', 'configuracion'] : ['agenda'];
+      _access.role === 'cm' ? ['agenda', 'configuracion'] :
+      _access.role === 'agenda-member' ? ['agenda', 'monitor'] : ['agenda'];
     Sidebar.init('agenda', { allowedKeys: _sidebarKeys, onRefresh: () => Agenda.load(true) });
     renderLegend();
     Agenda.load();

@@ -10,10 +10,11 @@ const Monitor = (() => {
   const ROLE_LABELS = { diseñador: 'Diseñador', cm: 'CM', pm: 'PM', otro: 'Otro' };
   const ROLE_COLORS = { diseñador: '#6366f1', cm: '#f59e0b', pm: '#10b981', otro: '#94a3b8' };
 
-  let _violations = [];
-  let _members    = {};
-  let _selected   = null;
-  let _notasMap   = {}; // cardId → { 'R-07': [{ text, date, author }], ... }
+  let _violations     = [];
+  let _members        = {};
+  let _selected       = null;
+  let _notasMap       = {}; // cardId → { 'R-07': [{ text, date, author }], ... }
+  let _lockedMemberId = null;
 
   function _buildNotasMap(commentActions) {
     for (const a of commentActions) {
@@ -166,6 +167,7 @@ const Monitor = (() => {
     const from  = document.getElementById('f-date-from')?.value;
     const to    = document.getElementById('f-date-to')?.value;
     return _violations.filter(v => {
+      if (_lockedMemberId && v.memberId !== _lockedMemberId) return false;
       if (from || to) {
         const d = v.date.toISOString().slice(0, 10);
         if (from && d < from) return false;
@@ -205,16 +207,15 @@ const Monitor = (() => {
       if (_isLastWeek(v.date)) lastWeekCounts[v.memberId] = (lastWeekCounts[v.memberId] || 0) + 1;
     }
 
-    const roledMembers = Object.values(_members)
-      .filter(m => roles[m.id])
-      .sort((a, b) => (counts[b.id] || 0) - (counts[a.id] || 0));
+    const roledMembers = _lockedMemberId
+      ? Object.values(_members).filter(m => m.id === _lockedMemberId)
+      : Object.values(_members).filter(m => roles[m.id]).sort((a, b) => (counts[b.id] || 0) - (counts[a.id] || 0));
 
     const grid = document.getElementById('monitor-grid');
 
     if (roledMembers.length === 0) {
       grid.innerHTML = `<div class="col-span-full text-center py-10 text-slate-400">
-        Sin roles configurados.
-        <a href="configuracion.html" class="text-indigo-400 hover:underline ml-1">Asigna roles en Configuración →</a>
+        ${_lockedMemberId ? 'No se encontraron datos para tu usuario.' : 'Sin roles configurados. <a href="configuracion.html" class="text-indigo-400 hover:underline ml-1">Asigna roles en Configuración →</a>'}
       </div>`;
       return;
     }
@@ -395,7 +396,8 @@ const Monitor = (() => {
     _render();
   }
 
-  async function load(forceRefresh = false) {
+  async function load(forceRefresh = false, lockedMemberId = null) {
+    _lockedMemberId = lockedMemberId;
     document.getElementById('state-loading').style.display  = 'flex';
     document.getElementById('state-main').style.display     = 'none';
     document.getElementById('state-error').style.display    = 'none';
@@ -432,7 +434,7 @@ const Monitor = (() => {
       const cur = new Date().toISOString().slice(0, 7);
       if (months.includes(cur)) mSel.value = cur;
 
-      _selected = null;
+      _selected = _lockedMemberId || null;
       _render();
 
       document.getElementById('state-loading').style.display = 'none';
