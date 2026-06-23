@@ -52,3 +52,6 @@ html.light .kanban-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; }
 html.light #app-sidebar                      { background-color: #ffffff !important; border-color: #e2e8f0 !important; }
 html.light #app-sidebar .border-slate-700    { border-color: #e2e8f0 !important; }
 html.light #app-sidebar .border-slate-700\/50 { border-color: rgba(226,232,240,0.4) !important; }
+
+/* Agenda cards en modo claro: invertir hover (oscurecer en vez de aclarar) */
+html.light .agenda-card:hover { filter: brightness(0.93) !important; }

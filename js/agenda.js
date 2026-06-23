@@ -420,13 +420,21 @@ const Agenda = {
       .sort((a, b) => order(a) - order(b));
   },
 
+  _textColor(stageColor) {
+    const light = document.documentElement.classList.contains('light');
+    if (!light) return stageColor === '#94a3b8' ? '#cbd5e1' : stageColor;
+    const darkMap = { '#94a3b8': '#475569', '#cbd5e1': '#475569', '#f59e0b': '#b45309',
+                      '#10b981': '#047857', '#0ea5e9': '#0369a1', '#a855f7': '#7c3aed' };
+    return darkMap[stageColor] || stageColor;
+  },
+
   _pill(card, compact) {
     if (card.isGhost)    return this._ghostPill(card, compact);
     if (card.isLateDupe) return this._lateDupePill(card, compact);
     const { color, bg } = card.stageInfo;
     const maxLen = compact ? 28 : 42;
     const label  = card.name.length > maxLen ? card.name.slice(0, maxLen) + '…' : card.name;
-    const textColor = color === '#94a3b8' ? '#cbd5e1' : color;
+    const textColor = this._textColor(color);
     if (card.completed) {
       const late    = card.completedLate;
       const cColor  = late ? textColor : '#10b981';
@@ -471,7 +479,7 @@ const Agenda = {
   // Duplicate pill shown on sentDate for late-delivered cards
   _lateDupePill(card, compact) {
     const { color, bg } = card.stageInfo;
-    const textColor = color === '#94a3b8' ? '#cbd5e1' : color;
+    const textColor = this._textColor(color);
     const maxLen  = compact ? 28 : 42;
     const label   = card.name.length > maxLen ? card.name.slice(0, maxLen) + '…' : card.name;
     const origId  = card.id.replace('latedupe_', '');
@@ -552,7 +560,7 @@ const Agenda = {
     const clippedRight = cardDue   > weekEnd;
 
     const { color, bg } = card.stageInfo;
-    const textColor = color === '#94a3b8' ? '#cbd5e1' : color;
+    const textColor = this._textColor(color);
 
     const totalDays = Math.round((cardDue - cardStart) / 86400000) + 1;
     const dueStr    = card.due.toLocaleDateString('es-MX', { day:'2-digit', month:'short' });
