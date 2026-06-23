@@ -7,3 +7,48 @@
 .avatar-stack { display:flex; gap:2px; }
 .sort-ind { margin-left:4px; opacity:0.4; font-size:0.7em; transition:opacity 0.15s; }
 @media print { aside { display:none; } main { margin-left:0 !important; } }
+
+/* ── Light Theme ──────────────────────────────────────────────────────────── */
+html.light body                              { background-color: #f1f5f9 !important; color: #0f172a !important; }
+
+/* Backgrounds */
+html.light .bg-slate-950                     { background-color: #f1f5f9 !important; }
+html.light .bg-slate-900                     { background-color: #ffffff !important; }
+html.light .bg-slate-800                     { background-color: #f8fafc !important; }
+html.light .bg-slate-800\/50                 { background-color: rgba(248,250,252,0.8) !important; }
+html.light .bg-slate-800\/30                 { background-color: rgba(248,250,252,0.6) !important; }
+html.light .bg-slate-700                     { background-color: #f1f5f9 !important; }
+
+/* Text */
+html.light .text-slate-100                   { color: #0f172a !important; }
+html.light .text-slate-200                   { color: #1e293b !important; }
+html.light .text-slate-300                   { color: #334155 !important; }
+html.light .text-slate-400                   { color: #64748b !important; }
+html.light .text-slate-500                   { color: #94a3b8 !important; }
+
+/* Borders */
+html.light .border-slate-800                 { border-color: #f1f5f9 !important; }
+html.light .border-slate-700                 { border-color: #e2e8f0 !important; }
+html.light .border-slate-700\/50             { border-color: rgba(226,232,240,0.5) !important; }
+html.light .border-slate-600                 { border-color: #cbd5e1 !important; }
+
+/* Hovers */
+html.light .hover\:bg-slate-800:hover        { background-color: #f1f5f9 !important; }
+html.light .hover\:bg-slate-700:hover        { background-color: #e2e8f0 !important; }
+html.light .hover\:bg-slate-800\/30:hover    { background-color: rgba(241,245,249,0.6) !important; }
+
+/* Form elements */
+html.light input,
+html.light select,
+html.light textarea                          { background-color: #ffffff !important; color: #0f172a !important; border-color: #cbd5e1 !important; }
+html.light input::placeholder,
+html.light textarea::placeholder             { color: #94a3b8 !important; }
+html.light option                            { background-color: #ffffff; color: #0f172a; }
+
+/* Scrollbar en modo claro */
+html.light .kanban-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; }
+
+/* Sidebar en modo claro */
+html.light #app-sidebar                      { background-color: #ffffff !important; border-color: #e2e8f0 !important; }
+html.light #app-sidebar .border-slate-700    { border-color: #e2e8f0 !important; }
+html.light #app-sidebar .border-slate-700\/50 { border-color: rgba(226,232,240,0.4) !important; }

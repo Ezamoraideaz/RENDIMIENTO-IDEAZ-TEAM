@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>if(localStorage.getItem('ideaz_theme')==='light')document.documentElement.classList.add('light');</script>
   <title>Protocolo Trello · IDEAZ Agency</title>
   <style>
     :root {
@@ -17,6 +18,14 @@
       --surface2: #1a1a35;
       --border: #2a2a50;
       --text: #e2e8f0;
+      --muted: #64748b;
+    }
+    html.light {
+      --bg: #f1f5f9;
+      --surface: #ffffff;
+      --surface2: #f8fafc;
+      --border: #e2e8f0;
+      --text: #0f172a;
       --muted: #64748b;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
