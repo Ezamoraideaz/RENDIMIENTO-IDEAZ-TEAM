@@ -258,6 +258,8 @@
 <script>
   let dashboardData = null;
   let chartProgress, chartFinancial, chartROI, chartCards;
+  let _currentFilteredProjects = [];
+  let _memberModalCharts = {};
 
   Chart.defaults.color = '#94a3b8';
   Chart.defaults.borderColor = '#2d2d4e';
@@ -286,13 +288,14 @@
       document.getElementById('boards-count-badge').textContent =
         `${boards.length} proyecto${boards.length !== 1 ? 's' : ''}`;
 
-      // Load all board details in parallel
-      const details = await Promise.all(
-        boards.map(b => api.getBoardWithDetails(b.id).catch(() => null))
-      );
+      // Load board details AND comment actions in parallel (comments needed for time overrides)
+      const [details, boardComments] = await Promise.all([
+        Promise.all(boards.map(b => api.getBoardWithDetails(b.id).catch(() => null))),
+        Promise.all(boards.map(b => api.getBoardCommentActions(b.id).catch(() => [])))
+      ]);
 
       // Build aggregated data
-      dashboardData = buildDashboardData(boards, details);
+      dashboardData = buildDashboardData(boards, details, boardComments);
       renderDashboard(dashboardData);
 
       const age = TrelloCache.ageMinutes('boards');
@@ -310,7 +313,33 @@
     }
   }
 
-  function buildDashboardData(boards, details) {
+  function buildCorrectionMap(commentActions) {
+    const byCard = {};
+    for (const a of (commentActions || [])) {
+      const cardId = a.data?.card?.id;
+      const text   = a.data?.text || '';
+      if (!cardId) continue;
+      const overrideMatch = text.match(/IDEAZ_OVERRIDE:\s*([\d.]+)/);
+      const isRestore     = /IDEAZ_RESTORE/.test(text);
+      if (!overrideMatch && !isRestore) continue;
+      if (!byCard[cardId] || a.date > byCard[cardId].date) {
+        const motivoMatch = text.match(/\nMotivo: (.+)/);
+        byCard[cardId] = {
+          hours: overrideMatch ? parseFloat(overrideMatch[1]) : null,
+          isRestore,
+          motivo: motivoMatch ? motivoMatch[1].trim() : '',
+          date: a.date
+        };
+      }
+    }
+    const result = {};
+    for (const [id, entry] of Object.entries(byCard)) {
+      if (!entry.isRestore) result[id] = entry;
+    }
+    return result;
+  }
+
+  function buildDashboardData(boards, details, boardComments = []) {
     const projectsData = [];
 
     boards.forEach((board, idx) => {
@@ -334,9 +363,19 @@
         ? Math.round((doneCards.length / openCards.length) * 100) : 0;
 
       // Calculate time from Trello action history
-      const timelines   = TimeCalc.buildCardTimelines(actions || [], openCards);
-      const timeSummary = TimeCalc.calcProjectSummary(timelines);
-      const totalHours  = timeSummary.totalWorkHours; // working hours Mon-Fri
+      const timelines = TimeCalc.buildCardTimelines(actions || [], openCards);
+
+      // Apply time overrides (corrections posted as Trello comments with IDEAZ_OVERRIDE)
+      const corrections = buildCorrectionMap(boardComments[idx] || []);
+      for (const [cardId, fix] of Object.entries(corrections)) {
+        if (timelines[cardId] && fix.hours !== null) {
+          timelines[cardId].workingHours = fix.hours;
+          timelines[cardId].isOverridden = true;
+        }
+      }
+
+      const timeSummary    = TimeCalc.calcProjectSummary(timelines);
+      const totalHours     = timeSummary.totalWorkHours;
       const totalRevisions = timeSummary.totalRevisions;
 
       // Cost from member monthly salaries
@@ -759,6 +798,7 @@
       info.style.display = 'none';
     }
 
+    _currentFilteredProjects = filtered;
     const members = computeMemberStats(filtered);
     renderKPIGlobal(filtered, members);
     renderKPIFinancial(filtered);
@@ -880,7 +920,7 @@
       const cost = m.hours * (salary / Utils.MONTHLY_HOURS);
       const progressBarColor = Utils.progressColor(pct) === 'green' ? 'bg-emerald-500' : Utils.progressColor(pct) === 'yellow' ? 'bg-amber-500' : 'bg-red-500';
       return `
-        <tr class="hover:bg-slate-800/30 transition-colors">
+        <tr class="hover:bg-slate-800/30 transition-colors cursor-pointer" data-member-id="${m.id}" onclick="openMemberModal('${m.id}')" title="Ver detalle de ${m.name}">
           <td class="px-4 py-3">
             <div class="flex items-center gap-2">
               <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white" style="background:${Utils.avatarColor(m.id)}">${Utils.initials(m.name)}</div>
@@ -957,9 +997,561 @@
     }).join('');
   }
 
+  // ── MODAL DETALLE DE MIEMBRO ────────────────────────────────────────────
+  let _modalMemberId = null;
+  let _modalMemberCardData = [];
+  let _modalFilter = { type: 'mes', start: null, end: null };
+
+  function getModalFilterRange() {
+    const now = new Date();
+    const f = _modalFilter;
+    if (f.type === 'dia') {
+      const s = new Date(now); s.setHours(0,0,0,0);
+      const e = new Date(now); e.setHours(23,59,59,999);
+      return { start: s, end: e };
+    }
+    if (f.type === 'semana') {
+      const s = new Date(now); s.setDate(now.getDate() - 6); s.setHours(0,0,0,0);
+      const e = new Date(now); e.setHours(23,59,59,999);
+      return { start: s, end: e };
+    }
+    if (f.type === 'mes') {
+      const s = new Date(now); s.setDate(now.getDate() - 29); s.setHours(0,0,0,0);
+      const e = new Date(now); e.setHours(23,59,59,999);
+      return { start: s, end: e };
+    }
+    if (f.type === 'custom' && f.start && f.end) {
+      const s = new Date(f.start); s.setHours(0,0,0,0);
+      const e = new Date(f.end);   e.setHours(23,59,59,999);
+      return { start: s, end: e };
+    }
+    return { start: null, end: null };
+  }
+
+  function getCalDaysBetween(start, end) {
+    const days = [];
+    const cur = new Date(start); cur.setHours(0,0,0,0);
+    const endDay = new Date(end); endDay.setHours(23,59,59,999);
+    let safety = 0;
+    while (cur <= endDay && safety++ < 90) {
+      days.push(cur.toISOString().slice(0,10));
+      cur.setDate(cur.getDate() + 1);
+    }
+    return days;
+  }
+
+  function periodOverlapsRange(period, rangeStart, rangeEnd) {
+    if (!rangeStart && !rangeEnd) return true;
+    const pStart = new Date(period.date).getTime();
+    const pEnd   = pStart + period.calendarMs;
+    if (rangeEnd   && pStart > rangeEnd.getTime())   return false;
+    if (rangeStart && pEnd   < rangeStart.getTime()) return false;
+    return true;
+  }
+
+  function computeHoursInRange(period, rangeStart, rangeEnd) {
+    if (!period.isActive) return 0;
+    const pStart = new Date(period.date).getTime();
+    const pEnd   = pStart + period.calendarMs;
+    const clipS  = rangeStart ? Math.max(pStart, rangeStart.getTime()) : pStart;
+    const clipE  = rangeEnd   ? Math.min(pEnd,   rangeEnd.getTime())   : pEnd;
+    return clipE > clipS ? (clipE - clipS) / 3600000 : 0;
+  }
+
+  function buildDailyActiveHours(memberCardData, rangeStart, rangeEnd) {
+    const dayMap = {};
+    for (const { card, timeline } of memberCardData) {
+      if (!timeline.isStarted || !timeline.periods) continue;
+      const sh = card.idMembers.length > 0 ? 1/card.idMembers.length : 1;
+      for (const period of timeline.periods) {
+        if (!period.isActive || period.calendarMs === 0) continue;
+        if (!periodOverlapsRange(period, rangeStart, rangeEnd)) continue;
+        const pS = new Date(period.date);
+        const pE = new Date(pS.getTime() + period.calendarMs);
+        const clipS = rangeStart && pS < rangeStart ? rangeStart : pS;
+        const clipE = rangeEnd   && pE > rangeEnd   ? rangeEnd   : pE;
+        const days = getCalDaysBetween(clipS, clipE);
+        if (!days.length) continue;
+        const hpd = (computeHoursInRange(period, rangeStart, rangeEnd) * sh) / days.length;
+        for (const key of days) dayMap[key] = (dayMap[key] || 0) + hpd;
+      }
+    }
+    const result = [];
+    if (!rangeStart || !rangeEnd) return result;
+    const allDays = getCalDaysBetween(rangeStart, rangeEnd);
+    const displayDays = allDays.length > 60 ? allDays.slice(-60) : allDays;
+    for (const key of displayDays) {
+      const d = new Date(key);
+      const label = allDays.length <= 14
+        ? d.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric' })
+        : d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' });
+      result.push({ key, label, hours: Math.round((dayMap[key] || 0) * 10) / 10 });
+    }
+    return result;
+  }
+
+  function updateFilterButtons() {
+    ['dia','semana','mes','todo'].forEach(t => {
+      const btn = document.getElementById('filter-btn-' + t);
+      if (!btn) return;
+      btn.className = _modalFilter.type === t
+        ? 'px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors bg-indigo-600 text-white'
+        : 'px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200';
+    });
+    const { start, end } = getModalFilterRange();
+    const labelEl = document.getElementById('modal-filter-label');
+    if (!labelEl) return;
+    const fmt = d => d.toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' });
+    labelEl.textContent = (start && end) ? `Mostrando: ${fmt(start)} → ${fmt(end)}` : 'Mostrando: todo el historial';
+  }
+
+  function setModalFilter(type) {
+    _modalFilter = { type, start: null, end: null };
+    renderMemberModal();
+  }
+
+  function applyCustomFilter() {
+    const s = document.getElementById('filter-custom-start')?.value;
+    const e = document.getElementById('filter-custom-end')?.value;
+    if (!s || !e) return;
+    _modalFilter = { type: 'custom', start: s, end: e };
+    renderMemberModal();
+  }
+
+  function buildHourlyData(memberCardData, dateStr) {
+    const slots = Array.from({ length: 24 }, () => ({ active: 0, revision: 0, waiting: 0 }));
+    const base = new Date(dateStr + 'T00:00:00.000').getTime();
+    for (const { card, timeline } of memberCardData) {
+      if (!timeline.periods) continue;
+      const sh = card.idMembers.length > 0 ? 1 / card.idMembers.length : 1;
+      for (const period of timeline.periods) {
+        const pS = new Date(period.date).getTime();
+        const pE = pS + period.calendarMs;
+        if (pE <= base || pS >= base + 86400000) continue;
+        for (let h = 0; h < 24; h++) {
+          const hS = base + h * 3600000;
+          const hE = hS + 3600000;
+          const oS = Math.max(pS, hS);
+          const oE = Math.min(pE, hE);
+          if (oE <= oS) continue;
+          const hrs = (oE - oS) / 3600000 * sh;
+          if (period.isActive)                      slots[h].active   += hrs;
+          else if (period.stage === 'clientRevision') slots[h].revision += hrs;
+          else if (period.stage === 'sentToClient')   slots[h].waiting  += hrs;
+        }
+      }
+    }
+    return slots;
+  }
+
+  function showDayDetail(dateStr) {
+    // Destroy previous day chart
+    if (_memberModalCharts.day) { _memberModalCharts.day.destroy(); delete _memberModalCharts.day; }
+
+    const day = new Date(dateStr + 'T00:00:00');
+    const dayStart = new Date(day); dayStart.setHours(0,0,0,0);
+    const dayEnd   = new Date(day); dayEnd.setHours(23,59,59,999);
+
+    document.getElementById('modal-day-title').textContent =
+      day.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+    // Hourly chart
+    const slots = buildHourlyData(_modalMemberCardData, dateStr);
+    const labels = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2,'0')}h`);
+    const toMin  = v => Math.round(v * 60 * 10) / 10; // convert to minutes for readability
+
+    _memberModalCharts.day = new Chart(
+      document.getElementById('modal-chart-day').getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Activo (En Proceso)',    data: slots.map(s => toMin(s.active)),   backgroundColor: 'rgba(99,102,241,0.85)',  stack: 'h' },
+          { label: 'En Revisión (Cambios)',  data: slots.map(s => toMin(s.revision)), backgroundColor: 'rgba(239,68,68,0.80)',   stack: 'h' },
+          { label: 'Esperando Cliente',      data: slots.map(s => toMin(s.waiting)),  backgroundColor: 'rgba(245,158,11,0.80)',  stack: 'h' }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: {
+          x: {
+            stacked: true,
+            ticks: { color: '#64748b', font: { size: 9 } },
+            grid: { color: '#1e293b' }
+          },
+          y: {
+            stacked: true,
+            min: 0, max: 60,
+            ticks: {
+              color: '#64748b', font: { size: 9 }, stepSize: 15,
+              callback: v => v + ' min'
+            },
+            grid: { color: '#1e293b' },
+            title: { display: true, text: 'Minutos de actividad', color: '#475569', font: { size: 10 } }
+          }
+        },
+        plugins: {
+          legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 10, padding: 10 } },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                const v = ctx.parsed.y;
+                if (v === 0) return null;
+                return ` ${ctx.dataset.label}: ${v} min`;
+              },
+              footer: items => {
+                const total = items.reduce((s, i) => s + i.parsed.y, 0);
+                const dead  = Math.round((60 - total) * 10) / 10;
+                return dead > 0 ? `Tiempo muerto: ${dead} min` : '';
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // Compact card list below chart
+    const active = [];
+    for (const { card, timeline } of _modalMemberCardData) {
+      if (!timeline.periods) continue;
+      const sh = card.idMembers.length > 0 ? 1/card.idMembers.length : 1;
+      let hrs = 0;
+      for (const period of timeline.periods) {
+        if (!period.isActive) continue;
+        hrs += computeHoursInRange(period, dayStart, dayEnd) * sh;
+      }
+      if (hrs > 0.01) active.push({ card, timeline, hours: hrs });
+    }
+    const cardsEl = document.getElementById('modal-day-cards');
+    if (!active.length) {
+      cardsEl.innerHTML = '<p class="text-xs text-slate-500 pt-2">Sin actividad activa este día.</p>';
+    } else {
+      active.sort((a, b) => b.hours - a.hours);
+      cardsEl.innerHTML = active.map(({ card, timeline, hours }) => {
+        const sColor = TimeCalc.stageColor(timeline.currentStage);
+        const sLabel = TimeCalc.stageLabel(timeline.currentStage);
+        return `<div class="flex items-center justify-between bg-slate-800/60 rounded-lg px-3 py-2 gap-2">
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="w-2 h-2 rounded-full flex-shrink-0" style="background:${sColor}"></span>
+            <a href="https://trello.com/c/${card.shortLink}" target="_blank" rel="noopener" class="text-xs text-slate-200 hover:text-indigo-400 truncate transition-colors" title="${card.name.replace(/"/g,'&quot;')}">${card.name}</a>
+          </div>
+          <div class="flex items-center gap-2 flex-shrink-0">
+            <span class="text-xs font-bold text-indigo-400">${Utils.fmtHours(hours)}</span>
+            <span class="px-1.5 py-0.5 rounded text-xs" style="color:${sColor};background:${sColor}22">${sLabel}</span>
+            ${timeline.revisions > 0 ? `<span class="text-red-400 text-xs">🔄${timeline.revisions}</span>` : ''}
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    document.getElementById('modal-day-detail').classList.remove('hidden');
+  }
+
+  function hideDayDetail() {
+    if (_memberModalCharts.day) { _memberModalCharts.day.destroy(); delete _memberModalCharts.day; }
+    document.getElementById('modal-day-detail').classList.add('hidden');
+  }
+
+  function renderMemberModal() {
+    const { start: rangeStart, end: rangeEnd } = getModalFilterRange();
+    updateFilterButtons();
+    hideDayDetail();
+
+    const shareOf = card => card.idMembers.length > 0 ? 1/card.idMembers.length : 1;
+
+    const cardStats = _modalMemberCardData.map(({ card, timeline }) => {
+      const sh = shareOf(card);
+      let activeHours = 0, revisionHours = 0, waitingHours = 0;
+      let revisionsInRange = 0, isStartedInRange = false;
+      if (timeline.periods) {
+        for (const period of timeline.periods) {
+          if (!periodOverlapsRange(period, rangeStart, rangeEnd)) continue;
+          const pS = new Date(period.date).getTime();
+          const pE = pS + period.calendarMs;
+          const clipS = rangeStart ? Math.max(pS, rangeStart.getTime()) : pS;
+          const clipE = rangeEnd   ? Math.min(pE, rangeEnd.getTime())   : pE;
+          const calH = Math.max(0, (clipE - clipS) / 3600000);
+          if (period.isActive) { activeHours += computeHoursInRange(period, rangeStart, rangeEnd) * sh; isStartedInRange = true; }
+          else if (period.stage === 'clientRevision') { revisionHours += calH; revisionsInRange++; }
+          else if (period.stage === 'sentToClient')   { waitingHours  += calH; }
+        }
+      }
+      const isDoneInRange = timeline.isDone && timeline.endDate
+        && (!rangeStart || new Date(timeline.endDate) >= rangeStart)
+        && (!rangeEnd   || new Date(timeline.endDate) <= rangeEnd);
+      return { card, timeline, activeHours, revisionHours, waitingHours, revisionsInRange, isStartedInRange, isDoneInRange };
+    });
+
+    const started = cardStats.filter(c => c.isStartedInRange);
+    const done    = cardStats.filter(c => c.isDoneInRange);
+    const totalActiveHours   = cardStats.reduce((s,c) => s + c.activeHours, 0);
+    const totalRevisionHours = cardStats.reduce((s,c) => s + c.revisionHours, 0);
+    const totalWaitingHours  = cardStats.reduce((s,c) => s + c.waitingHours, 0);
+    const avgCycle     = done.length > 0 ? done.reduce((s,c) => s + c.activeHours, 0) / done.length : 0;
+    const totalRevs    = cardStats.reduce((s,c) => s + c.revisionsInRange, 0);
+    const avgRevisions = started.length > 0 ? totalRevs / started.length : 0;
+    const doneOnTime   = done.filter(({card,timeline}) => card.due && timeline.endDate && new Date(timeline.endDate) <= new Date(card.due)).length;
+    const onTimePct    = done.length > 0 ? Math.round(doneOnTime / done.length * 100) : null;
+    const doneNoRev    = done.filter(c => c.revisionsInRange === 0).length;
+    const firstEff     = done.length > 0 ? Math.round(doneNoRev / done.length * 100) : null;
+
+    const cc = (v, g, b) => v >= g ? 'text-emerald-400' : v >= b ? 'text-amber-400' : 'text-red-400';
+    document.getElementById('modal-kpis').innerHTML = `
+      <div class="bg-slate-800 rounded-xl p-4">
+        <div class="text-xs text-slate-400 mb-1">⏱ Ciclo promedio</div>
+        <div class="text-xl font-black ${avgCycle > 0 ? cc(avgCycle<=8?10:avgCycle<=16?5:0,5,1) : 'text-slate-500'}">${avgCycle > 0 ? Utils.fmtHours(avgCycle) : '—'}</div>
+        <div class="text-xs text-slate-500 mt-1">por tarea completada · objetivo ≤ 8h</div>
+      </div>
+      <div class="bg-slate-800 rounded-xl p-4">
+        <div class="text-xs text-slate-400 mb-1">✅ Entregas a tiempo</div>
+        <div class="text-xl font-black ${onTimePct !== null ? cc(onTimePct,85,60) : 'text-slate-500'}">${onTimePct !== null ? onTimePct + '%' : '—'}</div>
+        <div class="text-xs text-slate-500 mt-1">${doneOnTime} de ${done.length} en fecha · objetivo ≥ 85%</div>
+      </div>
+      <div class="bg-slate-800 rounded-xl p-4">
+        <div class="text-xs text-slate-400 mb-1">🔄 Revisiones / tarea</div>
+        <div class="text-xl font-black ${started.length ? cc(avgRevisions<=1?10:avgRevisions<=2?5:0,5,1) : 'text-slate-500'}">${started.length > 0 ? avgRevisions.toFixed(1) : '—'}</div>
+        <div class="text-xs text-slate-500 mt-1">promedio de cambios · objetivo ≤ 1</div>
+      </div>
+      <div class="bg-slate-800 rounded-xl p-4">
+        <div class="text-xs text-slate-400 mb-1">🎯 Primera entrega OK</div>
+        <div class="text-xl font-black ${firstEff !== null ? cc(firstEff,50,30) : 'text-slate-500'}">${firstEff !== null ? firstEff + '%' : '—'}</div>
+        <div class="text-xs text-slate-500 mt-1">aprobadas sin cambios · objetivo ≥ 50%</div>
+      </div>
+      <div class="bg-slate-800 rounded-xl p-4">
+        <div class="text-xs text-slate-400 mb-1">⚡ Horas activas</div>
+        <div class="text-xl font-black text-indigo-400">${totalActiveHours > 0 ? Utils.fmtHours(totalActiveHours) : '—'}</div>
+        <div class="text-xs text-slate-500 mt-1">tiempo real en "En Proceso"</div>
+      </div>
+      <div class="bg-slate-800 rounded-xl p-4">
+        <div class="text-xs text-slate-400 mb-1">📋 Tareas iniciadas</div>
+        <div class="text-xl font-black text-slate-100">${started.length} <span class="text-sm font-normal text-slate-400">/ ${_modalMemberCardData.length}</span></div>
+        <div class="text-xs text-slate-500 mt-1">${done.length} completadas en el período</div>
+      </div>`;
+
+    Object.values(_memberModalCharts).forEach(c => c.destroy());
+    _memberModalCharts = {};
+
+    // Donut
+    const donutData = [
+      Math.round(totalActiveHours   * 10) / 10,
+      Math.round(totalRevisionHours * 10) / 10,
+      Math.round(totalWaitingHours  * 10) / 10
+    ];
+    _memberModalCharts.donut = new Chart(
+      document.getElementById('modal-chart-donut').getContext('2d'), {
+      type: 'doughnut',
+      data: {
+        labels: ['Tiempo Activo', 'En Revisión (Cambios)', 'Esperando Cliente'],
+        datasets: [{ data: donutData.some(v=>v>0) ? donutData : [1,0,0], backgroundColor: ['#6366f1','#ef4444','#f59e0b'], borderColor: 'rgba(0,0,0,0)', hoverOffset: 6 }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, cutout: '65%',
+        plugins: {
+          legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 11 }, padding: 12, boxWidth: 12 } },
+          tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed.toFixed(1)}h` } }
+        }
+      }
+    });
+
+    // Bar diario
+    const dailyData = buildDailyActiveHours(_modalMemberCardData, rangeStart, rangeEnd);
+    _memberModalCharts.bar = new Chart(
+      document.getElementById('modal-chart-bar').getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: dailyData.map(d => d.label),
+        datasets: [{ label: 'Horas activas', data: dailyData.map(d => d.hours), backgroundColor: 'rgba(99,102,241,0.65)', borderColor: '#6366f1', borderWidth: 1, borderRadius: 4 }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        onClick: (evt, els) => { if (els.length > 0) showDayDetail(dailyData[els[0].index].key); },
+        scales: {
+          x: { ticks: { color: '#64748b', font: { size: 9 }, maxRotation: 45 }, grid: { display: false } },
+          y: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#1e293b' }, beginAtZero: true }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y.toFixed(1)}h activas`, footer: () => 'Clic para ver detalle del día' } }
+        }
+      }
+    });
+
+    // Tabla
+    const visibleCards = cardStats.filter(c => !rangeStart || c.isStartedInRange || c.isDoneInRange || c.activeHours > 0);
+    const sortedCards  = [...visibleCards].sort((a,b) => {
+      const p = c => (c.isStartedInRange && !c.isDoneInRange) ? 0 : c.isDoneInRange ? 1 : 2;
+      return p(a) - p(b);
+    });
+    const tbody = document.getElementById('modal-cards-tbody');
+    tbody.innerHTML = sortedCards.length === 0
+      ? `<tr><td colspan="6" class="text-center text-slate-500 py-6 text-xs">Sin actividad en el período seleccionado.</td></tr>`
+      : sortedCards.map(({ card, timeline, activeHours, revisionsInRange, isDoneInRange }) => {
+          const sColor  = TimeCalc.stageColor(timeline.currentStage);
+          const sLabel  = TimeCalc.stageLabel(timeline.currentStage);
+          const isLate  = card.due && timeline.endDate && new Date(timeline.endDate) > new Date(card.due);
+          const isOT    = card.due && isDoneInRange && !isLate;
+          const dueStr  = card.due ? new Date(card.due).toLocaleDateString('es-MX',{day:'2-digit',month:'short'}) : '—';
+          const endStr  = timeline.endDate ? new Date(timeline.endDate).toLocaleDateString('es-MX',{day:'2-digit',month:'short'}) : '—';
+          return `<tr class="hover:bg-slate-800/30 transition-colors">
+            <td class="px-3 py-2 max-w-xs"><a href="https://trello.com/c/${card.shortLink}" target="_blank" rel="noopener" class="text-xs text-slate-200 hover:text-indigo-400 transition-colors truncate block" title="${card.name.replace(/"/g,'&quot;')}">${card.name}</a></td>
+            <td class="px-3 py-2"><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium" style="color:${sColor};background:${sColor}22">${sLabel}</span></td>
+            <td class="px-3 py-2 text-slate-300">${activeHours > 0 ? Utils.fmtHours(activeHours) : '—'}</td>
+            <td class="px-3 py-2">${revisionsInRange > 0 ? `<span class="text-red-400">🔄 ${revisionsInRange}</span>` : '<span class="text-slate-500">—</span>'}</td>
+            <td class="px-3 py-2 text-slate-400">${dueStr}</td>
+            <td class="px-3 py-2">${isDoneInRange ? `<span class="${isOT?'text-emerald-400':'text-red-400'}">${isOT?'✓ ':'⚠ '}${endStr}</span>` : (timeline.isStarted ? '<span class="text-indigo-400">En curso</span>' : '<span class="text-slate-500">Pendiente</span>')}</td>
+          </tr>`;
+        }).join('');
+  }
+
+  function openMemberModal(memberId) {
+    _modalMemberId = memberId;
+    _modalMemberCardData = [];
+    let memberName = '', memberUsername = '';
+    for (const p of _currentFilteredProjects) {
+      for (const m of p.members) {
+        if (m.id === memberId && !memberName) { memberName = m.fullName; memberUsername = m.username; break; }
+      }
+      p.cards.filter(c => c.idMembers.includes(memberId)).forEach(c => {
+        const tl = p.timelines[c.id];
+        if (tl) _modalMemberCardData.push({ card: c, timeline: tl });
+      });
+    }
+    const avatarEl = document.getElementById('modal-avatar');
+    avatarEl.textContent = Utils.initials(memberName);
+    avatarEl.style.background = Utils.avatarColor(memberId);
+    document.getElementById('modal-name').textContent = memberName;
+    document.getElementById('modal-username').textContent = '@' + memberUsername;
+    _modalFilter = { type: 'mes', start: null, end: null };
+    const now = new Date(), monthAgo = new Date(now);
+    monthAgo.setDate(now.getDate() - 29);
+    const el1 = document.getElementById('filter-custom-start');
+    const el2 = document.getElementById('filter-custom-end');
+    if (el1) el1.value = monthAgo.toISOString().slice(0,10);
+    if (el2) el2.value = now.toISOString().slice(0,10);
+    renderMemberModal();
+    document.getElementById('member-modal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeMemberModal() {
+    document.getElementById('member-modal').classList.add('hidden');
+    document.body.style.overflow = '';
+    Object.values(_memberModalCharts).forEach(c => c.destroy());
+    _memberModalCharts = {};
+  }
+
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMemberModal(); });
+
   // Initial load
   Sidebar.init('dashboard', { onRefresh: () => loadDashboard(true) });
   loadDashboard();
 </script>
+<!-- MODAL DETALLE DE MIEMBRO -->
+<div id="member-modal" class="fixed inset-0 z-50 hidden overflow-y-auto" onclick="closeMemberModal()">
+  <!-- Backdrop fijo (no scrollea) -->
+  <div class="fixed inset-0 bg-slate-950/85 backdrop-blur-sm pointer-events-none"></div>
+  <!-- Wrapper centrador (scrollea con el contenido) -->
+  <div class="relative flex justify-center min-h-full p-4 py-8">
+    <!-- Panel (detiene propagación del click) -->
+    <div id="modal-panel" class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-5xl h-fit self-start" onclick="event.stopPropagation()">
+
+      <!-- Header -->
+      <div class="flex items-center justify-between p-6 border-b border-slate-700">
+        <div class="flex items-center gap-4">
+          <div id="modal-avatar" class="w-14 h-14 rounded-full flex-shrink-0 flex items-center justify-center text-xl font-black text-white"></div>
+          <div>
+            <h2 id="modal-name" class="text-xl font-black text-slate-100"></h2>
+            <p id="modal-username" class="text-sm text-slate-400 mt-0.5"></p>
+          </div>
+        </div>
+        <button onclick="closeMemberModal()" class="p-2 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors" aria-label="Cerrar">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Filtros de período -->
+      <div class="px-6 py-4 border-b border-slate-700 bg-slate-800/30">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-xs text-slate-400 font-semibold uppercase tracking-wider mr-1">Período:</span>
+          <button id="filter-btn-dia"    onclick="setModalFilter('dia')"    class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200">Hoy</button>
+          <button id="filter-btn-semana" onclick="setModalFilter('semana')" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200">Esta semana</button>
+          <button id="filter-btn-mes"    onclick="setModalFilter('mes')"    class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors bg-indigo-600 text-white">Último mes</button>
+          <button id="filter-btn-todo"   onclick="setModalFilter('todo')"   class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200">Todo</button>
+          <div class="flex items-center gap-2 flex-wrap ml-1">
+            <span class="text-slate-600 text-xs">|</span>
+            <span class="text-xs text-slate-500">Personalizado:</span>
+            <input type="date" id="filter-custom-start" class="bg-slate-800 border border-slate-600 text-slate-200 text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-500">
+            <span class="text-xs text-slate-500">→</span>
+            <input type="date" id="filter-custom-end"   class="bg-slate-800 border border-slate-600 text-slate-200 text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-500">
+            <button onclick="applyCustomFilter()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition-colors">Aplicar</button>
+          </div>
+        </div>
+        <p id="modal-filter-label" class="text-xs text-slate-500 mt-2"></p>
+      </div>
+
+      <!-- KPIs -->
+      <div class="p-6 border-b border-slate-700">
+        <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">KPIs de Rendimiento</h3>
+        <div id="modal-kpis" class="grid grid-cols-2 md:grid-cols-3 gap-3"></div>
+      </div>
+
+      <!-- Gráficas -->
+      <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-5 border-b border-slate-700">
+        <div class="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4">
+          <h3 class="text-sm font-semibold text-slate-300 mb-1">Distribución de tiempo</h3>
+          <p class="text-xs text-slate-500 mb-4">Activo vs tiempos muertos en el período</p>
+          <div style="height:220px;position:relative"><canvas id="modal-chart-donut"></canvas></div>
+        </div>
+        <div class="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4">
+          <h3 class="text-sm font-semibold text-slate-300 mb-1">Horas activas por día</h3>
+          <p class="text-xs text-slate-500 mb-3">Haz clic en una barra para ver el detalle del día</p>
+          <div style="height:220px;position:relative"><canvas id="modal-chart-bar"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Detalle del día (oculto por defecto) -->
+      <div id="modal-day-detail" class="hidden px-6 py-5 border-b border-slate-700 bg-indigo-950/20">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h3 class="text-sm font-semibold text-slate-200">Actividad por hora</h3>
+            <p id="modal-day-title" class="text-xs text-indigo-400 mt-0.5 capitalize"></p>
+          </div>
+          <button onclick="hideDayDetail()" class="text-xs text-slate-500 hover:text-slate-300 px-2 py-1 rounded transition-colors">✕ Cerrar</button>
+        </div>
+        <!-- Gráfica franjas horarias 00h–23h -->
+        <div style="height:180px;position:relative" class="mb-4">
+          <canvas id="modal-chart-day"></canvas>
+        </div>
+        <!-- Lista compacta de tareas activas ese día -->
+        <p class="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-2">Tareas activas</p>
+        <div id="modal-day-cards" class="space-y-1.5"></div>
+      </div>
+
+      <!-- Tabla de tareas -->
+      <div class="p-6">
+        <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Tareas del período</h3>
+        <div class="overflow-x-auto rounded-xl border border-slate-700">
+          <table class="w-full text-xs">
+            <thead>
+              <tr class="border-b border-slate-700 bg-slate-800/50">
+                <th class="px-3 py-2.5 text-left font-semibold text-slate-400">Tarea</th>
+                <th class="px-3 py-2.5 text-left font-semibold text-slate-400">Estado</th>
+                <th class="px-3 py-2.5 text-left font-semibold text-slate-400">Hrs activas</th>
+                <th class="px-3 py-2.5 text-left font-semibold text-slate-400">Revisiones</th>
+                <th class="px-3 py-2.5 text-left font-semibold text-slate-400">Fecha límite</th>
+                <th class="px-3 py-2.5 text-left font-semibold text-slate-400">Entrega</th>
+              </tr>
+            </thead>
+            <tbody id="modal-cards-tbody" class="divide-y divide-slate-700/50"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
