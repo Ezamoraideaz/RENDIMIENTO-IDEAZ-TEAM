@@ -420,13 +420,21 @@ const Agenda = {
       .sort((a, b) => order(a) - order(b));
   },
 
+  _textColor(stageColor) {
+    const light = document.documentElement.classList.contains('light');
+    if (!light) return stageColor === '#94a3b8' ? '#cbd5e1' : stageColor;
+    const darkMap = { '#94a3b8': '#475569', '#cbd5e1': '#475569', '#f59e0b': '#b45309',
+                      '#10b981': '#047857', '#0ea5e9': '#0369a1', '#a855f7': '#7c3aed' };
+    return darkMap[stageColor] || stageColor;
+  },
+
   _pill(card, compact) {
     if (card.isGhost)    return this._ghostPill(card, compact);
     if (card.isLateDupe) return this._lateDupePill(card, compact);
     const { color, bg } = card.stageInfo;
     const maxLen = compact ? 28 : 42;
     const label  = card.name.length > maxLen ? card.name.slice(0, maxLen) + '…' : card.name;
-    const textColor = color === '#94a3b8' ? '#cbd5e1' : color;
+    const textColor = this._textColor(color);
     if (card.completed) {
       const late    = card.completedLate;
       const cColor  = late ? textColor : '#10b981';
@@ -440,14 +448,14 @@ const Agenda = {
         : `${card.name.replace(/"/g,'&quot;')} — Completada en fecha`;
       return `
         <div data-card-id="${card.id}" class="agenda-card cursor-pointer rounded text-xs px-1.5 py-1 mb-1 hover:brightness-125 transition-all select-none"
-             style="opacity:0.65; background:${cBg}; ${border}"
+             style="opacity:0.75; background:${cBg}; ${border}"
              title="${title}">
           <div class="font-medium leading-tight truncate" style="color:${cColor}">${late ? '👻' : '✓'} ${label}</div>
           <div class="flex items-center justify-between gap-1 mt-0.5" style="font-size:0.65rem">
-            <span class="text-slate-500 truncate">${card.boardName}</span>
+            <span class="text-slate-400 truncate">${card.boardName}</span>
             <span class="flex items-center gap-1 flex-shrink-0">
               ${this._memberDots(card)}
-              ${late ? '<span style="color:#94a3b8">fuera de fecha</span>' : ''}
+              ${late ? '<span style="color:#cbd5e1">fuera de fecha</span>' : ''}
             </span>
           </div>
         </div>`;
@@ -462,7 +470,7 @@ const Agenda = {
            title="${card.name.replace(/"/g,'&quot;')}${overdue ? ' — Vencida sin entregar' : ''}">
         <div class="font-medium leading-tight truncate" style="color:${textColor}">${prefix}${label}</div>
         <div class="flex items-center justify-between gap-1 mt-0.5" style="font-size:0.65rem">
-          <span class="text-slate-400 truncate">${card.boardName}</span>
+          <span class="text-slate-300 truncate">${card.boardName}</span>
           ${this._memberDots(card)}
         </div>
       </div>`;
@@ -471,7 +479,7 @@ const Agenda = {
   // Duplicate pill shown on sentDate for late-delivered cards
   _lateDupePill(card, compact) {
     const { color, bg } = card.stageInfo;
-    const textColor = color === '#94a3b8' ? '#cbd5e1' : color;
+    const textColor = this._textColor(color);
     const maxLen  = compact ? 28 : 42;
     const label   = card.name.length > maxLen ? card.name.slice(0, maxLen) + '…' : card.name;
     const origId  = card.id.replace('latedupe_', '');
@@ -481,11 +489,11 @@ const Agenda = {
     return `
       <div data-card-id="${origId}"
            class="agenda-card cursor-pointer rounded text-xs px-1.5 py-1 mb-1 hover:brightness-125 transition-all select-none"
-           style="opacity:0.65; background:${bg}; border-left:3px dashed ${color}; border-top:1px dashed ${color}30; border-right:1px dashed ${color}30; border-bottom:1px dashed ${color}30;"
+           style="opacity:0.75; background:${bg}; border-left:3px dashed ${color}; border-top:1px dashed ${color}30; border-right:1px dashed ${color}30; border-bottom:1px dashed ${color}30;"
            title="${title}">
         <div class="font-medium leading-tight truncate" style="color:${textColor}">👻 ${label}</div>
         <div class="flex items-center justify-between gap-1 mt-0.5" style="font-size:0.6rem">
-          <span class="text-slate-500 truncate">${card.boardName}</span>
+          <span class="text-slate-400 truncate">${card.boardName}</span>
           <span class="flex items-center gap-1 flex-shrink-0">
             ${this._memberDots(card)}
             <span style="color:#6366f1;font-weight:700">rezagada</span>
@@ -508,11 +516,11 @@ const Agenda = {
     const titleText = `${card.name} — Rezagada de ${originStageInfo.label || card.ghostOriginStatus}`;
     return `
       <div data-card-id="${card.id}" class="agenda-card cursor-pointer rounded text-xs px-1.5 py-1 mb-1 hover:brightness-125 transition-all select-none"
-           style="opacity:0.65; background:${color}12; border-left:3px dashed ${color}; border-top:1px dashed ${color}30; border-right:1px dashed ${color}30; border-bottom:1px dashed ${color}30;"
+           style="opacity:0.75; background:${color}12; border-left:3px dashed ${color}; border-top:1px dashed ${color}30; border-right:1px dashed ${color}30; border-bottom:1px dashed ${color}30;"
            title="${titleText.replace(/"/g,'&quot;')}">
         <div class="font-medium leading-tight truncate" style="color:${color}">${label}</div>
         <div class="flex items-center justify-between gap-1 mt-0.5" style="font-size:0.6rem">
-          <span class="text-slate-500 truncate">${card.boardName}</span>
+          <span class="text-slate-400 truncate">${card.boardName}</span>
           <span class="flex items-center gap-1 flex-shrink-0">
             ${this._memberDots(card)}
             <span class="font-semibold" style="color:${color}">${statusTag}</span>
@@ -552,7 +560,7 @@ const Agenda = {
     const clippedRight = cardDue   > weekEnd;
 
     const { color, bg } = card.stageInfo;
-    const textColor = color === '#94a3b8' ? '#cbd5e1' : color;
+    const textColor = this._textColor(color);
 
     const totalDays = Math.round((cardDue - cardStart) / 86400000) + 1;
     const dueStr    = card.due.toLocaleDateString('es-MX', { day:'2-digit', month:'short' });
@@ -580,7 +588,7 @@ const Agenda = {
            title="${title}">
         <div class="font-medium truncate leading-tight" style="color:${labelColor}">${prefixIcon}${card.name}${suffixIcon}</div>
         <div class="flex items-center justify-between gap-1 mt-0.5" style="font-size:0.6rem">
-          <span class="truncate" style="color:${textColor}80">${card.boardName} · ${totalDays}d${overdue ? ' · ⚠ vencida' : ''}</span>
+          <span class="truncate" style="color:${textColor}C0">${card.boardName} · ${totalDays}d${overdue ? ' · ⚠ vencida' : ''}</span>
           ${this._memberDots(card)}
         </div>
       </div>`;
@@ -636,7 +644,7 @@ const Agenda = {
         <div class="min-h-32 p-1.5 ${isToday ? 'bg-indigo-950/30' : ''} ${borderB}">
           <div class="flex items-center justify-between mb-1">
             <span class="text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full flex-shrink-0
-              ${isToday ? 'bg-indigo-600 text-white' : isPast ? 'text-slate-700' : 'text-slate-400'}">
+              ${isToday ? 'bg-indigo-600 text-white' : isPast ? 'text-slate-500' : 'text-slate-400'}">
               ${dayNum}
             </span>
             ${countBadge}
@@ -681,12 +689,12 @@ const Agenda = {
       const isPast  = day < today;
       html += `
         <div class="text-center py-3 ${isToday ? 'bg-indigo-950/40' : ''}">
-          <div class="text-xs font-semibold text-slate-500 mb-1">${this.DAYS[i]}</div>
+          <div class="text-xs font-semibold text-slate-400 mb-1">${this.DAYS[i]}</div>
           <div class="w-8 h-8 flex items-center justify-center rounded-full mx-auto text-sm font-bold
-            ${isToday ? 'bg-indigo-600 text-white' : isPast ? 'text-slate-700' : 'text-slate-200'}">
+            ${isToday ? 'bg-indigo-600 text-white' : isPast ? 'text-slate-500' : 'text-slate-200'}">
             ${day.getDate()}
           </div>
-          <div class="text-xs text-slate-600 mt-0.5">${this.MONTHS[day.getMonth()].slice(0,3)}</div>
+          <div class="text-xs text-slate-500 mt-0.5">${this.MONTHS[day.getMonth()].slice(0,3)}</div>
         </div>`;
     });
 
@@ -699,7 +707,7 @@ const Agenda = {
       const isToday = day.getTime() === today.getTime();
       html += `<div class="min-h-52 p-1.5 ${isToday ? 'bg-indigo-950/15' : ''}">`;
       html += cards.length === 0
-        ? `<div class="text-slate-800 text-center pt-6 text-lg">·</div>`
+        ? `<div class="text-slate-600 text-center pt-6 text-lg">·</div>`
         : cards.map(c => this._pill(c, false)).join('');
       html += `</div>`;
     });
