@@ -22,8 +22,15 @@ const Sidebar = (() => {
     }
     const icon  = document.getElementById('theme-icon');
     const label = document.getElementById('theme-label');
+    const track = document.getElementById('theme-switch-track');
+    const knob  = document.getElementById('theme-switch-knob');
     if (icon)  icon.textContent  = theme === 'light' ? '☀️' : '🌙';
     if (label) label.textContent = theme === 'light' ? 'Claro' : 'Oscuro';
+    if (track) {
+      track.classList.toggle('bg-indigo-500', theme === 'light');
+      track.classList.toggle('bg-slate-600',  theme !== 'light');
+    }
+    if (knob) knob.style.transform = theme === 'light' ? 'translateX(1.125rem)' : 'translateX(0.125rem)';
   }
 
   function toggleTheme() {
@@ -119,7 +126,11 @@ const Sidebar = (() => {
             class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-slate-400 hover:bg-slate-800 transition-colors sidebar-nav-item"
             title="Cambiar entre tema claro y oscuro">
             <span id="theme-icon" class="text-base leading-none flex-shrink-0">${themeNow === 'light' ? '☀️' : '🌙'}</span>
-            <span class="sidebar-text" id="theme-label">${themeNow === 'light' ? 'Claro' : 'Oscuro'}</span>
+            <span class="sidebar-text flex-1" id="theme-label">${themeNow === 'light' ? 'Claro' : 'Oscuro'}</span>
+            <span id="theme-switch-track" class="sidebar-text relative inline-flex w-9 h-5 rounded-full flex-shrink-0 transition-colors duration-200 ${themeNow === 'light' ? 'bg-indigo-500' : 'bg-slate-600'}">
+              <span id="theme-switch-knob" class="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200"
+                style="transform:translateX(${themeNow === 'light' ? '1.125rem' : '0.125rem'})"></span>
+            </span>
           </button>
         </div>
       </nav>`);
