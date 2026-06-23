@@ -7,7 +7,30 @@ const Sidebar = (() => {
     { href: 'configuracion.html', icon: '⚙️', label: 'Configuración', key: 'configuracion' },
   ];
 
-  const LS_KEY = 'sidebar_collapsed';
+  const LS_KEY    = 'sidebar_collapsed';
+  const THEME_KEY = 'ideaz_theme';
+
+  function _getTheme() {
+    return localStorage.getItem(THEME_KEY) || 'dark';
+  }
+
+  function _applyTheme(theme) {
+    if (theme === 'light') {
+      document.documentElement.classList.add('light');
+    } else {
+      document.documentElement.classList.remove('light');
+    }
+    const icon  = document.getElementById('theme-icon');
+    const label = document.getElementById('theme-label');
+    if (icon)  icon.textContent  = theme === 'light' ? '☀️' : '🌙';
+    if (label) label.textContent = theme === 'light' ? 'Claro' : 'Oscuro';
+  }
+
+  function toggleTheme() {
+    const next = _getTheme() === 'dark' ? 'light' : 'dark';
+    localStorage.setItem(THEME_KEY, next);
+    _applyTheme(next);
+  }
 
   function _isCollapsed() {
     return localStorage.getItem(LS_KEY) === '1';
@@ -73,6 +96,7 @@ const Sidebar = (() => {
     const logoHref = restricted ? `agenda.html?access=${encodeURIComponent(token)}` : 'index.html';
     const logoSub  = restricted ? 'Agenda' : 'Dashboard';
 
+    const themeNow = _getTheme();
     aside.insertAdjacentHTML('afterbegin', `
       <div class="p-4 border-b border-slate-700 flex-shrink-0 flex items-center gap-2">
         <a href="${logoHref}" class="flex items-center gap-3 flex-1 min-w-0">
@@ -90,6 +114,14 @@ const Sidebar = (() => {
       </div>
       <nav class="p-3 border-b border-slate-700 flex-shrink-0">
         ${navHTML}
+        <div class="mt-1 pt-1 border-t border-slate-700/50">
+          <button id="theme-toggle-btn" onclick="Sidebar.toggleTheme()"
+            class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-slate-400 hover:bg-slate-800 transition-colors sidebar-nav-item"
+            title="Cambiar entre tema claro y oscuro">
+            <span id="theme-icon" class="text-base leading-none flex-shrink-0">${themeNow === 'light' ? '☀️' : '🌙'}</span>
+            <span class="sidebar-text" id="theme-label">${themeNow === 'light' ? 'Claro' : 'Oscuro'}</span>
+          </button>
+        </div>
       </nav>`);
 
     if (onRefresh) {
@@ -106,6 +138,7 @@ const Sidebar = (() => {
     }
 
     _injectStyles();
+    _applyTheme(_getTheme());
 
     const collapsed = _isCollapsed();
     _applyState(aside, mainEl, collapsed);
@@ -117,7 +150,7 @@ const Sidebar = (() => {
     });
   }
 
-  return { init };
+  return { init, toggleTheme };
 })();
 
 window.Sidebar = Sidebar;
