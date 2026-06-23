@@ -55,3 +55,7 @@ html.light #app-sidebar .border-slate-700\/50 { border-color: rgba(226,232,240,0
 
 /* Agenda cards en modo claro: invertir hover (oscurecer en vez de aclarar) */
 html.light .agenda-card:hover { filter: brightness(0.93) !important; }
+
+/* Barra de días de la semana en vista Mes (modo claro) */
+html.light .cal-day-header                { background-color: #cbd5e1 !important; border-color: #94a3b8 !important; }
+html.light .cal-day-header > div          { color: #334155 !important; }

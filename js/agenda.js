@@ -612,7 +612,7 @@ const Agenda = {
 
     let html = `
       <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-        <div class="grid grid-cols-7 bg-slate-800/50 border-b border-slate-800">
+        <div class="cal-day-header grid grid-cols-7 bg-slate-800/50 border-b border-slate-800">
           ${this.DAYS.map(d => `<div class="text-center text-xs font-semibold text-slate-500 py-3 px-1">${d}</div>`).join('')}
         </div>
         <div class="grid grid-cols-7 divide-x divide-slate-800/60">`;
