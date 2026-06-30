@@ -4,9 +4,9 @@ const PautaMonitor = (() => {
   const API_PATH = 'api/spend.php';
 
   const PLATFORMS = [
-    { key: 'meta',   label: 'Meta Ads',    icon: '📘', color: 'blue'   },
-    { key: 'google', label: 'Google Ads',  icon: '🔴', color: 'red'    },
-    { key: 'tiktok', label: 'TikTok Ads',  icon: '🎵', color: 'purple' },
+    { key: 'meta',   label: 'Meta Ads',    icon: _platIcon('meta'),   color: 'blue'   },
+    { key: 'google', label: 'Google Ads',  icon: _platIcon('google'), color: 'red'    },
+    { key: 'tiktok', label: 'TikTok Ads',  icon: _platIcon('tiktok'), color: 'purple' },
   ];
 
   let _clients  = [];
@@ -766,6 +766,30 @@ const PautaMonitor = (() => {
     return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  // ── Platform icons (SVG) ──────────────────────────────────────────────────
+
+  function _platIcon(platform, size = 18) {
+    const s = size;
+    const st = `display:inline-block;vertical-align:middle;flex-shrink:0`;
+    const icons = {
+      meta: `<svg width="${s}" height="${s}" viewBox="0 0 24 24" style="${st}" xmlns="http://www.w3.org/2000/svg">
+        <path fill="#1877F2" d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+      </svg>`,
+      google: `<svg width="${s}" height="${s}" viewBox="0 0 24 24" style="${st}" xmlns="http://www.w3.org/2000/svg">
+        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+      </svg>`,
+      tiktok: `<svg width="${s}" height="${s}" viewBox="0 0 24 24" style="${st}" xmlns="http://www.w3.org/2000/svg">
+        <path fill="#ffffff" d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.27 6.27 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.18 8.18 0 0 0 4.84 1.55V6.79a4.85 4.85 0 0 1-1.07-.1z"/>
+        <path fill="#69C9D0" opacity="0.7" d="M18.52 6.59a4.83 4.83 0 0 1-2.7-3.15v-.02A4.85 4.85 0 0 0 19.59 6.69a4.85 4.85 0 0 1-1.07-.1z"/>
+      </svg>`,
+    };
+    return icons[platform]
+      || `<svg width="${s}" height="${s}" viewBox="0 0 24 24" style="${st}"><circle cx="12" cy="12" r="10" fill="#475569"/></svg>`;
+  }
+
   // ── Brand Detail Modal ─────────────────────────────────────────────────────
 
   const LS_LEADS = 'pauta_leads';
@@ -1073,7 +1097,7 @@ const PautaMonitor = (() => {
           const cpm = c.impressions > 0 ? c.spend / c.impressions * 1000 : 0;
           const cpc = c.clicks > 0      ? c.spend / c.clicks             : 0;
           const cpl = c.leads  > 0      ? c.spend / c.leads              : 0;
-          const platIcon = c.platform === 'meta' ? '📘' : c.platform === 'google' ? '🔴' : '📡';
+          const platIcon = _platIcon(c.platform, 16);
           return `
           <div class="bg-slate-800 rounded-xl p-3.5 border border-slate-700">
             <div class="flex items-start justify-between gap-2 mb-3">
