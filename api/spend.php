@@ -46,6 +46,12 @@ switch ($platform) {
     case 'tiktok':
         echo json_encode(['error' => 'TikTok Ads — próximamente', 'platform' => 'tiktok']);
         break;
+    case 'meta_detail':
+        echo json_encode(getMetaCampaignDetail($account_id, $date_from, $date_to, $debug));
+        break;
+    case 'google_detail':
+        echo json_encode(getGoogleCampaignDetail($account_id, $date_from, $date_to, $debug));
+        break;
     default:
         http_response_code(400);
         echo json_encode(['error' => "Plataforma no soportada: {$platform}"]);
@@ -273,5 +279,196 @@ function getMetaSpend(string $account_id, string $date_from, string $date_to, bo
         'date_from'   => $date_from,
         'date_to'     => $date_to,
         '_rows'       => count($data['data'] ?? []),
+    ];
+}
+
+// ─── HELPERS DETALLE ─────────────────────────────────────────────────────────
+
+function detectFunnelStage(string $name): string {
+    $n = strtolower($name);
+    if (preg_match('/\bf1\b|\[f1\]|\-f1\-|_f1_|\btof\b/', $n)) return 'tof';
+    if (preg_match('/\bf2\b|\[f2\]|\-f2\-|_f2_|\bmof\b/', $n)) return 'mof';
+    if (preg_match('/\bf3\b|\[f3\]|\-f3\-|_f3_|\bbof\b/', $n)) return 'bof';
+    return 'other';
+}
+
+// ─── META ADS DETALLE (nivel campaña) ────────────────────────────────────────
+
+function getMetaCampaignDetail(string $account_id, string $date_from, string $date_to, bool $debug = false): array {
+    if (!defined('META_ACCESS_TOKEN') || META_ACCESS_TOKEN === 'YOUR_META_SYSTEM_USER_TOKEN_HERE') {
+        return ['error' => 'Meta Access Token no configurado en config.php', 'platform' => 'meta'];
+    }
+
+    $token      = META_ACCESS_TOKEN;
+    $time_range = json_encode(['since' => $date_from, 'until' => $date_to]);
+    $fields     = 'campaign_id,campaign_name,spend,impressions,clicks,reach,actions,account_currency';
+
+    $url = sprintf(
+        'https://graph.facebook.com/v19.0/%s/insights?level=campaign&fields=%s&time_range=%s&access_token=%s&limit=100',
+        urlencode($account_id),
+        urlencode($fields),
+        urlencode($time_range),
+        urlencode($token)
+    );
+
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL            => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_TIMEOUT        => 20,
+    ]);
+    $response  = curl_exec($ch);
+    $curl_err  = curl_error($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($curl_err) return ['error' => "cURL error: {$curl_err}", 'platform' => 'meta'];
+
+    $data = json_decode($response, true);
+
+    if ($debug) return ['debug' => true, 'http_code' => $http_code, 'raw' => $data];
+
+    if (isset($data['error'])) {
+        return ['error' => $data['error']['message'] ?? 'Error Meta API', 'platform' => 'meta'];
+    }
+
+    $leadActionTypes = ['lead', 'offsite_conversion.fb_pixel_lead', 'onsite_conversion.lead_grouped', 'onsite_conversion.messaging_conversation_started_7d'];
+    $campaigns = [];
+    $currency  = 'USD';
+
+    foreach ($data['data'] ?? [] as $row) {
+        $leads    = 0;
+        $messages = 0;
+        foreach ($row['actions'] ?? [] as $act) {
+            if (in_array($act['action_type'], $leadActionTypes)) {
+                $leads += (int)($act['value'] ?? 0);
+            }
+            if (strpos($act['action_type'], 'messaging') !== false || strpos($act['action_type'], 'message') !== false) {
+                $messages += (int)($act['value'] ?? 0);
+            }
+        }
+        if ($row['account_currency'] ?? '') $currency = $row['account_currency'];
+
+        $name = $row['campaign_name'] ?? '';
+        $campaigns[] = [
+            'id'          => $row['campaign_id'] ?? '',
+            'name'        => $name,
+            'stage'       => detectFunnelStage($name),
+            'spend'       => round((float)($row['spend']       ?? 0), 2),
+            'impressions' => (int)($row['impressions'] ?? 0),
+            'clicks'      => (int)($row['clicks']      ?? 0),
+            'reach'       => (int)($row['reach']       ?? 0),
+            'leads'       => $leads,
+            'messages'    => $messages,
+        ];
+    }
+
+    usort($campaigns, fn($a, $b) => strcmp($a['stage'], $b['stage']));
+
+    return [
+        'platform'   => 'meta',
+        'account_id' => $account_id,
+        'currency'   => $currency,
+        'campaigns'  => $campaigns,
+        'date_from'  => $date_from,
+        'date_to'    => $date_to,
+    ];
+}
+
+// ─── GOOGLE ADS DETALLE (nivel campaña) ──────────────────────────────────────
+
+function getGoogleCampaignDetail(string $customer_id, string $date_from, string $date_to, bool $debug = false): array {
+    if (!defined('GOOGLE_DEVELOPER_TOKEN') || !defined('GOOGLE_MCC_ID')) {
+        return ['error' => 'GOOGLE_DEVELOPER_TOKEN o GOOGLE_MCC_ID no configurados', 'platform' => 'google'];
+    }
+
+    $token = getGoogleAccessToken();
+    if (isset($token['error'])) return ['error' => $token['error'], 'platform' => 'google'];
+
+    $cid = preg_replace('/[^0-9]/', '', $customer_id);
+    $mcc = preg_replace('/[^0-9]/', '', GOOGLE_MCC_ID);
+
+    // Sin segments.date en SELECT → devuelve totales del período por campaña
+    $query = "SELECT campaign.id, campaign.name, campaign.status, customer.currency_code,
+                     metrics.cost_micros, metrics.impressions, metrics.clicks, metrics.conversions
+              FROM campaign
+              WHERE segments.date BETWEEN '{$date_from}' AND '{$date_to}'
+                AND campaign.status != 'REMOVED'";
+
+    $versions = ['v22', 'v21'];
+    $response = null; $http_code = 0; $curl_err = ''; $used_ver = '';
+
+    foreach ($versions as $ver) {
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL            => "https://googleads.googleapis.com/{$ver}/customers/{$cid}/googleAds:search",
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => json_encode(['query' => $query]),
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 15,
+            CURLOPT_HTTPHEADER     => [
+                'Authorization: Bearer ' . $token['access_token'],
+                'developer-token: '      . GOOGLE_DEVELOPER_TOKEN,
+                'login-customer-id: '    . $mcc,
+                'Content-Type: application/json',
+            ],
+        ]);
+        $response  = curl_exec($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curl_err  = curl_error($ch);
+        curl_close($ch);
+        if ($curl_err) break;
+        if ($http_code === 200) { $used_ver = $ver; break; }
+        $tmp    = json_decode($response, true);
+        $reqErr = $tmp['error']['details'][0]['errors'][0]['errorCode']['requestError'] ?? '';
+        if ($http_code !== 404 && $reqErr !== 'UNSUPPORTED_VERSION') { $used_ver = $ver; break; }
+    }
+
+    if ($curl_err) return ['error' => "cURL error: {$curl_err}", 'platform' => 'google'];
+
+    $data = json_decode($response, true);
+    if ($debug) return ['debug' => true, 'http_code' => $http_code, 'api_version' => $used_ver, 'raw' => $data];
+    if (isset($data['error'])) {
+        $msg = $data['error']['message'] ?? 'Error Google Ads API';
+        return ['error' => $msg, 'platform' => 'google'];
+    }
+
+    // Agregar por campaña (la query puede devolver filas por día)
+    $bycamp   = [];
+    $currency = 'USD';
+    foreach ($data['results'] ?? [] as $row) {
+        $id   = $row['campaign']['id']   ?? '';
+        $name = $row['campaign']['name'] ?? '';
+        if ($row['customer']['currencyCode'] ?? '') $currency = $row['customer']['currencyCode'];
+        if (!isset($bycamp[$id])) {
+            $bycamp[$id] = [
+                'id'          => $id,
+                'name'        => $name,
+                'stage'       => detectFunnelStage($name),
+                'spend'       => 0.0,
+                'impressions' => 0,
+                'clicks'      => 0,
+                'leads'       => 0.0,
+                'reach'       => 0,
+            ];
+        }
+        $bycamp[$id]['spend']       += round((int)($row['metrics']['costMicros'] ?? 0) / 1000000, 2);
+        $bycamp[$id]['impressions'] += (int)($row['metrics']['impressions'] ?? 0);
+        $bycamp[$id]['clicks']      += (int)($row['metrics']['clicks']      ?? 0);
+        $bycamp[$id]['leads']       += round((float)($row['metrics']['conversions'] ?? 0), 1);
+    }
+
+    $campaigns = array_values($bycamp);
+    usort($campaigns, fn($a, $b) => strcmp($a['stage'], $b['stage']));
+
+    return [
+        'platform'    => 'google',
+        'account_id'  => $customer_id,
+        'currency'    => $currency,
+        'campaigns'   => $campaigns,
+        'date_from'   => $date_from,
+        'date_to'     => $date_to,
+        '_api_version' => $used_ver,
     ];
 }

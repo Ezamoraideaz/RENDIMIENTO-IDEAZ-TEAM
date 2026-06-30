@@ -395,8 +395,14 @@ const PautaMonitor = (() => {
             ${dailyPaceHtml}
           </div>
         </div>
-        <button onclick="PautaMonitor.openClientModal('${client.id}')" title="Editar cliente"
-          class="text-slate-500 hover:text-slate-300 text-lg leading-none flex-shrink-0 transition-colors">⚙</button>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <button onclick="PautaMonitor.openBrandModal('${client.id}')" title="Ver detalle de campañas"
+            class="text-xs font-semibold text-indigo-400 hover:text-indigo-300 border border-indigo-600/50 hover:border-indigo-400 px-2.5 py-1 rounded-lg transition-colors">
+            📊 Detalle
+          </button>
+          <button onclick="PautaMonitor.openClientModal('${client.id}')" title="Editar cliente"
+            class="text-slate-500 hover:text-slate-300 text-lg leading-none transition-colors">⚙</button>
+        </div>
       </div>
 
       <!-- Global progress -->
@@ -760,6 +766,354 @@ const PautaMonitor = (() => {
     return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  // ── Brand Detail Modal ─────────────────────────────────────────────────────
+
+  const LS_LEADS = 'pauta_leads';
+
+  function _leadsKey(clientId, from, to) { return `${clientId}:${from}:${to}`; }
+
+  function _loadLeads(clientId, from, to) {
+    try {
+      const all = JSON.parse(localStorage.getItem(LS_LEADS) || '{}');
+      return all[_leadsKey(clientId, from, to)] || { total: 0, qualified: 0 };
+    } catch { return { total: 0, qualified: 0 }; }
+  }
+
+  function _saveLeads(clientId, from, to, data) {
+    try {
+      const all = JSON.parse(localStorage.getItem(LS_LEADS) || '{}');
+      all[_leadsKey(clientId, from, to)] = data;
+      localStorage.setItem(LS_LEADS, JSON.stringify(all));
+    } catch {}
+  }
+
+  async function openBrandModal(clientId) {
+    const client = _clients.find(c => c.id === clientId);
+    if (!client) return;
+    const { from, to } = _dateRange();
+    if (!from || !to) { alert('Selecciona un período primero.'); return; }
+
+    document.body.insertAdjacentHTML('beforeend', `
+      <div id="brand-modal-overlay" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl">
+          <div class="p-5 border-b border-slate-700 flex items-center justify-between">
+            <h2 class="font-bold text-slate-100 text-lg">${_esc(client.name)}</h2>
+            <button onclick="PautaMonitor.closeBrandModal()" class="text-slate-400 hover:text-slate-100 text-2xl leading-none">×</button>
+          </div>
+          <div class="flex items-center justify-center py-20 text-slate-400 gap-3">
+            <div class="animate-spin w-7 h-7 border-2 border-indigo-500 border-t-transparent rounded-full"></div>
+            <span class="text-sm">Cargando campañas…</span>
+          </div>
+        </div>
+      </div>`);
+
+    const detailData = {};
+    const calls = [];
+    for (const plat of (client.platforms || [])) {
+      if (!plat.enabled) continue;
+      const accountId = plat.account_id || plat.customer_id || plat.advertiser_id || '';
+      if (!accountId) continue;
+      const detailPlat = plat.platform === 'google' ? 'google_detail'
+                       : plat.platform === 'meta'   ? 'meta_detail' : null;
+      if (!detailPlat) continue;
+      const url = `${API_PATH}?platform=${encodeURIComponent(detailPlat)}&account_id=${encodeURIComponent(accountId)}&from=${from}&to=${to}`;
+      calls.push(
+        fetch(url).then(r => r.json())
+          .then(data => { detailData[plat.platform] = data; })
+          .catch(() => { detailData[plat.platform] = { error: 'Sin conexión al servidor' }; })
+      );
+    }
+    await Promise.all(calls);
+
+    document.getElementById('brand-modal-overlay')?.remove();
+    _renderBrandModal(client, detailData, from, to);
+  }
+
+  function _detectStage(name) {
+    const n = (name || '').toLowerCase();
+    if (/\bf1\b|\[f1\]|-f1-|_f1_|\btof\b/.test(n)) return 'tof';
+    if (/\bf2\b|\[f2\]|-f2-|_f2_|\bmof\b/.test(n)) return 'mof';
+    if (/\bf3\b|\[f3\]|-f3-|_f3_|\bbof\b/.test(n)) return 'bof';
+    return 'other';
+  }
+
+  function _groupByStage(detailData) {
+    const stages = { tof: [], mof: [], bof: [], other: [] };
+    for (const [platform, data] of Object.entries(detailData)) {
+      if (data.error || !Array.isArray(data.campaigns)) continue;
+      for (const c of data.campaigns) {
+        const stage = c.stage || _detectStage(c.name);
+        (stages[stage] = stages[stage] || []).push({ ...c, platform });
+      }
+    }
+    return stages;
+  }
+
+  function _stageTotals(campaigns) {
+    return campaigns.reduce((a, c) => ({
+      spend:       a.spend       + (c.spend       || 0),
+      impressions: a.impressions + (c.impressions || 0),
+      clicks:      a.clicks      + (c.clicks      || 0),
+      leads:       a.leads       + (c.leads        || 0),
+      count:       a.count       + 1,
+    }), { spend: 0, impressions: 0, clicks: 0, leads: 0, count: 0 });
+  }
+
+  function _renderBrandModal(client, detailData, from, to) {
+    const stages = _groupByStage(detailData);
+    const tof = _stageTotals(stages.tof);
+    const mof = _stageTotals(stages.mof);
+    const bof = _stageTotals(stages.bof);
+
+    const apiLeads  = tof.leads + mof.leads + bof.leads;
+    const saved     = _loadLeads(client.id, from, to);
+    const totLeads  = saved.total     || apiLeads;
+    const qualified = saved.qualified || 0;
+    const unqual    = Math.max(0, totLeads - qualified);
+    const qualRate  = totLeads > 0 ? qualified / totLeads * 100 : 0;
+    const totalSpend = tof.spend + mof.spend + bof.spend;
+    const cpql = qualified > 0 ? totalSpend / qualified : 0;
+    const cpl  = totLeads  > 0 ? totalSpend / totLeads  : 0;
+    const totalImpr  = tof.impressions + mof.impressions + bof.impressions;
+    const totalClicks = tof.clicks + mof.clicks + bof.clicks;
+
+    document.body.insertAdjacentHTML('beforeend', `
+    <div id="brand-modal-overlay" onclick="PautaMonitor._brandOverlayClose(event)"
+      class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl">
+
+        <div class="p-5 border-b border-slate-700 flex items-center justify-between sticky top-0 bg-slate-900 z-10">
+          <div>
+            <h2 class="font-bold text-slate-100 text-lg">${_esc(client.name)}</h2>
+            <p class="text-xs text-slate-500 mt-0.5">${from} → ${to}</p>
+          </div>
+          <button onclick="PautaMonitor.closeBrandModal()" class="text-slate-400 hover:text-slate-100 text-2xl leading-none">×</button>
+        </div>
+
+        <div class="p-5 flex flex-col gap-6">
+
+          <div>
+            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">Embudo de conversión</p>
+            ${_renderFunnel(tof, mof, bof)}
+          </div>
+
+          <div>
+            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">KPIs del Trafficker</p>
+            ${_renderKPIs(tof, mof, bof, totalSpend, totLeads, qualified, unqual, totalImpr, totalClicks)}
+          </div>
+
+          <div class="bg-slate-800/60 rounded-2xl p-5 border border-slate-700">
+            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">Calidad de Leads</p>
+            ${_renderLeadQuality(totLeads, qualified, unqual, qualRate, cpl, cpql, client.id, from, to, apiLeads)}
+          </div>
+
+          ${_renderCampaignList(stages)}
+        </div>
+      </div>
+    </div>`);
+  }
+
+  function _renderFunnel(tof, mof, bof) {
+    const tofCPM = tof.impressions > 0 ? tof.spend / tof.impressions * 1000 : 0;
+    const tofCTR = tof.impressions > 0 ? tof.clicks / tof.impressions * 100  : 0;
+    const mofCPC = mof.clicks > 0      ? mof.spend / mof.clicks              : 0;
+    const bofCPL = bof.leads  > 0      ? bof.spend / bof.leads               : 0;
+
+    const row = (label, emoji, colorCls, bgCls, m, kpiVal, kpiDesc, indent) => {
+      const empty = m.count === 0;
+      return `
+      <div style="margin-left:${indent}px; margin-right:${indent}px">
+        <div class="border-l-4 ${colorCls} ${empty ? 'border-dashed opacity-50' : ''} bg-slate-800 rounded-xl p-4">
+          <div class="flex items-center justify-between mb-${empty ? '0' : '3'}">
+            <div class="flex items-center gap-2">
+              <span class="text-sm font-black ${bgCls} px-2 py-0.5 rounded-md text-xs">${label}</span>
+              ${empty ? '<span class="text-xs text-slate-600">Sin campañas configuradas</span>' : `<span class="text-xs text-slate-500">${emoji} ${m.count} campaña${m.count !== 1 ? 's' : ''}</span>`}
+            </div>
+            ${empty ? '' : `<span class="text-slate-100 font-bold text-sm">$${_fmt(m.spend)}</span>`}
+          </div>
+          ${empty ? '' : `
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div><span class="text-slate-500 block">Impresiones</span><strong class="text-slate-200">${_fmtNum(m.impressions)}</strong></div>
+            <div><span class="text-slate-500 block">Clicks</span><strong class="text-slate-200">${_fmtNum(m.clicks)}</strong></div>
+            ${m.leads > 0 ? `<div><span class="text-slate-500 block">Leads API</span><strong class="text-slate-200">${m.leads}</strong></div>` : ''}
+            <div><span class="text-slate-500 block">${kpiDesc}</span><strong class="${bgCls}">${kpiVal}</strong></div>
+          </div>`}
+        </div>
+      </div>`;
+    };
+
+    const arrow = `<div class="flex justify-center text-slate-700 text-xl py-1">▼</div>`;
+
+    return `
+    <div class="flex flex-col gap-0">
+      ${row('TOF · F1', '📢', 'border-blue-500',    'text-blue-400 bg-blue-500/10',    tof, tofCPM > 0 ? `CPM $${_fmtShort(tofCPM)}` : '—', 'CPM', 0)}
+      ${arrow}
+      ${row('MOF · F2', '🎯', 'border-yellow-500',  'text-yellow-400 bg-yellow-500/10', mof, mofCPC > 0 ? `CPC $${_fmtShort(mofCPC)}` : '—', 'CPC', 24)}
+      ${arrow}
+      ${row('BOF · F3', '💰', 'border-emerald-500', 'text-emerald-400 bg-emerald-500/10', bof, bofCPL > 0 ? `CPL $${_fmtShort(bofCPL)}` : '—', 'CPL', 48)}
+    </div>`;
+  }
+
+  function _renderKPIs(tof, mof, bof, totalSpend, totLeads, qualified, unqual, totalImpr, totalClicks) {
+    const cpm      = totalImpr   > 0 ? totalSpend / totalImpr   * 1000 : 0;
+    const ctr      = totalImpr   > 0 ? totalClicks / totalImpr  * 100  : 0;
+    const cpc      = totalClicks > 0 ? totalSpend / totalClicks         : 0;
+    const cpl      = totLeads    > 0 ? totalSpend / totLeads            : 0;
+    const cpql     = qualified   > 0 ? totalSpend / qualified           : 0;
+    const qualRate = totLeads    > 0 ? qualified  / totLeads    * 100   : 0;
+
+    const qColor   = qualRate >= 60 ? 'text-emerald-400' : qualRate >= 40 ? 'text-yellow-400' : 'text-red-400';
+
+    const kpi = (icon, label, val, sub, valCls = 'text-slate-100') => `
+      <div class="bg-slate-800 rounded-xl p-3 border border-slate-700 flex flex-col gap-1">
+        <div class="text-lg">${icon}</div>
+        <div class="text-base font-black ${valCls}">${val}</div>
+        <div class="text-xs text-slate-500 leading-tight">${label}</div>
+        ${sub ? `<div class="text-xs text-slate-600">${sub}</div>` : ''}
+      </div>`;
+
+    return `<div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      ${kpi('📡', 'CPM', cpm > 0 ? `$${_fmtShort(cpm)}` : '—', 'Costo por mil imp.')}
+      ${kpi('🖱️', 'CTR', ctr > 0 ? `${ctr.toFixed(2)}%` : '—', 'Clic ÷ impresiones')}
+      ${kpi('💸', 'CPC', cpc > 0 ? `$${_fmtShort(cpc)}` : '—', 'Costo por clic')}
+      ${kpi('📋', 'CPL Total', cpl > 0 ? `$${_fmtShort(cpl)}` : '—', 'Costo por lead total')}
+      ${kpi('📥', 'Leads', totLeads || '—', 'Del período')}
+      ${kpi('✅', 'Calificados', qualified || '—', `${qualRate.toFixed(0)}% tasa`, qualified > 0 ? qColor : 'text-slate-500')}
+      ${kpi('❌', 'No calificados', unqual || '—', 'Descartados', unqual > 0 ? 'text-red-400' : 'text-slate-500')}
+      ${kpi('🎯', 'CPQL', cpql > 0 ? `$${_fmtShort(cpql)}` : '—', 'Costo por lead calificado', cpql > 0 ? 'text-indigo-300' : 'text-slate-500')}
+    </div>`;
+  }
+
+  function _renderLeadQuality(total, qualified, unqual, qualRate, cpl, cpql, clientId, from, to, apiLeads) {
+    const qColor  = qualRate >= 60 ? 'text-emerald-400' : qualRate >= 40 ? 'text-yellow-400' : 'text-red-400';
+    const qBarW   = Math.round(Math.min(qualRate, 100));
+    const uBarW   = 100 - qBarW;
+
+    return `
+    <div class="flex flex-col gap-4">
+      <div class="grid grid-cols-3 gap-3 text-center">
+        <div>
+          <div class="text-3xl font-black text-slate-100">${total || 0}</div>
+          <div class="text-xs text-slate-500 mt-0.5">Leads totales</div>
+        </div>
+        <div>
+          <div class="text-3xl font-black text-emerald-400">${qualified || 0}</div>
+          <div class="text-xs text-slate-500 mt-0.5">Calificados</div>
+          ${cpql > 0 ? `<div class="text-xs text-slate-600">$${_fmtShort(cpql)} c/u</div>` : ''}
+        </div>
+        <div>
+          <div class="text-3xl font-black text-red-400">${unqual || 0}</div>
+          <div class="text-xs text-slate-500 mt-0.5">No calificados</div>
+        </div>
+      </div>
+
+      ${total > 0 ? `
+      <div>
+        <div class="flex justify-between text-xs mb-1.5 font-semibold">
+          <span class="text-slate-400">Tasa de calificación</span>
+          <span class="${qColor}">${qualRate.toFixed(1)}%</span>
+        </div>
+        <div class="w-full h-3 bg-slate-700 rounded-full overflow-hidden flex">
+          <div class="h-full bg-emerald-500 rounded-l-full transition-all" style="width:${qBarW}%"></div>
+          <div class="h-full bg-red-500 ${uBarW > 0 ? 'rounded-r-full' : ''}" style="width:${uBarW}%"></div>
+        </div>
+        <div class="flex justify-between text-xs mt-1 text-slate-600">
+          <span>✅ Calificados ${qBarW}%</span>
+          <span>❌ No calificados ${uBarW}%</span>
+        </div>
+      </div>` : ''}
+
+      <div class="border-t border-slate-700 pt-4">
+        <p class="text-xs text-slate-500 mb-3 font-semibold">Registrar leads del período
+          ${apiLeads > 0 ? `<span class="ml-2 text-slate-600 font-normal">(API detectó ${apiLeads} leads)</span>` : ''}
+        </p>
+        <div class="grid grid-cols-2 gap-3 mb-3">
+          <div>
+            <label class="text-xs text-slate-500 block mb-1">Leads totales recibidos</label>
+            <input type="number" id="bm-total" value="${total || (apiLeads > 0 ? apiLeads : '')}" min="0" placeholder="0"
+              class="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+          </div>
+          <div>
+            <label class="text-xs text-slate-500 block mb-1">¿Cuántos eran calificados?</label>
+            <input type="number" id="bm-qualified" value="${qualified || ''}" min="0" placeholder="0"
+              class="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+          </div>
+        </div>
+        <button onclick="PautaMonitor._saveLeadInput('${clientId}','${from}','${to}')"
+          class="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors">
+          Guardar registro de leads
+        </button>
+      </div>
+    </div>`;
+  }
+
+  function _saveLeadInput(clientId, from, to) {
+    const total     = parseInt(document.getElementById('bm-total')?.value     || '0') || 0;
+    const qualified = parseInt(document.getElementById('bm-qualified')?.value || '0') || 0;
+    if (qualified > total) { alert('Los calificados no pueden superar el total.'); return; }
+    _saveLeads(clientId, from, to, { total, qualified });
+    closeBrandModal();
+    openBrandModal(clientId);
+  }
+
+  function _renderCampaignList(stages) {
+    const all = [
+      ...stages.tof.map(c => ({ ...c, stL: 'TOF · F1', stC: 'text-blue-400',    stB: 'bg-blue-500/10 border-blue-500/30'    })),
+      ...stages.mof.map(c => ({ ...c, stL: 'MOF · F2', stC: 'text-yellow-400',  stB: 'bg-yellow-500/10 border-yellow-500/30'  })),
+      ...stages.bof.map(c => ({ ...c, stL: 'BOF · F3', stC: 'text-emerald-400', stB: 'bg-emerald-500/10 border-emerald-500/30' })),
+      ...stages.other.map(c => ({ ...c, stL: 'Sin etapa', stC: 'text-slate-400', stB: 'bg-slate-700/30 border-slate-600' })),
+    ];
+    if (all.length === 0) return '';
+
+    return `
+    <div>
+      <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Desglose por campaña</p>
+      <div class="flex flex-col gap-2">
+        ${all.map(c => {
+          const cpm = c.impressions > 0 ? c.spend / c.impressions * 1000 : 0;
+          const cpc = c.clicks > 0      ? c.spend / c.clicks             : 0;
+          const cpl = c.leads  > 0      ? c.spend / c.leads              : 0;
+          const platIcon = c.platform === 'meta' ? '📘' : c.platform === 'google' ? '🔴' : '📡';
+          return `
+          <div class="bg-slate-800 rounded-xl p-3.5 border border-slate-700">
+            <div class="flex items-start justify-between gap-2 mb-3">
+              <span class="text-sm text-slate-200 font-medium leading-snug">${platIcon} ${_esc(c.name)}</span>
+              <span class="text-xs font-bold ${c.stC} border ${c.stB} rounded-lg px-2 py-0.5 flex-shrink-0">${c.stL}</span>
+            </div>
+            <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 text-xs">
+              <div><span class="text-slate-500 block">Spend</span><strong class="text-slate-100">$${_fmt(c.spend)}</strong></div>
+              <div><span class="text-slate-500 block">Imp.</span><strong class="text-slate-100">${_fmtNum(c.impressions || 0)}</strong></div>
+              <div><span class="text-slate-500 block">Clicks</span><strong class="text-slate-100">${_fmtNum(c.clicks || 0)}</strong></div>
+              <div><span class="text-slate-500 block">CPM</span><strong class="text-blue-300">${cpm > 0 ? '$' + _fmtShort(cpm) : '—'}</strong></div>
+              <div><span class="text-slate-500 block">CPC</span><strong class="text-yellow-300">${cpc > 0 ? '$' + _fmtShort(cpc) : '—'}</strong></div>
+              <div><span class="text-slate-500 block">${c.leads > 0 ? 'Leads / CPL' : 'Leads'}</span><strong class="text-emerald-300">${c.leads > 0 ? `${c.leads} / $${_fmtShort(cpl)}` : '—'}</strong></div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }
+
+  function _brandOverlayClose(e) {
+    if (e.target.id === 'brand-modal-overlay') closeBrandModal();
+  }
+
+  function closeBrandModal() {
+    document.getElementById('brand-modal-overlay')?.remove();
+  }
+
+  function _fmtNum(n) {
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+    if (n >= 1000)    return (n / 1000).toFixed(1) + 'K';
+    return String(Math.round(n || 0));
+  }
+
+  function _fmtShort(n) {
+    const v = Number(n || 0);
+    if (v >= 1000) return (v / 1000).toFixed(1) + 'K';
+    return v.toFixed(2);
+  }
+
   // ── Init ───────────────────────────────────────────────────────────────────
 
   function init() {
@@ -784,5 +1138,9 @@ const PautaMonitor = (() => {
     _overlayClose,
     _onGlobalBudgetChange,
     _onPlatBudgetChange,
+    openBrandModal,
+    closeBrandModal,
+    _brandOverlayClose,
+    _saveLeadInput,
   };
 })();
