@@ -820,13 +820,13 @@ const PautaMonitor = (() => {
 
     document.body.insertAdjacentHTML('beforeend', `
       <div id="brand-modal-overlay" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl">
-          <div class="p-5 border-b border-slate-700 flex items-center justify-between">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-5xl max-h-[92vh] overflow-hidden shadow-2xl">
+          <div class="px-6 py-4 border-b border-slate-700 flex items-center justify-between">
             <h2 class="font-bold text-slate-100 text-lg">${_esc(client.name)}</h2>
             <button onclick="PautaMonitor.closeBrandModal()" class="text-slate-400 hover:text-slate-100 text-2xl leading-none">×</button>
           </div>
-          <div class="flex items-center justify-center py-20 text-slate-400 gap-3">
-            <div class="animate-spin w-7 h-7 border-2 border-indigo-500 border-t-transparent rounded-full"></div>
+          <div class="flex flex-col items-center justify-center py-28 text-slate-400 gap-4">
+            <div class="animate-spin w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full"></div>
             <span class="text-sm">Cargando campañas…</span>
           </div>
         </div>
@@ -901,45 +901,162 @@ const PautaMonitor = (() => {
     const cpl  = totLeads  > 0 ? totalSpend / totLeads  : 0;
     const totalImpr  = tof.impressions + mof.impressions + bof.impressions;
     const totalClicks = tof.clicks + mof.clicks + bof.clicks;
+    const campCount  = tof.count + mof.count + bof.count + stages.other.length;
+
+    // Indicador de salud global (cruza calidad de leads + fatiga)
+    const fatigue = _fatigueAnalyze(detailData);
+    const health  = _overallHealth(qualRate, fatigue ? fatigue.worst : null, totLeads);
+
+    // Estado de plataformas + errores
+    const platEntries = Object.entries(detailData);
+    const platBadges  = platEntries.map(([p, d]) => {
+      const ok = !d.error;
+      return `<span title="${ok ? p : _esc(d.error)}"
+        class="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg border ${ok ? 'border-slate-700 text-slate-300 bg-slate-800/60' : 'border-red-500/40 text-red-400 bg-red-500/10'}">
+        ${_platIcon(p, 13)}${ok ? '' : '<span>⚠</span>'}</span>`;
+    }).join('');
+    const errors = platEntries.filter(([, d]) => d.error);
+    const errorBanner = errors.length ? `
+      <div class="mb-5 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-xs text-red-300 flex flex-col gap-1">
+        ${errors.map(([p, d]) => `<div>⚠ <strong class="uppercase">${_esc(p)}</strong>: ${_esc(d.error)}</div>`).join('')}
+      </div>` : '';
+
+    // Contenido de paneles (con estados vacíos amigables)
+    const fatigueHtml = _renderFatigue(detailData) || _emptyPanel('No hay datos de frecuencia de Meta Ads en este período. El detector de fatiga requiere campañas activas en Meta.');
+    const simHtml     = _renderSimulator(stages, totalSpend, totLeads, qualified) || _emptyPanel('Se necesita inversión registrada en el período para simular la redistribución de presupuesto.');
+    const campHtml    = _renderCampaignList(stages) || _emptyPanel('No se encontraron campañas activas en este período.');
+
+    const heroCard = (label, value, sub, valCls = 'text-slate-100') => `
+      <div class="bg-slate-800/60 border border-slate-700/60 rounded-xl px-4 py-3">
+        <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">${label}</div>
+        <div class="text-xl font-black ${valCls} mt-1.5 leading-none">${value}</div>
+        ${sub ? `<div class="text-[11px] text-slate-500 mt-1.5">${sub}</div>` : ''}
+      </div>`;
+
+    const tabs = [
+      { key: 'resumen',     label: 'Resumen' },
+      { key: 'leads',       label: 'Leads' },
+      { key: 'diagnostico', label: 'Diagnóstico' },
+      { key: 'simulador',   label: 'Simulador' },
+      { key: 'campanas',    label: 'Campañas' },
+    ];
+    const tabBtns = tabs.map((t, i) => `
+      <button onclick="PautaMonitor._switchBrandTab('${t.key}')" data-tab="${t.key}"
+        class="bm-tab whitespace-nowrap px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${i === 0 ? 'text-indigo-300 border-indigo-500' : 'text-slate-400 border-transparent hover:text-slate-200'}">
+        ${t.label}</button>`).join('');
 
     document.body.insertAdjacentHTML('beforeend', `
     <div id="brand-modal-overlay" onclick="PautaMonitor._brandOverlayClose(event)"
       class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-      <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl">
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
 
-        <div class="p-5 border-b border-slate-700 flex items-center justify-between sticky top-0 bg-slate-900 z-10">
-          <div>
-            <h2 class="font-bold text-slate-100 text-lg">${_esc(client.name)}</h2>
-            <p class="text-xs text-slate-500 mt-0.5">${from} → ${to}</p>
+        <!-- Header -->
+        <div class="px-6 py-4 border-b border-slate-700 flex items-start justify-between gap-4 flex-shrink-0">
+          <div class="min-w-0">
+            <div class="flex items-center gap-3 flex-wrap">
+              <h2 class="font-bold text-slate-100 text-lg truncate">${_esc(client.name)}</h2>
+              <span class="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full border ${health.cls} flex-shrink-0">
+                <span class="w-1.5 h-1.5 rounded-full ${health.dot}"></span>${health.label}
+              </span>
+            </div>
+            <p class="text-xs text-slate-500 mt-1">${from} → ${to}</p>
           </div>
-          <button onclick="PautaMonitor.closeBrandModal()" class="text-slate-400 hover:text-slate-100 text-2xl leading-none">×</button>
+          <div class="flex items-center gap-2 flex-shrink-0">
+            ${platBadges}
+            <button onclick="PautaMonitor.closeBrandModal()" class="ml-1 text-slate-400 hover:text-slate-100 text-2xl leading-none">×</button>
+          </div>
         </div>
 
-        <div class="p-5 flex flex-col gap-6">
+        <!-- Métricas hero -->
+        <div class="px-6 py-4 border-b border-slate-700 bg-slate-900/40 flex-shrink-0 grid grid-cols-2 sm:grid-cols-4 gap-3">
+          ${heroCard('Inversión total', '$' + _fmt(totalSpend), `${campCount} campaña${campCount !== 1 ? 's' : ''}`)}
+          ${heroCard('Leads', totLeads || '—', qualified > 0 ? `${qualified} calificados` : 'sin registrar')}
+          ${heroCard('CPQL', cpql > 0 ? '$' + _fmtShort(cpql) : '—', 'costo / lead calificado', 'text-indigo-300')}
+          ${heroCard('Tasa calificación', totLeads > 0 ? qualRate.toFixed(0) + '%' : '—', 'calificados / total',
+            totLeads > 0 ? (qualRate >= 60 ? 'text-emerald-400' : qualRate >= 40 ? 'text-yellow-400' : 'text-red-400') : 'text-slate-100')}
+        </div>
 
-          <div>
-            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">Embudo de conversión</p>
-            ${_renderFunnel(tof, mof, bof)}
+        <!-- Pestañas -->
+        <div class="px-3 border-b border-slate-700 flex-shrink-0 overflow-x-auto">
+          <div class="flex">${tabBtns}</div>
+        </div>
+
+        <!-- Paneles -->
+        <div id="bm-scroll" class="overflow-y-auto flex-1 p-6">
+          ${errorBanner}
+
+          <div id="bm-panel-resumen" class="bm-panel flex flex-col gap-6">
+            <div>
+              <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">Embudo de conversión</p>
+              ${_renderFunnel(tof, mof, bof)}
+            </div>
+            <div>
+              <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">KPIs del Trafficker</p>
+              ${_renderKPIs(tof, mof, bof, totalSpend, totLeads, qualified, unqual, totalImpr, totalClicks)}
+            </div>
           </div>
 
-          <div>
-            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">KPIs del Trafficker</p>
-            ${_renderKPIs(tof, mof, bof, totalSpend, totLeads, qualified, unqual, totalImpr, totalClicks)}
-          </div>
-
-          <div class="bg-slate-800/60 rounded-2xl p-5 border border-slate-700">
-            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">Calidad de Leads</p>
+          <div id="bm-panel-leads" class="bm-panel flex flex-col gap-4" style="display:none">
+            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Calidad de leads</p>
             ${_renderLeadQuality(totLeads, qualified, unqual, qualRate, cpl, cpql, client.id, from, to, apiLeads)}
           </div>
 
-          ${_renderFatigue(detailData)}
+          <div id="bm-panel-diagnostico" class="bm-panel" style="display:none">
+            ${fatigueHtml}
+          </div>
 
-          ${_renderSimulator(stages, totalSpend, totLeads, qualified)}
+          <div id="bm-panel-simulador" class="bm-panel" style="display:none">
+            ${simHtml}
+          </div>
 
-          ${_renderCampaignList(stages)}
+          <div id="bm-panel-campanas" class="bm-panel" style="display:none">
+            ${campHtml}
+          </div>
         </div>
       </div>
     </div>`);
+  }
+
+  function _switchBrandTab(key) {
+    document.querySelectorAll('#brand-modal-overlay .bm-panel').forEach(el => {
+      el.style.display = (el.id === 'bm-panel-' + key) ? '' : 'none';
+    });
+    document.querySelectorAll('#brand-modal-overlay .bm-tab').forEach(el => {
+      const active = el.dataset.tab === key;
+      el.classList.toggle('text-indigo-300', active);
+      el.classList.toggle('border-indigo-500', active);
+      el.classList.toggle('text-slate-400', !active);
+      el.classList.toggle('border-transparent', !active);
+    });
+    const scroll = document.getElementById('bm-scroll');
+    if (scroll) scroll.scrollTop = 0;
+  }
+
+  function _emptyPanel(msg) {
+    return `<div class="flex flex-col items-center justify-center py-16 text-center text-slate-500 gap-3">
+      <div class="w-12 h-12 rounded-full border-2 border-dashed border-slate-700 flex items-center justify-center text-slate-600 text-xl">∅</div>
+      <p class="text-sm max-w-sm leading-relaxed">${msg}</p>
+    </div>`;
+  }
+
+  function _overallHealth(qualRate, fatigueWorst, totLeads) {
+    let level = 'ok';
+    if (totLeads > 0) {
+      if (qualRate < 40)      level = 'bad';
+      else if (qualRate < 60) level = 'warn';
+    } else {
+      level = 'neutral';
+    }
+    if (fatigueWorst === 'critical')                       level = 'bad';
+    else if (fatigueWorst === 'danger' && level === 'ok')  level = 'warn';
+
+    const map = {
+      ok:      { label: 'Saludable', cls: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30', dot: 'bg-emerald-500' },
+      warn:    { label: 'Atención',  cls: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',     dot: 'bg-yellow-400' },
+      bad:     { label: 'Crítico',   cls: 'bg-red-500/15 text-red-400 border-red-500/30',              dot: 'bg-red-500 animate-pulse' },
+      neutral: { label: 'Sin leads', cls: 'bg-slate-700/40 text-slate-400 border-slate-600',           dot: 'bg-slate-500' },
+    };
+    return map[level];
   }
 
   function _renderFunnel(tof, mof, bof) {
@@ -993,23 +1110,22 @@ const PautaMonitor = (() => {
 
     const qColor   = qualRate >= 60 ? 'text-emerald-400' : qualRate >= 40 ? 'text-yellow-400' : 'text-red-400';
 
-    const kpi = (icon, label, val, sub, valCls = 'text-slate-100') => `
-      <div class="bg-slate-800 rounded-xl p-3 border border-slate-700 flex flex-col gap-1">
-        <div class="text-lg">${icon}</div>
-        <div class="text-base font-black ${valCls}">${val}</div>
-        <div class="text-xs text-slate-500 leading-tight">${label}</div>
-        ${sub ? `<div class="text-xs text-slate-600">${sub}</div>` : ''}
+    const kpi = (label, val, sub, valCls = 'text-slate-100', accent = 'border-slate-700/60') => `
+      <div class="bg-slate-800/60 rounded-xl p-3.5 border ${accent}">
+        <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">${label}</div>
+        <div class="text-lg font-black ${valCls} mt-1.5 leading-none">${val}</div>
+        <div class="text-[11px] text-slate-500 mt-1.5 leading-tight">${sub}</div>
       </div>`;
 
-    return `<div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
-      ${kpi('📡', 'CPM', cpm > 0 ? `$${_fmtShort(cpm)}` : '—', 'Costo por mil imp.')}
-      ${kpi('🖱️', 'CTR', ctr > 0 ? `${ctr.toFixed(2)}%` : '—', 'Clic ÷ impresiones')}
-      ${kpi('💸', 'CPC', cpc > 0 ? `$${_fmtShort(cpc)}` : '—', 'Costo por clic')}
-      ${kpi('📋', 'CPL Total', cpl > 0 ? `$${_fmtShort(cpl)}` : '—', 'Costo por lead total')}
-      ${kpi('📥', 'Leads', totLeads || '—', 'Del período')}
-      ${kpi('✅', 'Calificados', qualified || '—', `${qualRate.toFixed(0)}% tasa`, qualified > 0 ? qColor : 'text-slate-500')}
-      ${kpi('❌', 'No calificados', unqual || '—', 'Descartados', unqual > 0 ? 'text-red-400' : 'text-slate-500')}
-      ${kpi('🎯', 'CPQL', cpql > 0 ? `$${_fmtShort(cpql)}` : '—', 'Costo por lead calificado', cpql > 0 ? 'text-indigo-300' : 'text-slate-500')}
+    return `<div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+      ${kpi('CPM', cpm > 0 ? `$${_fmtShort(cpm)}` : '—', 'costo / mil imp.')}
+      ${kpi('CTR', ctr > 0 ? `${ctr.toFixed(2)}%` : '—', 'clics / impresiones')}
+      ${kpi('CPC', cpc > 0 ? `$${_fmtShort(cpc)}` : '—', 'costo / clic')}
+      ${kpi('CPL', cpl > 0 ? `$${_fmtShort(cpl)}` : '—', 'costo / lead total')}
+      ${kpi('Leads', totLeads || '—', 'recibidos en el período')}
+      ${kpi('Calificados', qualified || '—', `${qualRate.toFixed(0)}% tasa de calificación`, qualified > 0 ? qColor : 'text-slate-500')}
+      ${kpi('No calificados', unqual || '—', 'descartados', unqual > 0 ? 'text-red-400' : 'text-slate-500')}
+      ${kpi('CPQL', cpql > 0 ? `$${_fmtShort(cpql)}` : '—', 'costo / lead calificado', cpql > 0 ? 'text-indigo-300' : 'text-slate-500', cpql > 0 ? 'border-indigo-500/30' : 'border-slate-700/60')}
     </div>`;
   }
 
@@ -1076,13 +1192,14 @@ const PautaMonitor = (() => {
     </div>`;
   }
 
-  function _saveLeadInput(clientId, from, to) {
+  async function _saveLeadInput(clientId, from, to) {
     const total     = parseInt(document.getElementById('bm-total')?.value     || '0') || 0;
     const qualified = parseInt(document.getElementById('bm-qualified')?.value || '0') || 0;
     if (qualified > total) { alert('Los calificados no pueden superar el total.'); return; }
     _saveLeads(clientId, from, to, { total, qualified });
     closeBrandModal();
-    openBrandModal(clientId);
+    await openBrandModal(clientId);
+    _switchBrandTab('leads');
   }
 
   // ── Simulador de Redistribución de Presupuesto ────────────────────────────
@@ -1323,9 +1440,9 @@ const PautaMonitor = (() => {
     unknown:  '—',
   };
 
-  function _renderFatigue(detailData) {
+  function _fatigueAnalyze(detailData) {
     const metaData = detailData?.meta;
-    if (!metaData || metaData.error || !Array.isArray(metaData.campaigns)) return '';
+    if (!metaData || metaData.error || !Array.isArray(metaData.campaigns)) return null;
 
     // Solo campañas Meta con datos de frecuencia o suficientes impresiones para calcularla
     const campaigns = metaData.campaigns
@@ -1336,13 +1453,20 @@ const PautaMonitor = (() => {
         return { ...c, freq: Math.round(freq * 100) / 100, ctr: Math.round(ctr * 100) / 100 };
       });
 
-    if (campaigns.length === 0) return '';
+    if (campaigns.length === 0) return null;
 
-    const levels  = campaigns.map(c => _fatigueLevel(c.freq, c.ctr, c.stage));
-    const worst   = levels.includes('critical') ? 'critical'
-                  : levels.includes('danger')   ? 'danger'
-                  : levels.includes('warn')      ? 'warn' : 'ok';
-    const wCfg    = _fatigueConfig[worst];
+    const levels = campaigns.map(c => _fatigueLevel(c.freq, c.ctr, c.stage));
+    const worst  = levels.includes('critical') ? 'critical'
+                 : levels.includes('danger')   ? 'danger'
+                 : levels.includes('warn')      ? 'warn' : 'ok';
+    return { campaigns, worst };
+  }
+
+  function _renderFatigue(detailData) {
+    const analysis = _fatigueAnalyze(detailData);
+    if (!analysis) return '';
+    const { campaigns, worst } = analysis;
+    const wCfg = _fatigueConfig[worst];
 
     return `
     <div class="rounded-2xl border ${worst === 'ok' ? 'border-slate-700' : 'border-' + (worst === 'critical' ? 'red' : worst === 'danger' ? 'orange' : 'yellow') + '-500/30'} overflow-hidden">
@@ -1501,6 +1625,7 @@ const PautaMonitor = (() => {
     openBrandModal,
     closeBrandModal,
     _brandOverlayClose,
+    _switchBrandTab,
     _saveLeadInput,
     _updateSimulation,
   };
