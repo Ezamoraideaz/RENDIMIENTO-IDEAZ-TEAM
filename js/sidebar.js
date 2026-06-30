@@ -111,7 +111,7 @@ const Sidebar = (() => {
             <span class="text-white font-black text-sm">I</span>
           </div>
           <div class="sidebar-text min-w-0">
-            <div class="font-black text-slate-100 leading-none">IDEAZ</div>
+            <div class="font-black text-slate-100 leading-none">Monitor Ideaz</div>
             <div class="text-xs text-slate-400 font-medium">${logoSub}</div>
           </div>
         </a>
