@@ -12,6 +12,7 @@ const PautaMonitor = (() => {
   let _clients  = [];
   let _spend    = {};   // { 'clientId:platform:accountId': { total_spend, daily_data, currency, error } }
   let _loading  = false;
+  let _simState = null; // estado del simulador de presupuesto
   const _filters = { period: false, now: false };
 
   // ── Storage ────────────────────────────────────────────────────────────────
@@ -933,6 +934,8 @@ const PautaMonitor = (() => {
 
           ${_renderFatigue(detailData)}
 
+          ${_renderSimulator(stages, totalSpend, totLeads, qualified)}
+
           ${_renderCampaignList(stages)}
         </div>
       </div>
@@ -1080,6 +1083,209 @@ const PautaMonitor = (() => {
     _saveLeads(clientId, from, to, { total, qualified });
     closeBrandModal();
     openBrandModal(clientId);
+  }
+
+  // ── Simulador de Redistribución de Presupuesto ────────────────────────────
+
+  function _cascadeModifier(oldTofRatio, newTofRatio) {
+    // Más TOF = audiencia más caliente = BOF más eficiente (y viceversa)
+    // Cada 10% de aumento en ratio TOF mejora BOF ~4%; cada 10% de reducción lo penaliza ~7%
+    const delta = newTofRatio - oldTofRatio;
+    const mod   = delta >= 0 ? 1 + delta * 0.40 : 1 + delta * 0.70;
+    return Math.min(Math.max(mod, 0.40), 1.60); // clamped 40%–160%
+  }
+
+  function _renderSimulator(stages, totalSpend, totLeads, qualified) {
+    if (totalSpend <= 0) return '';
+
+    const tof = _stageTotals(stages.tof);
+    const mof = _stageTotals(stages.mof);
+    const bof = _stageTotals(stages.bof);
+
+    const tofPct = Math.round(tof.spend / totalSpend * 100);
+    const mofPct = Math.round(mof.spend / totalSpend * 100);
+    const bofPct = Math.round(bof.spend / totalSpend * 100);
+    const qualRate = totLeads > 0 ? qualified / totLeads : 0;
+
+    // Guardar estado base para _updateSimulation
+    _simState = {
+      total:    totalSpend,
+      qualRate,
+      currentLeads:     totLeads,
+      currentQualified: qualified,
+      currentCPQL:      qualified > 0 ? totalSpend / qualified : 0,
+      tof: {
+        pct: tofPct, spend: tof.spend,
+        cpm: tof.impressions > 0 ? tof.spend / tof.impressions * 1000 : 0,
+        ctr: tof.impressions > 0 ? tof.clicks / tof.impressions       : 0,
+        impressions: tof.impressions,
+      },
+      mof: {
+        pct: mofPct, spend: mof.spend,
+        cpl: mof.leads > 0 ? mof.spend / mof.leads : 0,
+        leads: mof.leads,
+      },
+      bof: {
+        pct: bofPct, spend: bof.spend,
+        cpl: bof.leads > 0 ? bof.spend / bof.leads : 0,
+        leads: bof.leads,
+      },
+    };
+
+    const hasBofData = bof.leads > 0;
+    const hasMofData = mof.leads > 0;
+
+    const sliderRow = (id, label, colorCls, trackCls, pct, budget, hasData) => `
+      <div>
+        <div class="flex items-center justify-between mb-1.5">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold ${colorCls} w-16">${label}</span>
+            ${!hasData ? '<span class="text-xs text-slate-600">sin datos históricos</span>' : ''}
+          </div>
+          <div class="flex items-center gap-3">
+            <span id="${id}-budget" class="text-xs text-slate-300 font-semibold w-20 text-right">$${_fmt(budget)}</span>
+            <span id="${id}-pct-label" class="text-xs text-slate-500 w-10 text-right">${pct}%</span>
+          </div>
+        </div>
+        <input type="range" id="${id}" min="0" max="100" step="1" value="${pct}"
+          oninput="PautaMonitor._updateSimulation()"
+          class="w-full h-2 rounded-full appearance-none cursor-pointer ${trackCls} accent-current ${colorCls}">
+      </div>`;
+
+    return `
+    <div class="rounded-2xl border border-indigo-500/30 overflow-hidden">
+      <div class="px-5 py-4 bg-indigo-950/40 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <span class="text-base">⚡</span>
+          <p class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Simulador de Presupuesto</p>
+        </div>
+        <span class="text-xs text-slate-400">Total fijo: <strong class="text-slate-200">$${_fmt(totalSpend)}</strong></span>
+      </div>
+
+      <div class="p-5 flex flex-col gap-5 bg-slate-900/60">
+
+        <!-- Sliders -->
+        <div class="flex flex-col gap-4">
+          ${sliderRow('sim-tof', 'TOF · F1', 'text-blue-400',    'bg-slate-700', tofPct, tof.spend, true)}
+          ${sliderRow('sim-mof', 'MOF · F2', 'text-yellow-400',  'bg-slate-700', mofPct, mof.spend, hasMofData)}
+          ${sliderRow('sim-bof', 'BOF · F3', 'text-emerald-400', 'bg-slate-700', bofPct, bof.spend, hasBofData)}
+          <div class="flex justify-between items-center pt-1 border-t border-slate-800 text-xs">
+            <span class="text-slate-500">Presupuesto sin asignar</span>
+            <span id="sim-remaining" class="font-black text-lg text-emerald-400">0%</span>
+          </div>
+        </div>
+
+        <!-- Nota cascada -->
+        <div id="sim-cascade-note" class="hidden text-xs px-3 py-2 rounded-xl"></div>
+
+        <!-- Comparación actual vs proyectado -->
+        <div>
+          <p class="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-3">Proyección de resultados</p>
+          <div class="bg-slate-800 rounded-xl overflow-hidden">
+            <div class="grid grid-cols-3 text-xs font-semibold text-slate-500 px-4 py-2 border-b border-slate-700">
+              <span>Métrica</span>
+              <span class="text-center">Actual</span>
+              <span class="text-center">Proyectado</span>
+            </div>
+            <div id="sim-rows" class="divide-y divide-slate-700/60">
+              ${_buildSimRows(_simState)}
+            </div>
+          </div>
+        </div>
+
+        ${!hasBofData ? '<p class="text-xs text-slate-600 text-center">Agrega leads en "Calidad de Leads" para activar la proyección de BOF.</p>' : ''}
+      </div>
+    </div>`;
+  }
+
+  function _buildSimRows(s, newTofPct, newMofPct, newBofPct) {
+    const tofPct = newTofPct ?? s.tof.pct;
+    const mofPct = newMofPct ?? s.mof.pct;
+    const bofPct = newBofPct ?? s.bof.pct;
+
+    const tofBudget = s.total * tofPct / 100;
+    const mofBudget = s.total * mofPct / 100;
+    const bofBudget = s.total * bofPct / 100;
+
+    const cascMod     = _cascadeModifier(s.tof.pct / 100, tofPct / 100);
+    const tofImprNew  = s.tof.cpm  > 0 ? tofBudget / s.tof.cpm * 1000 : 0;
+    const bofLeadsNew = s.bof.cpl  > 0 ? bofBudget / s.bof.cpl * cascMod : 0;
+    const mofLeadsNew = s.mof.cpl  > 0 ? mofBudget / s.mof.cpl : 0;
+    const totalLeads  = Math.round(bofLeadsNew + mofLeadsNew);
+    const qualifiedNew = Math.round(totalLeads * s.qualRate);
+    const cpqlNew     = qualifiedNew > 0 ? s.total / qualifiedNew : 0;
+
+    const row = (label, cur, proj, higherGood, isInt, prefix = '') => {
+      const isBase   = newTofPct === undefined;
+      const curFmt   = isInt ? _fmtNum(Math.round(cur))   : `${prefix}${_fmtShort(cur)}`;
+      const projFmt  = isInt ? _fmtNum(Math.round(proj))  : `${prefix}${_fmtShort(proj)}`;
+      const delta    = cur > 0 ? (proj - cur) / cur * 100 : 0;
+      const isGood   = higherGood ? delta >= 0 : delta <= 0;
+      const sign     = delta >= 0 ? '+' : '';
+      const dColor   = isBase ? 'text-slate-600' : (isGood ? 'text-emerald-400' : 'text-red-400');
+      const arrow    = isBase ? '' : (delta >= 0 ? '↑' : '↓');
+      return `
+      <div class="grid grid-cols-3 items-center px-4 py-2.5 text-xs">
+        <span class="text-slate-400">${label}</span>
+        <span class="text-center font-semibold text-slate-300">${curFmt}</span>
+        <div class="text-center">
+          <span class="font-bold ${isBase ? 'text-slate-300' : (isGood ? 'text-emerald-300' : 'text-red-300')}">${projFmt}</span>
+          ${!isBase && Math.abs(delta) >= 0.5 ? `<span class="${dColor} ml-1">${arrow}${sign}${Math.abs(delta).toFixed(0)}%</span>` : ''}
+        </div>
+      </div>`;
+    };
+
+    return [
+      row('Imp. TOF',          s.tof.impressions, tofImprNew,   true,  true),
+      row('Leads totales',     s.currentLeads,    totalLeads,   true,  true),
+      row('Calificados',       s.currentQualified, qualifiedNew, true,  true),
+      row('CPQL',              s.currentCPQL,     cpqlNew,      false, false, '$'),
+    ].join('');
+  }
+
+  function _updateSimulation() {
+    if (!_simState) return;
+    const s = _simState;
+
+    const tofPct = parseFloat(document.getElementById('sim-tof')?.value || 0);
+    const mofPct = parseFloat(document.getElementById('sim-mof')?.value || 0);
+    const bofPct = parseFloat(document.getElementById('sim-bof')?.value || 0);
+    const used   = tofPct + mofPct + bofPct;
+    const rem    = 100 - used;
+
+    // Actualizar etiquetas de % y presupuesto
+    [['sim-tof', tofPct], ['sim-mof', mofPct], ['sim-bof', bofPct]].forEach(([id, pct]) => {
+      const budget = s.total * pct / 100;
+      const lbl = document.getElementById(`${id}-pct-label`);
+      const bEl = document.getElementById(`${id}-budget`);
+      if (lbl) lbl.textContent = `${Math.round(pct)}%`;
+      if (bEl) bEl.textContent = `$${_fmt(budget)}`;
+    });
+
+    // Remaining
+    const remEl = document.getElementById('sim-remaining');
+    if (remEl) {
+      remEl.textContent = `${rem.toFixed(0)}%`;
+      remEl.className = `font-black text-lg ${Math.abs(rem) < 1 ? 'text-emerald-400' : rem < 0 ? 'text-red-400' : 'text-yellow-400'}`;
+    }
+
+    // Nota de cascada
+    const cascMod  = _cascadeModifier(s.tof.pct / 100, tofPct / 100);
+    const cascDiff = Math.round((cascMod - 1) * 100);
+    const noteEl   = document.getElementById('sim-cascade-note');
+    if (noteEl) {
+      if (Math.abs(cascDiff) >= 2) {
+        noteEl.textContent = `Efecto cascada: ${cascDiff > 0 ? '+' : ''}${cascDiff}% en eficiencia BOF por cambio de ratio TOF`;
+        noteEl.className   = `text-xs px-3 py-2 rounded-xl ${cascDiff > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`;
+        noteEl.classList.remove('hidden');
+      } else {
+        noteEl.classList.add('hidden');
+      }
+    }
+
+    // Actualizar filas de comparación
+    const rowsEl = document.getElementById('sim-rows');
+    if (rowsEl) rowsEl.innerHTML = _buildSimRows(s, tofPct, mofPct, bofPct);
   }
 
   // ── Detector de Fatiga de Audiencia ───────────────────────────────────────
@@ -1296,5 +1502,6 @@ const PautaMonitor = (() => {
     closeBrandModal,
     _brandOverlayClose,
     _saveLeadInput,
+    _updateSimulation,
   };
 })();
