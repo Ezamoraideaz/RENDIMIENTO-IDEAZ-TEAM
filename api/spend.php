@@ -301,7 +301,7 @@ function getMetaCampaignDetail(string $account_id, string $date_from, string $da
 
     $token      = META_ACCESS_TOKEN;
     $time_range = json_encode(['since' => $date_from, 'until' => $date_to]);
-    $fields     = 'campaign_id,campaign_name,spend,impressions,clicks,reach,actions,account_currency';
+    $fields     = 'campaign_id,campaign_name,spend,impressions,clicks,reach,frequency,actions,account_currency';
 
     $url = sprintf(
         'https://graph.facebook.com/v19.0/%s/insights?level=campaign&fields=%s&time_range=%s&access_token=%s&limit=100',
@@ -359,6 +359,7 @@ function getMetaCampaignDetail(string $account_id, string $date_from, string $da
             'impressions' => (int)($row['impressions'] ?? 0),
             'clicks'      => (int)($row['clicks']      ?? 0),
             'reach'       => (int)($row['reach']       ?? 0),
+            'frequency'   => round((float)($row['frequency'] ?? 0), 2),
             'leads'       => $leads,
             'messages'    => $messages,
         ];

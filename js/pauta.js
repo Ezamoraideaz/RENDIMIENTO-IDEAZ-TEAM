@@ -931,6 +931,8 @@ const PautaMonitor = (() => {
             ${_renderLeadQuality(totLeads, qualified, unqual, qualRate, cpl, cpql, client.id, from, to, apiLeads)}
           </div>
 
+          ${_renderFatigue(detailData)}
+
           ${_renderCampaignList(stages)}
         </div>
       </div>
@@ -1078,6 +1080,134 @@ const PautaMonitor = (() => {
     _saveLeads(clientId, from, to, { total, qualified });
     closeBrandModal();
     openBrandModal(clientId);
+  }
+
+  // ── Detector de Fatiga de Audiencia ───────────────────────────────────────
+
+  function _fatigueThresholds(stage) {
+    // Thresholds de frecuencia y CTR por etapa del funnel
+    if (stage === 'tof')   return { warn: 2.5, danger: 3.5, ctrWarn: 1.5, ctrDanger: 0.8 };
+    if (stage === 'mof')   return { warn: 4.0, danger: 6.0, ctrWarn: 1.0, ctrDanger: 0.5 };
+    if (stage === 'bof')   return { warn: 5.0, danger: 8.0, ctrWarn: 0.8, ctrDanger: 0.4 };
+    return                        { warn: 3.0, danger: 5.0, ctrWarn: 1.0, ctrDanger: 0.5 };
+  }
+
+  function _fatigueLevel(freq, ctr, stage) {
+    if (freq <= 0) return 'unknown';
+    const t = _fatigueThresholds(stage);
+    if (freq >= t.danger && ctr <= t.ctrDanger) return 'critical';
+    if (freq >= t.danger || (freq >= t.warn && ctr <= t.ctrWarn)) return 'danger';
+    if (freq >= t.warn) return 'warn';
+    return 'ok';
+  }
+
+  const _fatigueConfig = {
+    critical: { label: 'Fatiga crítica',   badge: 'bg-red-500/20 text-red-400 border-red-500/40',    bar: 'bg-red-500',    dot: 'bg-red-500 animate-pulse' },
+    danger:   { label: 'Riesgo alto',      badge: 'bg-orange-500/20 text-orange-400 border-orange-500/40', bar: 'bg-orange-500', dot: 'bg-orange-500' },
+    warn:     { label: 'Riesgo moderado',  badge: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/40', bar: 'bg-yellow-500', dot: 'bg-yellow-400' },
+    ok:       { label: 'Audiencia sana',   badge: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40', bar: 'bg-emerald-500', dot: 'bg-emerald-500' },
+    unknown:  { label: 'Sin datos',        badge: 'bg-slate-700 text-slate-500 border-slate-600',      bar: 'bg-slate-600',  dot: 'bg-slate-600' },
+  };
+
+  const _fatigueAdvice = {
+    critical: '🚨 Fatiga severa detectada. La audiencia está saturada — rota creativos de inmediato y considera ampliar el público objetivo.',
+    danger:   '⚠️ Señales claras de fatiga. Prepara nuevos creativos y revisa la segmentación. El rendimiento seguirá cayendo.',
+    warn:     '💡 Frecuencia en zona de alerta. Monitorea el CTR diariamente y ten creativos alternativos listos.',
+    ok:       '✅ La audiencia responde bien. Frecuencia y CTR dentro de rangos saludables para esta etapa.',
+    unknown:  '—',
+  };
+
+  function _renderFatigue(detailData) {
+    const metaData = detailData?.meta;
+    if (!metaData || metaData.error || !Array.isArray(metaData.campaigns)) return '';
+
+    // Solo campañas Meta con datos de frecuencia o suficientes impresiones para calcularla
+    const campaigns = metaData.campaigns
+      .filter(c => c.impressions > 0)
+      .map(c => {
+        const freq = c.frequency > 0 ? c.frequency : (c.reach > 0 ? c.impressions / c.reach : 0);
+        const ctr  = c.impressions > 0 ? c.clicks / c.impressions * 100 : 0;
+        return { ...c, freq: Math.round(freq * 100) / 100, ctr: Math.round(ctr * 100) / 100 };
+      });
+
+    if (campaigns.length === 0) return '';
+
+    const levels  = campaigns.map(c => _fatigueLevel(c.freq, c.ctr, c.stage));
+    const worst   = levels.includes('critical') ? 'critical'
+                  : levels.includes('danger')   ? 'danger'
+                  : levels.includes('warn')      ? 'warn' : 'ok';
+    const wCfg    = _fatigueConfig[worst];
+
+    return `
+    <div class="rounded-2xl border ${worst === 'ok' ? 'border-slate-700' : 'border-' + (worst === 'critical' ? 'red' : worst === 'danger' ? 'orange' : 'yellow') + '-500/30'} overflow-hidden">
+      <div class="px-5 py-4 flex items-center justify-between bg-slate-800/60">
+        <div class="flex items-center gap-2.5">
+          <div class="w-2 h-2 rounded-full ${wCfg.dot}"></div>
+          <p class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Detector de Fatiga · Meta Ads</p>
+        </div>
+        <span class="text-xs font-bold ${wCfg.badge} border px-2.5 py-1 rounded-full">${wCfg.label}</span>
+      </div>
+      <div class="divide-y divide-slate-800">
+        ${campaigns.map(c => _renderFatigueCampaign(c)).join('')}
+      </div>
+    </div>`;
+  }
+
+  function _renderFatigueCampaign(c) {
+    const level  = _fatigueLevel(c.freq, c.ctr, c.stage);
+    const cfg    = _fatigueConfig[level];
+    const t      = _fatigueThresholds(c.stage);
+    const advice = _fatigueAdvice[level];
+
+    // Barra de frecuencia: escala 0–8, marcadores en warn y danger
+    const maxFreq   = 8;
+    const freqPct   = Math.min(c.freq / maxFreq * 100, 100);
+    const warnPct   = t.warn   / maxFreq * 100;
+    const dangerPct = t.danger / maxFreq * 100;
+
+    const stageLabel = c.stage === 'tof' ? 'TOF · F1' : c.stage === 'mof' ? 'MOF · F2' : c.stage === 'bof' ? 'BOF · F3' : 'Sin etapa';
+    const ctrColor   = c.ctr >= t.ctrWarn ? 'text-emerald-400' : c.ctr >= t.ctrDanger ? 'text-yellow-400' : 'text-red-400';
+
+    return `
+    <div class="px-5 py-4 bg-slate-900/60">
+      <div class="flex items-start justify-between gap-3 mb-3">
+        <div class="min-w-0">
+          <p class="text-sm font-semibold text-slate-100 truncate">${_esc(c.name)}</p>
+          <p class="text-xs text-slate-500 mt-0.5">${stageLabel} · ${_fmtNum(c.reach || 0)} personas alcanzadas</p>
+        </div>
+        <span class="text-xs font-bold ${cfg.badge} border px-2 py-0.5 rounded-lg flex-shrink-0">${cfg.label}</span>
+      </div>
+
+      <div class="mb-3">
+        <div class="flex justify-between text-xs mb-1.5">
+          <span class="text-slate-500">Frecuencia promedio</span>
+          <span class="font-black text-slate-100">${c.freq > 0 ? c.freq + 'x' : '—'}</span>
+        </div>
+        <div class="relative w-full h-3 bg-slate-800 rounded-full overflow-hidden">
+          ${c.freq > 0 ? `<div class="${cfg.bar} h-3 rounded-full transition-all duration-700" style="width:${freqPct}%"></div>` : ''}
+          <div class="absolute top-0 bottom-0 w-px bg-yellow-400/60" style="left:${warnPct}%"></div>
+          <div class="absolute top-0 bottom-0 w-px bg-red-500/70"    style="left:${dangerPct}%"></div>
+        </div>
+        <div class="flex justify-between text-xs mt-1 text-slate-600">
+          <span>0</span>
+          <span class="text-yellow-600">${t.warn}x alerta</span>
+          <span class="text-red-600">${t.danger}x crítico</span>
+          <span>${maxFreq}x</span>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-4 text-xs mb-3">
+        <div><span class="text-slate-500">CTR </span><span class="${ctrColor} font-bold">${c.ctr > 0 ? c.ctr + '%' : '—'}</span>
+          <span class="text-slate-600 ml-1">(mín. saludable ${t.ctrWarn}%)</span>
+        </div>
+        <div><span class="text-slate-500">Spend </span><span class="text-slate-300 font-semibold">$${_fmt(c.spend)}</span></div>
+      </div>
+
+      ${level !== 'unknown' ? `
+      <div class="text-xs text-slate-400 bg-slate-800 rounded-xl px-3 py-2.5 leading-relaxed">
+        ${advice}
+      </div>` : ''}
+    </div>`;
   }
 
   function _renderCampaignList(stages) {
