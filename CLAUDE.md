@@ -37,6 +37,33 @@ Dashboard web de rendimiento del equipo IDEAZ, conectado a Trello via API REST.
 |---------|-------|-------------|
 | `agenda.html` | Colaborador | Vista de tareas por día y por colaborador (para PM y CM) |
 | `js/agenda.js` | Colaborador | Lógica exclusiva del módulo agenda |
+| `atencion-cliente.html` | Ezamoraideaz | Automatización de conversaciones Messenger/Instagram por marca (estilo ManyChat) |
+| `js/atencionCliente.js` | Ezamoraideaz | Controlador del panel: clientes, cuentas conectadas, inbox |
+| `js/flowBuilder.js` | Ezamoraideaz | Constructor visual de flujos (envuelve Drawflow, vendorizado en `js/vendor/`) |
+| `backend/` | Ezamoraideaz | Backend PHP + MySQL propio de este módulo (webhooks/tokens de Meta no pueden vivir en el frontend estático) — ver sección abajo |
+
+---
+
+## Módulo "Atención al Cliente" (backend PHP + MySQL)
+
+A diferencia del resto del dashboard, este módulo requiere servidor propio porque Meta exige un
+webhook HTTPS público y no permite guardar tokens de Página/Instagram en el navegador. Vive en
+`/backend/`, separado del resto del sitio estático, y usa **su propio login por sesión** (tabla
+`operators`), no las credenciales de Trello.
+
+### Puesta en marcha (una sola vez)
+1. Copiar `backend/config.example.php` a `backend/config.php` y completar credenciales (nunca commitear `config.php`).
+2. Crear la base de datos MySQL en cPanel y correr `backend/sql/schema.sql` una sola vez (phpMyAdmin o CLI).
+3. Crear el primer operador desde terminal: `php backend/cli/create_operator.php email@ejemplo.com contraseña`.
+4. Configurar un Cron Job en cPanel que ejecute cada minuto: `php backend/cron/process_scheduled.php`.
+5. Crear la App de Meta (developers.facebook.com, tipo Business) y completar `META_APP_ID`/`META_APP_SECRET`/`WEBHOOK_VERIFY_TOKEN` en `config.php`. Mientras la App esté en modo Development, los admins/testers del App pueden usar `pages_messaging`/`instagram_business_manage_messages` sin esperar App Review.
+6. Dar de alta el Webhook en Meta apuntando a `https://tudominio.com/dashboard/backend/webhook/webhook.php`, con el mismo `WEBHOOK_VERIFY_TOKEN`.
+
+### Reglas propias de este módulo
+- El backend PHP sigue el mismo patrón que `api/spend.php` (config gitignored + `.htaccess` con CORS), pero con su propia carpeta, base de datos y `.htaccess`.
+- Los tokens de Página/Instagram se cifran en BD (`backend/includes/crypto.php`, AES-256-GCM) — nunca se guardan en texto plano ni en el frontend.
+- El motor de disparadores (`backend/includes/trigger_engine.php`) respeta la ventana de mensajería de 24h de Meta; fuera de esa ventana solo se permite el tag `HUMAN_AGENT` (respuesta manual de una persona, excepción de 7 días).
+- Cambios a `backend/` no afectan al resto del dashboard estático — se puede iterar en `feature/atencion-cliente` sin coordinar con otros módulos.
 
 ---
 

@@ -3,4 +3,5 @@
 .DS_Store
 Thumbs.db
 api/config.php
+backend/config.php
 ideaz-chatbot/

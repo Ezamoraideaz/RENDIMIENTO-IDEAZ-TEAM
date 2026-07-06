@@ -4,6 +4,7 @@ const Sidebar = (() => {
     { href: 'agenda.html',        icon: '📅', label: 'Agenda',        key: 'agenda'        },
     { href: 'monitor.html',       icon: '🚨', label: 'Monitor',       key: 'monitor'       },
     { href: 'pauta.html',         icon: '💰', label: 'Pauta',         key: 'pauta'         },
+    { href: 'atencion-cliente.html', icon: '💬', label: 'Atención Cliente', key: 'atencion-cliente' },
     { href: 'configuracion.html', icon: '⚙️', label: 'Configuración', key: 'configuracion' },
   ];
 

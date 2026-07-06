@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>if(localStorage.getItem('ideaz_theme')==='light')document.documentElement.classList.add('light');</script>
+  <title>Atención al Cliente – IDEAZ</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="js/vendor/drawflow.min.css">
+  <style>
+    /* Tema oscuro para los nodos de Drawflow, acorde a la paleta slate/indigo del dashboard */
+    #drawflow { background: #020617; background-image: radial-gradient(#1e293b 1px, transparent 1px); background-size: 18px 18px; }
+    .drawflow .drawflow-node { background: #0f172a; border: 1px solid #334155; border-radius: 0.75rem; padding: 0; box-shadow: none; min-width: 180px; }
+    .drawflow .drawflow-node.selected { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,0.4); }
+    .df-node-box { padding: 0.75rem 1rem; }
+    .df-node-title { font-size: 0.8125rem; font-weight: 700; color: #e2e8f0; }
+    .df-node-sub { font-size: 0.6875rem; color: #94a3b8; margin-top: 0.25rem; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .drawflow .connection .main-path { stroke: #6366f1; stroke-width: 2px; }
+    .drawflow .drawflow-node .input, .drawflow .drawflow-node .output { background: #6366f1; border: 2px solid #0f172a; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans">
+
+  <!-- Sidebar (siempre visible, nav inyectada por sidebar.js) -->
+  <aside id="app-sidebar" class="fixed left-0 top-0 h-screen w-64 bg-slate-900 border-r border-slate-700 flex flex-col z-50 overflow-y-auto"></aside>
+
+  <main class="ml-64 min-h-screen">
+
+    <!-- State: login (sesión propia del módulo, no usa credenciales de Trello) -->
+    <div id="state-login" style="display:none" class="min-h-screen flex items-center justify-center p-6">
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-8 w-full max-w-sm">
+        <h1 class="text-xl font-bold mb-1">Atención al Cliente</h1>
+        <p class="text-slate-400 text-sm mb-6">Inicia sesión para gestionar los flujos de conversación.</p>
+        <form id="login-form" class="space-y-3">
+          <input type="email" id="login-email" required placeholder="Email" autocomplete="username"
+            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-500">
+          <input type="password" id="login-password" required placeholder="Contraseña" autocomplete="current-password"
+            class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-500">
+          <p id="login-error" class="text-red-400 text-xs" style="display:none"></p>
+          <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors">Entrar</button>
+        </form>
+        <p class="text-slate-600 text-xs mt-4">El primer operador se crea desde terminal: <code class="text-slate-500">php backend/cli/create_operator.php email password</code></p>
+      </div>
+    </div>
+
+    <!-- State: loading -->
+    <div id="state-loading" class="min-h-screen flex items-center justify-center">
+      <div class="w-10 h-10 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+    </div>
+
+    <!-- State: clients (panel principal) -->
+    <div id="state-clients" style="display:none" class="p-6">
+      <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div>
+          <h1 class="text-2xl font-bold">Atención al Cliente</h1>
+          <p class="text-slate-400 text-sm mt-0.5">Automatización de conversaciones por marca (Messenger / Instagram)</p>
+        </div>
+        <button onclick="AtencionCliente.openNewClientPrompt()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">+ Cliente</button>
+      </div>
+      <div id="client-cards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    </div>
+
+    <!-- State: constructor de flujos (pantalla completa) -->
+    <div id="state-builder" style="display:none" class="h-screen flex flex-col">
+      <div class="px-4 py-3 border-b border-slate-700 flex items-center justify-between gap-4 flex-shrink-0 bg-slate-900">
+        <div class="flex items-center gap-3 min-w-0">
+          <button onclick="AtencionCliente.closeBuilder()" class="text-slate-400 hover:text-slate-100 text-sm font-semibold">← Volver</button>
+          <input id="builder-flow-name" class="bg-transparent border-none text-lg font-bold focus:outline-none focus:bg-slate-800 rounded px-2 py-1 min-w-0">
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <span id="builder-status" class="text-xs text-slate-500"></span>
+          <button onclick="FlowBuilder.save()" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors">Guardar borrador</button>
+          <button onclick="FlowBuilder.publish()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors">Publicar</button>
+        </div>
+      </div>
+      <div class="flex flex-1 min-h-0">
+        <!-- Paleta de nodos -->
+        <div class="w-48 border-r border-slate-700 bg-slate-900 p-3 flex flex-col gap-2 flex-shrink-0 overflow-y-auto">
+          <p class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Nodos</p>
+          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors" draggable="true" data-node="trigger_keyword">🎯 Disparador</div>
+          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors" draggable="true" data-node="message">💬 Mensaje</div>
+          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors" draggable="true" data-node="delay">⏱️ Espera</div>
+          <p class="text-[11px] text-slate-600 mt-2">Arrastra un nodo al lienzo. Conecta desde el punto de salida de un nodo al de entrada de otro.</p>
+        </div>
+        <!-- Canvas -->
+        <div id="drawflow" class="flex-1 relative"></div>
+        <!-- Inspector -->
+        <div id="builder-inspector" class="w-72 border-l border-slate-700 bg-slate-900 p-4 flex-shrink-0 overflow-y-auto">
+          <p class="text-slate-500 text-sm">Selecciona un nodo para editarlo.</p>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script src="js/storage.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/sidebar.js"></script>
+  <script src="js/vendor/drawflow.min.js"></script>
+  <script src="js/flowBuilder.js"></script>
+  <script src="js/atencionCliente.js"></script>
+  <script>
+    Sidebar.init('atencion-cliente');
+    AtencionCliente.init();
+  </script>
+</body>
+</html>
