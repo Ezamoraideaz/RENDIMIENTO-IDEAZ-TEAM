@@ -120,6 +120,62 @@ class MetaClient
         ], $pageAccessToken);
     }
 
+    // Envía una imagen por URL pública (jpg/png/gif). Funciona en Messenger e Instagram.
+    public static function sendImage(string $pageAccessToken, string $recipientPsid, string $imageUrl): array
+    {
+        return self::request('POST', '/me/messages', [
+            'recipient'      => json_encode(['id' => $recipientPsid]),
+            'message'        => json_encode([
+                'attachment' => [
+                    'type'    => 'image',
+                    'payload' => ['url' => $imageUrl, 'is_reusable' => true],
+                ],
+            ]),
+            'messaging_type' => 'RESPONSE',
+        ], $pageAccessToken);
+    }
+
+    // Tarjeta (generic template): imagen + título + subtítulo + botones de enlace.
+    // Es el formato de conversión por excelencia (llevar al usuario a una landing,
+    // catálogo o WhatsApp). Soportado en Messenger e Instagram.
+    // $buttons: [['title' => 'Ver más', 'url' => 'https://...'], ...] (máx. 3)
+    public static function sendCard(string $pageAccessToken, string $recipientPsid, string $title, string $subtitle, string $imageUrl, array $buttons): array
+    {
+        $urlButtons = [];
+        foreach (array_slice($buttons, 0, 3) as $btn) {
+            if (empty($btn['url'])) {
+                continue;
+            }
+            $urlButtons[] = [
+                'type'  => 'web_url',
+                'url'   => (string)$btn['url'],
+                'title' => mb_substr((string)($btn['title'] ?? 'Ver más'), 0, 20),
+            ];
+        }
+
+        $element = ['title' => mb_substr($title, 0, 80)];
+        if ($subtitle !== '') {
+            $element['subtitle'] = mb_substr($subtitle, 0, 80);
+        }
+        if ($imageUrl !== '') {
+            $element['image_url'] = $imageUrl;
+        }
+        if ($urlButtons) {
+            $element['buttons'] = $urlButtons;
+        }
+
+        return self::request('POST', '/me/messages', [
+            'recipient'      => json_encode(['id' => $recipientPsid]),
+            'message'        => json_encode([
+                'attachment' => [
+                    'type'    => 'template',
+                    'payload' => ['template_type' => 'generic', 'elements' => [$element]],
+                ],
+            ]),
+            'messaging_type' => 'RESPONSE',
+        ], $pageAccessToken);
+    }
+
     public static function sendPrivateReply(string $pageAccessToken, string $commentId, string $text): array
     {
         return self::request('POST', "/{$commentId}/private_replies", [

@@ -308,6 +308,7 @@ const AtencionCliente = (() => {
         Object.entries(vars.fields || {}).forEach(([k, v]) => {
           if (k !== 'email' && k !== 'telefono') leadChips.push(`${_esc(k)}: ${_esc(String(v))}`);
         });
+        (vars.tags || []).forEach((t) => leadChips.push(`🏷️ ${_esc(String(t))}`));
       } catch (_) { /* state_vars malformado: se ignora */ }
       const leadHtml = leadChips.length
         ? `<div class="flex flex-wrap gap-1.5 mb-3">${leadChips.map((c) => `<span class="text-[10px] font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 px-2 py-0.5 rounded-full">${c}</span>`).join('')}</div>`

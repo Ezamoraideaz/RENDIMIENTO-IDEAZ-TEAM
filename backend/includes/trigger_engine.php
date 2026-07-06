@@ -289,9 +289,185 @@ class TriggerEngine
                 return;
             }
 
+            // Imagen por URL pública.
+            if ($node['type'] === 'image') {
+                $url = (string)($node['data']['url'] ?? '');
+                if ($url !== '') {
+                    MetaClient::sendImage($pageToken, self::recipientId($conversation), $url);
+                    self::recordMessage($conversation['id'], 'out', 'text', '🖼️ [Imagen] ' . $url, null, 'flow');
+                }
+                $node = self::nextNode($graph, $node['id']);
+                continue;
+            }
+
+            // Tarjeta con botones de enlace (CTA a landing/catálogo/WhatsApp).
+            if ($node['type'] === 'card') {
+                $title = (string)($node['data']['title'] ?? '');
+                if ($title !== '') {
+                    MetaClient::sendCard(
+                        $pageToken,
+                        self::recipientId($conversation),
+                        $title,
+                        (string)($node['data']['subtitle'] ?? ''),
+                        (string)($node['data']['image_url'] ?? ''),
+                        $node['data']['buttons'] ?? []
+                    );
+                    self::recordMessage($conversation['id'], 'out', 'text', '🃏 [Tarjeta] ' . $title, null, 'flow');
+                }
+                $node = self::nextNode($graph, $node['id']);
+                continue;
+            }
+
+            // Condición sobre datos capturados: salida 1 = sí, salida 2 = no.
+            if ($node['type'] === 'condition') {
+                $out = self::evaluateCondition($node['data'] ?? [], $conversation) ? 1 : 2;
+                $node = self::nextNode($graph, $node['id'], $out);
+                continue;
+            }
+
+            // Horario de atención (zona horaria del cliente): salida 1 = dentro, 2 = fuera.
+            if ($node['type'] === 'hours') {
+                $out = self::isWithinBusinessHours($node['data'] ?? [], (int)$conversation['social_account_id']) ? 1 : 2;
+                $node = self::nextNode($graph, $node['id'], $out);
+                continue;
+            }
+
+            // Test A/B: reparte el tráfico al azar entre dos ramas según el porcentaje.
+            if ($node['type'] === 'ab_split') {
+                $percentA = max(0, min(100, (int)($node['data']['percent_a'] ?? 50)));
+                $out = random_int(1, 100) <= $percentA ? 1 : 2;
+                $node = self::nextNode($graph, $node['id'], $out);
+                continue;
+            }
+
+            // Etiqueta al contacto (segmentación de leads); no envía nada.
+            if ($node['type'] === 'tag') {
+                $tag = trim((string)($node['data']['tag'] ?? ''));
+                if ($tag !== '') {
+                    $stateVars = self::loadStateVars($conversation);
+                    $tags = $stateVars['tags'] ?? [];
+                    if (!in_array($tag, $tags, true)) {
+                        $tags[] = $tag;
+                        $stateVars['tags'] = $tags;
+                        self::saveStateVars($conversation['id'], $stateVars);
+                    }
+                }
+                $node = self::nextNode($graph, $node['id']);
+                continue;
+            }
+
+            // Alerta por email al equipo (lead nuevo, cita, etc.); no envía nada al usuario.
+            if ($node['type'] === 'notify') {
+                self::notifyTeam($node['data'] ?? [], $conversation);
+                $node = self::nextNode($graph, $node['id']);
+                continue;
+            }
+
             // Tipo de nodo desconocido: el flujo se detiene de forma segura.
             break;
         }
+    }
+
+    // ── Evaluadores de nodos de lógica ───────────────────────────────────────
+
+    private static function evaluateCondition(array $data, array $conversation): bool
+    {
+        $field = (string)($data['field'] ?? '');
+        $op    = (string)($data['op'] ?? 'exists');
+        $value = mb_strtolower(trim((string)($data['value'] ?? '')));
+
+        // El dato puede venir de los campos capturados por el flujo o de la ficha del contacto.
+        $stateVars = self::loadStateVars($conversation);
+        $actual = (string)($stateVars['fields'][$field] ?? '');
+        if ($actual === '' && !empty($conversation['contact_id'])) {
+            $column = ['nombre' => 'name', 'email' => 'email', 'telefono' => 'phone'][$field] ?? null;
+            if ($column !== null) {
+                $stmt = db()->prepare("SELECT {$column} FROM contacts WHERE id = ?");
+                $stmt->execute([$conversation['contact_id']]);
+                $actual = (string)($stmt->fetchColumn() ?: '');
+            }
+        }
+        if ($field === 'etiqueta') {
+            $tags = array_map('mb_strtolower', $stateVars['tags'] ?? []);
+            return $op === 'exists' ? !empty($tags) : in_array($value, $tags, true);
+        }
+
+        $actualLower = mb_strtolower(trim($actual));
+        if ($op === 'exists') {
+            return $actualLower !== '';
+        }
+        if ($op === 'equals') {
+            return $actualLower === $value;
+        }
+        return $value !== '' && mb_strpos($actualLower, $value) !== false; // contains
+    }
+
+    private static function isWithinBusinessHours(array $data, int $socialAccountId): bool
+    {
+        $stmt = db()->prepare('
+            SELECT c.timezone FROM clients c
+            JOIN social_accounts sa ON sa.client_id = c.id
+            WHERE sa.id = ?
+        ');
+        $stmt->execute([$socialAccountId]);
+        $timezone = (string)($stmt->fetchColumn() ?: 'America/Mexico_City');
+
+        try {
+            $now = new DateTimeImmutable('now', new DateTimeZone($timezone));
+        } catch (Throwable $e) {
+            $now = new DateTimeImmutable('now');
+        }
+
+        $days = $data['days'] ?? [1, 2, 3, 4, 5]; // ISO: 1=lunes … 7=domingo
+        if (!in_array((int)$now->format('N'), array_map('intval', $days), true)) {
+            return false;
+        }
+
+        $start = (string)($data['start'] ?? '09:00');
+        $end   = (string)($data['end'] ?? '18:00');
+        $time  = $now->format('H:i');
+        return $time >= $start && $time < $end;
+    }
+
+    private static function notifyTeam(array $data, array $conversation): void
+    {
+        $to = trim((string)($data['email'] ?? ''));
+        if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
+            return;
+        }
+
+        $stmt = db()->prepare('
+            SELECT c.name, c.email, c.phone, c.platform, cl.name AS client_name
+            FROM contacts c
+            JOIN clients cl ON cl.id = c.client_id
+            WHERE c.id = ?
+        ');
+        $stmt->execute([$conversation['contact_id'] ?? 0]);
+        $contact = $stmt->fetch() ?: [];
+
+        $stateVars = self::loadStateVars($conversation);
+        $lines = [
+            'Nuevo lead desde el flujo de conversación:',
+            '',
+            'Marca: ' . ($contact['client_name'] ?? '—'),
+            'Plataforma: ' . ($contact['platform'] ?? '—'),
+            'Nombre: ' . ($contact['name'] ?? '—'),
+            'Email: ' . ($contact['email'] ?? '—'),
+            'Teléfono: ' . ($contact['phone'] ?? '—'),
+        ];
+        foreach (($stateVars['fields'] ?? []) as $k => $v) {
+            $lines[] = ucfirst($k) . ': ' . $v;
+        }
+        if (!empty($stateVars['tags'])) {
+            $lines[] = 'Etiquetas: ' . implode(', ', $stateVars['tags']);
+        }
+        $lines[] = '';
+        $lines[] = 'Ver conversación: ' . APP_BASE_URL . '/atencion-cliente.html';
+
+        $subject = trim((string)($data['subject'] ?? '')) ?: 'Nuevo lead capturado';
+        $headers = 'From: no-reply@' . (parse_url(APP_BASE_URL, PHP_URL_HOST) ?: 'localhost') . "\r\n"
+                 . "Content-Type: text/plain; charset=UTF-8\r\n";
+        @mail($to, '=?UTF-8?B?' . base64_encode($subject) . '?=', implode("\n", $lines), $headers);
     }
 
     // ── Continuación desde nodos interactivos ────────────────────────────────
