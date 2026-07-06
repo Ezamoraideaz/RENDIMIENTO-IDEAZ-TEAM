@@ -85,6 +85,8 @@ CREATE TABLE IF NOT EXISTS contacts (
     platform ENUM('messenger','instagram') NOT NULL,
     psid VARCHAR(64) NOT NULL,
     name VARCHAR(190) NULL,
+    email VARCHAR(190) NULL,
+    phone VARCHAR(64) NULL,
     profile_pic_url VARCHAR(500) NULL,
     first_seen_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_seen_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

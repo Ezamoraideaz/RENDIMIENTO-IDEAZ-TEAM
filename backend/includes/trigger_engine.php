@@ -35,11 +35,43 @@ class TriggerEngine
 
         $contact      = self::findOrCreateContact($account, $platform, $senderId);
         $conversation = self::findOrCreateConversation($account, $contact);
+        $isNew        = !empty($conversation['_created']);
 
-        self::recordMessage($conversation['id'], 'in', 'text', $text, $event);
+        $qrPayload = $event['message']['quick_reply']['payload'] ?? null;
+        $msgType   = $qrPayload !== null ? 'quick_reply' : 'text';
+        self::recordMessage($conversation['id'], 'in', $msgType, $text, $event);
         self::touchWindow($conversation['id']);
 
-        self::routeToFlow($account, $conversation, $platform, $text);
+        // Una conversación tomada por un asesor humano no debe ser interrumpida por el bot.
+        if (($conversation['status'] ?? '') === 'handed_off') {
+            return;
+        }
+
+        $pageToken = self::decryptAccountToken($account);
+        $stateVars = self::loadStateVars($conversation);
+
+        // 1) Respuesta a un nodo de botones (quick reply): continúa por la rama elegida.
+        if ($qrPayload !== null && preg_match('/^qr:(\d+):([\w-]+):(\d+)$/', $qrPayload, $m)) {
+            self::continueFromOutput((int)$m[1], $m[2], (int)$m[3], $conversation, $platform, $pageToken);
+            return;
+        }
+
+        // 2) Respuesta a un nodo de pregunta (captura de lead): valida, guarda y continúa.
+        if (!empty($stateVars['awaiting'])) {
+            self::handleAwaitedAnswer($stateVars, $conversation, $contact, $platform, $pageToken, $text);
+            return;
+        }
+
+        // 3) Continuación pendiente tras una respuesta privada a comentario.
+        if (!empty($stateVars['resume'])) {
+            $resume = $stateVars['resume'];
+            unset($stateVars['resume']);
+            self::saveStateVars($conversation['id'], $stateVars);
+            self::executeFromNode((int)$resume['flow_id'], (string)$resume['node_id'], $conversation, $platform, $pageToken);
+            return;
+        }
+
+        self::routeToFlow($account, $conversation, $platform, $text, $isNew, $pageToken);
     }
 
     public static function handleChangeEvent(array $change, string $platform, string $pageId): void
@@ -71,24 +103,59 @@ class TriggerEngine
         self::recordMessage($conversation['id'], 'in', 'comment_reply', $text, $change);
         self::touchWindow($conversation['id']); // la respuesta privada abre ventana de 24h igual que un DM
 
-        $replyText = self::resolveCommentReply((int)$account['client_id'], $platform, $text);
         $pageToken = self::decryptAccountToken($account);
+
+        // Disparador "comentario en publicación": palabras clave vacías = cualquier comentario.
+        $trigger = self::matchTrigger((int)$account['client_id'], (int)$account['id'], $platform, $text, false, 'comment_on_post')
+                ?? self::matchTrigger((int)$account['client_id'], 0, $platform, $text, true); // compat: flujos viejos por keyword
+
+        $replyText  = 'Gracias por tu comentario, te escribimos por privado.';
+        $resumeNode = null;
+        if ($trigger) {
+            $graph = self::loadGraph((int)$trigger['flow_id']);
+            $node  = self::findNode($graph, $trigger['node_id']);
+            if ($node && $node['type'] === 'message') {
+                $replyText = (string)($node['data']['text'] ?? '') ?: $replyText;
+                // Meta solo permite UNA respuesta privada por comentario; si el flujo sigue,
+                // se reanuda cuando la persona conteste el DM.
+                $resumeNode = self::nextNode($graph, $node['id']);
+            } elseif ($node) {
+                // El primer nodo no es un mensaje simple (p.ej. botones/pregunta): la respuesta
+                // privada invita a continuar y el resto del flujo corre cuando responda.
+                $resumeNode = $node;
+            }
+        }
 
         MetaClient::sendPrivateReply($pageToken, (string)$commentId, $replyText);
         self::recordMessage($conversation['id'], 'out', 'private_reply', $replyText, null, 'flow');
+
+        if ($trigger && $resumeNode !== null) {
+            $stateVars = self::loadStateVars($conversation);
+            $stateVars['resume'] = ['flow_id' => (int)$trigger['flow_id'], 'node_id' => (string)$resumeNode['id']];
+            self::saveStateVars($conversation['id'], $stateVars);
+        }
     }
 
     // ── Ruteo a flujo (mensajes/postbacks) ──────────────────────────────────
 
-    private static function routeToFlow(array $account, array $conversation, string $platform, string $text): void
+    private static function routeToFlow(array $account, array $conversation, string $platform, string $text, bool $isNew, string $pageToken): void
     {
-        $trigger   = self::matchTrigger((int)$account['client_id'], (int)$account['id'], $platform, $text);
-        $pageToken = self::decryptAccountToken($account);
+        $trigger = self::matchTrigger((int)$account['client_id'], (int)$account['id'], $platform, $text);
+
+        // Sin match por palabra clave: si el contacto es nuevo, probar el disparador de
+        // "nueva conversación" (bienvenida); si tampoco hay, mensaje fallback SOLO la
+        // primera vez — en conversaciones ya abiertas el silencio es mejor que spamear
+        // al usuario (o pisar a un asesor) con el fallback en cada mensaje.
+        if (!$trigger && $isNew) {
+            $trigger = self::matchTrigger((int)$account['client_id'], (int)$account['id'], $platform, $text, false, 'new_conversation');
+        }
 
         if (!$trigger) {
-            $fallback = '¡Hola! Gracias por escribirnos. En breve un asesor te contactará.';
-            self::sendOutbound($platform, $pageToken, self::recipientId($conversation), $fallback);
-            self::recordMessage($conversation['id'], 'out', 'text', $fallback, null, 'flow');
+            if ($isNew) {
+                $fallback = '¡Hola! Gracias por escribirnos. En breve un asesor te contactará.';
+                self::sendOutbound($platform, $pageToken, self::recipientId($conversation), $fallback);
+                self::recordMessage($conversation['id'], 'out', 'text', $fallback, null, 'flow');
+            }
             return;
         }
 
@@ -98,23 +165,9 @@ class TriggerEngine
         self::executeFromNode((int)$trigger['flow_id'], $trigger['node_id'], $conversation, $platform, $pageToken);
     }
 
-    private static function resolveCommentReply(int $clientId, string $platform, string $text): string
-    {
-        // Un comentario puede venir de cualquier plataforma con cuenta de IG vinculada a la Página
-        $trigger = self::matchTrigger($clientId, 0, $platform, $text, true);
-        if ($trigger) {
-            $graph = self::loadGraph((int)$trigger['flow_id']);
-            $node  = self::findNode($graph, $trigger['node_id']);
-            if ($node && $node['type'] === 'message') {
-                return (string)($node['data']['text'] ?? '');
-            }
-        }
-        return 'Gracias por tu comentario, te escribimos por privado.';
-    }
-
     // ── Matching de disparadores ─────────────────────────────────────────────
 
-    private static function matchTrigger(int $clientId, int $accountId, string $platform, string $text, bool $anyAccount = false): ?array
+    private static function matchTrigger(int $clientId, int $accountId, string $platform, string $text, bool $anyAccount = false, string $triggerType = 'keyword'): ?array
     {
         $sql = '
             SELECT ft.flow_id, ft.match_config, ft.node_id
@@ -123,10 +176,10 @@ class TriggerEngine
             WHERE f.status = "active"
               AND f.client_id = ?
               AND ft.active = 1
-              AND ft.trigger_type = "keyword"
+              AND ft.trigger_type = ?
               AND (ft.platform_scope = ? OR ft.platform_scope = "both")
         ';
-        $params = [$clientId, $platform];
+        $params = [$clientId, $triggerType, $platform];
         if (!$anyAccount) {
             $sql .= ' AND (f.social_account_id = ? OR f.social_account_id IS NULL)';
             $params[] = $accountId;
@@ -138,8 +191,15 @@ class TriggerEngine
 
         $needle = mb_strtolower(trim($text));
         foreach ($stmt->fetchAll() as $row) {
-            $config = json_decode($row['match_config'], true) ?? [];
-            foreach ($config['keywords'] ?? [] as $keyword) {
+            $config   = json_decode($row['match_config'], true) ?? [];
+            $keywords = $config['keywords'] ?? [];
+
+            // "new_conversation" no filtra por texto; en "comment_on_post" una lista vacía
+            // significa "cualquier comentario".
+            if ($triggerType === 'new_conversation' || ($triggerType === 'comment_on_post' && !array_filter($keywords))) {
+                return $row;
+            }
+            foreach ($keywords as $keyword) {
                 if ($keyword !== '' && mb_strpos($needle, mb_strtolower((string)$keyword)) !== false) {
                     return $row;
                 }
@@ -179,10 +239,148 @@ class TriggerEngine
                 return; // el cron de la Fase 3 continúa la ejecución desde aquí
             }
 
-            // Nodos de condición/acción avanzada se agregan cuando el constructor
-            // visual (Fase 4) los emita; por ahora el flujo se detiene de forma segura.
+            // Botones (quick replies): envía las opciones y espera la elección del usuario.
+            // El payload de cada botón codifica flujo+nodo+salida para retomar por esa rama.
+            if ($node['type'] === 'quick_replies') {
+                $text    = (string)($node['data']['text'] ?? '');
+                $options = [];
+                foreach (array_values($node['data']['options'] ?? []) as $i => $label) {
+                    $options[] = ['title' => (string)$label, 'payload' => "qr:{$flowId}:{$node['id']}:" . ($i + 1)];
+                }
+                if ($text !== '' && $options) {
+                    MetaClient::sendQuickReplies($pageToken, self::recipientId($conversation), $text, $options);
+                    self::recordMessage($conversation['id'], 'out', 'quick_reply', $text, ['options' => $node['data']['options'] ?? []], 'flow');
+                    db()->prepare('UPDATE conversations SET active_flow_id = ?, current_node_id = ? WHERE id = ?')
+                        ->execute([$flowId, $node['id'], $conversation['id']]);
+                }
+                return; // continúa en continueFromOutput() cuando el usuario toque un botón
+            }
+
+            // Pregunta (captura de lead): envía la pregunta y deja la conversación
+            // "esperando respuesta"; handleAwaitedAnswer() valida, guarda y continúa.
+            if ($node['type'] === 'question') {
+                $text = (string)($node['data']['text'] ?? '');
+                if ($text !== '') {
+                    self::sendOutbound($platform, $pageToken, self::recipientId($conversation), $text);
+                    self::recordMessage($conversation['id'], 'out', 'text', $text, null, 'flow');
+                }
+                $stateVars = self::loadStateVars($conversation);
+                $stateVars['awaiting'] = [
+                    'flow_id'    => $flowId,
+                    'node_id'    => (string)$node['id'],
+                    'field'      => (string)($node['data']['field'] ?? 'nota'),
+                    'validate'   => (string)($node['data']['validate'] ?? 'none'),
+                    'retry_text' => (string)($node['data']['retry_text'] ?? ''),
+                ];
+                self::saveStateVars($conversation['id'], $stateVars);
+                return;
+            }
+
+            // Pasar a humano: el bot se detiene en esta conversación hasta que un
+            // operador la reabra desde el inbox.
+            if ($node['type'] === 'handoff') {
+                $text = (string)($node['data']['text'] ?? '');
+                if ($text !== '') {
+                    self::sendOutbound($platform, $pageToken, self::recipientId($conversation), $text);
+                    self::recordMessage($conversation['id'], 'out', 'text', $text, null, 'flow');
+                }
+                db()->prepare('UPDATE conversations SET status = "handed_off" WHERE id = ?')
+                    ->execute([$conversation['id']]);
+                return;
+            }
+
+            // Tipo de nodo desconocido: el flujo se detiene de forma segura.
             break;
         }
+    }
+
+    // ── Continuación desde nodos interactivos ────────────────────────────────
+
+    // El usuario tocó un botón de un nodo quick_replies: sigue por la rama (salida) elegida.
+    private static function continueFromOutput(int $flowId, string $nodeId, int $output, array $conversation, string $platform, string $pageToken): void
+    {
+        $graph = self::loadGraph($flowId);
+        $next  = self::nextNode($graph, $nodeId, $output);
+        if ($next !== null) {
+            self::executeFromNode($flowId, $next['id'], $conversation, $platform, $pageToken);
+        }
+    }
+
+    // El usuario respondió a un nodo de pregunta: valida, guarda el dato en el
+    // contacto (lead) y continúa el flujo.
+    private static function handleAwaitedAnswer(array $stateVars, array $conversation, array $contact, string $platform, string $pageToken, string $answer): void
+    {
+        $awaiting = $stateVars['awaiting'];
+        $value    = trim($answer);
+
+        if (!self::validateAnswer($value, (string)($awaiting['validate'] ?? 'none'))) {
+            $retry = (string)($awaiting['retry_text'] ?? '');
+            if ($retry === '') {
+                $retry = $awaiting['validate'] === 'email'
+                    ? 'Ese correo no parece válido, ¿puedes revisarlo? (ej: nombre@dominio.com)'
+                    : 'Ese número no parece válido, ¿puedes revisarlo? (solo dígitos, ej: 3001234567)';
+            }
+            self::sendOutbound($platform, $pageToken, self::recipientId($conversation), $retry);
+            self::recordMessage($conversation['id'], 'out', 'text', $retry, null, 'flow');
+            return; // sigue esperando una respuesta válida
+        }
+
+        $field = (string)($awaiting['field'] ?? 'nota');
+        $stateVars['fields'][$field] = $value;
+        unset($stateVars['awaiting']);
+        self::saveStateVars($conversation['id'], $stateVars);
+        self::saveLeadField((int)$contact['id'], $field, $value);
+
+        $flowId = (int)$awaiting['flow_id'];
+        $next   = self::nextNode(self::loadGraph($flowId), (string)$awaiting['node_id']);
+        if ($next !== null) {
+            self::executeFromNode($flowId, $next['id'], $conversation, $platform, $pageToken);
+        }
+    }
+
+    private static function validateAnswer(string $value, string $validate): bool
+    {
+        if ($validate === 'email') {
+            return filter_var($value, FILTER_VALIDATE_EMAIL) !== false;
+        }
+        if ($validate === 'phone') {
+            $digits = preg_replace('/[\s\-().]/', '', $value);
+            return (bool)preg_match('/^\+?\d{7,15}$/', $digits);
+        }
+        return $value !== '';
+    }
+
+    // Los campos estándar (nombre/email/teléfono) se guardan también en la ficha del
+    // contacto para que el lead quede visible en el inbox y sea exportable.
+    private static function saveLeadField(int $contactId, string $field, string $value): void
+    {
+        $column = ['nombre' => 'name', 'name' => 'name', 'email' => 'email', 'correo' => 'email', 'phone' => 'phone', 'telefono' => 'phone', 'teléfono' => 'phone'][mb_strtolower($field)] ?? null;
+        if ($column !== null) {
+            db()->prepare("UPDATE contacts SET {$column} = ? WHERE id = ?")->execute([$value, $contactId]);
+        }
+    }
+
+    // ── Variables de estado de la conversación ───────────────────────────────
+
+    private static function loadStateVars(array $conversation): array
+    {
+        if (!empty($conversation['state_vars'])) {
+            $vars = json_decode((string)$conversation['state_vars'], true);
+            if (is_array($vars)) {
+                return $vars;
+            }
+        }
+        // La fila pudo crearse en este mismo request (sin state_vars en el array): releer.
+        $stmt = db()->prepare('SELECT state_vars FROM conversations WHERE id = ?');
+        $stmt->execute([$conversation['id']]);
+        $vars = json_decode((string)($stmt->fetchColumn() ?: ''), true);
+        return is_array($vars) ? $vars : [];
+    }
+
+    private static function saveStateVars(int $conversationId, array $vars): void
+    {
+        db()->prepare('UPDATE conversations SET state_vars = ? WHERE id = ?')
+            ->execute([$vars ? json_encode($vars) : null, $conversationId]);
     }
 
     private static function loadGraph(int $flowId): array
@@ -207,12 +405,18 @@ class TriggerEngine
         return null;
     }
 
-    private static function nextNode(array $graph, string $nodeId): ?array
+    // $output: número de salida del nodo (1-indexado, para nodos con ramas como los
+    // botones). null = primera conexión encontrada (nodos de salida única).
+    private static function nextNode(array $graph, string $nodeId, ?int $output = null): ?array
     {
         foreach ($graph['edges'] ?? [] as $edge) {
-            if (($edge['from'] ?? null) === $nodeId) {
-                return self::findNode($graph, $edge['to'] ?? '');
+            if (($edge['from'] ?? null) !== $nodeId) {
+                continue;
             }
+            if ($output !== null && (int)($edge['output'] ?? 1) !== $output) {
+                continue;
+            }
+            return self::findNode($graph, $edge['to'] ?? '');
         }
         return null;
     }
@@ -394,7 +598,9 @@ class TriggerEngine
             'status' => 'open',
             'window_expires_at' => null,
             'human_agent_tag_until' => null,
+            'state_vars' => null,
             'psid' => $contact['psid'],
+            '_created' => true, // conversación recién creada (primer mensaje del contacto)
         ];
     }
 

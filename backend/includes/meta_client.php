@@ -99,6 +99,27 @@ class MetaClient
         return self::sendMessengerMessage($pageAccessToken, $recipientIgsid, $text);
     }
 
+    // Mensaje con botones de respuesta rápida (quick replies). Funciona igual en
+    // Messenger e Instagram (content_type "text", máx. 13 opciones). Cada opción lleva
+    // un payload que el webhook recibe en message.quick_reply.payload al ser tocada.
+    // $options: [['title' => 'Sí', 'payload' => 'qr:...'], ...]
+    public static function sendQuickReplies(string $pageAccessToken, string $recipientPsid, string $text, array $options): array
+    {
+        $quickReplies = [];
+        foreach (array_slice($options, 0, 13) as $option) {
+            $quickReplies[] = [
+                'content_type' => 'text',
+                'title'        => mb_substr((string)$option['title'], 0, 20), // límite de Meta: 20 caracteres
+                'payload'      => (string)$option['payload'],
+            ];
+        }
+        return self::request('POST', '/me/messages', [
+            'recipient'      => json_encode(['id' => $recipientPsid]),
+            'message'        => json_encode(['text' => $text, 'quick_replies' => $quickReplies]),
+            'messaging_type' => 'RESPONSE',
+        ], $pageAccessToken);
+    }
+
     public static function sendPrivateReply(string $pageAccessToken, string $commentId, string $text): array
     {
         return self::request('POST', "/{$commentId}/private_replies", [

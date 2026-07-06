@@ -299,12 +299,31 @@ const AtencionCliente = (() => {
           <button onclick="AtencionCliente.resolveFollowup(${conversationId}, ${f.id})" class="text-amber-200 underline flex-shrink-0">Marcar resuelto</button>
         </div>`).join('');
 
+      // Datos de lead capturados por el flujo (nodos "Pregunta") + ficha del contacto
+      const leadChips = [];
+      if (data.conversation.contact_email) leadChips.push(`✉️ ${_esc(data.conversation.contact_email)}`);
+      if (data.conversation.contact_phone) leadChips.push(`📞 ${_esc(data.conversation.contact_phone)}`);
+      try {
+        const vars = JSON.parse(data.conversation.state_vars || '{}');
+        Object.entries(vars.fields || {}).forEach(([k, v]) => {
+          if (k !== 'email' && k !== 'telefono') leadChips.push(`${_esc(k)}: ${_esc(String(v))}`);
+        });
+      } catch (_) { /* state_vars malformado: se ignora */ }
+      const leadHtml = leadChips.length
+        ? `<div class="flex flex-wrap gap-1.5 mb-3">${leadChips.map((c) => `<span class="text-[10px] font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 px-2 py-0.5 rounded-full">${c}</span>`).join('')}</div>`
+        : '';
+      const handoffBanner = data.conversation.status === 'handed_off'
+        ? `<div class="bg-sky-500/10 border border-sky-500/30 rounded-lg px-3 py-2 text-xs text-sky-300 mb-2">🙋 Conversación transferida a humano — el bot está pausado aquí; responde tú desde abajo.</div>`
+        : '';
+
       thread.innerHTML = `
         <button onclick="AtencionCliente._closeThread()" class="text-slate-400 hover:text-slate-100 text-xs font-semibold mb-3">← Volver a la lista</button>
-        <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center justify-between mb-2">
           <p class="text-sm font-semibold">${_esc(data.conversation.contact_name || 'Contacto')}</p>
           <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full ${badge.cls}">${badge.label}</span>
         </div>
+        ${leadHtml}
+        ${handoffBanner}
         ${followups}
         <div class="flex flex-col gap-2 bg-slate-950 border border-slate-800 rounded-lg p-3 max-h-80 overflow-y-auto mb-3">${bubbles || '<p class="text-slate-600 text-xs">Sin mensajes todavía.</p>'}</div>
         <form id="ac-reply-form" class="flex gap-2">

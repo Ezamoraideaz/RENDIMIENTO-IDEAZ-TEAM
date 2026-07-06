@@ -6,10 +6,17 @@ require_login();
 $method = $_SERVER['REQUEST_METHOD'];
 $pdo = db();
 
-// Reconstruye flow_triggers a partir de los nodos "trigger_keyword" del graph_json.
+// Reconstruye flow_triggers a partir de los nodos disparadores del graph_json.
 // node_id apunta al nodo siguiente conectado (el disparador en sí no envía nada).
 function rebuild_flow_triggers(PDO $pdo, int $flowId, array $graph): void
 {
+    // tipo de nodo del builder => trigger_type del esquema
+    $triggerTypes = [
+        'trigger_keyword'          => 'keyword',
+        'trigger_comment'          => 'comment_on_post',
+        'trigger_new_conversation' => 'new_conversation',
+    ];
+
     $nodes = $graph['nodes'] ?? [];
     $edges = $graph['edges'] ?? [];
 
@@ -17,12 +24,13 @@ function rebuild_flow_triggers(PDO $pdo, int $flowId, array $graph): void
 
     $insert = $pdo->prepare('
         INSERT INTO flow_triggers (flow_id, platform_scope, trigger_type, match_config, node_id, priority, active)
-        VALUES (?, ?, "keyword", ?, ?, ?, 1)
+        VALUES (?, ?, ?, ?, ?, ?, 1)
     ');
 
     $priority = 0;
     foreach ($nodes as $node) {
-        if (($node['type'] ?? '') !== 'trigger_keyword') {
+        $type = $triggerTypes[$node['type'] ?? ''] ?? null;
+        if ($type === null) {
             continue;
         }
         $nextId = null;
@@ -37,7 +45,7 @@ function rebuild_flow_triggers(PDO $pdo, int $flowId, array $graph): void
         }
         $keywords = $node['data']['keywords'] ?? [];
         $scope = $node['data']['platform_scope'] ?? 'both';
-        $insert->execute([$flowId, $scope, json_encode(['keywords' => $keywords]), $nextId, $priority]);
+        $insert->execute([$flowId, $scope, $type, json_encode(['keywords' => $keywords]), $nextId, $priority]);
         $priority++;
     }
 }

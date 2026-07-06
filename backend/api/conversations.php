@@ -12,7 +12,8 @@ $pdo = db();
 if (!empty($_GET['id'])) {
     $id = (int)$_GET['id'];
     $stmt = $pdo->prepare('
-        SELECT conv.*, c.name AS contact_name, c.profile_pic_url, sa.platform, sa.page_name, sa.ig_username
+        SELECT conv.*, c.name AS contact_name, c.email AS contact_email, c.phone AS contact_phone,
+               c.profile_pic_url, sa.platform, sa.page_name, sa.ig_username
         FROM conversations conv
         JOIN contacts c ON c.id = conv.contact_id
         JOIN social_accounts sa ON sa.id = conv.social_account_id
@@ -42,7 +43,8 @@ if ($clientId <= 0) {
 
 $stmt = $pdo->prepare('
     SELECT conv.id, conv.status, conv.last_inbound_at, conv.window_expires_at, conv.human_agent_tag_until,
-           c.name AS contact_name, sa.platform, sa.page_name, sa.ig_username,
+           c.name AS contact_name, c.email AS contact_email, c.phone AS contact_phone,
+           sa.platform, sa.page_name, sa.ig_username,
            (SELECT content FROM messages m WHERE m.conversation_id = conv.id ORDER BY m.created_at DESC, m.id DESC LIMIT 1) AS last_message,
            (SELECT COUNT(*) FROM scheduled_actions sch WHERE sch.conversation_id = conv.id AND sch.status = "needs_manual_followup") AS pending_followups
     FROM conversations conv
