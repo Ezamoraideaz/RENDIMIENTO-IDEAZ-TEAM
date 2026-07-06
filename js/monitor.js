@@ -91,20 +91,21 @@ const Monitor = (() => {
     );
   }
 
-  function _scanR11(card, tl, projectName, boardId, roles) {
+  function _scanR11(card, tl, projectName, boardId, n2id) {
     const mvs = tl.movements || [];
     return mvs.flatMap((m, i) => {
       if (m.toStage !== 'clientRevision' || i >= mvs.length - 1) return [];
       const next = mvs[i + 1];
       if (next.toStage === 'inProgress') return [];
-      return _byRole(card.idMembers, 'diseñador', roles).map(id =>
-        _violation(id, RULES.R11, {
-          projectId: boardId, projectName,
-          cardId: card.id, cardName: card.name, shortLink: card.shortLink,
-          date: next.date,
-          detail: `De "Cambios" pasó directo a "${next.to}" sin volver a "En Proceso"`
-        })
-      );
+      // Atribuir siempre al autor real del movimiento que se saltó "En Proceso"
+      const id = next.member && n2id[next.member];
+      if (!id) return [];
+      return [_violation(id, RULES.R11, {
+        projectId: boardId, projectName,
+        cardId: card.id, cardName: card.name, shortLink: card.shortLink,
+        date: next.date,
+        detail: `De "Cambios" pasó directo a "${next.to}" sin volver a "En Proceso"`
+      })];
     });
   }
 
@@ -151,7 +152,7 @@ const Monitor = (() => {
         violations.push(
           ..._scanR07(card, tl, board.name, board.id, n2id, roles),
           ..._scanR08(card, tl, board.name, board.id, roles),
-          ..._scanR11(card, tl, board.name, board.id, roles),
+          ..._scanR11(card, tl, board.name, board.id, n2id),
           ..._scanR12(card, tl, board.name, board.id, n2id, roles)
         );
       }
