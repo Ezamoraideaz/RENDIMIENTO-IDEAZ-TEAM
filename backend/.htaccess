@@ -5,15 +5,21 @@
 </Files>
 
 # Bloquea acceso directo a carpetas que no son endpoints HTTP
-RewriteEngine On
-RewriteRule ^(includes|sql|cli)/ - [F,L]
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^(includes|sql|cli)/ - [F,L]
+</IfModule>
 
 Options -Indexes
 
 # CORS solo desde el dominio del dashboard, con credenciales (cookies de sesión)
-SetEnvIf Origin "^https://(www\.)?marketingdigitalideaz\.com$" CORS_ORIGIN=$0
-Header set Access-Control-Allow-Origin %{CORS_ORIGIN}e env=CORS_ORIGIN
-Header always set Access-Control-Allow-Credentials "true"
-Header set Access-Control-Allow-Headers "Content-Type, X-CSRF-Token"
-Header set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
-Header set Content-Security-Policy "default-src 'none'"
+<IfModule mod_setenvif.c>
+    SetEnvIf Origin "^https://(www\.)?marketingdigitalideaz\.com$" CORS_ORIGIN=$0
+</IfModule>
+<IfModule mod_headers.c>
+    Header set Access-Control-Allow-Origin %{CORS_ORIGIN}e env=CORS_ORIGIN
+    Header always set Access-Control-Allow-Credentials "true"
+    Header set Access-Control-Allow-Headers "Content-Type, X-CSRF-Token"
+    Header set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+    Header set Content-Security-Policy "default-src 'none'"
+</IfModule>

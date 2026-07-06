@@ -25,3 +25,8 @@ define('APP_BASE_URL', 'https://marketingdigitalideaz.com/dashboard');
 define('OAUTH_REDIRECT_URI', APP_BASE_URL . '/backend/oauth/facebook_callback.php');
 
 define('SESSION_COOKIE_NAME', 'ideaz_ac_session');
+
+// Token temporal solo para backend/setup/bootstrap_operator.php (crear el primer
+// operador sin acceso a Terminal/SSH). Generar un valor propio aleatorio, usarlo una
+// vez, y luego borrar backend/setup/bootstrap_operator.php del servidor.
+define('SETUP_TOKEN', '');
