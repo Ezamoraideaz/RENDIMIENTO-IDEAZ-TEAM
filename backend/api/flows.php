@@ -37,7 +37,7 @@ function rebuild_flow_triggers(PDO $pdo, int $flowId, array $graph): void
         }
         $keywords = $node['data']['keywords'] ?? [];
         $scope = $node['data']['platform_scope'] ?? 'both';
-        $insert->execute([$scope, json_encode(['keywords' => $keywords]), $nextId, $priority]);
+        $insert->execute([$flowId, $scope, json_encode(['keywords' => $keywords]), $nextId, $priority]);
         $priority++;
     }
 }
