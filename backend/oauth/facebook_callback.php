@@ -33,65 +33,23 @@ try {
         exit;
     }
 
-    $userEnc = encrypt_token($longToken);
-    $operator = current_operator();
-    $pdo = db();
+    // No se guarda nada todavía: si la cuenta de Facebook administra varias Páginas
+    // (de varios clientes distintos), hay que dejar que el operador elija cuál
+    // corresponde a ESTE cliente, en vez de conectarlas todas automáticamente.
+    $_SESSION['fb_oauth_pending'] = [
+        'client_id'  => $clientId,
+        'user_token' => $longToken,
+        'pages'      => array_map(static function (array $page): array {
+            return [
+                'id'                         => $page['id'],
+                'name'                       => $page['name'],
+                'access_token'               => $page['access_token'],
+                'instagram_business_account' => $page['instagram_business_account'] ?? null,
+            ];
+        }, $pages),
+    ];
 
-    foreach ($pages as $page) {
-        $pageId    = $page['id'];
-        $pageName  = $page['name'];
-        $pageToken = $page['access_token'];
-        $pageEnc   = encrypt_token($pageToken);
-
-        $stmt = $pdo->prepare('
-            INSERT INTO social_accounts
-                (client_id, platform, page_id, page_name, page_access_token_encrypted, page_token_iv,
-                 user_access_token_encrypted, user_token_iv, token_obtained_at, last_verified_at, status, connected_by)
-            VALUES (?, "facebook_page", ?, ?, ?, ?, ?, ?, NOW(), NOW(), "active", ?)
-            ON DUPLICATE KEY UPDATE
-                page_name = VALUES(page_name),
-                page_access_token_encrypted = VALUES(page_access_token_encrypted),
-                page_token_iv = VALUES(page_token_iv),
-                user_access_token_encrypted = VALUES(user_access_token_encrypted),
-                user_token_iv = VALUES(user_token_iv),
-                token_obtained_at = NOW(),
-                last_verified_at = NOW(),
-                status = "active"
-        ');
-        $stmt->execute([
-            $clientId, $pageId, $pageName, $pageEnc['ciphertext'], $pageEnc['iv'],
-            $userEnc['ciphertext'], $userEnc['iv'], $operator['id'] ?? null,
-        ]);
-
-        MetaClient::subscribePageToWebhook($pageId, $pageToken, ['messages', 'messaging_postbacks', 'feed']);
-
-        $igAccount = $page['instagram_business_account'] ?? null;
-        if ($igAccount) {
-            $stmt = $pdo->prepare('
-                INSERT INTO social_accounts
-                    (client_id, platform, page_id, ig_business_id, ig_username, page_name,
-                     page_access_token_encrypted, page_token_iv, user_access_token_encrypted, user_token_iv,
-                     token_obtained_at, last_verified_at, status, connected_by)
-                VALUES (?, "instagram_business", ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), "active", ?)
-                ON DUPLICATE KEY UPDATE
-                    ig_username = VALUES(ig_username),
-                    page_name = VALUES(page_name),
-                    page_access_token_encrypted = VALUES(page_access_token_encrypted),
-                    page_token_iv = VALUES(page_token_iv),
-                    user_access_token_encrypted = VALUES(user_access_token_encrypted),
-                    user_token_iv = VALUES(user_token_iv),
-                    token_obtained_at = NOW(),
-                    last_verified_at = NOW(),
-                    status = "active"
-            ');
-            $stmt->execute([
-                $clientId, $pageId, $igAccount['id'], $igAccount['username'] ?? null, $pageName,
-                $pageEnc['ciphertext'], $pageEnc['iv'], $userEnc['ciphertext'], $userEnc['iv'], $operator['id'] ?? null,
-            ]);
-        }
-    }
-
-    header('Location: ' . $redirectBase . '?oauth_success=1&client_id=' . $clientId);
+    header('Location: ' . $redirectBase . '?oauth_select_page=1&client_id=' . $clientId);
     exit;
 } catch (Throwable $e) {
     header('Location: ' . $redirectBase . '?oauth_error=' . urlencode($e->getMessage()));

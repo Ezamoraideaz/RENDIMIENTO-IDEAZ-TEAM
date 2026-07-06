@@ -19,6 +19,10 @@ $state = bin2hex(random_bytes(16));
 $_SESSION['fb_oauth_state']     = $state;
 $_SESSION['fb_oauth_client_id'] = $clientId;
 
+// Estos son los permisos correctos para el flujo "API setup with Facebook Login"
+// (Página + cuenta de Instagram vinculada descubiertas juntas en un solo OAuth).
+// Los nombres "instagram_business_*" son de un flujo distinto ("API setup with
+// Instagram Login", con su propio App ID de Instagram) y no aplican aquí.
 $scopes = [
     'pages_show_list',
     'pages_messaging',

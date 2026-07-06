@@ -145,6 +145,16 @@ CREATE TABLE IF NOT EXISTS webhook_events (
     CONSTRAINT fk_webhook_events_account FOREIGN KEY (social_account_id) REFERENCES social_accounts(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS deletion_requests (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    confirmation_code VARCHAR(64) NOT NULL,
+    external_user_id VARCHAR(64) NULL,
+    contacts_deleted INT UNSIGNED NOT NULL DEFAULT 0,
+    status ENUM('completed','partial','error') NOT NULL DEFAULT 'completed',
+    requested_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_deletion_code (confirmation_code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS scheduled_actions (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     conversation_id INT UNSIGNED NOT NULL,

@@ -13,12 +13,19 @@ class TriggerEngine
 
     public static function handleMessagingEvent(array $event, string $platform): void
     {
+        // Los "echo" son copias de los mensajes que NOSOTROS enviamos (Meta los reenvía
+        // por webhook). Si no se filtran, el bot se responde a sí mismo en bucle —
+        // especialmente frecuente en Instagram.
+        if (!empty($event['message']['is_echo'])) {
+            return;
+        }
+
         $senderId = $event['sender']['id'] ?? null;
         $pageId   = $event['recipient']['id'] ?? null;
         $text     = $event['message']['text'] ?? ($event['postback']['title'] ?? null);
 
         if (!$senderId || !$pageId || $text === null) {
-            return; // delivery/read receipts u otros eventos sin contenido accionable
+            return; // delivery/read receipts, reacciones u otros eventos sin contenido accionable
         }
 
         $account = self::findAccount($platform, $pageId);
