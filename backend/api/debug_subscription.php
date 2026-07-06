@@ -21,9 +21,13 @@ if (!$account) {
 
 try {
     $pageToken = decrypt_token($account['page_access_token_encrypted'], $account['page_token_iv']);
+
+    $useIgNode = isset($_GET['node']) && $_GET['node'] === 'ig' && !empty($account['ig_business_id']);
+    $node = $useIgNode ? $account['ig_business_id'] : $account['page_id'];
+
     $ch = curl_init();
     curl_setopt_array($ch, [
-        CURLOPT_URL => "https://graph.facebook.com/v21.0/{$account['page_id']}/subscribed_apps?access_token=" . urlencode($pageToken),
+        CURLOPT_URL => "https://graph.facebook.com/v21.0/{$node}/subscribed_apps?access_token=" . urlencode($pageToken),
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT => 15,
     ]);
@@ -32,7 +36,8 @@ try {
     curl_close($ch);
 
     json_response([
-        'page_id' => $account['page_id'],
+        'node_used' => $node,
+        'node_type' => $useIgNode ? 'ig_business_id' : 'page_id',
         'platform' => $account['platform'],
         'http_code' => $httpCode,
         'graph_response' => json_decode($response, true),
