@@ -255,6 +255,7 @@
 <script src="js/api.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/sidebar.js"></script>
+<script src="js/alarm.js"></script>
 <script>
   let dashboardData = null;
   let chartProgress, chartFinancial, chartROI, chartCards;
@@ -1445,6 +1446,7 @@
   // Initial load
   Sidebar.init('dashboard', { onRefresh: () => loadDashboard(true) });
   loadDashboard();
+  Alarm.init();
 </script>
 <!-- MODAL DETALLE DE MIEMBRO -->
 <div id="member-modal" class="fixed inset-0 z-50 hidden overflow-y-auto" onclick="closeMemberModal()">

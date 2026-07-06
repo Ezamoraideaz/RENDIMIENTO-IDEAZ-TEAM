@@ -110,6 +110,7 @@
 <script src="js/auth.js"></script>
 <script src="js/sidebar.js"></script>
 <script src="js/monitor.js"></script>
+<script src="js/alarm.js"></script>
 <script>
   const _mAccess = Auth.checkPageAccess('monitor');
   if (!_mAccess.allowed) {
@@ -123,6 +124,7 @@
     _mAccess.role === 'agenda-member' ? ['agenda', 'monitor'] : null;
   Sidebar.init('monitor', { allowedKeys: _mSidebarKeys, onRefresh: () => Monitor.load(true, _mAccess.lockedMemberId) });
   Monitor.load(false, _mAccess.lockedMemberId);
+  Alarm.init();
 </script>
 </body>
 </html>
