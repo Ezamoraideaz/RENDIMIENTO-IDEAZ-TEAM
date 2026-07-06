@@ -5,6 +5,7 @@ const Agenda = {
   ghostMap: {},
   view: 'month',
   date: new Date(),
+  lockedMemberId: null,
 
   MONTHS: ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'],
   DAYS:   ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'],
@@ -139,6 +140,7 @@ const Agenda = {
 
       this._populateFilters(boards);
       this._applyFilters();
+      this._renderLockedSidebar();
       this._setProgress(100, 'Listo');
       setState('agenda');
 
@@ -364,6 +366,54 @@ const Agenda = {
     });
 
     return ghosts;
+  },
+
+  // --- Agenda bloqueada: "Mis tareas de hoy" agrupadas en el sidebar ---
+  _renderLockedSidebar() {
+    const container = document.getElementById('sidebar-locked-tasks');
+    if (!container) return;
+    if (!this.lockedMemberId) { container.style.display = 'none'; return; }
+
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const todaysCards = this.cards.filter(c => {
+      if (!c.idMembers.includes(this.lockedMemberId)) return false;
+      const dueDay = new Date(c.due); dueDay.setHours(0, 0, 0, 0);
+      return dueDay.getTime() === today.getTime();
+    });
+
+    const enProceso = todaysCards.filter(c => c.stageKey === 'inProgress');
+    const enviado    = todaysCards.filter(c => c.stageKey === 'sentToClient');
+
+    const group = (stageKey, cards) => {
+      if (cards.length === 0) return '';
+      const { label, color } = TimeCalc.STAGES[stageKey];
+      return `
+        <div class="mb-3">
+          <div class="flex items-center gap-1.5 px-1 mb-1.5">
+            <span class="w-2 h-2 rounded-full flex-shrink-0" style="background:${color}"></span>
+            <span class="text-xs font-bold uppercase tracking-wide text-slate-400">${label}</span>
+            <span class="text-xs text-slate-500">${cards.length}</span>
+          </div>
+          <div class="flex flex-col gap-1">
+            ${cards.map(c => `
+              <div data-card-id="${c.id}" class="sidebar-task-item cursor-pointer rounded-lg px-2 py-1.5 text-xs bg-slate-800/60 hover:bg-slate-800 transition-colors truncate"
+                title="${c.name.replace(/"/g, '&quot;')}">
+                ${c.name}
+              </div>`).join('')}
+          </div>
+        </div>`;
+    };
+
+    const html = group('inProgress', enProceso) + group('sentToClient', enviado);
+
+    container.innerHTML = `
+      <div class="text-xs font-bold uppercase tracking-wide text-slate-500 px-1 mb-2">Mis tareas de hoy</div>
+      ${html || '<div class="text-xs text-slate-500 px-1">Sin tareas para hoy</div>'}`;
+    container.style.display = 'block';
+
+    container.querySelectorAll('[data-card-id]').forEach(el => {
+      el.addEventListener('click', () => this.openModal(el.dataset.cardId));
+    });
   },
 
   _applyFilters() {
