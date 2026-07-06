@@ -240,6 +240,7 @@
   <script src="js/sidebar.js"></script>
   <script src="js/drive.js"></script>
   <script src="js/agenda.js"></script>
+  <script src="js/alarm.js"></script>
   <script>
     // Verificar acceso antes de mostrar cualquier contenido
     const _access = Auth.checkPageAccess('agenda');
@@ -300,6 +301,7 @@
     Sidebar.init('agenda', { allowedKeys: _sidebarKeys, onRefresh: () => Agenda.load(true) });
     renderLegend();
     Agenda.load();
+    Alarm.init();
   </script>
 </body>
 </html>
