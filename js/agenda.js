@@ -368,21 +368,17 @@ const Agenda = {
     return ghosts;
   },
 
-  // --- Agenda bloqueada: "Mis tareas de hoy" agrupadas en el sidebar ---
+  // --- Agenda bloqueada: "Mi Actividad" agrupada en el sidebar ---
   _renderLockedSidebar() {
     const container = document.getElementById('sidebar-locked-tasks');
     if (!container) return;
     if (!this.lockedMemberId) { container.style.display = 'none'; return; }
 
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const todaysCards = this.cards.filter(c => {
-      if (!c.idMembers.includes(this.lockedMemberId)) return false;
-      const dueDay = new Date(c.due); dueDay.setHours(0, 0, 0, 0);
-      return dueDay.getTime() === today.getTime();
-    });
+    const myCards = this.cards.filter(c => c.idMembers.includes(this.lockedMemberId));
 
-    const enProceso = todaysCards.filter(c => c.stageKey === 'inProgress');
-    const enviado    = todaysCards.filter(c => c.stageKey === 'sentToClient');
+    const enProceso = myCards.filter(c => c.stageKey === 'inProgress');
+    const enviado    = myCards.filter(c => c.stageKey === 'sentToClient');
+    const cambios    = myCards.filter(c => c.stageKey === 'clientRevision');
 
     const group = (stageKey, cards) => {
       if (cards.length === 0) return '';
@@ -404,11 +400,11 @@ const Agenda = {
         </div>`;
     };
 
-    const html = group('inProgress', enProceso) + group('sentToClient', enviado);
+    const html = group('inProgress', enProceso) + group('clientRevision', cambios) + group('sentToClient', enviado);
 
     container.innerHTML = `
-      <div class="text-xs font-bold uppercase tracking-wide text-slate-500 px-1 mb-2">Mis tareas de hoy</div>
-      ${html || '<div class="text-xs text-slate-500 px-1">Sin tareas para hoy</div>'}`;
+      <div class="text-xs font-bold uppercase tracking-wide text-slate-500 px-1 mb-2">Mi Actividad</div>
+      ${html || '<div class="text-xs text-slate-500 px-1">Sin tareas asignadas</div>'}`;
     container.style.display = 'block';
 
     container.querySelectorAll('[data-card-id]').forEach(el => {
