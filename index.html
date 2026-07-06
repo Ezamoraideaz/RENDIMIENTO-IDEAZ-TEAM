@@ -4,7 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script>if(localStorage.getItem('ideaz_theme')==='light')document.documentElement.classList.add('light');</script>
-  <title>IDEAZ Dashboard – Rendimiento del Equipo</title>
+  <title>Monitor Ideaz – Dashboard de Rendimiento del Equipo</title>
+  <meta name="application-name" content="Monitor Ideaz">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
@@ -354,6 +355,9 @@
       const doneListIds = new Set(
         lists.filter(l => ['approved','drive','published'].includes(TimeCalc.classifyList(l.name))).map(l => l.id)
       );
+      const sentListIds = new Set(
+        lists.filter(l => TimeCalc.classifyList(l.name) === 'sentToClient').map(l => l.id)
+      );
       const inProgressListIds = new Set(
         lists.filter(l => TimeCalc.classifyList(l.name) === 'inProgress').map(l => l.id)
       );
@@ -362,6 +366,13 @@
       const doneCards = openCards.filter(c => doneListIds.has(c.idList) || c.dueComplete);
       const progress = openCards.length > 0
         ? Math.round((doneCards.length / openCards.length) * 100) : 0;
+
+      // Three-tier progress breakdown (only cards with due date)
+      const openWithDue  = openCards.filter(c => c.due);
+      const nWithDue     = openWithDue.length;
+      const nDueComplete = openWithDue.filter(c => c.dueComplete).length;
+      const nApproved    = openWithDue.filter(c => doneListIds.has(c.idList) || c.dueComplete).length;
+      const nWithSent    = openWithDue.filter(c => doneListIds.has(c.idList) || c.dueComplete || sentListIds.has(c.idList)).length;
 
       // Calculate time from Trello action history
       const timelines = TimeCalc.buildCardTimelines(actions || [], openCards);
@@ -397,7 +408,8 @@
         type:      Utils.resolveType(pd.type, board.organization?.displayName || board.organization?.name || '', board.name),
         url: board.shortUrl,
         lastActivity: board.dateLastActivity,
-        lists, cards: openCards, doneCards, doneListIds, members, timelines,
+        lists, cards: openCards, doneCards, doneListIds, sentListIds, members, timelines,
+        nWithDue, nDueComplete, nApproved, nWithSent, nDeliveredInMonth: 0,
         progress,
         totalCards:     openCards.length,
         completedCards: doneCards.length,
@@ -443,10 +455,28 @@
   }
 
   function renderKPIGlobal(projects, members) {
-    const totalCards = projects.reduce((s, p) => s + p.totalCards, 0);
-    const totalDone  = projects.reduce((s, p) => s + p.completedCards, 0);
-    const globalPct  = totalCards > 0 ? Math.round(totalDone / totalCards * 100) : 0;
-    const totalHours = projects.reduce((s, p) => s + p.totalHours, 0);
+    const totalCards   = projects.reduce((s, p) => s + p.totalCards, 0);
+    const totalDone    = projects.reduce((s, p) => s + p.completedCards, 0);
+    const totalHours   = projects.reduce((s, p) => s + p.totalHours, 0);
+
+    // Three-tier progress (only cards with due date)
+    const totalWithDue    = projects.reduce((s, p) => s + (p.nWithDue    || 0), 0);
+    const totalDueComplete= projects.reduce((s, p) => s + (p.nDueComplete|| 0), 0);
+    const totalApproved   = projects.reduce((s, p) => s + (p.nApproved   || 0), 0);
+    const totalWithSent   = projects.reduce((s, p) => s + (p.nWithSent   || 0), 0);
+
+    const pctDueComplete = totalWithDue > 0 ? Math.round(totalDueComplete / totalWithDue * 100) : 0;
+    const pctApproved    = totalWithDue > 0 ? Math.round(totalApproved    / totalWithDue * 100) : 0;
+    const pctWithSent    = totalWithDue > 0 ? Math.round(totalWithSent    / totalWithDue * 100) : 0;
+
+    const progressColor = pctApproved >= 75 ? 'border-l-emerald-500' : pctApproved >= 40 ? 'border-l-amber-500' : 'border-l-red-500';
+    const pctColor      = pctApproved >= 75 ? 'text-emerald-400'     : pctApproved >= 40 ? 'text-amber-400'     : 'text-red-400';
+
+    const sinDue = totalCards - totalWithDue;
+    const totalDeliveredInMonth = projects.reduce((s, p) => s + (p.nDeliveredInMonth || 0), 0);
+    // Entregas de meses anteriores = entregadas este mes pero cuyo due no era este mes
+    const entregasExtras = Math.max(0, totalDeliveredInMonth - totalApproved);
+
     document.getElementById('kpi-global').innerHTML = `
       <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-violet-500 rounded-2xl p-5">
         <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">📁 Proyectos Activos</div>
@@ -456,12 +486,43 @@
       <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-indigo-500 rounded-2xl p-5">
         <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">🗂 Tarjetas Totales</div>
         <div class="text-3xl font-black text-slate-100">${Utils.fmt(totalCards)}</div>
-        <div class="text-xs text-slate-400 mt-1">${Utils.fmt(totalDone)} completadas</div>
+        <div class="text-xs text-slate-400 mt-1">
+          ${Utils.fmt(totalWithDue)} con fecha límite
+          ${sinDue > 0 ? `<span class="text-slate-600"> · ${sinDue} sin fecha</span>` : ''}
+        </div>
       </div>
-      <div class="bg-slate-900 border border-l-4 border-slate-700 ${globalPct >= 75 ? 'border-l-emerald-500' : globalPct >= 40 ? 'border-l-amber-500' : 'border-l-red-500'} rounded-2xl p-5">
+      <div class="bg-slate-900 border border-l-4 border-slate-700 ${progressColor} rounded-2xl p-5">
         <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">✅ Progreso Global</div>
-        <div class="text-3xl font-black text-slate-100">${globalPct}%</div>
-        <div class="text-xs text-slate-400 mt-1">${totalDone} de ${totalCards} tarjetas</div>
+        <div class="text-3xl font-black ${pctColor}">${pctApproved}%</div>
+        <div class="text-xs text-slate-400 mt-0.5">${totalApproved} de ${totalWithDue} compromisos del período</div>
+        ${totalDeliveredInMonth > 0 ? `
+        <div class="text-xs text-slate-500 mt-1">
+          + ${totalDeliveredInMonth} entrega${totalDeliveredInMonth !== 1 ? 's' : ''} real${totalDeliveredInMonth !== 1 ? 'es' : ''} en el mes
+          ${entregasExtras > 0 ? `<span class="text-slate-600">(${entregasExtras} de meses anteriores)</span>` : ''}
+        </div>` : ''}
+        <button onclick="(function(b){var d=b.nextElementSibling;var open=!d.classList.contains('hidden');d.classList.toggle('hidden');b.innerHTML=open?'▾ Ver desglose':'▴ Ocultar desglose';})(this)"
+          class="mt-2 text-xs text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1">
+          ▾ Ver desglose
+        </button>
+        <div class="hidden mt-2 space-y-1.5 border-t border-slate-700/60 pt-2.5">
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-slate-500">☑ Marcadas completadas</span>
+            <span class="font-semibold text-slate-300">${pctDueComplete}% <span class="text-slate-600 font-normal">(${totalDueComplete})</span></span>
+          </div>
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-slate-500">✓ + Aprobadas / Publicadas</span>
+            <span class="font-semibold ${pctColor}">${pctApproved}% <span class="text-slate-600 font-normal">(${totalApproved})</span></span>
+          </div>
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-slate-500">→ + Enviadas al cliente</span>
+            <span class="font-semibold text-amber-400">${pctWithSent}% <span class="text-slate-600 font-normal">(${totalWithSent})</span></span>
+          </div>
+          ${totalDeliveredInMonth > 0 ? `
+          <div class="flex items-center justify-between text-xs border-t border-slate-700/40 pt-2 mt-1">
+            <span class="text-slate-500">📦 Entregas reales en el mes</span>
+            <span class="font-semibold text-sky-400">${totalDeliveredInMonth}</span>
+          </div>` : ''}
+        </div>
       </div>
       <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-cyan-500 rounded-2xl p-5">
         <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">👥 Miembros del Equipo</div>
@@ -704,9 +765,9 @@
       const dt = new Date(d);
       return dt.getFullYear() === y && dt.getMonth() + 1 === m;
     };
-    const filteredCards = project.cards.filter(c =>
-      c.due ? inMonth(c.due) : inMonth(c.dateLastActivity)
-    );
+
+    // Solo tarjetas con fecha límite definida en ese mes (sin fallback a dateLastActivity)
+    const filteredCards = project.cards.filter(c => c.due && inMonth(c.due));
     if (filteredCards.length === 0) return null;
 
     const filteredTimelines = {};
@@ -717,6 +778,21 @@
     const summary    = TimeCalc.calcProjectSummary(filteredTimelines);
     const totalHours = summary.totalWorkHours;
     const totalCost  = totalHours * (project.avgSalary / Utils.MONTHLY_HOURS);
+
+    // Three-tier breakdown (todas tienen due, ya filtrado)
+    const nWithDue     = filteredCards.length;
+    const nDueComplete = filteredCards.filter(c => c.dueComplete).length;
+    const nApproved    = filteredCards.filter(c => project.doneListIds.has(c.idList) || c.dueComplete).length;
+    const nWithSent    = filteredCards.filter(c =>
+      project.doneListIds.has(c.idList) || c.dueComplete || (project.sentListIds && project.sentListIds.has(c.idList))
+    ).length;
+
+    // Entregas reales: cualquier tarjeta del proyecto cuyo endDate cae en este mes
+    // (independiente de su due date — captura entregas tardías de meses anteriores)
+    const nDeliveredInMonth = project.cards.filter(c => {
+      const tl = project.timelines[c.id];
+      return tl?.endDate && inMonth(tl.endDate);
+    }).length;
 
     return {
       ...project,
@@ -730,7 +806,8 @@
       totalRevisions: summary.totalRevisions,
       avgCycleTime:   summary.avgCycleTime,
       totalCost,
-      roi: Utils.calcROI(project.revenue, totalCost)
+      roi: Utils.calcROI(project.revenue, totalCost),
+      nWithDue, nDueComplete, nApproved, nWithSent, nDeliveredInMonth
     };
   }
 

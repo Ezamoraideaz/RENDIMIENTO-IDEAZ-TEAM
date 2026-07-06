@@ -4,6 +4,7 @@ const Sidebar = (() => {
     { href: 'agenda.html',        icon: '📅', label: 'Agenda',        key: 'agenda'        },
     { href: 'monitor.html',       icon: '🚨', label: 'Monitor',       key: 'monitor'       },
     { href: 'pauta.html',         icon: '💰', label: 'Pauta',         key: 'pauta'         },
+    { href: 'atencion-cliente.html', icon: '💬', label: 'Atención Cliente', key: 'atencion-cliente' },
     { href: 'configuracion.html', icon: '⚙️', label: 'Configuración', key: 'configuracion' },
   ];
 
@@ -111,7 +112,7 @@ const Sidebar = (() => {
             <span class="text-white font-black text-sm">I</span>
           </div>
           <div class="sidebar-text min-w-0">
-            <div class="font-black text-slate-100 leading-none">IDEAZ</div>
+            <div class="font-black text-slate-100 leading-none">Monitor Ideaz</div>
             <div class="text-xs text-slate-400 font-medium">${logoSub}</div>
           </div>
         </a>

@@ -4,14 +4,15 @@ const PautaMonitor = (() => {
   const API_PATH = 'api/spend.php';
 
   const PLATFORMS = [
-    { key: 'meta',   label: 'Meta Ads',    icon: '📘', color: 'blue'   },
-    { key: 'google', label: 'Google Ads',  icon: '🔴', color: 'red'    },
-    { key: 'tiktok', label: 'TikTok Ads',  icon: '🎵', color: 'purple' },
+    { key: 'meta',   label: 'Meta Ads',    icon: _platIcon('meta'),   color: 'blue'   },
+    { key: 'google', label: 'Google Ads',  icon: _platIcon('google'), color: 'red'    },
+    { key: 'tiktok', label: 'TikTok Ads',  icon: _platIcon('tiktok'), color: 'purple' },
   ];
 
   let _clients  = [];
   let _spend    = {};   // { 'clientId:platform:accountId': { total_spend, daily_data, currency, error } }
   let _loading  = false;
+  let _simState = null; // estado del simulador de presupuesto
   const _filters = { period: false, now: false };
 
   // ── Storage ────────────────────────────────────────────────────────────────
@@ -395,8 +396,14 @@ const PautaMonitor = (() => {
             ${dailyPaceHtml}
           </div>
         </div>
-        <button onclick="PautaMonitor.openClientModal('${client.id}')" title="Editar cliente"
-          class="text-slate-500 hover:text-slate-300 text-lg leading-none flex-shrink-0 transition-colors">⚙</button>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <button onclick="PautaMonitor.openBrandModal('${client.id}')" title="Ver detalle de campañas"
+            class="text-xs font-semibold text-indigo-400 hover:text-indigo-300 border border-indigo-600/50 hover:border-indigo-400 px-2.5 py-1 rounded-lg transition-colors">
+            📊 Detalle
+          </button>
+          <button onclick="PautaMonitor.openClientModal('${client.id}')" title="Editar cliente"
+            class="text-slate-500 hover:text-slate-300 text-lg leading-none transition-colors">⚙</button>
+        </div>
       </div>
 
       <!-- Global progress -->
@@ -760,6 +767,837 @@ const PautaMonitor = (() => {
     return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  // ── Platform icons (SVG) ──────────────────────────────────────────────────
+
+  function _platIcon(platform, size = 18) {
+    const s = size;
+    const st = `display:inline-block;vertical-align:middle;flex-shrink:0`;
+    const icons = {
+      meta: `<svg width="${s}" height="${s}" viewBox="0 0 24 24" style="${st}" xmlns="http://www.w3.org/2000/svg">
+        <path fill="#1877F2" d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+      </svg>`,
+      google: `<svg width="${s}" height="${s}" viewBox="0 0 24 24" style="${st}" xmlns="http://www.w3.org/2000/svg">
+        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+      </svg>`,
+      tiktok: `<svg width="${s}" height="${s}" viewBox="0 0 24 24" style="${st}" xmlns="http://www.w3.org/2000/svg">
+        <path fill="#ffffff" d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.27 6.27 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.18 8.18 0 0 0 4.84 1.55V6.79a4.85 4.85 0 0 1-1.07-.1z"/>
+        <path fill="#69C9D0" opacity="0.7" d="M18.52 6.59a4.83 4.83 0 0 1-2.7-3.15v-.02A4.85 4.85 0 0 0 19.59 6.69a4.85 4.85 0 0 1-1.07-.1z"/>
+      </svg>`,
+    };
+    return icons[platform]
+      || `<svg width="${s}" height="${s}" viewBox="0 0 24 24" style="${st}"><circle cx="12" cy="12" r="10" fill="#475569"/></svg>`;
+  }
+
+  // ── Brand Detail Modal ─────────────────────────────────────────────────────
+
+  const LS_LEADS = 'pauta_leads';
+
+  function _leadsKey(clientId, from, to) { return `${clientId}:${from}:${to}`; }
+
+  function _loadLeads(clientId, from, to) {
+    try {
+      const all = JSON.parse(localStorage.getItem(LS_LEADS) || '{}');
+      return all[_leadsKey(clientId, from, to)] || { total: 0, qualified: 0 };
+    } catch { return { total: 0, qualified: 0 }; }
+  }
+
+  function _saveLeads(clientId, from, to, data) {
+    try {
+      const all = JSON.parse(localStorage.getItem(LS_LEADS) || '{}');
+      all[_leadsKey(clientId, from, to)] = data;
+      localStorage.setItem(LS_LEADS, JSON.stringify(all));
+    } catch {}
+  }
+
+  async function openBrandModal(clientId) {
+    const client = _clients.find(c => c.id === clientId);
+    if (!client) return;
+    const { from, to } = _dateRange();
+    if (!from || !to) { alert('Selecciona un período primero.'); return; }
+
+    document.body.insertAdjacentHTML('beforeend', `
+      <div id="brand-modal-overlay" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-5xl max-h-[92vh] overflow-hidden shadow-2xl">
+          <div class="px-6 py-4 border-b border-slate-700 flex items-center justify-between">
+            <h2 class="font-bold text-slate-100 text-lg">${_esc(client.name)}</h2>
+            <button onclick="PautaMonitor.closeBrandModal()" class="text-slate-400 hover:text-slate-100 text-2xl leading-none">×</button>
+          </div>
+          <div class="flex flex-col items-center justify-center py-28 text-slate-400 gap-4">
+            <div class="animate-spin w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full"></div>
+            <span class="text-sm">Cargando campañas…</span>
+          </div>
+        </div>
+      </div>`);
+
+    const detailData = {};
+    const calls = [];
+    for (const plat of (client.platforms || [])) {
+      if (!plat.enabled) continue;
+      const accountId = plat.account_id || plat.customer_id || plat.advertiser_id || '';
+      if (!accountId) continue;
+      const detailPlat = plat.platform === 'google' ? 'google_detail'
+                       : plat.platform === 'meta'   ? 'meta_detail' : null;
+      if (!detailPlat) continue;
+      const url = `${API_PATH}?platform=${encodeURIComponent(detailPlat)}&account_id=${encodeURIComponent(accountId)}&from=${from}&to=${to}`;
+      calls.push(
+        fetch(url).then(r => r.json())
+          .then(data => { detailData[plat.platform] = data; })
+          .catch(() => { detailData[plat.platform] = { error: 'Sin conexión al servidor' }; })
+      );
+    }
+    await Promise.all(calls);
+
+    document.getElementById('brand-modal-overlay')?.remove();
+    _renderBrandModal(client, detailData, from, to);
+  }
+
+  function _detectStage(name) {
+    const n = (name || '').toLowerCase();
+    if (/\bf1\b|\[f1\]|-f1-|_f1_|\btof\b/.test(n)) return 'tof';
+    if (/\bf2\b|\[f2\]|-f2-|_f2_|\bmof\b/.test(n)) return 'mof';
+    if (/\bf3\b|\[f3\]|-f3-|_f3_|\bbof\b/.test(n)) return 'bof';
+    return 'other';
+  }
+
+  function _groupByStage(detailData) {
+    const stages = { tof: [], mof: [], bof: [], other: [] };
+    for (const [platform, data] of Object.entries(detailData)) {
+      if (data.error || !Array.isArray(data.campaigns)) continue;
+      for (const c of data.campaigns) {
+        const stage = c.stage || _detectStage(c.name);
+        (stages[stage] = stages[stage] || []).push({ ...c, platform });
+      }
+    }
+    return stages;
+  }
+
+  function _stageTotals(campaigns) {
+    return campaigns.reduce((a, c) => ({
+      spend:       a.spend       + (c.spend       || 0),
+      impressions: a.impressions + (c.impressions || 0),
+      clicks:      a.clicks      + (c.clicks      || 0),
+      leads:       a.leads       + (c.leads        || 0),
+      count:       a.count       + 1,
+    }), { spend: 0, impressions: 0, clicks: 0, leads: 0, count: 0 });
+  }
+
+  function _renderBrandModal(client, detailData, from, to) {
+    const stages = _groupByStage(detailData);
+    const tof = _stageTotals(stages.tof);
+    const mof = _stageTotals(stages.mof);
+    const bof = _stageTotals(stages.bof);
+
+    const apiLeads  = tof.leads + mof.leads + bof.leads;
+    const saved     = _loadLeads(client.id, from, to);
+    const totLeads  = saved.total     || apiLeads;
+    const qualified = saved.qualified || 0;
+    const unqual    = Math.max(0, totLeads - qualified);
+    const qualRate  = totLeads > 0 ? qualified / totLeads * 100 : 0;
+    const totalSpend = tof.spend + mof.spend + bof.spend;
+    const cpql = qualified > 0 ? totalSpend / qualified : 0;
+    const cpl  = totLeads  > 0 ? totalSpend / totLeads  : 0;
+    const totalImpr  = tof.impressions + mof.impressions + bof.impressions;
+    const totalClicks = tof.clicks + mof.clicks + bof.clicks;
+    const campCount  = tof.count + mof.count + bof.count + stages.other.length;
+
+    // Indicador de salud global (cruza calidad de leads + fatiga)
+    const fatigue = _fatigueAnalyze(detailData);
+    const health  = _overallHealth(qualRate, fatigue ? fatigue.worst : null, totLeads);
+
+    // Estado de plataformas + errores
+    const platEntries = Object.entries(detailData);
+    const platBadges  = platEntries.map(([p, d]) => {
+      const ok = !d.error;
+      return `<span title="${ok ? p : _esc(d.error)}"
+        class="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg border ${ok ? 'border-slate-700 text-slate-300 bg-slate-800/60' : 'border-red-500/40 text-red-400 bg-red-500/10'}">
+        ${_platIcon(p, 13)}${ok ? '' : '<span>⚠</span>'}</span>`;
+    }).join('');
+    const errors = platEntries.filter(([, d]) => d.error);
+    const errorBanner = errors.length ? `
+      <div class="mb-5 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-xs text-red-300 flex flex-col gap-1">
+        ${errors.map(([p, d]) => `<div>⚠ <strong class="uppercase">${_esc(p)}</strong>: ${_esc(d.error)}</div>`).join('')}
+      </div>` : '';
+
+    // Contenido de paneles (con estados vacíos amigables)
+    const fatigueHtml = _renderFatigue(detailData) || _emptyPanel('No hay datos de frecuencia de Meta Ads en este período. El detector de fatiga requiere campañas activas en Meta.');
+    const simHtml     = _renderSimulator(stages, totalSpend, totLeads, qualified) || _emptyPanel('Se necesita inversión registrada en el período para simular la redistribución de presupuesto.');
+    const campHtml    = _renderCampaignList(stages) || _emptyPanel('No se encontraron campañas activas en este período.');
+
+    const heroCard = (label, value, sub, valCls = 'text-slate-100') => `
+      <div class="bg-slate-800/60 border border-slate-700/60 rounded-xl px-4 py-3">
+        <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">${label}</div>
+        <div class="text-xl font-black ${valCls} mt-1.5 leading-none">${value}</div>
+        ${sub ? `<div class="text-[11px] text-slate-500 mt-1.5">${sub}</div>` : ''}
+      </div>`;
+
+    const tabs = [
+      { key: 'resumen',     label: 'Resumen' },
+      { key: 'leads',       label: 'Leads' },
+      { key: 'diagnostico', label: 'Diagnóstico' },
+      { key: 'simulador',   label: 'Simulador' },
+      { key: 'campanas',    label: 'Campañas' },
+    ];
+    const tabBtns = tabs.map((t, i) => `
+      <button onclick="PautaMonitor._switchBrandTab('${t.key}')" data-tab="${t.key}"
+        class="bm-tab whitespace-nowrap px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${i === 0 ? 'text-indigo-300 border-indigo-500' : 'text-slate-400 border-transparent hover:text-slate-200'}">
+        ${t.label}</button>`).join('');
+
+    document.body.insertAdjacentHTML('beforeend', `
+    <div id="brand-modal-overlay" onclick="PautaMonitor._brandOverlayClose(event)"
+      class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+
+        <!-- Header -->
+        <div class="px-6 py-4 border-b border-slate-700 flex items-start justify-between gap-4 flex-shrink-0">
+          <div class="min-w-0">
+            <div class="flex items-center gap-3 flex-wrap">
+              <h2 class="font-bold text-slate-100 text-lg truncate">${_esc(client.name)}</h2>
+              <span class="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full border ${health.cls} flex-shrink-0">
+                <span class="w-1.5 h-1.5 rounded-full ${health.dot}"></span>${health.label}
+              </span>
+            </div>
+            <p class="text-xs text-slate-500 mt-1">${from} → ${to}</p>
+          </div>
+          <div class="flex items-center gap-2 flex-shrink-0">
+            ${platBadges}
+            <button onclick="PautaMonitor.closeBrandModal()" class="ml-1 text-slate-400 hover:text-slate-100 text-2xl leading-none">×</button>
+          </div>
+        </div>
+
+        <!-- Métricas hero -->
+        <div class="px-6 py-4 border-b border-slate-700 bg-slate-900/40 flex-shrink-0 grid grid-cols-2 sm:grid-cols-4 gap-3">
+          ${heroCard('Inversión total', '$' + _fmt(totalSpend), `${campCount} campaña${campCount !== 1 ? 's' : ''}`)}
+          ${heroCard('Leads', totLeads || '—', qualified > 0 ? `${qualified} calificados` : 'sin registrar')}
+          ${heroCard('CPQL', cpql > 0 ? '$' + _fmtShort(cpql) : '—', 'costo / lead calificado', 'text-indigo-300')}
+          ${heroCard('Tasa calificación', totLeads > 0 ? qualRate.toFixed(0) + '%' : '—', 'calificados / total',
+            totLeads > 0 ? (qualRate >= 60 ? 'text-emerald-400' : qualRate >= 40 ? 'text-yellow-400' : 'text-red-400') : 'text-slate-100')}
+        </div>
+
+        <!-- Pestañas -->
+        <div class="px-3 border-b border-slate-700 flex-shrink-0 overflow-x-auto">
+          <div class="flex">${tabBtns}</div>
+        </div>
+
+        <!-- Paneles -->
+        <div id="bm-scroll" class="overflow-y-auto flex-1 p-6">
+          ${errorBanner}
+
+          <div id="bm-panel-resumen" class="bm-panel flex flex-col gap-6">
+            <div>
+              <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">Embudo de conversión</p>
+              ${_renderFunnel(tof, mof, bof)}
+            </div>
+            <div>
+              <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">KPIs del Trafficker</p>
+              ${_renderKPIs(tof, mof, bof, totalSpend, totLeads, qualified, unqual, totalImpr, totalClicks)}
+            </div>
+          </div>
+
+          <div id="bm-panel-leads" class="bm-panel flex flex-col gap-4" style="display:none">
+            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Calidad de leads</p>
+            ${_renderLeadQuality(totLeads, qualified, unqual, qualRate, cpl, cpql, client.id, from, to, apiLeads)}
+          </div>
+
+          <div id="bm-panel-diagnostico" class="bm-panel" style="display:none">
+            ${fatigueHtml}
+          </div>
+
+          <div id="bm-panel-simulador" class="bm-panel" style="display:none">
+            ${simHtml}
+          </div>
+
+          <div id="bm-panel-campanas" class="bm-panel" style="display:none">
+            ${campHtml}
+          </div>
+        </div>
+      </div>
+    </div>`);
+  }
+
+  function _switchBrandTab(key) {
+    document.querySelectorAll('#brand-modal-overlay .bm-panel').forEach(el => {
+      el.style.display = (el.id === 'bm-panel-' + key) ? '' : 'none';
+    });
+    document.querySelectorAll('#brand-modal-overlay .bm-tab').forEach(el => {
+      const active = el.dataset.tab === key;
+      el.classList.toggle('text-indigo-300', active);
+      el.classList.toggle('border-indigo-500', active);
+      el.classList.toggle('text-slate-400', !active);
+      el.classList.toggle('border-transparent', !active);
+    });
+    const scroll = document.getElementById('bm-scroll');
+    if (scroll) scroll.scrollTop = 0;
+  }
+
+  function _emptyPanel(msg) {
+    return `<div class="flex flex-col items-center justify-center py-16 text-center text-slate-500 gap-3">
+      <div class="w-12 h-12 rounded-full border-2 border-dashed border-slate-700 flex items-center justify-center text-slate-600 text-xl">∅</div>
+      <p class="text-sm max-w-sm leading-relaxed">${msg}</p>
+    </div>`;
+  }
+
+  function _overallHealth(qualRate, fatigueWorst, totLeads) {
+    let level = 'ok';
+    if (totLeads > 0) {
+      if (qualRate < 40)      level = 'bad';
+      else if (qualRate < 60) level = 'warn';
+    } else {
+      level = 'neutral';
+    }
+    if (fatigueWorst === 'critical')                       level = 'bad';
+    else if (fatigueWorst === 'danger' && level === 'ok')  level = 'warn';
+
+    const map = {
+      ok:      { label: 'Saludable', cls: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30', dot: 'bg-emerald-500' },
+      warn:    { label: 'Atención',  cls: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',     dot: 'bg-yellow-400' },
+      bad:     { label: 'Crítico',   cls: 'bg-red-500/15 text-red-400 border-red-500/30',              dot: 'bg-red-500 animate-pulse' },
+      neutral: { label: 'Sin leads', cls: 'bg-slate-700/40 text-slate-400 border-slate-600',           dot: 'bg-slate-500' },
+    };
+    return map[level];
+  }
+
+  function _renderFunnel(tof, mof, bof) {
+    const tofCPM = tof.impressions > 0 ? tof.spend / tof.impressions * 1000 : 0;
+    const tofCTR = tof.impressions > 0 ? tof.clicks / tof.impressions * 100  : 0;
+    const mofCPC = mof.clicks > 0      ? mof.spend / mof.clicks              : 0;
+    const bofCPL = bof.leads  > 0      ? bof.spend / bof.leads               : 0;
+
+    const row = (label, emoji, colorCls, bgCls, m, kpiVal, kpiDesc, indent) => {
+      const empty = m.count === 0;
+      return `
+      <div style="margin-left:${indent}px; margin-right:${indent}px">
+        <div class="border-l-4 ${colorCls} ${empty ? 'border-dashed opacity-50' : ''} bg-slate-800 rounded-xl p-4">
+          <div class="flex items-center justify-between mb-${empty ? '0' : '3'}">
+            <div class="flex items-center gap-2">
+              <span class="text-sm font-black ${bgCls} px-2 py-0.5 rounded-md text-xs">${label}</span>
+              ${empty ? '<span class="text-xs text-slate-600">Sin campañas configuradas</span>' : `<span class="text-xs text-slate-500">${emoji} ${m.count} campaña${m.count !== 1 ? 's' : ''}</span>`}
+            </div>
+            ${empty ? '' : `<span class="text-slate-100 font-bold text-sm">$${_fmt(m.spend)}</span>`}
+          </div>
+          ${empty ? '' : `
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div><span class="text-slate-500 block">Impresiones</span><strong class="text-slate-200">${_fmtNum(m.impressions)}</strong></div>
+            <div><span class="text-slate-500 block">Clicks</span><strong class="text-slate-200">${_fmtNum(m.clicks)}</strong></div>
+            ${m.leads > 0 ? `<div><span class="text-slate-500 block">Leads API</span><strong class="text-slate-200">${m.leads}</strong></div>` : ''}
+            <div><span class="text-slate-500 block">${kpiDesc}</span><strong class="${bgCls}">${kpiVal}</strong></div>
+          </div>`}
+        </div>
+      </div>`;
+    };
+
+    const arrow = `<div class="flex justify-center text-slate-700 text-xl py-1">▼</div>`;
+
+    return `
+    <div class="flex flex-col gap-0">
+      ${row('TOF · F1', '📢', 'border-blue-500',    'text-blue-400 bg-blue-500/10',    tof, tofCPM > 0 ? `CPM $${_fmtShort(tofCPM)}` : '—', 'CPM', 0)}
+      ${arrow}
+      ${row('MOF · F2', '🎯', 'border-yellow-500',  'text-yellow-400 bg-yellow-500/10', mof, mofCPC > 0 ? `CPC $${_fmtShort(mofCPC)}` : '—', 'CPC', 24)}
+      ${arrow}
+      ${row('BOF · F3', '💰', 'border-emerald-500', 'text-emerald-400 bg-emerald-500/10', bof, bofCPL > 0 ? `CPL $${_fmtShort(bofCPL)}` : '—', 'CPL', 48)}
+    </div>`;
+  }
+
+  function _renderKPIs(tof, mof, bof, totalSpend, totLeads, qualified, unqual, totalImpr, totalClicks) {
+    const cpm      = totalImpr   > 0 ? totalSpend / totalImpr   * 1000 : 0;
+    const ctr      = totalImpr   > 0 ? totalClicks / totalImpr  * 100  : 0;
+    const cpc      = totalClicks > 0 ? totalSpend / totalClicks         : 0;
+    const cpl      = totLeads    > 0 ? totalSpend / totLeads            : 0;
+    const cpql     = qualified   > 0 ? totalSpend / qualified           : 0;
+    const qualRate = totLeads    > 0 ? qualified  / totLeads    * 100   : 0;
+
+    const qColor   = qualRate >= 60 ? 'text-emerald-400' : qualRate >= 40 ? 'text-yellow-400' : 'text-red-400';
+
+    const kpi = (label, val, sub, valCls = 'text-slate-100', accent = 'border-slate-700/60') => `
+      <div class="bg-slate-800/60 rounded-xl p-3.5 border ${accent}">
+        <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">${label}</div>
+        <div class="text-lg font-black ${valCls} mt-1.5 leading-none">${val}</div>
+        <div class="text-[11px] text-slate-500 mt-1.5 leading-tight">${sub}</div>
+      </div>`;
+
+    return `<div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+      ${kpi('CPM', cpm > 0 ? `$${_fmtShort(cpm)}` : '—', 'costo / mil imp.')}
+      ${kpi('CTR', ctr > 0 ? `${ctr.toFixed(2)}%` : '—', 'clics / impresiones')}
+      ${kpi('CPC', cpc > 0 ? `$${_fmtShort(cpc)}` : '—', 'costo / clic')}
+      ${kpi('CPL', cpl > 0 ? `$${_fmtShort(cpl)}` : '—', 'costo / lead total')}
+      ${kpi('Leads', totLeads || '—', 'recibidos en el período')}
+      ${kpi('Calificados', qualified || '—', `${qualRate.toFixed(0)}% tasa de calificación`, qualified > 0 ? qColor : 'text-slate-500')}
+      ${kpi('No calificados', unqual || '—', 'descartados', unqual > 0 ? 'text-red-400' : 'text-slate-500')}
+      ${kpi('CPQL', cpql > 0 ? `$${_fmtShort(cpql)}` : '—', 'costo / lead calificado', cpql > 0 ? 'text-indigo-300' : 'text-slate-500', cpql > 0 ? 'border-indigo-500/30' : 'border-slate-700/60')}
+    </div>`;
+  }
+
+  function _renderLeadQuality(total, qualified, unqual, qualRate, cpl, cpql, clientId, from, to, apiLeads) {
+    const qColor  = qualRate >= 60 ? 'text-emerald-400' : qualRate >= 40 ? 'text-yellow-400' : 'text-red-400';
+    const qBarW   = Math.round(Math.min(qualRate, 100));
+    const uBarW   = 100 - qBarW;
+
+    return `
+    <div class="flex flex-col gap-4">
+      <div class="grid grid-cols-3 gap-3 text-center">
+        <div>
+          <div class="text-3xl font-black text-slate-100">${total || 0}</div>
+          <div class="text-xs text-slate-500 mt-0.5">Leads totales</div>
+        </div>
+        <div>
+          <div class="text-3xl font-black text-emerald-400">${qualified || 0}</div>
+          <div class="text-xs text-slate-500 mt-0.5">Calificados</div>
+          ${cpql > 0 ? `<div class="text-xs text-slate-600">$${_fmtShort(cpql)} c/u</div>` : ''}
+        </div>
+        <div>
+          <div class="text-3xl font-black text-red-400">${unqual || 0}</div>
+          <div class="text-xs text-slate-500 mt-0.5">No calificados</div>
+        </div>
+      </div>
+
+      ${total > 0 ? `
+      <div>
+        <div class="flex justify-between text-xs mb-1.5 font-semibold">
+          <span class="text-slate-400">Tasa de calificación</span>
+          <span class="${qColor}">${qualRate.toFixed(1)}%</span>
+        </div>
+        <div class="w-full h-3 bg-slate-700 rounded-full overflow-hidden flex">
+          <div class="h-full bg-emerald-500 rounded-l-full transition-all" style="width:${qBarW}%"></div>
+          <div class="h-full bg-red-500 ${uBarW > 0 ? 'rounded-r-full' : ''}" style="width:${uBarW}%"></div>
+        </div>
+        <div class="flex justify-between text-xs mt-1 text-slate-600">
+          <span>✅ Calificados ${qBarW}%</span>
+          <span>❌ No calificados ${uBarW}%</span>
+        </div>
+      </div>` : ''}
+
+      <div class="border-t border-slate-700 pt-4">
+        <p class="text-xs text-slate-500 mb-3 font-semibold">Registrar leads del período
+          ${apiLeads > 0 ? `<span class="ml-2 text-slate-600 font-normal">(API detectó ${apiLeads} leads)</span>` : ''}
+        </p>
+        <div class="grid grid-cols-2 gap-3 mb-3">
+          <div>
+            <label class="text-xs text-slate-500 block mb-1">Leads totales recibidos</label>
+            <input type="number" id="bm-total" value="${total || (apiLeads > 0 ? apiLeads : '')}" min="0" placeholder="0"
+              class="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+          </div>
+          <div>
+            <label class="text-xs text-slate-500 block mb-1">¿Cuántos eran calificados?</label>
+            <input type="number" id="bm-qualified" value="${qualified || ''}" min="0" placeholder="0"
+              class="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+          </div>
+        </div>
+        <button onclick="PautaMonitor._saveLeadInput('${clientId}','${from}','${to}')"
+          class="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors">
+          Guardar registro de leads
+        </button>
+      </div>
+    </div>`;
+  }
+
+  async function _saveLeadInput(clientId, from, to) {
+    const total     = parseInt(document.getElementById('bm-total')?.value     || '0') || 0;
+    const qualified = parseInt(document.getElementById('bm-qualified')?.value || '0') || 0;
+    if (qualified > total) { alert('Los calificados no pueden superar el total.'); return; }
+    _saveLeads(clientId, from, to, { total, qualified });
+    closeBrandModal();
+    await openBrandModal(clientId);
+    _switchBrandTab('leads');
+  }
+
+  // ── Simulador de Redistribución de Presupuesto ────────────────────────────
+
+  function _cascadeModifier(oldTofRatio, newTofRatio) {
+    // Más TOF = audiencia más caliente = BOF más eficiente (y viceversa)
+    // Cada 10% de aumento en ratio TOF mejora BOF ~4%; cada 10% de reducción lo penaliza ~7%
+    const delta = newTofRatio - oldTofRatio;
+    const mod   = delta >= 0 ? 1 + delta * 0.40 : 1 + delta * 0.70;
+    return Math.min(Math.max(mod, 0.40), 1.60); // clamped 40%–160%
+  }
+
+  function _renderSimulator(stages, totalSpend, totLeads, qualified) {
+    if (totalSpend <= 0) return '';
+
+    const tof = _stageTotals(stages.tof);
+    const mof = _stageTotals(stages.mof);
+    const bof = _stageTotals(stages.bof);
+
+    const tofPct = Math.round(tof.spend / totalSpend * 100);
+    const mofPct = Math.round(mof.spend / totalSpend * 100);
+    const bofPct = Math.round(bof.spend / totalSpend * 100);
+    const qualRate = totLeads > 0 ? qualified / totLeads : 0;
+
+    // Guardar estado base para _updateSimulation
+    _simState = {
+      total:    totalSpend,
+      qualRate,
+      currentLeads:     totLeads,
+      currentQualified: qualified,
+      currentCPQL:      qualified > 0 ? totalSpend / qualified : 0,
+      tof: {
+        pct: tofPct, spend: tof.spend,
+        cpm: tof.impressions > 0 ? tof.spend / tof.impressions * 1000 : 0,
+        ctr: tof.impressions > 0 ? tof.clicks / tof.impressions       : 0,
+        impressions: tof.impressions,
+      },
+      mof: {
+        pct: mofPct, spend: mof.spend,
+        cpl: mof.leads > 0 ? mof.spend / mof.leads : 0,
+        leads: mof.leads,
+      },
+      bof: {
+        pct: bofPct, spend: bof.spend,
+        cpl: bof.leads > 0 ? bof.spend / bof.leads : 0,
+        leads: bof.leads,
+      },
+    };
+
+    const hasBofData = bof.leads > 0;
+    const hasMofData = mof.leads > 0;
+
+    const sliderRow = (id, label, colorCls, trackCls, pct, budget, hasData) => `
+      <div>
+        <div class="flex items-center justify-between mb-1.5">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold ${colorCls} w-16">${label}</span>
+            ${!hasData ? '<span class="text-xs text-slate-600">sin datos históricos</span>' : ''}
+          </div>
+          <div class="flex items-center gap-3">
+            <span id="${id}-budget" class="text-xs text-slate-300 font-semibold w-20 text-right">$${_fmt(budget)}</span>
+            <span id="${id}-pct-label" class="text-xs text-slate-500 w-10 text-right">${pct}%</span>
+          </div>
+        </div>
+        <input type="range" id="${id}" min="0" max="100" step="1" value="${pct}"
+          oninput="PautaMonitor._updateSimulation()"
+          class="w-full h-2 rounded-full appearance-none cursor-pointer ${trackCls} accent-current ${colorCls}">
+      </div>`;
+
+    return `
+    <div class="rounded-2xl border border-indigo-500/30 overflow-hidden">
+      <div class="px-5 py-4 bg-indigo-950/40 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <span class="text-base">⚡</span>
+          <p class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Simulador de Presupuesto</p>
+        </div>
+        <span class="text-xs text-slate-400">Total fijo: <strong class="text-slate-200">$${_fmt(totalSpend)}</strong></span>
+      </div>
+
+      <div class="p-5 flex flex-col gap-5 bg-slate-900/60">
+
+        <!-- Sliders -->
+        <div class="flex flex-col gap-4">
+          ${sliderRow('sim-tof', 'TOF · F1', 'text-blue-400',    'bg-slate-700', tofPct, tof.spend, true)}
+          ${sliderRow('sim-mof', 'MOF · F2', 'text-yellow-400',  'bg-slate-700', mofPct, mof.spend, hasMofData)}
+          ${sliderRow('sim-bof', 'BOF · F3', 'text-emerald-400', 'bg-slate-700', bofPct, bof.spend, hasBofData)}
+          <div class="flex justify-between items-center pt-1 border-t border-slate-800 text-xs">
+            <span class="text-slate-500">Presupuesto sin asignar</span>
+            <span id="sim-remaining" class="font-black text-lg text-emerald-400">0%</span>
+          </div>
+        </div>
+
+        <!-- Nota cascada -->
+        <div id="sim-cascade-note" class="hidden text-xs px-3 py-2 rounded-xl"></div>
+
+        <!-- Comparación actual vs proyectado -->
+        <div>
+          <p class="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-3">Proyección de resultados</p>
+          <div class="bg-slate-800 rounded-xl overflow-hidden">
+            <div class="grid grid-cols-3 text-xs font-semibold text-slate-500 px-4 py-2 border-b border-slate-700">
+              <span>Métrica</span>
+              <span class="text-center">Actual</span>
+              <span class="text-center">Proyectado</span>
+            </div>
+            <div id="sim-rows" class="divide-y divide-slate-700/60">
+              ${_buildSimRows(_simState)}
+            </div>
+          </div>
+        </div>
+
+        ${!hasBofData ? '<p class="text-xs text-slate-600 text-center">Agrega leads en "Calidad de Leads" para activar la proyección de BOF.</p>' : ''}
+      </div>
+    </div>`;
+  }
+
+  function _buildSimRows(s, newTofPct, newMofPct, newBofPct) {
+    const tofPct = newTofPct ?? s.tof.pct;
+    const mofPct = newMofPct ?? s.mof.pct;
+    const bofPct = newBofPct ?? s.bof.pct;
+
+    const tofBudget = s.total * tofPct / 100;
+    const mofBudget = s.total * mofPct / 100;
+    const bofBudget = s.total * bofPct / 100;
+
+    const cascMod     = _cascadeModifier(s.tof.pct / 100, tofPct / 100);
+    const tofImprNew  = s.tof.cpm  > 0 ? tofBudget / s.tof.cpm * 1000 : 0;
+    const bofLeadsNew = s.bof.cpl  > 0 ? bofBudget / s.bof.cpl * cascMod : 0;
+    const mofLeadsNew = s.mof.cpl  > 0 ? mofBudget / s.mof.cpl : 0;
+    const totalLeads  = Math.round(bofLeadsNew + mofLeadsNew);
+    const qualifiedNew = Math.round(totalLeads * s.qualRate);
+    const cpqlNew     = qualifiedNew > 0 ? s.total / qualifiedNew : 0;
+
+    const row = (label, cur, proj, higherGood, isInt, prefix = '') => {
+      const isBase   = newTofPct === undefined;
+      const curFmt   = isInt ? _fmtNum(Math.round(cur))   : `${prefix}${_fmtShort(cur)}`;
+      const projFmt  = isInt ? _fmtNum(Math.round(proj))  : `${prefix}${_fmtShort(proj)}`;
+      const delta    = cur > 0 ? (proj - cur) / cur * 100 : 0;
+      const isGood   = higherGood ? delta >= 0 : delta <= 0;
+      const sign     = delta >= 0 ? '+' : '';
+      const dColor   = isBase ? 'text-slate-600' : (isGood ? 'text-emerald-400' : 'text-red-400');
+      const arrow    = isBase ? '' : (delta >= 0 ? '↑' : '↓');
+      return `
+      <div class="grid grid-cols-3 items-center px-4 py-2.5 text-xs">
+        <span class="text-slate-400">${label}</span>
+        <span class="text-center font-semibold text-slate-300">${curFmt}</span>
+        <div class="text-center">
+          <span class="font-bold ${isBase ? 'text-slate-300' : (isGood ? 'text-emerald-300' : 'text-red-300')}">${projFmt}</span>
+          ${!isBase && Math.abs(delta) >= 0.5 ? `<span class="${dColor} ml-1">${arrow}${sign}${Math.abs(delta).toFixed(0)}%</span>` : ''}
+        </div>
+      </div>`;
+    };
+
+    return [
+      row('Imp. TOF',          s.tof.impressions, tofImprNew,   true,  true),
+      row('Leads totales',     s.currentLeads,    totalLeads,   true,  true),
+      row('Calificados',       s.currentQualified, qualifiedNew, true,  true),
+      row('CPQL',              s.currentCPQL,     cpqlNew,      false, false, '$'),
+    ].join('');
+  }
+
+  function _updateSimulation() {
+    if (!_simState) return;
+    const s = _simState;
+
+    const tofPct = parseFloat(document.getElementById('sim-tof')?.value || 0);
+    const mofPct = parseFloat(document.getElementById('sim-mof')?.value || 0);
+    const bofPct = parseFloat(document.getElementById('sim-bof')?.value || 0);
+    const used   = tofPct + mofPct + bofPct;
+    const rem    = 100 - used;
+
+    // Actualizar etiquetas de % y presupuesto
+    [['sim-tof', tofPct], ['sim-mof', mofPct], ['sim-bof', bofPct]].forEach(([id, pct]) => {
+      const budget = s.total * pct / 100;
+      const lbl = document.getElementById(`${id}-pct-label`);
+      const bEl = document.getElementById(`${id}-budget`);
+      if (lbl) lbl.textContent = `${Math.round(pct)}%`;
+      if (bEl) bEl.textContent = `$${_fmt(budget)}`;
+    });
+
+    // Remaining
+    const remEl = document.getElementById('sim-remaining');
+    if (remEl) {
+      remEl.textContent = `${rem.toFixed(0)}%`;
+      remEl.className = `font-black text-lg ${Math.abs(rem) < 1 ? 'text-emerald-400' : rem < 0 ? 'text-red-400' : 'text-yellow-400'}`;
+    }
+
+    // Nota de cascada
+    const cascMod  = _cascadeModifier(s.tof.pct / 100, tofPct / 100);
+    const cascDiff = Math.round((cascMod - 1) * 100);
+    const noteEl   = document.getElementById('sim-cascade-note');
+    if (noteEl) {
+      if (Math.abs(cascDiff) >= 2) {
+        noteEl.textContent = `Efecto cascada: ${cascDiff > 0 ? '+' : ''}${cascDiff}% en eficiencia BOF por cambio de ratio TOF`;
+        noteEl.className   = `text-xs px-3 py-2 rounded-xl ${cascDiff > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`;
+        noteEl.classList.remove('hidden');
+      } else {
+        noteEl.classList.add('hidden');
+      }
+    }
+
+    // Actualizar filas de comparación
+    const rowsEl = document.getElementById('sim-rows');
+    if (rowsEl) rowsEl.innerHTML = _buildSimRows(s, tofPct, mofPct, bofPct);
+  }
+
+  // ── Detector de Fatiga de Audiencia ───────────────────────────────────────
+
+  function _fatigueThresholds(stage) {
+    // Thresholds de frecuencia y CTR por etapa del funnel
+    if (stage === 'tof')   return { warn: 2.5, danger: 3.5, ctrWarn: 1.5, ctrDanger: 0.8 };
+    if (stage === 'mof')   return { warn: 4.0, danger: 6.0, ctrWarn: 1.0, ctrDanger: 0.5 };
+    if (stage === 'bof')   return { warn: 5.0, danger: 8.0, ctrWarn: 0.8, ctrDanger: 0.4 };
+    return                        { warn: 3.0, danger: 5.0, ctrWarn: 1.0, ctrDanger: 0.5 };
+  }
+
+  function _fatigueLevel(freq, ctr, stage) {
+    if (freq <= 0) return 'unknown';
+    const t = _fatigueThresholds(stage);
+    if (freq >= t.danger && ctr <= t.ctrDanger) return 'critical';
+    if (freq >= t.danger || (freq >= t.warn && ctr <= t.ctrWarn)) return 'danger';
+    if (freq >= t.warn) return 'warn';
+    return 'ok';
+  }
+
+  const _fatigueConfig = {
+    critical: { label: 'Fatiga crítica',   badge: 'bg-red-500/20 text-red-400 border-red-500/40',    bar: 'bg-red-500',    dot: 'bg-red-500 animate-pulse' },
+    danger:   { label: 'Riesgo alto',      badge: 'bg-orange-500/20 text-orange-400 border-orange-500/40', bar: 'bg-orange-500', dot: 'bg-orange-500' },
+    warn:     { label: 'Riesgo moderado',  badge: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/40', bar: 'bg-yellow-500', dot: 'bg-yellow-400' },
+    ok:       { label: 'Audiencia sana',   badge: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40', bar: 'bg-emerald-500', dot: 'bg-emerald-500' },
+    unknown:  { label: 'Sin datos',        badge: 'bg-slate-700 text-slate-500 border-slate-600',      bar: 'bg-slate-600',  dot: 'bg-slate-600' },
+  };
+
+  const _fatigueAdvice = {
+    critical: '🚨 Fatiga severa detectada. La audiencia está saturada — rota creativos de inmediato y considera ampliar el público objetivo.',
+    danger:   '⚠️ Señales claras de fatiga. Prepara nuevos creativos y revisa la segmentación. El rendimiento seguirá cayendo.',
+    warn:     '💡 Frecuencia en zona de alerta. Monitorea el CTR diariamente y ten creativos alternativos listos.',
+    ok:       '✅ La audiencia responde bien. Frecuencia y CTR dentro de rangos saludables para esta etapa.',
+    unknown:  '—',
+  };
+
+  function _fatigueAnalyze(detailData) {
+    const metaData = detailData?.meta;
+    if (!metaData || metaData.error || !Array.isArray(metaData.campaigns)) return null;
+
+    // Solo campañas Meta con datos de frecuencia o suficientes impresiones para calcularla
+    const campaigns = metaData.campaigns
+      .filter(c => c.impressions > 0)
+      .map(c => {
+        const freq = c.frequency > 0 ? c.frequency : (c.reach > 0 ? c.impressions / c.reach : 0);
+        const ctr  = c.impressions > 0 ? c.clicks / c.impressions * 100 : 0;
+        return { ...c, freq: Math.round(freq * 100) / 100, ctr: Math.round(ctr * 100) / 100 };
+      });
+
+    if (campaigns.length === 0) return null;
+
+    const levels = campaigns.map(c => _fatigueLevel(c.freq, c.ctr, c.stage));
+    const worst  = levels.includes('critical') ? 'critical'
+                 : levels.includes('danger')   ? 'danger'
+                 : levels.includes('warn')      ? 'warn' : 'ok';
+    return { campaigns, worst };
+  }
+
+  function _renderFatigue(detailData) {
+    const analysis = _fatigueAnalyze(detailData);
+    if (!analysis) return '';
+    const { campaigns, worst } = analysis;
+    const wCfg = _fatigueConfig[worst];
+
+    return `
+    <div class="rounded-2xl border ${worst === 'ok' ? 'border-slate-700' : 'border-' + (worst === 'critical' ? 'red' : worst === 'danger' ? 'orange' : 'yellow') + '-500/30'} overflow-hidden">
+      <div class="px-5 py-4 flex items-center justify-between bg-slate-800/60">
+        <div class="flex items-center gap-2.5">
+          <div class="w-2 h-2 rounded-full ${wCfg.dot}"></div>
+          <p class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Detector de Fatiga · Meta Ads</p>
+        </div>
+        <span class="text-xs font-bold ${wCfg.badge} border px-2.5 py-1 rounded-full">${wCfg.label}</span>
+      </div>
+      <div class="divide-y divide-slate-800">
+        ${campaigns.map(c => _renderFatigueCampaign(c)).join('')}
+      </div>
+    </div>`;
+  }
+
+  function _renderFatigueCampaign(c) {
+    const level  = _fatigueLevel(c.freq, c.ctr, c.stage);
+    const cfg    = _fatigueConfig[level];
+    const t      = _fatigueThresholds(c.stage);
+    const advice = _fatigueAdvice[level];
+
+    // Barra de frecuencia: escala 0–8, marcadores en warn y danger
+    const maxFreq   = 8;
+    const freqPct   = Math.min(c.freq / maxFreq * 100, 100);
+    const warnPct   = t.warn   / maxFreq * 100;
+    const dangerPct = t.danger / maxFreq * 100;
+
+    const stageLabel = c.stage === 'tof' ? 'TOF · F1' : c.stage === 'mof' ? 'MOF · F2' : c.stage === 'bof' ? 'BOF · F3' : 'Sin etapa';
+    const ctrColor   = c.ctr >= t.ctrWarn ? 'text-emerald-400' : c.ctr >= t.ctrDanger ? 'text-yellow-400' : 'text-red-400';
+
+    return `
+    <div class="px-5 py-4 bg-slate-900/60">
+      <div class="flex items-start justify-between gap-3 mb-3">
+        <div class="min-w-0">
+          <p class="text-sm font-semibold text-slate-100 truncate">${_esc(c.name)}</p>
+          <p class="text-xs text-slate-500 mt-0.5">${stageLabel} · ${_fmtNum(c.reach || 0)} personas alcanzadas</p>
+        </div>
+        <span class="text-xs font-bold ${cfg.badge} border px-2 py-0.5 rounded-lg flex-shrink-0">${cfg.label}</span>
+      </div>
+
+      <div class="mb-3">
+        <div class="flex justify-between text-xs mb-1.5">
+          <span class="text-slate-500">Frecuencia promedio</span>
+          <span class="font-black text-slate-100">${c.freq > 0 ? c.freq + 'x' : '—'}</span>
+        </div>
+        <div class="relative w-full h-3 bg-slate-800 rounded-full overflow-hidden">
+          ${c.freq > 0 ? `<div class="${cfg.bar} h-3 rounded-full transition-all duration-700" style="width:${freqPct}%"></div>` : ''}
+          <div class="absolute top-0 bottom-0 w-px bg-yellow-400/60" style="left:${warnPct}%"></div>
+          <div class="absolute top-0 bottom-0 w-px bg-red-500/70"    style="left:${dangerPct}%"></div>
+        </div>
+        <div class="flex justify-between text-xs mt-1 text-slate-600">
+          <span>0</span>
+          <span class="text-yellow-600">${t.warn}x alerta</span>
+          <span class="text-red-600">${t.danger}x crítico</span>
+          <span>${maxFreq}x</span>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-4 text-xs mb-3">
+        <div><span class="text-slate-500">CTR </span><span class="${ctrColor} font-bold">${c.ctr > 0 ? c.ctr + '%' : '—'}</span>
+          <span class="text-slate-600 ml-1">(mín. saludable ${t.ctrWarn}%)</span>
+        </div>
+        <div><span class="text-slate-500">Spend </span><span class="text-slate-300 font-semibold">$${_fmt(c.spend)}</span></div>
+      </div>
+
+      ${level !== 'unknown' ? `
+      <div class="text-xs text-slate-400 bg-slate-800 rounded-xl px-3 py-2.5 leading-relaxed">
+        ${advice}
+      </div>` : ''}
+    </div>`;
+  }
+
+  function _renderCampaignList(stages) {
+    const all = [
+      ...stages.tof.map(c => ({ ...c, stL: 'TOF · F1', stC: 'text-blue-400',    stB: 'bg-blue-500/10 border-blue-500/30'    })),
+      ...stages.mof.map(c => ({ ...c, stL: 'MOF · F2', stC: 'text-yellow-400',  stB: 'bg-yellow-500/10 border-yellow-500/30'  })),
+      ...stages.bof.map(c => ({ ...c, stL: 'BOF · F3', stC: 'text-emerald-400', stB: 'bg-emerald-500/10 border-emerald-500/30' })),
+      ...stages.other.map(c => ({ ...c, stL: 'Sin etapa', stC: 'text-slate-400', stB: 'bg-slate-700/30 border-slate-600' })),
+    ];
+    if (all.length === 0) return '';
+
+    return `
+    <div>
+      <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Desglose por campaña</p>
+      <div class="flex flex-col gap-2">
+        ${all.map(c => {
+          const cpm = c.impressions > 0 ? c.spend / c.impressions * 1000 : 0;
+          const cpc = c.clicks > 0      ? c.spend / c.clicks             : 0;
+          const cpl = c.leads  > 0      ? c.spend / c.leads              : 0;
+          const platIcon = _platIcon(c.platform, 16);
+          return `
+          <div class="bg-slate-800 rounded-xl p-3.5 border border-slate-700">
+            <div class="flex items-start justify-between gap-2 mb-3">
+              <span class="text-sm text-slate-200 font-medium leading-snug">${platIcon} ${_esc(c.name)}</span>
+              <span class="text-xs font-bold ${c.stC} border ${c.stB} rounded-lg px-2 py-0.5 flex-shrink-0">${c.stL}</span>
+            </div>
+            <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 text-xs">
+              <div><span class="text-slate-500 block">Spend</span><strong class="text-slate-100">$${_fmt(c.spend)}</strong></div>
+              <div><span class="text-slate-500 block">Imp.</span><strong class="text-slate-100">${_fmtNum(c.impressions || 0)}</strong></div>
+              <div><span class="text-slate-500 block">Clicks</span><strong class="text-slate-100">${_fmtNum(c.clicks || 0)}</strong></div>
+              <div><span class="text-slate-500 block">CPM</span><strong class="text-blue-300">${cpm > 0 ? '$' + _fmtShort(cpm) : '—'}</strong></div>
+              <div><span class="text-slate-500 block">CPC</span><strong class="text-yellow-300">${cpc > 0 ? '$' + _fmtShort(cpc) : '—'}</strong></div>
+              <div><span class="text-slate-500 block">${c.leads > 0 ? 'Leads / CPL' : 'Leads'}</span><strong class="text-emerald-300">${c.leads > 0 ? `${c.leads} / $${_fmtShort(cpl)}` : '—'}</strong></div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }
+
+  function _brandOverlayClose(e) {
+    if (e.target.id === 'brand-modal-overlay') closeBrandModal();
+  }
+
+  function closeBrandModal() {
+    document.getElementById('brand-modal-overlay')?.remove();
+  }
+
+  function _fmtNum(n) {
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+    if (n >= 1000)    return (n / 1000).toFixed(1) + 'K';
+    return String(Math.round(n || 0));
+  }
+
+  function _fmtShort(n) {
+    const v = Number(n || 0);
+    if (v >= 1000) return (v / 1000).toFixed(1) + 'K';
+    return v.toFixed(2);
+  }
+
   // ── Init ───────────────────────────────────────────────────────────────────
 
   function init() {
@@ -784,5 +1622,11 @@ const PautaMonitor = (() => {
     _overlayClose,
     _onGlobalBudgetChange,
     _onPlatBudgetChange,
+    openBrandModal,
+    closeBrandModal,
+    _brandOverlayClose,
+    _switchBrandTab,
+    _saveLeadInput,
+    _updateSimulation,
   };
 })();
