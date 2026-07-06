@@ -345,6 +345,7 @@
 <script src="js/auth.js"></script>
 <script src="js/sidebar.js"></script>
 <script src="js/drive.js"></script>
+<script src="js/alarm.js"></script>
 <script>
   // Restore access token lost during Google OAuth redirect
   (function() {
@@ -368,6 +369,7 @@
     });
   }
   Sidebar.init('configuracion', _cmMode ? { allowedKeys: ['agenda', 'configuracion'] } : {});
+  Alarm.init();
 
   // Handle Google Drive OAuth callback
   (function() {

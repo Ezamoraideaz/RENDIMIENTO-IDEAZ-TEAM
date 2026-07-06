@@ -337,6 +337,7 @@
 <script src="js/api.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/sidebar.js"></script>
+<script src="js/alarm.js"></script>
 <script>
   Chart.defaults.color = '#94a3b8';
   Chart.defaults.borderColor = '#2d2d4e';
@@ -1070,6 +1071,7 @@
   // Init
   Sidebar.init('proyecto', { onRefresh: () => loadProject(true) });
   loadProject();
+  Alarm.init();
 
   // ── Tarjetas atascadas en En Proceso ──────────────────────────────────────
   const STUCK_THRESHOLD_HOURS = 5;
