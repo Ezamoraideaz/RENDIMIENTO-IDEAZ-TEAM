@@ -370,7 +370,11 @@ const AtencionCliente = (() => {
 
   function handleOAuthRedirectParams() {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('oauth_success')) {
+    if (params.get('oauth_select_page')) {
+      const clientId = parseInt(params.get('client_id'), 10);
+      window.history.replaceState({}, '', 'atencion-cliente.html');
+      if (clientId) showPagePicker(clientId);
+    } else if (params.get('oauth_success')) {
       Utils.showToast('Cuenta conectada correctamente', 'success');
       const clientId = parseInt(params.get('client_id'), 10);
       window.history.replaceState({}, '', 'atencion-cliente.html');
@@ -381,10 +385,56 @@ const AtencionCliente = (() => {
     }
   }
 
+  // ── Selector de Página (cuando la cuenta de Facebook administra varias) ─
+
+  async function showPagePicker(clientId) {
+    try {
+      const data = await api('api/oauth_pages.php');
+      if (!data.pages.length) {
+        Utils.showToast('No hay páginas pendientes de selección', 'danger');
+        return;
+      }
+      const rows = data.pages.map((p) => `
+        <button onclick="AtencionCliente._selectPendingPage('${p.id}', ${clientId})"
+          class="w-full text-left flex items-center justify-between bg-slate-800/60 border border-slate-700/60 hover:border-indigo-500 rounded-lg px-4 py-3 transition-colors">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold truncate">📘 ${_esc(p.name)}</p>
+            ${p.has_instagram
+              ? `<p class="text-xs text-slate-500">📷 @${_esc(p.instagram_username || '')} vinculada</p>`
+              : '<p class="text-xs text-slate-600">Sin cuenta de Instagram vinculada</p>'}
+          </div>
+        </button>`).join('');
+
+      document.body.insertAdjacentHTML('beforeend', `
+        <div id="page-picker-overlay" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+          <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md p-6">
+            <h3 class="font-bold text-lg mb-1">Elige la Página a conectar</h3>
+            <p class="text-xs text-slate-500 mb-4">Tu cuenta de Facebook administra varias Páginas — elige cuál corresponde a este cliente.</p>
+            <div class="flex flex-col gap-2 max-h-96 overflow-y-auto">${rows}</div>
+          </div>
+        </div>`);
+    } catch (e) {
+      Utils.showToast(e.message, 'danger');
+    }
+  }
+
+  async function _selectPendingPage(pageId, clientId) {
+    try {
+      await api('api/oauth_pages.php', { method: 'POST', body: JSON.stringify({ page_id: pageId }) });
+      document.getElementById('page-picker-overlay')?.remove();
+      Utils.showToast('Cuenta conectada correctamente', 'success');
+      await loadClients();
+      openClient(clientId);
+    } catch (e) {
+      Utils.showToast(e.message, 'danger');
+    }
+  }
+
   return {
     init, openNewClientPrompt, openClient, closeClientModal, _switchTab, _overlayClose,
     createFlow, openBuilder, closeBuilder,
     openConversationThread, resolveFollowup, _closeThread,
+    _selectPendingPage,
   };
 })();
 
