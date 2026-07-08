@@ -56,7 +56,7 @@ webhook HTTPS público y no permite guardar tokens de Página/Instagram en el na
 ### Puesta en marcha (una sola vez)
 1. Copiar `backend/config.example.php` a `backend/config.php` y completar credenciales (nunca commitear `config.php`).
 2. Crear la base de datos MySQL en cPanel y correr `backend/sql/schema.sql` una sola vez (phpMyAdmin o CLI). Si la BD ya existía de antes del login global, correr también `backend/sql/migration_002_site_auth.sql`.
-3. Crear el superadmin desde terminal: `php backend/cli/create_operator.php email@ejemplo.com contraseña superadmin "Tu Nombre"`.
+3. Crear el superadmin desde terminal: `php backend/cli/create_operator.php email@ejemplo.com contraseña superadmin "Tu Nombre"`. **Sin Terminal en cPanel:** definir `SETUP_TOKEN` en `config.php`, visitar `backend/setup/bootstrap_operator.php?token=EL_TOKEN`, llenar el formulario, y luego borrar ese archivo y vaciar `SETUP_TOKEN`.
 4. Configurar un Cron Job en cPanel que ejecute cada minuto: `php backend/cron/process_scheduled.php`.
 5. Crear la App de Meta (developers.facebook.com, tipo Business) y completar `META_APP_ID`/`META_APP_SECRET`/`WEBHOOK_VERIFY_TOKEN` en `config.php`. Mientras la App esté en modo Development, los admins/testers del App pueden usar `pages_messaging`/`instagram_business_manage_messages` sin esperar App Review.
 6. Dar de alta el Webhook en Meta apuntando a `https://tudominio.com/dashboard/backend/webhook/webhook.php`, con el mismo `WEBHOOK_VERIFY_TOKEN`.
