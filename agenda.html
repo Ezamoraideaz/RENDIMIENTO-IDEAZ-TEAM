@@ -243,10 +243,13 @@
   <script src="js/agenda.js"></script>
   <script src="js/alarm.js"></script>
   <script>
-    // Verificar acceso antes de mostrar cualquier contenido
+    // La sesión (js/session.js) redirige a login.html si no hay usuario;
+    // aquí solo se espera a que resuelva para conocer rol y permisos.
+    Session.ready.then(() => {
     const _access = Auth.checkPageAccess('agenda');
     if (!_access.allowed) {
-      window.location.replace(_access.redirectTo || 'index.html');
+      window.location.replace(_access.redirectTo || 'login.html');
+      return;
     }
 
     function setState(name) {
@@ -255,6 +258,7 @@
         if (el) el.style.display = (name === s) ? 'block' : 'none';
       });
     }
+    window.setState = setState; // js/agenda.js la usa como global
 
     // Close modal on backdrop click
     document.getElementById('modal').addEventListener('click', function(e) {
@@ -290,19 +294,15 @@
       };
     }
 
-    // Aplicar credenciales de Trello embebidas en el token (usuarios sin configuración propia)
-    Auth.applyEmbeddedCredentials();
-
     // Guardar el miembro bloqueado para que Agenda pueda renderizar "Mis tareas de hoy" en el sidebar
     Agenda.lockedMemberId = _access.lockedMemberId || null;
 
-    const _sidebarKeys = _access.role === 'admin' ? null :
-      _access.role === 'cm' ? ['agenda', 'configuracion'] :
-      _access.role === 'agenda-member' ? ['agenda', 'monitor'] : ['agenda'];
+    const _sidebarKeys = _access.role === 'admin' ? null : Session.allowedNavKeys();
     Sidebar.init('agenda', { allowedKeys: _sidebarKeys, onRefresh: () => Agenda.load(true) });
     renderLegend();
     Agenda.load();
     Alarm.init();
+    }); // Session.ready
   </script>
 </body>
 </html>

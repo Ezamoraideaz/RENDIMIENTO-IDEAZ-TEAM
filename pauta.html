@@ -123,10 +123,12 @@
 <script src="js/pauta.js?v=20260630"></script>
 <script src="js/alarm.js?v=20260630"></script>
 <script>
-  if (!Storage.hasCredentials()) window.location.href = 'configuracion.html';
-  Sidebar.init('pauta');
-  PautaMonitor.init();
-  Alarm.init();
+  Session.ready.then(() => {
+    if (!Storage.hasCredentials()) window.location.href = 'configuracion.html';
+    Sidebar.init('pauta');
+    PautaMonitor.init();
+    Alarm.init();
+  });
 </script>
 </body>
 </html>

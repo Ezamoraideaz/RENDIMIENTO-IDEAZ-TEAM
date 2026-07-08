@@ -118,8 +118,10 @@
   <script src="js/flowBuilder.js"></script>
   <script src="js/atencionCliente.js"></script>
   <script>
-    Sidebar.init('atencion-cliente');
-    AtencionCliente.init();
+    Session.ready.then(() => {
+      Sidebar.init('atencion-cliente');
+      AtencionCliente.init();
+    });
   </script>
 </body>
 </html>

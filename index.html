@@ -1521,10 +1521,12 @@
 
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMemberModal(); });
 
-  // Initial load
-  Sidebar.init('dashboard', { onRefresh: () => loadDashboard(true) });
-  loadDashboard();
-  Alarm.init();
+  // Initial load — espera la sesión (js/session.js redirige a login si no hay)
+  Session.ready.then(() => {
+    Sidebar.init('dashboard', { onRefresh: () => loadDashboard(true) });
+    loadDashboard();
+    Alarm.init();
+  });
 </script>
 <!-- MODAL DETALLE DE MIEMBRO -->
 <div id="member-modal" class="fixed inset-0 z-50 hidden overflow-y-auto" onclick="closeMemberModal()">

@@ -1,78 +1,54 @@
+// Adaptador de permisos sobre la sesión global (js/session.js).
+// Antes este archivo generaba URLs con las credenciales de Trello embebidas en
+// base64 (?access=). Ese mecanismo se eliminó: el acceso ahora es por login con
+// contraseña (login.html) y los permisos viven en la BD (tabla operators).
+// Solo es válido DESPUÉS de que Session.ready haya resuelto.
 const Auth = (() => {
-  function getCurrentToken() {
-    return new URLSearchParams(window.location.search).get('access');
-  }
-
-  function decodeToken(token) {
-    try {
-      return JSON.parse(decodeURIComponent(escape(atob(token))));
-    } catch {
-      return null;
-    }
-  }
+  // rol de BD → rol legado que ya usan las páginas
+  const LEGACY_ROLE = {
+    superadmin: 'admin',
+    admin: 'admin',
+    agent: 'agent',
+    agenda_full: 'agenda-full',
+    agenda_member: 'agenda-member',
+    cm: 'cm',
+  };
 
   function getCurrentUser() {
-    const token = getCurrentToken();
-    if (!token) return null;
-    return decodeToken(token);
+    const u = window.Session && Session.user;
+    if (!u) return null;
+    return {
+      role: LEGACY_ROLE[u.role] || u.role,
+      dbRole: u.role,
+      name: u.name || null,
+      email: u.email,
+      memberId: u.trello_member_id || null,
+    };
   }
 
-  // page: 'agenda' | 'dashboard' | 'configuracion' | 'proyecto'
+  // page: 'dashboard' | 'proyecto' | 'agenda' | 'monitor' | 'pauta' |
+  //       'atencion-cliente' | 'configuracion' | 'protocolo'
+  // Mantiene la firma histórica ({allowed, role, name, lockedMemberId});
+  // la redirección de páginas no permitidas ya la hace Session al cargar.
   function checkPageAccess(page) {
     const user = getCurrentUser();
-    // Sin token = acceso admin completo (compatibilidad hacia atrás)
-    if (!user) return { allowed: true, role: 'admin' };
-    if (user.role === 'admin') return { allowed: true, role: 'admin' };
-
-    if (user.role === 'agenda-full' || user.role === 'agenda-member') {
-      const allowedPages = user.role === 'agenda-member' ? ['agenda', 'monitor'] : ['agenda'];
-      if (allowedPages.includes(page)) {
-        return {
-          allowed: true,
-          role: user.role,
-          name: user.name || null,
-          lockedMemberId: user.role === 'agenda-member' ? (user.memberId || null) : null
-        };
-      }
-      return { allowed: false, redirectTo: 'agenda.html?access=' + encodeURIComponent(getCurrentToken()) };
+    if (!user) return { allowed: false, redirectTo: 'login.html' };
+    if (!Session.canView(page)) {
+      return { allowed: false, redirectTo: Session.defaultPage(user.dbRole) };
     }
-
-    if (user.role === 'cm') {
-      if (page === 'agenda' || page === 'configuracion') {
-        return { allowed: true, role: 'cm', name: user.name || null };
-      }
-      return { allowed: false, redirectTo: 'configuracion.html?access=' + encodeURIComponent(getCurrentToken()) };
-    }
-
-    return { allowed: false };
+    return {
+      allowed: true,
+      role: user.role,
+      name: user.name,
+      lockedMemberId: user.dbRole === 'agenda_member' ? user.memberId : null,
+    };
   }
 
-  // Aplica las credenciales de Trello embebidas en el token al localStorage del usuario
-  function applyEmbeddedCredentials() {
-    const user = getCurrentUser();
-    if (!user || !user.trelloKey || !user.trelloToken) return false;
-    if (user.role === 'agenda-full' || user.role === 'agenda-member' || user.role === 'cm') {
-      Storage.saveCredentials(user.trelloKey, user.trelloToken);
-      return true;
-    }
-    return false;
+  function isSuperAdmin() {
+    return !!(window.Session && Session.user && Session.user.role === 'superadmin');
   }
 
-  // creds: { key, token } — credenciales de Trello del admin para incluir en la URL
-  function generateURL(role, name, memberId, creds) {
-    const data = { role, name };
-    if (memberId) data.memberId = memberId;
-    if (creds && creds.key && creds.token) {
-      data.trelloKey = creds.key;
-      data.trelloToken = creds.token;
-    }
-    const token = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-    const base = window.location.href.replace(/\/[^/?#]*([?#].*)?$/, '/');
-    const page = role === 'cm' ? 'configuracion.html' : 'agenda.html';
-    return base + page + '?access=' + encodeURIComponent(token);
-  }
-
-  return { getCurrentUser, checkPageAccess, generateURL, getCurrentToken, applyEmbeddedCredentials };
+  return { getCurrentUser, checkPageAccess, isSuperAdmin };
 })();
 
 window.Auth = Auth;

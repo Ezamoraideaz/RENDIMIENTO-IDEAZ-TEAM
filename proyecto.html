@@ -1069,10 +1069,12 @@
     recalcAndRefresh();
   }
 
-  // Init
-  Sidebar.init('proyecto', { onRefresh: () => loadProject(true) });
-  loadProject();
-  Alarm.init();
+  // Init — espera la sesión (js/session.js redirige a login si no hay)
+  Session.ready.then(() => {
+    Sidebar.init('proyecto', { onRefresh: () => loadProject(true) });
+    loadProject();
+    Alarm.init();
+  });
 
   // ── Tarjetas atascadas en En Proceso ──────────────────────────────────────
   const STUCK_THRESHOLD_HOURS = 5;

@@ -254,64 +254,72 @@
       </div>
     </div>
 
-    <!-- ACCESS CONTROL -->
-    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4" id="section-access">
-      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">🔐 Control de Acceso</h2>
+    <!-- USUARIOS (solo superadmin) -->
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4" id="section-users" style="display:none">
+      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">🔐 Usuarios</h2>
       <div class="flex gap-3 p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-sm mb-5">
-        Genera URLs de acceso personalizadas para que cada persona vea únicamente la Agenda. Los permisos viajan dentro de la URL — no hay contraseñas ni cuentas.
+        Cada persona entra con su email y contraseña en <strong class="text-slate-200">login.html</strong>. El rol define qué páginas ve. Las URLs de acceso antiguas (<code class="bg-white/10 px-1 rounded">?access=</code>) ya no funcionan.
       </div>
 
-      <div class="grid grid-cols-1 gap-4 max-w-xl">
-        <!-- Nombre del usuario -->
+      <!-- Lista de usuarios -->
+      <div class="overflow-x-auto rounded-xl border border-slate-700 mb-6">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-slate-700 bg-slate-800/50">
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Nombre</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Email</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Rol</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Miembro Trello</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Estado</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="users-table-body" class="divide-y divide-slate-700/50">
+            <tr><td colspan="6" class="text-slate-400 px-4 py-3">Cargando usuarios...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Crear usuario -->
+      <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">➕ Crear usuario</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl">
         <div>
-          <label class="block text-xs text-slate-400 font-medium mb-1">Nombre del usuario</label>
-          <input id="access-name" type="text"
+          <label class="block text-xs text-slate-400 font-medium mb-1">Nombre</label>
+          <input id="new-user-name" type="text"
             class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 w-full"
             placeholder="ej: María García">
         </div>
-
-        <!-- Tipo de acceso -->
         <div>
-          <label class="block text-xs text-slate-400 font-medium mb-1">Tipo de acceso</label>
-          <select id="access-role"
-            class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 w-full"
-            onchange="toggleAccessMemberRow()">
-            <option value="agenda-full">📅 Agenda completa — todos los filtros disponibles</option>
-            <option value="agenda-member">👤 Agenda bloqueada — solo ve sus propias tareas</option>
-            <option value="cm">🎨 CM — Drive + Carpetas + Agenda</option>
-          </select>
+          <label class="block text-xs text-slate-400 font-medium mb-1">Email</label>
+          <input id="new-user-email" type="email" autocomplete="off"
+            class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 w-full"
+            placeholder="maria@ejemplo.com">
         </div>
-
-        <!-- Miembro (solo para agenda-member) -->
-        <div id="access-member-row" style="display:none">
-          <label class="block text-xs text-slate-400 font-medium mb-1">Miembro del equipo</label>
-          <select id="access-member"
+        <div>
+          <label class="block text-xs text-slate-400 font-medium mb-1">Contraseña (mín. 8 caracteres)</label>
+          <input id="new-user-password" type="password" autocomplete="new-password"
+            class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 w-full"
+            placeholder="••••••••">
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 font-medium mb-1">Rol</label>
+          <select id="new-user-role" onchange="toggleNewUserMemberRow()"
+            class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 w-full"></select>
+        </div>
+        <div id="new-user-member-row" style="display:none" class="md:col-span-2">
+          <label class="block text-xs text-slate-400 font-medium mb-1">Miembro del equipo (Trello)</label>
+          <select id="new-user-member"
             class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 w-full">
             <option value="">— Carga los datos de Trello primero —</option>
           </select>
           <p class="text-xs text-slate-500 mt-1">Este usuario solo verá tareas asignadas a este miembro, sin poder cambiarlo.</p>
         </div>
-
-        <button onclick="generateAccessURL()"
-          class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors w-fit">
-          Generar URL de acceso
-        </button>
       </div>
-
-      <!-- Resultado -->
-      <div id="access-result" style="display:none" class="mt-5">
-        <div class="flex gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm mb-3">
-          ✅ URL generada correctamente. Compártela con el usuario — es su único acceso.
-        </div>
-        <div class="flex gap-2">
-          <input id="access-url" type="text" readonly
-            class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-xs text-slate-300 flex-1 font-mono focus:outline-none select-all">
-          <button onclick="copyAccessURL()"
-            class="bg-slate-700 hover:bg-slate-600 border border-slate-600 text-slate-200 font-semibold px-4 py-2 rounded-lg text-sm transition-colors flex-shrink-0">
-            Copiar
-          </button>
-        </div>
-        <p class="text-xs text-slate-500 mt-2">⚠️ Guarda esta URL — no se almacena aquí. Si se pierde, genera una nueva.</p>
+      <div class="mt-4">
+        <button onclick="createUser()"
+          class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors">
+          Crear usuario
+        </button>
       </div>
     </div>
 
@@ -348,32 +356,36 @@
 <script src="js/drive.js"></script>
 <script src="js/alarm.js"></script>
 <script>
-  // Restore access token lost during Google OAuth redirect
-  (function() {
-    const pending = sessionStorage.getItem('ideaz_pending_access');
-    if (pending && !new URLSearchParams(window.location.search).get('access')) {
-      sessionStorage.removeItem('ideaz_pending_access');
-      window.history.replaceState({}, document.title,
-        window.location.pathname + '?access=' + encodeURIComponent(pending) + window.location.hash);
+  // Se resuelven cuando la sesión está lista (Session.ready); las funciones de
+  // esta página los leen después de la inicialización.
+  let _cmMode = false;
+  let _isSuperAdmin = false;
+
+  Session.ready.then(() => {
+    const _access = Auth.checkPageAccess('configuracion');
+    if (!_access.allowed) {
+      window.location.replace(_access.redirectTo || 'login.html');
+      return;
     }
-  })();
+    _cmMode = _access.role === 'cm';
+    _isSuperAdmin = Auth.isSuperAdmin();
 
-  const _access = Auth.checkPageAccess('configuracion');
-  if (!_access.allowed) window.location.replace(_access.redirectTo || 'agenda.html');
-  const _cmMode = _access.role === 'cm';
+    if (_cmMode) {
+      ['section-trello', 'section-team', 'section-cache', 'section-danger'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+      });
+    }
+    // La gestión de usuarios es exclusiva del superadmin
+    if (_isSuperAdmin) {
+      document.getElementById('section-users').style.display = 'block';
+      loadUsers();
+    }
 
-  if (_cmMode) {
-    Auth.applyEmbeddedCredentials();
-    ['section-trello', 'section-team', 'section-cache', 'section-danger', 'section-access'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.style.display = 'none';
-    });
-  }
-  Sidebar.init('configuracion', _cmMode ? { allowedKeys: ['agenda', 'configuracion'] } : {});
-  Alarm.init();
+    Sidebar.init('configuracion', _cmMode ? { allowedKeys: Session.allowedNavKeys() } : {});
+    Alarm.init();
 
-  // Handle Google Drive OAuth callback
-  (function() {
+    // Handle Google Drive OAuth callback
     let connected = false;
     try {
       connected = DriveAPI.handleCallback();
@@ -397,7 +409,9 @@
     const monthSel = document.getElementById('fc-month');
     if (yearInp) yearInp.value = now.getFullYear();
     if (monthSel) monthSel.value = now.getMonth();
-  })();
+
+    initCredentialsUI();
+  });
 
   function _updateDriveUI() {
     const connected = DriveAPI.isConnected();
@@ -456,8 +470,8 @@
     }
   }
 
-  // Load existing credentials on page load
-  window.addEventListener('DOMContentLoaded', () => {
+  // Carga las credenciales existentes; corre dentro de Session.ready (el DOM ya está listo)
+  function initCredentialsUI() {
     const creds = Storage.getCredentials();
     if (creds.key) document.getElementById('inp-key').value = creds.key;
     if (creds.token) document.getElementById('inp-token').value = creds.token;
@@ -477,7 +491,7 @@
       showConnectedStatus();
       loadTrelloData();
     }
-  });
+  }
 
   function showConnectedStatus() {
     document.getElementById('cred-status').innerHTML = `
@@ -557,7 +571,7 @@
       } else {
         renderTeamTable();
         renderProjectsTable();
-        renderAccessMemberSelect();
+        if (_isSuperAdmin) renderUsersTable(); // refresca selects de miembros con datos frescos de Trello
         document.getElementById('section-team').style.display = 'block';
       }
       renderDriveProjectSelect();
@@ -873,50 +887,150 @@
     }
   }
 
-  // ---- Control de Acceso ----
+  // ---- Usuarios (solo superadmin) ----
 
-  function toggleAccessMemberRow() {
-    const role = document.getElementById('access-role').value;
-    document.getElementById('access-member-row').style.display =
-      role === 'agenda-member' ? 'block' : 'none';
-    document.getElementById('access-result').style.display = 'none';
+  const USER_ROLES = [
+    { value: 'admin',         label: '🛠 Administrador — todo excepto gestión de usuarios' },
+    { value: 'agenda_full',   label: '📅 Agenda completa — todos los filtros disponibles' },
+    { value: 'agenda_member', label: '👤 Agenda bloqueada — solo ve sus propias tareas' },
+    { value: 'cm',            label: '🎨 CM — Drive + Carpetas + Agenda' },
+    { value: 'agent',         label: '💬 Agente — solo Atención al Cliente' },
+    { value: 'superadmin',    label: '👑 Superadministrador — control total' },
+  ];
+  let _users = [];
+
+  function _escHTML(s) {
+    return String(s ?? '').replace(/[&<>"']/g, m =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
   }
 
-  function renderAccessMemberSelect() {
-    const sel = document.getElementById('access-member');
-    const members = Object.values(allMembers).sort((a, b) =>
-      (a.fullName || '').localeCompare(b.fullName || ''));
-    sel.innerHTML = '<option value="">— Selecciona un miembro —</option>' +
-      members.map(m =>
-        `<option value="${m.id}">${m.fullName} (@${m.username})</option>`
-      ).join('');
+  function _userRoleLabel(role) {
+    const r = USER_ROLES.find(r => r.value === role);
+    return r ? r.label.split(' — ')[0] : role;
   }
 
-  function generateAccessURL() {
-    const name = document.getElementById('access-name').value.trim();
-    const role = document.getElementById('access-role').value;
-    const memberId = document.getElementById('access-member').value;
+  function _memberOptionsHTML(selectedId) {
+    // Con datos de Trello cargados usa allMembers; si no, el caché de nombres
+    const entries = Object.keys(allMembers).length
+      ? Object.values(allMembers).map(m => ({ id: m.id, label: `${m.fullName} (@${m.username})` }))
+      : Object.entries(Storage.getAllMemberNames()).map(([id, name]) => ({ id, label: name }));
+    entries.sort((a, b) => a.label.localeCompare(b.label));
+    return '<option value="">— Sin asignar —</option>' + entries.map(e =>
+      `<option value="${_escHTML(e.id)}" ${e.id === selectedId ? 'selected' : ''}>${_escHTML(e.label)}</option>`
+    ).join('');
+  }
 
-    if (!name) { Utils.showToast('Ingresa un nombre para el usuario', 'warning'); return; }
-    if (role === 'agenda-member' && !memberId) {
-      Utils.showToast('Selecciona un miembro del equipo', 'warning'); return;
+  async function loadUsers() {
+    const tbody = document.getElementById('users-table-body');
+    try {
+      const data = await Session.apiFetch('api/users.php');
+      _users = data.users;
+      renderUsersTable();
+    } catch (e) {
+      tbody.innerHTML = `<tr><td colspan="6" class="text-red-400 px-4 py-3">Error cargando usuarios: ${_escHTML(e.message)}</td></tr>`;
+    }
+    // Poblar el select de rol del formulario de creación
+    const roleSel = document.getElementById('new-user-role');
+    if (roleSel && !roleSel.options.length) {
+      roleSel.innerHTML = USER_ROLES.map(r => `<option value="${r.value}">${r.label}</option>`).join('');
+    }
+  }
+
+  function renderUsersTable() {
+    const tbody = document.getElementById('users-table-body');
+    if (!_users.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-slate-400 px-4 py-3">No hay usuarios todavía.</td></tr>';
+      return;
+    }
+    const me = Session.user;
+    tbody.innerHTML = _users.map(u => {
+      const inactive = !Number(u.active);
+      const isMe = Number(u.id) === Number(me.id);
+      return `
+      <tr class="${inactive ? 'opacity-50' : ''}">
+        <td class="px-4 py-3 text-slate-200 font-medium">${_escHTML(u.name) || '—'}${isMe ? ' <span class="text-xs text-indigo-400">(tú)</span>' : ''}</td>
+        <td class="px-4 py-3 text-slate-300">${_escHTML(u.email)}</td>
+        <td class="px-4 py-3">
+          <select onchange="updateUser(${u.id}, { role: this.value })" ${isMe ? 'disabled title="No puedes cambiar tu propio rol"' : ''}
+            class="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500">
+            ${USER_ROLES.map(r => `<option value="${r.value}" ${r.value === u.role ? 'selected' : ''}>${r.label.split(' — ')[0]}</option>`).join('')}
+          </select>
+        </td>
+        <td class="px-4 py-3">
+          ${u.role === 'agenda_member' ? `
+          <select onchange="updateUser(${u.id}, { trello_member_id: this.value })"
+            class="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500">
+            ${_memberOptionsHTML(u.trello_member_id)}
+          </select>` : '<span class="text-xs text-slate-500">—</span>'}
+        </td>
+        <td class="px-4 py-3">
+          <span class="text-xs font-semibold px-2 py-0.5 rounded-full ${inactive ? 'bg-slate-700 text-slate-400' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}">
+            ${inactive ? 'Inactivo' : 'Activo'}
+          </span>
+        </td>
+        <td class="px-4 py-3 whitespace-nowrap">
+          <button onclick="resetUserPassword(${u.id})" title="Cambiar contraseña"
+            class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 px-2 py-1 rounded-lg text-xs transition-colors">🔑</button>
+          ${isMe ? '' : `<button onclick="updateUser(${u.id}, { active: ${inactive ? 1 : 0} })" title="${inactive ? 'Activar' : 'Desactivar'}"
+            class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 px-2 py-1 rounded-lg text-xs transition-colors">${inactive ? '▶' : '⏸'}</button>`}
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  function toggleNewUserMemberRow() {
+    const role = document.getElementById('new-user-role').value;
+    const row = document.getElementById('new-user-member-row');
+    row.style.display = role === 'agenda_member' ? 'block' : 'none';
+    if (role === 'agenda_member') {
+      document.getElementById('new-user-member').innerHTML = _memberOptionsHTML('');
+    }
+  }
+
+  async function createUser() {
+    const name = document.getElementById('new-user-name').value.trim();
+    const email = document.getElementById('new-user-email').value.trim();
+    const password = document.getElementById('new-user-password').value;
+    const role = document.getElementById('new-user-role').value;
+    const memberId = document.getElementById('new-user-member').value;
+
+    if (!email) { Utils.showToast('Ingresa el email del usuario', 'warning'); return; }
+    if (password.length < 8) { Utils.showToast('La contraseña debe tener al menos 8 caracteres', 'warning'); return; }
+    if (role === 'agenda_member' && !memberId) {
+      Utils.showToast('Selecciona el miembro de Trello para este usuario', 'warning'); return;
     }
 
-    const creds = Storage.getCredentials();
-    const url = Auth.generateURL(role, name, role === 'agenda-member' ? memberId : null, creds);
-    document.getElementById('access-url').value = url;
-    document.getElementById('access-result').style.display = 'block';
+    try {
+      await Session.apiFetch('api/users.php', {
+        method: 'POST',
+        body: JSON.stringify({ name, email, password, role, trello_member_id: role === 'agenda_member' ? memberId : '' }),
+      });
+      Utils.showToast('Usuario creado ✓', 'success');
+      ['new-user-name', 'new-user-email', 'new-user-password'].forEach(id => document.getElementById(id).value = '');
+      loadUsers();
+    } catch (e) {
+      Utils.showToast(e.message, 'error');
+    }
   }
 
-  function copyAccessURL() {
-    const url = document.getElementById('access-url').value;
-    navigator.clipboard.writeText(url)
-      .then(() => Utils.showToast('URL copiada al portapapeles ✓', 'success'))
-      .catch(() => {
-        document.getElementById('access-url').select();
-        document.execCommand('copy');
-        Utils.showToast('URL copiada ✓', 'success');
+  async function updateUser(id, changes) {
+    try {
+      await Session.apiFetch('api/users.php', {
+        method: 'PUT',
+        body: JSON.stringify(Object.assign({ id }, changes)),
       });
+      Utils.showToast('Usuario actualizado ✓', 'success');
+    } catch (e) {
+      Utils.showToast(e.message, 'error');
+    }
+    loadUsers();
+  }
+
+  function resetUserPassword(id) {
+    const pass = prompt('Nueva contraseña para este usuario (mínimo 8 caracteres):');
+    if (pass === null) return;
+    if (pass.length < 8) { Utils.showToast('La contraseña debe tener al menos 8 caracteres', 'warning'); return; }
+    updateUser(id, { password: pass });
   }
 </script>
 </body>
