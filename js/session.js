@@ -106,6 +106,15 @@ const Session = (() => {
     if (!canView(currentPage())) {
       return _redirect(defaultPage(user.role));
     }
+    // Precargar la configuración compartida (credenciales, proyectos, miembros)
+    // para que Storage pueda leerse de forma síncrona en las páginas.
+    if (window.Storage && typeof Storage.preload === 'function') {
+      try {
+        await Storage.preload();
+      } catch (e) {
+        console.error('No se pudo precargar la configuración desde la BD:', e.message);
+      }
+    }
     return user;
   })();
 

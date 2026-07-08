@@ -12,8 +12,10 @@ const DriveAPI = (() => {
   }
 
   // ── Credentials ──────────────────────────────────────────────────────────────
-  function getClientId()    { return localStorage.getItem('ideaz_drive_client_id') || ''; }
-  function saveClientId(id) { localStorage.setItem('ideaz_drive_client_id', id.trim()); }
+  // El Client ID vive en la BD (app_settings) compartido para toda la agencia;
+  // solo el superadmin puede cambiarlo. saveClientId devuelve una promesa.
+  function getClientId()    { return Storage.getSetting('drive_client_id'); }
+  function saveClientId(id) { return Storage.saveSetting('drive_client_id', id.trim()); }
 
   function getToken() {
     try {
@@ -32,13 +34,13 @@ const DriveAPI = (() => {
   function isConnected() { return !!getToken(); }
 
   // ── Per-board folder ──────────────────────────────────────────────────────────
+  // La carpeta por tablero es parte de la configuración del proyecto en la BD
+  // (project_settings.drive_folder_id); cm también puede editarla.
   function getFolderForBoard(boardId) {
-    return JSON.parse(localStorage.getItem('ideaz_drive_folders') || '{}')[boardId] || '';
+    return Storage.getProjectData(boardId).driveFolderId || '';
   }
   function saveFolderForBoard(boardId, folderId) {
-    const m = JSON.parse(localStorage.getItem('ideaz_drive_folders') || '{}');
-    m[boardId] = folderId.trim();
-    localStorage.setItem('ideaz_drive_folders', JSON.stringify(m));
+    Storage.saveProjectData(boardId, { driveFolderId: folderId.trim() });
   }
 
   // ── OAuth ─────────────────────────────────────────────────────────────────────

@@ -40,7 +40,9 @@ Dashboard web de rendimiento del equipo IDEAZ, conectado a Trello via API REST.
 | `atencion-cliente.html` | Ezamoraideaz | Automatización de conversaciones Messenger/Instagram por marca (estilo ManyChat) |
 | `js/atencionCliente.js` | Ezamoraideaz | Controlador del panel: clientes, cuentas conectadas, inbox |
 | `js/flowBuilder.js` | Ezamoraideaz | Constructor visual de flujos (envuelve Drawflow, vendorizado en `js/vendor/`) |
-| `backend/` | Ezamoraideaz | Backend PHP + MySQL propio de este módulo (webhooks/tokens de Meta no pueden vivir en el frontend estático) — ver sección abajo |
+| `backend/` | Ezamoraideaz | Backend PHP + MySQL (webhooks/tokens de Meta + login global + configuración compartida) — ver secciones abajo |
+| `login.html` | Ezamoraideaz | Login global del sitio (email + contraseña contra `backend/auth/login.php`) |
+| `js/session.js` | Ezamoraideaz | Guard de sesión global: incluirlo en toda página nueva y esperar `Session.ready` antes de iniciar |
 
 ---
 
@@ -53,8 +55,8 @@ webhook HTTPS público y no permite guardar tokens de Página/Instagram en el na
 
 ### Puesta en marcha (una sola vez)
 1. Copiar `backend/config.example.php` a `backend/config.php` y completar credenciales (nunca commitear `config.php`).
-2. Crear la base de datos MySQL en cPanel y correr `backend/sql/schema.sql` una sola vez (phpMyAdmin o CLI).
-3. Crear el primer operador desde terminal: `php backend/cli/create_operator.php email@ejemplo.com contraseña`.
+2. Crear la base de datos MySQL en cPanel y correr `backend/sql/schema.sql` una sola vez (phpMyAdmin o CLI). Si la BD ya existía de antes del login global, correr también `backend/sql/migration_002_site_auth.sql`.
+3. Crear el superadmin desde terminal: `php backend/cli/create_operator.php email@ejemplo.com contraseña superadmin "Tu Nombre"`.
 4. Configurar un Cron Job en cPanel que ejecute cada minuto: `php backend/cron/process_scheduled.php`.
 5. Crear la App de Meta (developers.facebook.com, tipo Business) y completar `META_APP_ID`/`META_APP_SECRET`/`WEBHOOK_VERIFY_TOKEN` en `config.php`. Mientras la App esté en modo Development, los admins/testers del App pueden usar `pages_messaging`/`instagram_business_manage_messages` sin esperar App Review.
 6. Dar de alta el Webhook en Meta apuntando a `https://tudominio.com/dashboard/backend/webhook/webhook.php`, con el mismo `WEBHOOK_VERIFY_TOKEN`.
@@ -101,9 +103,17 @@ card.closed       // boolean — si está archivada
 ```
 
 ### Credenciales
-- Cada developer usa **sus propias credenciales de Trello** guardadas localmente via `configuracion.html`.
-- Las credenciales **nunca** se guardan en el repositorio (están en `localStorage` del navegador).
+- Las credenciales de Trello y el Client ID de Google Drive son **un juego único compartido de la agencia**, guardado **cifrado en MySQL** (`app_settings`, AES-256-GCM). Solo el superadmin puede modificarlas desde `configuracion.html`.
+- Los datos financieros por proyecto, carpetas Drive y tarifas/roles/nombres de miembros también viven en la BD (`project_settings` / `member_settings`) y se comparten entre usuarios; `js/storage.js` mantiene su interfaz pública de siempre pero respaldada por esos endpoints (caché en memoria precargado por `Session.ready`). Las horas por tarjeta (`ideaz_time`/`ideaz_overrides`) siguen en `localStorage`.
+- Las credenciales **nunca** se guardan en el repositorio ni en `localStorage`.
 - La carpeta `.claude/` está en `.gitignore` — cada developer tiene su configuración local de Claude.
+
+### Login y roles (control de acceso)
+- Todo el sitio requiere sesión: `login.html` + cookie de sesión PHP (la misma del módulo Atención al Cliente). `js/session.js` redirige a login si no hay sesión y aplica permisos por página.
+- Roles (tabla `operators`): `superadmin` (todo + gestión de usuarios y credenciales), `admin` (todo menos usuarios), `agenda_full` (solo agenda), `agenda_member` (agenda + monitor, bloqueado a su miembro de Trello), `cm` (agenda + configuración solo Drive/carpetas), `agent` (solo Atención al Cliente).
+- Los usuarios se gestionan en `configuracion.html` → sección "Usuarios" (solo superadmin), vía `backend/api/users.php`.
+- Las URLs de acceso antiguas (`?access=` con credenciales en base64) fueron eliminadas; `js/auth.js` es ahora un adaptador de permisos sobre `Session`.
+- Página nueva = incluir `js/session.js`, envolver la inicialización en `Session.ready.then(...)` y registrar la página en los mapas de `js/session.js` (`PAGE_BY_FILE`, `ACCESS`, `FILE_BY_PAGE`).
 
 ---
 

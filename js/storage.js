@@ -1,48 +1,127 @@
+// Configuración y credenciales del sitio. Desde la migración al backend
+// (backend/api/settings.php, project_settings.php, member_settings.php) los
+// datos viven en MySQL y se comparten entre todos los usuarios: este módulo
+// mantiene la MISMA interfaz pública de siempre, pero respaldada por un caché
+// en memoria que Session precarga al iniciar (Storage.preload) y que los
+// save* sincronizan contra la BD en segundo plano.
+// Las horas por tarjeta (ideaz_time / ideaz_overrides) siguen en localStorage.
 const Storage = {
-  // Credentials
-  getCredentials() {
-    return JSON.parse(localStorage.getItem('ideaz_credentials') || '{}');
+  // ── Caché en memoria (poblado por preload) ────────────────────────────────
+  _settings: {},   // { trello_key, trello_token, drive_client_id }
+  _projects: {},   // { boardId: { budget, revenue, currency, hoursEstimated, alias, category, period, type, driveFolderId } }
+  _members: {},    // { memberId: { name, role, rate } }
+  _loaded: false,
+
+  // Llamado por js/session.js después de validar la sesión y ANTES de resolver
+  // Session.ready, para que las páginas puedan leer de forma síncrona.
+  async preload() {
+    const [settings, projects, members] = await Promise.all([
+      Session.apiFetch('api/settings.php'),
+      Session.apiFetch('api/project_settings.php'),
+      Session.apiFetch('api/member_settings.php'),
+    ]);
+    this._settings = settings.settings || {};
+    this._projects = projects.projects || {};
+    this._members = members.members || {};
+    this._loaded = true;
   },
-  saveCredentials(key, token) {
-    localStorage.setItem('ideaz_credentials', JSON.stringify({ key, token }));
+
+  // ── Envío diferido a la BD (agrupa ráfagas de saves en un solo POST) ──────
+  _dirtyProjects: {},
+  _dirtyMembers: {},
+  _flushTimer: null,
+
+  _scheduleFlush() {
+    clearTimeout(this._flushTimer);
+    this._flushTimer = setTimeout(() => this._flush(), 400);
+  },
+  async _flush() {
+    const projects = this._dirtyProjects;
+    const members = this._dirtyMembers;
+    this._dirtyProjects = {};
+    this._dirtyMembers = {};
+    try {
+      if (Object.keys(projects).length) {
+        await Session.apiFetch('api/project_settings.php', { method: 'POST', body: JSON.stringify({ projects }) });
+      }
+      if (Object.keys(members).length) {
+        await Session.apiFetch('api/member_settings.php', { method: 'POST', body: JSON.stringify({ members }) });
+      }
+    } catch (e) {
+      console.error('No se pudo guardar la configuración en la BD:', e.message);
+      if (window.Utils && Utils.showToast) Utils.showToast('No se pudo guardar en la BD: ' + e.message, 'error');
+    }
+  },
+
+  // ── Settings genéricos (credenciales de integraciones) ────────────────────
+  getSetting(key) {
+    return this._settings[key] || '';
+  },
+  async saveSetting(key, value) {
+    this._settings[key] = value;
+    await Session.apiFetch('api/settings.php', {
+      method: 'POST',
+      body: JSON.stringify({ settings: { [key]: value } }),
+    });
+  },
+
+  // ── Credentials (Trello — juego único compartido de la agencia) ───────────
+  getCredentials() {
+    const key = this._settings.trello_key || '';
+    const token = this._settings.trello_token || '';
+    return key || token ? { key, token } : {};
+  },
+  async saveCredentials(key, token) {
+    this._settings.trello_key = key;
+    this._settings.trello_token = token;
+    await Session.apiFetch('api/settings.php', {
+      method: 'POST',
+      body: JSON.stringify({ settings: { trello_key: key, trello_token: token } }),
+    });
   },
   hasCredentials() {
     const c = this.getCredentials();
     return !!(c.key && c.token);
   },
-  clearCredentials() {
-    localStorage.removeItem('ideaz_credentials');
+  async clearCredentials() {
+    await this.saveCredentials('', '');
+    delete this._settings.trello_key;
+    delete this._settings.trello_token;
   },
 
-  // Project financial data (per board)
+  // ── Project data (por tablero, compartido) ────────────────────────────────
   getProjectData(boardId) {
-    const all = JSON.parse(localStorage.getItem('ideaz_projects') || '{}');
-    return all[boardId] || { budget: 0, revenue: 0, currency: 'COP', hoursEstimated: 0, alias: '', category: '', period: '', type: '' };
+    return this._projects[boardId] ||
+      { budget: 0, revenue: 0, currency: 'COP', hoursEstimated: 0, alias: '', category: '', period: '', type: '', driveFolderId: '' };
   },
   saveProjectData(boardId, data) {
-    const all = JSON.parse(localStorage.getItem('ideaz_projects') || '{}');
-    all[boardId] = { ...this.getProjectData(boardId), ...data };
-    localStorage.setItem('ideaz_projects', JSON.stringify(all));
+    this._projects[boardId] = { ...this.getProjectData(boardId), ...data };
+    this._dirtyProjects[boardId] = { ...(this._dirtyProjects[boardId] || {}), ...data };
+    this._scheduleFlush();
   },
   getAllProjectData() {
-    return JSON.parse(localStorage.getItem('ideaz_projects') || '{}');
+    return this._projects;
   },
 
-  // Member hourly rates
+  // ── Member hourly rates ───────────────────────────────────────────────────
   getMemberRate(memberId) {
-    const rates = JSON.parse(localStorage.getItem('ideaz_rates') || '{}');
-    return rates[memberId] || 0;
+    return (this._members[memberId] && this._members[memberId].rate) || 0;
   },
   saveMemberRate(memberId, rate) {
-    const rates = JSON.parse(localStorage.getItem('ideaz_rates') || '{}');
-    rates[memberId] = parseFloat(rate) || 0;
-    localStorage.setItem('ideaz_rates', JSON.stringify(rates));
+    const val = parseFloat(rate) || 0;
+    this._members[memberId] = { ...(this._members[memberId] || {}), rate: val };
+    this._dirtyMembers[memberId] = { ...(this._dirtyMembers[memberId] || {}), rate: val };
+    this._scheduleFlush();
   },
   getAllRates() {
-    return JSON.parse(localStorage.getItem('ideaz_rates') || '{}');
+    const rates = {};
+    for (const [id, m] of Object.entries(this._members)) {
+      if (m.rate) rates[id] = m.rate;
+    }
+    return rates;
   },
 
-  // Time entries per card (boardId -> cardId -> hours)
+  // ── Time entries per card (boardId -> cardId -> hours) — localStorage ─────
   getTimeEntry(boardId, cardId) {
     const all = JSON.parse(localStorage.getItem('ideaz_time') || '{}');
     return (all[boardId] || {})[cardId] || 0;
@@ -61,7 +140,7 @@ const Storage = {
     return JSON.parse(localStorage.getItem('ideaz_time') || '{}');
   },
 
-  // Time overrides with reason (boardId -> cardId -> { hours, comment, editedAt, originalHours })
+  // ── Time overrides with reason — localStorage ─────────────────────────────
   getTimeOverride(boardId, cardId) {
     const all = JSON.parse(localStorage.getItem('ideaz_overrides') || '{}');
     return (all[boardId] || {})[cardId] || null;
@@ -82,31 +161,39 @@ const Storage = {
     return all[boardId] || {};
   },
 
-  // Member names cache
+  // ── Member names (caché de nombres de Trello, compartido) ─────────────────
   saveMemberName(memberId, name) {
-    const names = JSON.parse(localStorage.getItem('ideaz_members') || '{}');
-    names[memberId] = name;
-    localStorage.setItem('ideaz_members', JSON.stringify(names));
+    if ((this._members[memberId] || {}).name === name) return; // sin cambios: no tocar la BD
+    this._members[memberId] = { ...(this._members[memberId] || {}), name };
+    this._dirtyMembers[memberId] = { ...(this._dirtyMembers[memberId] || {}), name };
+    this._scheduleFlush();
   },
   getMemberName(memberId) {
-    const names = JSON.parse(localStorage.getItem('ideaz_members') || '{}');
-    return names[memberId] || 'Desconocido';
+    return (this._members[memberId] && this._members[memberId].name) || 'Desconocido';
   },
   getAllMemberNames() {
-    return JSON.parse(localStorage.getItem('ideaz_members') || '{}');
+    const names = {};
+    for (const [id, m] of Object.entries(this._members)) {
+      if (m.name) names[id] = m.name;
+    }
+    return names;
   },
 
-  // Member roles (diseñador | cm | pm | otro)
+  // ── Member roles (diseñador | cm | pm | otro) ─────────────────────────────
   getMemberRole(memberId) {
-    return JSON.parse(localStorage.getItem('ideaz_roles') || '{}')[memberId] || '';
+    return (this._members[memberId] && this._members[memberId].role) || '';
   },
   setMemberRole(memberId, role) {
-    const roles = JSON.parse(localStorage.getItem('ideaz_roles') || '{}');
-    roles[memberId] = role;
-    localStorage.setItem('ideaz_roles', JSON.stringify(roles));
+    this._members[memberId] = { ...(this._members[memberId] || {}), role };
+    this._dirtyMembers[memberId] = { ...(this._dirtyMembers[memberId] || {}), role };
+    this._scheduleFlush();
   },
   getAllRoles() {
-    return JSON.parse(localStorage.getItem('ideaz_roles') || '{}');
+    const roles = {};
+    for (const [id, m] of Object.entries(this._members)) {
+      if (m.role) roles[id] = m.role;
+    }
+    return roles;
   }
 };
 
