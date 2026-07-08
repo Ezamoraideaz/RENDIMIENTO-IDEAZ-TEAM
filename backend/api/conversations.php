@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../bootstrap.php';
 
-require_login();
+require_atencion_access();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     json_error('Método no permitido', 405);

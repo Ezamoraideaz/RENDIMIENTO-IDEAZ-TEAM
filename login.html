@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>if(localStorage.getItem('ideaz_theme')==='light')document.documentElement.classList.add('light');</script>
+  <title>Monitor Ideaz – Iniciar sesión</title>
+  <meta name="application-name" content="Monitor Ideaz">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          colors: {
+            brand: { DEFAULT: '#6366f1', light: '#818cf8', dark: '#4f46e5' }
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex items-center justify-center p-4">
+
+  <div class="w-full max-w-sm">
+    <div class="flex items-center justify-center gap-3 mb-8">
+      <div class="w-11 h-11 rounded-xl bg-indigo-600 flex items-center justify-center flex-shrink-0">
+        <span class="text-white font-black text-lg">I</span>
+      </div>
+      <div>
+        <div class="font-black text-slate-100 text-lg leading-none">Monitor Ideaz</div>
+        <div class="text-xs text-slate-400 font-medium">Dashboard del equipo</div>
+      </div>
+    </div>
+
+    <form id="login-form" class="bg-slate-900 border border-slate-700 rounded-2xl p-6">
+      <h1 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-5">Iniciar sesión</h1>
+
+      <div id="login-error" style="display:none"
+        class="mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-sm"></div>
+
+      <label class="block text-xs text-slate-400 font-medium mb-1" for="login-email">Email</label>
+      <input id="login-email" type="email" required autocomplete="username"
+        class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 mb-4"
+        placeholder="tu@email.com">
+
+      <label class="block text-xs text-slate-400 font-medium mb-1" for="login-password">Contraseña</label>
+      <input id="login-password" type="password" required autocomplete="current-password"
+        class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 mb-5"
+        placeholder="••••••••">
+
+      <button id="login-btn" type="submit"
+        class="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors">
+        Entrar
+      </button>
+    </form>
+
+    <p class="text-center text-xs text-slate-500 mt-4">
+      ¿Sin cuenta u olvidaste tu contraseña? Pídele acceso al administrador.
+    </p>
+  </div>
+
+  <script>
+  (() => {
+    const API = 'backend';
+
+    // Primera página según el rol (mismo mapa que js/session.js)
+    const HOME_BY_ROLE = {
+      superadmin: 'index.html',
+      admin: 'index.html',
+      agent: 'atencion-cliente.html',
+      agenda_full: 'agenda.html',
+      agenda_member: 'agenda.html',
+      cm: 'agenda.html',
+    };
+
+    const form = document.getElementById('login-form');
+    const errEl = document.getElementById('login-error');
+    const btn = document.getElementById('login-btn');
+
+    function showError(msg) {
+      errEl.textContent = msg;
+      errEl.style.display = '';
+    }
+
+    function goHome(role) {
+      location.replace(HOME_BY_ROLE[role] || 'agenda.html');
+    }
+
+    // Si ya hay sesión activa, entrar directo
+    fetch(`${API}/auth/me.php`, { credentials: 'include' })
+      .then((r) => r.json())
+      .then((data) => { if (data && data.operator) goHome(data.operator.role); })
+      .catch(() => { /* sin backend: el formulario mostrará el error al enviar */ });
+
+    if (new URLSearchParams(location.search).get('error') === 'backend') {
+      showError('No se pudo contactar el servidor. Verifica tu conexión e intenta de nuevo.');
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errEl.style.display = 'none';
+      btn.disabled = true;
+      try {
+        const res = await fetch(`${API}/auth/login.php`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: document.getElementById('login-email').value.trim(),
+            password: document.getElementById('login-password').value,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+        goHome(data.operator.role);
+      } catch (err) {
+        showError(err.message === 'Failed to fetch'
+          ? 'No se pudo contactar el servidor. Verifica tu conexión.'
+          : err.message);
+        btn.disabled = false;
+      }
+    });
+  })();
+  </script>
+</body>
+</html>
