@@ -86,23 +86,25 @@ const Sidebar = (() => {
     const mainEl = document.querySelector('main');
     if (mainEl) mainEl.setAttribute('data-sidebar-main', '');
     const { allowedKeys, onRefresh } = options;
-    const token = new URLSearchParams(window.location.search).get('access');
-    const restricted = !!(allowedKeys && token);
+    // El acceso ahora es por sesión (js/session.js); si la página no pasa
+    // allowedKeys, se filtra según el rol del usuario logueado.
+    const sessionUser = (window.Session && Session.user) || null;
+    const keys = allowedKeys || (sessionUser ? Session.allowedNavKeys() : null);
 
-    const visibleLinks = allowedKeys ? LINKS.filter(l => allowedKeys.includes(l.key)) : LINKS;
+    const visibleLinks = keys ? LINKS.filter(l => keys.includes(l.key)) : LINKS;
 
     const navHTML = visibleLinks.map(({ href, icon, label, key }) => {
-      const finalHref = restricted ? `${href}?access=${encodeURIComponent(token)}` : href;
       const isActive = key === activePage;
       const cls = isActive ? 'bg-indigo-600/20 text-indigo-400' : 'text-slate-400 hover:bg-slate-800';
-      return `<a href="${finalHref}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold ${cls} transition-colors sidebar-nav-item" title="${label}">
+      return `<a href="${href}" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold ${cls} transition-colors sidebar-nav-item" title="${label}">
         <span class="text-lg leading-none flex-shrink-0">${icon}</span>
         <span class="sidebar-text">${label}</span>
       </a>`;
     }).join('\n    ');
 
-    const logoHref = restricted ? `agenda.html?access=${encodeURIComponent(token)}` : 'index.html';
-    const logoSub  = restricted ? 'Agenda' : 'Dashboard';
+    const showsDashboard = !keys || keys.includes('dashboard');
+    const logoHref = showsDashboard ? 'index.html' : 'agenda.html';
+    const logoSub  = showsDashboard ? 'Dashboard' : 'Agenda';
 
     const themeNow = _getTheme();
     aside.insertAdjacentHTML('afterbegin', `
@@ -135,6 +137,25 @@ const Sidebar = (() => {
           </button>
         </div>
       </nav>`);
+
+    // Usuario logueado + cerrar sesión (js/session.js)
+    if (sessionUser) {
+      const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+      aside.insertAdjacentHTML('beforeend', `
+        <div class="p-3 border-t border-slate-700 flex-shrink-0 mt-auto">
+          <div class="sidebar-text px-3 mb-2 min-w-0">
+            <div class="text-xs font-semibold text-slate-300 truncate">${esc(sessionUser.name || sessionUser.email)}</div>
+            <div class="text-[11px] text-slate-500 truncate">${esc(sessionUser.email)}</div>
+          </div>
+          <button onclick="Session.logout()"
+            class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:bg-slate-800 hover:text-rose-400 transition-colors sidebar-nav-item"
+            title="Cerrar sesión">
+            <span class="text-base leading-none flex-shrink-0">🚪</span>
+            <span class="sidebar-text">Cerrar sesión</span>
+          </button>
+        </div>`);
+    }
 
     if (onRefresh) {
       aside.insertAdjacentHTML('beforeend', `

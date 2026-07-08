@@ -3,7 +3,7 @@ require_once __DIR__ . '/../bootstrap.php';
 require_once __DIR__ . '/../includes/meta_client.php';
 require_once __DIR__ . '/../includes/trigger_engine.php';
 
-require_login();
+require_atencion_access();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     json_error('Método no permitido', 405);

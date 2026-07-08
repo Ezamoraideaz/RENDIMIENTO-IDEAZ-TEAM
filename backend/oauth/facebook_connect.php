@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../bootstrap.php';
 
-require_login(); // solo un operador autenticado puede iniciar la conexión
+require_atencion_access(); // solo roles con acceso al módulo pueden iniciar la conexión
 
 $clientId = (int)($_GET['client_id'] ?? 0);
 if ($clientId <= 0) {
