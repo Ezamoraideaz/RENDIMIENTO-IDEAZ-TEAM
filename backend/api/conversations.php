@@ -42,7 +42,7 @@ if ($clientId <= 0) {
 }
 
 $stmt = $pdo->prepare('
-    SELECT conv.id, conv.status, conv.last_inbound_at, conv.window_expires_at, conv.human_agent_tag_until,
+    SELECT conv.id, conv.status, conv.last_inbound_at, conv.window_expires_at, conv.human_agent_tag_until, conv.state_vars,
            c.name AS contact_name, c.email AS contact_email, c.phone AS contact_phone,
            sa.platform, sa.page_name, sa.ig_username,
            (SELECT content FROM messages m WHERE m.conversation_id = conv.id ORDER BY m.created_at DESC, m.id DESC LIMIT 1) AS last_message,

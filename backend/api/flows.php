@@ -15,6 +15,7 @@ function rebuild_flow_triggers(PDO $pdo, int $flowId, array $graph): void
         'trigger_keyword'          => 'keyword',
         'trigger_comment'          => 'comment_on_post',
         'trigger_new_conversation' => 'new_conversation',
+        'trigger_story_reply'      => 'story_reply',
     ];
 
     $nodes = $graph['nodes'] ?? [];
@@ -45,7 +46,12 @@ function rebuild_flow_triggers(PDO $pdo, int $flowId, array $graph): void
         }
         $keywords = $node['data']['keywords'] ?? [];
         $scope = $node['data']['platform_scope'] ?? 'both';
-        $insert->execute([$flowId, $scope, $type, json_encode(['keywords' => $keywords]), $nextId, $priority]);
+        $matchConfig = ['keywords' => $keywords];
+        if ($node['type'] === 'trigger_comment') {
+            // Respuesta pública opcional al comentario (además de la privada, siempre enviada).
+            $matchConfig['public_reply'] = trim((string)($node['data']['public_reply'] ?? ''));
+        }
+        $insert->execute([$flowId, $scope, $type, json_encode($matchConfig), $nextId, $priority]);
         $priority++;
     }
 }

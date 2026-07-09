@@ -125,7 +125,7 @@ CREATE TABLE IF NOT EXISTS flow_triggers (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     flow_id INT UNSIGNED NOT NULL,
     platform_scope ENUM('messenger','instagram','both') NOT NULL DEFAULT 'both',
-    trigger_type ENUM('keyword','comment_on_post','new_conversation') NOT NULL,
+    trigger_type ENUM('keyword','comment_on_post','new_conversation','story_reply') NOT NULL,
     match_config JSON NOT NULL,
     node_id VARCHAR(64) NOT NULL,
     priority INT NOT NULL DEFAULT 0,

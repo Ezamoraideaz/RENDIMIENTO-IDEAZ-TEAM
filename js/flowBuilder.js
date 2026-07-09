@@ -9,13 +9,16 @@ const FlowBuilder = (() => {
 
   const NODE_DEFS = {
     trigger_keyword:          { title: '🎯 Palabra clave',      inputs: 0, outputs: 1, defaultData: { keywords: [], platform_scope: 'both' } },
-    trigger_comment:          { title: '💭 Comentario en post', inputs: 0, outputs: 1, defaultData: { keywords: [], platform_scope: 'both' } },
+    trigger_comment:          { title: '💭 Comentario en post', inputs: 0, outputs: 1, defaultData: { keywords: [], platform_scope: 'both', public_reply: '' } },
     trigger_new_conversation: { title: '✨ Nueva conversación', inputs: 0, outputs: 1, defaultData: { platform_scope: 'both' } },
+    trigger_story_reply:      { title: '📖 Respuesta a historia', inputs: 0, outputs: 1, defaultData: { keywords: [], platform_scope: 'instagram' } },
     message:                  { title: '💬 Mensaje',            inputs: 1, outputs: 1, defaultData: { text: '' } },
     image:                    { title: '🖼️ Imagen',             inputs: 1, outputs: 1, defaultData: { url: '' } },
     card:                     { title: '🃏 Tarjeta CTA',        inputs: 1, outputs: 1, defaultData: { title: '', subtitle: '', image_url: '', buttons: [{ title: 'Ver más', url: '' }] } },
+    carousel:                 { title: '🎠 Carrusel',           inputs: 1, outputs: 1, defaultData: { items: [{ title: '', subtitle: '', image_url: '', button_title: 'Ver más', button_url: '' }] } },
     quick_replies:            { title: '🔘 Botones',            inputs: 1, outputs: 2, defaultData: { text: '', options: ['Sí', 'No'] } },
     question:                 { title: '📝 Pregunta (lead)',    inputs: 1, outputs: 1, defaultData: { text: '', field: 'email', validate: 'email', retry_text: '' } },
+    csat:                     { title: '⭐ Encuesta CSAT',       inputs: 1, outputs: 5, defaultData: { text: '¿Cómo calificarías tu experiencia?' } },
     condition:                { title: '🔀 Condición',          inputs: 1, outputs: 2, defaultData: { field: 'email', op: 'exists', value: '' } },
     hours:                    { title: '⏰ Horario',            inputs: 1, outputs: 2, defaultData: { start: '09:00', end: '18:00', days: [1, 2, 3, 4, 5] } },
     ab_split:                 { title: '🎲 Test A/B',           inputs: 1, outputs: 2, defaultData: { percent_a: 50 } },
@@ -31,11 +34,14 @@ const FlowBuilder = (() => {
     if (type === 'trigger_keyword') return (data.keywords || []).join(', ') || '(sin palabras clave)';
     if (type === 'trigger_comment') return (data.keywords || []).join(', ') || 'cualquier comentario';
     if (type === 'trigger_new_conversation') return 'primer mensaje del contacto';
+    if (type === 'trigger_story_reply') return (data.keywords || []).join(', ') || 'cualquier respuesta a historia';
     if (type === 'message') return (data.text || '').slice(0, 40) || '(vacío)';
     if (type === 'image') return (data.url || '').split('/').pop() || '(sin imagen)';
     if (type === 'card') return (data.title || '').slice(0, 30) || '(sin título)';
+    if (type === 'carousel') return (data.items || []).length + ' elementos';
     if (type === 'quick_replies') return (data.text || '').slice(0, 25) + ' · ' + (data.options || []).length + ' opciones';
     if (type === 'question') return `guarda "${data.field || '?'}"`;
+    if (type === 'csat') return (data.text || '').slice(0, 30) || '(vacío)';
     if (type === 'condition') return `${data.field || '?'} ${CONDITION_OPS[data.op] || data.op || ''} ${data.op === 'exists' ? '' : (data.value || '')}`.trim();
     if (type === 'hours') return `${data.start || '?'}–${data.end || '?'}`;
     if (type === 'ab_split') return `A ${data.percent_a ?? 50}% / B ${100 - (data.percent_a ?? 50)}%`;
@@ -178,7 +184,10 @@ const FlowBuilder = (() => {
         <p class="text-xs text-slate-600 mb-3">Déjalo vacío para responder a <strong>cualquier</strong> comentario.</p>
         <label class="text-xs text-slate-500">Plataforma</label>
         ${scopeSelectHtml(data)}
-        <p class="text-xs text-slate-600 mt-3">Quien comenta recibe el primer mensaje del flujo <strong>por privado</strong>. Si responde al DM, el flujo continúa con los nodos siguientes.</p>`;
+        <p class="text-xs text-slate-600 mt-3">Quien comenta recibe el primer mensaje del flujo <strong>por privado</strong>. Si responde al DM, el flujo continúa con los nodos siguientes.</p>
+        <label class="text-xs text-slate-500 mt-3 block">Respuesta pública en el comentario (opcional)</label>
+        <textarea id="insp-public-reply" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm mt-1" rows="2" placeholder="¡Gracias por comentar! Te escribimos por privado 💌">${data.public_reply || ''}</textarea>
+        <p class="text-xs text-slate-600 mt-2">Además de la respuesta privada, publica esta respuesta visible en el propio comentario — aumenta el engagement del post frente al resto de la comunidad.</p>`;
       document.getElementById('insp-keywords').oninput = (e) => {
         data.keywords = e.target.value.split(',').map((s) => s.trim()).filter(Boolean);
         editor.updateNodeDataFromId(nodeId, data);
@@ -186,6 +195,7 @@ const FlowBuilder = (() => {
         setStatusText('Sin guardar');
       };
       bindScopeSelect(nodeId, data);
+      bindInput('insp-public-reply', (v) => { data.public_reply = v; }, nodeId, type, data);
     } else if (type === 'trigger_new_conversation') {
       panel.innerHTML = `
         <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Disparador (nueva conversación)</p>
@@ -193,6 +203,19 @@ const FlowBuilder = (() => {
         <label class="text-xs text-slate-500">Plataforma</label>
         ${scopeSelectHtml(data)}`;
       bindScopeSelect(nodeId, data);
+    } else if (type === 'trigger_story_reply') {
+      panel.innerHTML = `
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Disparador (respuesta a historia)</p>
+        <p class="text-xs text-slate-500 mb-3">Se activa cuando alguien <strong>responde a una historia</strong> de Instagram que publicaste. Es uno de los canales de mayor interacción de la comunidad — ideal para juegos, encuestas de historia o promociones.</p>
+        <label class="text-xs text-slate-500">Palabras clave (opcional, separadas por coma)</label>
+        <textarea id="insp-keywords" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm mt-1 mb-1" rows="2">${(data.keywords || []).join(', ')}</textarea>
+        <p class="text-xs text-slate-600">Déjalo vacío para responder a <strong>cualquier</strong> respuesta de historia.</p>`;
+      document.getElementById('insp-keywords').oninput = (e) => {
+        data.keywords = e.target.value.split(',').map((s) => s.trim()).filter(Boolean);
+        editor.updateNodeDataFromId(nodeId, data);
+        updatePreviewDom(nodeId, type, data);
+        setStatusText('Sin guardar');
+      };
     } else if (type === 'quick_replies') {
       const options = data.options || [];
       panel.innerHTML = `
@@ -289,6 +312,19 @@ const FlowBuilder = (() => {
         editor.updateNodeDataFromId(nodeId, data);
         setStatusText('Sin guardar');
       };
+    } else if (type === 'csat') {
+      panel.innerHTML = `
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Encuesta de satisfacción (CSAT)</p>
+        <label class="text-xs text-slate-500">Pregunta a enviar</label>
+        <textarea id="insp-text" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm mt-1 mb-3" rows="2">${data.text || ''}</textarea>
+        <p class="text-xs text-slate-600">Envía 5 caritas (😡🙁😐🙂😍) como respuesta rápida. La calificación (1-5) queda guardada en la ficha del contacto.</p>
+        <p class="text-xs text-slate-600 mt-2">Cada salida del nodo es una calificación: <strong>1</strong>=😡 · <strong>2</strong>=🙁 · <strong>3</strong>=😐 · <strong>4</strong>=🙂 · <strong>5</strong>=😍. Conecta, por ejemplo, las salidas 1-2 a un nodo "Pasar a humano" (recuperar al cliente insatisfecho) y la 5 a una Tarjeta pidiendo una reseña pública.</p>`;
+      document.getElementById('insp-text').oninput = (e) => {
+        data.text = e.target.value;
+        editor.updateNodeDataFromId(nodeId, data);
+        updatePreviewDom(nodeId, type, data);
+        setStatusText('Sin guardar');
+      };
     } else if (type === 'handoff') {
       panel.innerHTML = `
         <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Pasar a humano</p>
@@ -345,6 +381,56 @@ const FlowBuilder = (() => {
       document.getElementById('insp-add-btn').onclick = () => {
         if (data.buttons.length >= 3) return;
         data.buttons.push({ title: '', url: '' });
+        commit(nodeId, type, data);
+        renderInspector(nodeId);
+      };
+    } else if (type === 'carousel') {
+      const items = data.items || [];
+      panel.innerHTML = `
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Carrusel (máx. 10)</p>
+        <div id="insp-items" class="flex flex-col gap-3 mb-2">
+          ${items.map((it, i) => `
+            <div class="bg-slate-800/60 border border-slate-700/60 rounded-lg p-2 flex flex-col gap-1">
+              <div class="flex gap-1">
+                <input data-it-title="${i}" maxlength="80" placeholder="Título" class="flex-1 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs" value="${String(it.title || '').replace(/"/g, '&quot;')}">
+                <button data-it-del="${i}" class="text-red-400 hover:text-red-300 px-1 text-sm" title="Quitar elemento">✕</button>
+              </div>
+              <input data-it-subtitle="${i}" maxlength="80" placeholder="Subtítulo (opcional)" class="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs" value="${String(it.subtitle || '').replace(/"/g, '&quot;')}">
+              <input data-it-image="${i}" placeholder="URL de imagen (opcional)" class="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs" value="${String(it.image_url || '').replace(/"/g, '&quot;')}">
+              <div class="flex gap-1">
+                <input data-it-btn-title="${i}" maxlength="20" placeholder="Texto botón" class="w-24 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs" value="${String(it.button_title || '').replace(/"/g, '&quot;')}">
+                <input data-it-btn-url="${i}" placeholder="https://…" class="flex-1 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs" value="${String(it.button_url || '').replace(/"/g, '&quot;')}">
+              </div>
+            </div>`).join('')}
+        </div>
+        <button id="insp-add-item" class="text-indigo-400 hover:text-indigo-300 text-xs font-semibold" ${items.length >= 10 ? 'disabled' : ''}>+ Agregar elemento</button>
+        <p class="text-xs text-slate-600 mt-3">Ideal para mostrar varios productos, posts destacados o promociones en un solo mensaje deslizable.</p>`;
+      panel.querySelectorAll('[data-it-title]').forEach((input) => {
+        input.oninput = (e) => { data.items[+e.target.dataset.itTitle].title = e.target.value; commit(nodeId, type, data); };
+      });
+      panel.querySelectorAll('[data-it-subtitle]').forEach((input) => {
+        input.oninput = (e) => { data.items[+e.target.dataset.itSubtitle].subtitle = e.target.value; commit(nodeId, type, data); };
+      });
+      panel.querySelectorAll('[data-it-image]').forEach((input) => {
+        input.oninput = (e) => { data.items[+e.target.dataset.itImage].image_url = e.target.value; commit(nodeId, type, data); };
+      });
+      panel.querySelectorAll('[data-it-btn-title]').forEach((input) => {
+        input.oninput = (e) => { data.items[+e.target.dataset.itBtnTitle].button_title = e.target.value; commit(nodeId, type, data); };
+      });
+      panel.querySelectorAll('[data-it-btn-url]').forEach((input) => {
+        input.oninput = (e) => { data.items[+e.target.dataset.itBtnUrl].button_url = e.target.value; commit(nodeId, type, data); };
+      });
+      panel.querySelectorAll('[data-it-del]').forEach((btn) => {
+        btn.onclick = () => {
+          if (data.items.length <= 1) { Utils.showToast('Debe quedar al menos un elemento', 'warning'); return; }
+          data.items.splice(+btn.dataset.itDel, 1);
+          commit(nodeId, type, data);
+          renderInspector(nodeId);
+        };
+      });
+      document.getElementById('insp-add-item').onclick = () => {
+        if (data.items.length >= 10) return;
+        data.items.push({ title: '', subtitle: '', image_url: '', button_title: 'Ver más', button_url: '' });
         commit(nodeId, type, data);
         renderInspector(nodeId);
       };

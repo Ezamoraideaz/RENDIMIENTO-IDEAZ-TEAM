@@ -183,6 +183,67 @@ class MetaClient
         ], $pageAccessToken);
     }
 
+    // Respuesta pública al propio comentario (visible para el resto de la comunidad,
+    // a diferencia de sendPrivateReply que solo la ve quien comentó). Sube el engagement
+    // del post y muestra a otros seguidores que la marca responde.
+    public static function replyToComment(string $pageAccessToken, string $commentId, string $text): array
+    {
+        return self::request('POST', "/{$commentId}/comments", [
+            'message' => $text,
+        ], $pageAccessToken);
+    }
+
+    // Carrusel (generic template con varios elementos, máx. 10 de Meta): útil para
+    // mostrar catálogo/promos/posts destacados en un solo mensaje. Cada item admite
+    // título, subtítulo, imagen y un botón de enlace opcional.
+    // $items: [['title','subtitle','image_url','button_title','button_url'], ...]
+    public static function sendCarousel(string $pageAccessToken, string $recipientPsid, array $items): array
+    {
+        $elements = [];
+        foreach (array_slice($items, 0, 10) as $item) {
+            $element = ['title' => mb_substr((string)($item['title'] ?? ''), 0, 80)];
+            if (!empty($item['subtitle'])) {
+                $element['subtitle'] = mb_substr((string)$item['subtitle'], 0, 80);
+            }
+            if (!empty($item['image_url'])) {
+                $element['image_url'] = (string)$item['image_url'];
+            }
+            if (!empty($item['button_url'])) {
+                $element['buttons'] = [[
+                    'type'  => 'web_url',
+                    'url'   => (string)$item['button_url'],
+                    'title' => mb_substr((string)($item['button_title'] ?? 'Ver más'), 0, 20),
+                ]];
+            }
+            $elements[] = $element;
+        }
+
+        return self::request('POST', '/me/messages', [
+            'recipient'      => json_encode(['id' => $recipientPsid]),
+            'message'        => json_encode([
+                'attachment' => [
+                    'type'    => 'template',
+                    'payload' => ['template_type' => 'generic', 'elements' => $elements],
+                ],
+            ]),
+            'messaging_type' => 'RESPONSE',
+        ], $pageAccessToken);
+    }
+
+    // Perfil público básico del usuario que escribió (nombre + foto), para no mostrar
+    // "Contacto" genérico en el inbox. Best-effort: Meta restringe algunos campos de
+    // perfil sin revisión de app adicional, así que se debe tolerar que falle.
+    public static function getUserProfile(string $pageAccessToken, string $psid): array
+    {
+        $data = self::request('GET', "/{$psid}", [
+            'fields' => 'name,profile_pic',
+        ], $pageAccessToken);
+        return [
+            'name'            => (string)($data['name'] ?? ''),
+            'profile_pic_url' => (string)($data['profile_pic'] ?? ''),
+        ];
+    }
+
     public static function verifySignature(string $rawBody, ?string $signatureHeader, string $appSecret): bool
     {
         if (!$signatureHeader || strpos($signatureHeader, 'sha256=') !== 0) {

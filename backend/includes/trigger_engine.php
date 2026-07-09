@@ -42,6 +42,11 @@ class TriggerEngine
         self::recordMessage($conversation['id'], 'in', $msgType, $text, $event);
         self::touchWindow($conversation['id']);
 
+        // Respuesta a una historia de Instagram (Story reply): llega como un mensaje
+        // normal, con reply_to.story presente. Alto valor de engagement en IG — se le
+        // da prioridad sobre el ruteo por palabra clave (ver routeToFlow).
+        $isStoryReply = !empty($event['message']['reply_to']['story']);
+
         // Una conversación tomada por un asesor humano no debe ser interrumpida por el bot.
         if (($conversation['status'] ?? '') === 'handed_off') {
             return;
@@ -71,7 +76,7 @@ class TriggerEngine
             return;
         }
 
-        self::routeToFlow($account, $conversation, $platform, $text, $isNew, $pageToken);
+        self::routeToFlow($account, $conversation, $platform, $text, $isNew, $pageToken, $isStoryReply);
     }
 
     public static function handleChangeEvent(array $change, string $platform, string $pageId): void
@@ -109,9 +114,13 @@ class TriggerEngine
         $trigger = self::matchTrigger((int)$account['client_id'], (int)$account['id'], $platform, $text, false, 'comment_on_post')
                 ?? self::matchTrigger((int)$account['client_id'], 0, $platform, $text, true); // compat: flujos viejos por keyword
 
-        $replyText  = 'Gracias por tu comentario, te escribimos por privado.';
-        $resumeNode = null;
+        $replyText   = 'Gracias por tu comentario, te escribimos por privado.';
+        $publicReply = '';
+        $resumeNode  = null;
         if ($trigger) {
+            $config      = json_decode($trigger['match_config'] ?? '', true) ?? [];
+            $publicReply = trim((string)($config['public_reply'] ?? ''));
+
             $graph = self::loadGraph((int)$trigger['flow_id']);
             $node  = self::findNode($graph, $trigger['node_id']);
             if ($node && $node['type'] === 'message') {
@@ -129,6 +138,13 @@ class TriggerEngine
         MetaClient::sendPrivateReply($pageToken, (string)$commentId, $replyText);
         self::recordMessage($conversation['id'], 'out', 'private_reply', $replyText, null, 'flow');
 
+        // Respuesta pública opcional (visible en el post, sube el engagement de la
+        // comunidad), configurada en el propio nodo disparador "Comentario en post".
+        if ($publicReply !== '') {
+            MetaClient::replyToComment($pageToken, (string)$commentId, $publicReply);
+            self::recordMessage($conversation['id'], 'out', 'comment_reply', $publicReply, null, 'flow');
+        }
+
         if ($trigger && $resumeNode !== null) {
             $stateVars = self::loadStateVars($conversation);
             $stateVars['resume'] = ['flow_id' => (int)$trigger['flow_id'], 'node_id' => (string)$resumeNode['id']];
@@ -138,9 +154,17 @@ class TriggerEngine
 
     // ── Ruteo a flujo (mensajes/postbacks) ──────────────────────────────────
 
-    private static function routeToFlow(array $account, array $conversation, string $platform, string $text, bool $isNew, string $pageToken): void
+    private static function routeToFlow(array $account, array $conversation, string $platform, string $text, bool $isNew, string $pageToken, bool $isStoryReply = false): void
     {
-        $trigger = self::matchTrigger((int)$account['client_id'], (int)$account['id'], $platform, $text);
+        // Respuesta a una historia de Instagram: se prueba primero (más específico que
+        // una palabra clave genérica); si no hay flujo para esto, sigue el ruteo normal.
+        $trigger = $isStoryReply
+            ? self::matchTrigger((int)$account['client_id'], (int)$account['id'], $platform, $text, false, 'story_reply')
+            : null;
+
+        if (!$trigger) {
+            $trigger = self::matchTrigger((int)$account['client_id'], (int)$account['id'], $platform, $text);
+        }
 
         // Sin match por palabra clave: si el contacto es nuevo, probar el disparador de
         // "nueva conversación" (bienvenida); si tampoco hay, mensaje fallback SOLO la
@@ -318,6 +342,33 @@ class TriggerEngine
                 continue;
             }
 
+            // Carrusel de tarjetas (varias imágenes/promos en un solo mensaje).
+            if ($node['type'] === 'carousel') {
+                $items = array_slice($node['data']['items'] ?? [], 0, 10);
+                if ($items) {
+                    MetaClient::sendCarousel($pageToken, self::recipientId($conversation), $items);
+                    self::recordMessage($conversation['id'], 'out', 'text', '🎠 [Carrusel] ' . count($items) . ' elementos', null, 'flow');
+                }
+                $node = self::nextNode($graph, $node['id']);
+                continue;
+            }
+
+            // Encuesta de satisfacción (CSAT): 5 salidas fijas, una por calificación
+            // (1=😡 … 5=😍). El rating elegido se guarda en continueFromOutput().
+            if ($node['type'] === 'csat') {
+                $text = (string)($node['data']['text'] ?? '') ?: '¿Cómo calificarías tu experiencia?';
+                $emojis = ['😡', '🙁', '😐', '🙂', '😍'];
+                $options = [];
+                foreach ($emojis as $i => $emoji) {
+                    $options[] = ['title' => $emoji, 'payload' => "qr:{$flowId}:{$node['id']}:" . ($i + 1)];
+                }
+                MetaClient::sendQuickReplies($pageToken, self::recipientId($conversation), $text, $options);
+                self::recordMessage($conversation['id'], 'out', 'quick_reply', $text, ['options' => $emojis], 'flow');
+                db()->prepare('UPDATE conversations SET active_flow_id = ?, current_node_id = ? WHERE id = ?')
+                    ->execute([$flowId, $node['id'], $conversation['id']]);
+                return; // continúa en continueFromOutput() cuando el usuario elija una carita
+            }
+
             // Condición sobre datos capturados: salida 1 = sí, salida 2 = no.
             if ($node['type'] === 'condition') {
                 $out = self::evaluateCondition($node['data'] ?? [], $conversation) ? 1 : 2;
@@ -461,6 +512,9 @@ class TriggerEngine
         if (!empty($stateVars['tags'])) {
             $lines[] = 'Etiquetas: ' . implode(', ', $stateVars['tags']);
         }
+        if (!empty($stateVars['csat'])) {
+            $lines[] = 'Satisfacción (CSAT): ' . $stateVars['csat'] . '/5';
+        }
         $lines[] = '';
         $lines[] = 'Ver conversación: ' . APP_BASE_URL . '/atencion-cliente.html';
 
@@ -476,7 +530,17 @@ class TriggerEngine
     private static function continueFromOutput(int $flowId, string $nodeId, int $output, array $conversation, string $platform, string $pageToken): void
     {
         $graph = self::loadGraph($flowId);
-        $next  = self::nextNode($graph, $nodeId, $output);
+
+        // Si el nodo que se está respondiendo es una encuesta CSAT, la salida elegida
+        // (1-5) ES la calificación: se guarda antes de seguir por esa rama.
+        $answered = self::findNode($graph, $nodeId);
+        if ($answered && $answered['type'] === 'csat') {
+            $stateVars = self::loadStateVars($conversation);
+            $stateVars['csat'] = $output;
+            self::saveStateVars($conversation['id'], $stateVars);
+        }
+
+        $next = self::nextNode($graph, $nodeId, $output);
         if ($next !== null) {
             self::executeFromNode($flowId, $next['id'], $conversation, $platform, $pageToken);
         }
@@ -739,10 +803,23 @@ class TriggerEngine
             return $contact;
         }
 
+        // Nombre/foto del perfil, best-effort: sin esto el inbox muestra "Contacto" para
+        // siempre (Meta no manda estos datos en el webhook). Si la Graph API falla o
+        // restringe el campo, se sigue creando el contacto igual, solo sin nombre.
+        $name = '';
+        $profilePic = null;
+        try {
+            $profile = MetaClient::getUserProfile(self::decryptAccountToken($account), $psid);
+            $name = $profile['name'];
+            $profilePic = $profile['profile_pic_url'] ?: null;
+        } catch (Throwable $e) {
+            // silencioso: el contacto se crea sin nombre, igual que antes de este cambio
+        }
+
         db()->prepare('
-            INSERT INTO contacts (client_id, social_account_id, platform, psid)
-            VALUES (?, ?, ?, ?)
-        ')->execute([$account['client_id'], $account['id'], $platform === 'instagram' ? 'instagram' : 'messenger', $psid]);
+            INSERT INTO contacts (client_id, social_account_id, platform, psid, name, profile_pic_url)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ')->execute([$account['client_id'], $account['id'], $platform === 'instagram' ? 'instagram' : 'messenger', $psid, $name, $profilePic]);
 
         return [
             'id' => (int)db()->lastInsertId(),
@@ -750,6 +827,8 @@ class TriggerEngine
             'social_account_id' => $account['id'],
             'platform' => $platform,
             'psid' => $psid,
+            'name' => $name,
+            'profile_pic_url' => $profilePic,
         ];
     }
 
