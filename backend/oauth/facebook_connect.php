@@ -33,6 +33,7 @@ $scopes = [
     'instagram_manage_comments',
     'business_management',
     'pages_manage_ads',  // prerequisito de leads_retrieval — Meta rechaza el scope sin este
+    'ads_management',    // leer campaign_name/ad_name del lead (Lead Ads Testing Tool lo exige)
     'leads_retrieval',   // leer los datos de formularios instantáneos (Instant Forms) de Meta Ads
 ];
 
