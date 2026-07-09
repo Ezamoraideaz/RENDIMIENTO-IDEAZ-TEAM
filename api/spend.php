@@ -1,13 +1,10 @@
 <?php
-header('Content-Type: application/json; charset=utf-8');
+// Sesión global del sitio: este endpoint expone gasto publicitario real, así que
+// exige login igual que el resto de la API (backend/includes/auth.php).
+require_once __DIR__ . '/../backend/bootstrap.php';
+require_login();
 
-// Only allow requests from same origin
-$origin = $_SERVER['HTTP_ORIGIN'] ?? $_SERVER['HTTP_REFERER'] ?? '';
-if ($origin && strpos($origin, 'marketingdigitalideaz.com') === false && strpos($origin, 'localhost') === false) {
-    http_response_code(403);
-    echo json_encode(['error' => 'Forbidden']);
-    exit;
-}
+header('Content-Type: application/json; charset=utf-8');
 
 $config = __DIR__ . '/config.php';
 if (!file_exists($config)) {
@@ -16,6 +13,11 @@ if (!file_exists($config)) {
     exit;
 }
 require_once $config;
+
+// Versión de la Graph API de Meta, sobreescribible desde api/config.php
+if (!defined('META_GRAPH_VERSION')) {
+    define('META_GRAPH_VERSION', 'v19.0');
+}
 
 $platform   = trim($_GET['platform']   ?? '');
 $account_id = trim($_GET['account_id'] ?? '');
@@ -36,26 +38,45 @@ if (empty($platform) || empty($account_id)) {
     exit;
 }
 
+// Caché de 10 minutos por consulta: evita repetir N×M llamadas en vivo a las
+// plataformas en cada refresco (y el rate-limit de Meta). El botón "Actualizar"
+// manda fresh=1 para saltárselo.
+const SPEND_CACHE_TTL = 600;
+$fresh     = isset($_GET['fresh']) && $_GET['fresh'] === '1';
+$cacheFile = sys_get_temp_dir() . '/pauta_spend_' . md5("{$platform}|{$account_id}|{$date_from}|{$date_to}");
+
+if (!$fresh && !$debug && is_file($cacheFile) && (time() - filemtime($cacheFile)) < SPEND_CACHE_TTL) {
+    readfile($cacheFile);
+    exit;
+}
+
 switch ($platform) {
     case 'meta':
-        echo json_encode(getMetaSpend($account_id, $date_from, $date_to, $debug));
+        $result = getMetaSpend($account_id, $date_from, $date_to, $debug);
         break;
     case 'google':
-        echo json_encode(getGoogleSpend($account_id, $date_from, $date_to, $debug));
+        $result = getGoogleSpend($account_id, $date_from, $date_to, $debug);
         break;
     case 'tiktok':
-        echo json_encode(['error' => 'TikTok Ads — próximamente', 'platform' => 'tiktok']);
+        $result = ['error' => 'TikTok Ads — próximamente', 'platform' => 'tiktok'];
         break;
     case 'meta_detail':
-        echo json_encode(getMetaCampaignDetail($account_id, $date_from, $date_to, $debug));
+        $result = getMetaCampaignDetail($account_id, $date_from, $date_to, $debug);
         break;
     case 'google_detail':
-        echo json_encode(getGoogleCampaignDetail($account_id, $date_from, $date_to, $debug));
+        $result = getGoogleCampaignDetail($account_id, $date_from, $date_to, $debug);
         break;
     default:
         http_response_code(400);
         echo json_encode(['error' => "Plataforma no soportada: {$platform}"]);
+        exit;
 }
+
+$json = json_encode($result);
+if (!$debug && empty($result['error'])) {
+    @file_put_contents($cacheFile, $json); // los errores no se cachean
+}
+echo $json;
 
 // ─── GOOGLE ADS ──────────────────────────────────────────────────────────────
 
@@ -207,6 +228,48 @@ function getGoogleSpend(string $customer_id, string $date_from, string $date_to,
 
 // ─── META ADS ────────────────────────────────────────────────────────────────
 
+// GET a la Graph API con el token en el header Authorization (no en la URL, para
+// que no quede en logs) y siguiendo la paginación completa: sin esto Meta corta
+// en 25 filas por defecto y los totales diarios de meses largos salen incompletos.
+function metaGraphGetAll(string $url, string $token, bool $debug = false): array {
+    $rows      = [];
+    $firstPage = null;
+    $http_code = 0;
+    $guard     = 0;
+
+    while ($url && $guard < 10) {
+        $guard++;
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL            => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_TIMEOUT        => 20,
+            CURLOPT_HTTPHEADER     => ['Authorization: Bearer ' . $token],
+        ]);
+        $response  = curl_exec($ch);
+        $curl_err  = curl_error($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($curl_err) {
+            return ['curl_error' => $curl_err];
+        }
+
+        $data = json_decode($response, true);
+        if ($firstPage === null) $firstPage = $data;
+
+        if ($debug || isset($data['error'])) {
+            return ['http_code' => $http_code, 'raw' => $data, 'rows' => $rows];
+        }
+
+        $rows = array_merge($rows, $data['data'] ?? []);
+        $url  = $data['paging']['next'] ?? null;
+    }
+
+    return ['http_code' => $http_code, 'raw' => $firstPage, 'rows' => $rows];
+}
+
 function getMetaSpend(string $account_id, string $date_from, string $date_to, bool $debug = false): array {
     if (!defined('META_ACCESS_TOKEN') || META_ACCESS_TOKEN === 'YOUR_META_SYSTEM_USER_TOKEN_HERE') {
         return ['error' => 'Meta Access Token no configurado en config.php'];
@@ -217,44 +280,32 @@ function getMetaSpend(string $account_id, string $date_from, string $date_to, bo
     $fields     = 'spend,date_start,date_stop,account_name,account_currency';
 
     $url = sprintf(
-        'https://graph.facebook.com/v19.0/%s/insights?fields=%s&time_range=%s&time_increment=1&access_token=%s',
+        'https://graph.facebook.com/%s/%s/insights?fields=%s&time_range=%s&time_increment=1&limit=500',
+        META_GRAPH_VERSION,
         urlencode($account_id),
         urlencode($fields),
-        urlencode($time_range),
-        urlencode($token)
+        urlencode($time_range)
     );
 
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL            => $url,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_SSL_VERIFYPEER => true,
-        CURLOPT_TIMEOUT        => 15,
-    ]);
-    $response  = curl_exec($ch);
-    $curl_err  = curl_error($ch);
-    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $res = metaGraphGetAll($url, $token, $debug);
 
-    if ($curl_err) {
-        return ['error' => "cURL error: {$curl_err}", 'platform' => 'meta'];
+    if (isset($res['curl_error'])) {
+        return ['error' => "cURL error: {$res['curl_error']}", 'platform' => 'meta'];
     }
-
-    $data = json_decode($response, true);
 
     if ($debug) {
         return [
             'debug'      => true,
-            'http_code'  => $http_code,
+            'http_code'  => $res['http_code'],
             'account_id' => $account_id,
-            'raw'        => $data,
+            'raw'        => $res['raw'],
         ];
     }
 
-    if (isset($data['error'])) {
+    if (isset($res['raw']['error'])) {
         return [
-            'error'    => $data['error']['message'] ?? 'Error desconocido de Meta API',
-            'code'     => $data['error']['code']    ?? 0,
+            'error'    => $res['raw']['error']['message'] ?? 'Error desconocido de Meta API',
+            'code'     => $res['raw']['error']['code']    ?? 0,
             'platform' => 'meta',
         ];
     }
@@ -263,7 +314,7 @@ function getMetaSpend(string $account_id, string $date_from, string $date_to, bo
     $total    = 0.0;
     $currency = 'USD';
 
-    foreach ($data['data'] ?? [] as $row) {
+    foreach ($res['rows'] as $row) {
         $spend    = (float)($row['spend'] ?? 0);
         $total   += $spend;
         $currency = $row['account_currency'] ?? $currency;
@@ -304,40 +355,28 @@ function getMetaCampaignDetail(string $account_id, string $date_from, string $da
     $fields     = 'campaign_id,campaign_name,spend,impressions,clicks,reach,frequency,actions,account_currency';
 
     $url = sprintf(
-        'https://graph.facebook.com/v19.0/%s/insights?level=campaign&fields=%s&time_range=%s&access_token=%s&limit=100',
+        'https://graph.facebook.com/%s/%s/insights?level=campaign&fields=%s&time_range=%s&limit=100',
+        META_GRAPH_VERSION,
         urlencode($account_id),
         urlencode($fields),
-        urlencode($time_range),
-        urlencode($token)
+        urlencode($time_range)
     );
 
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL            => $url,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_SSL_VERIFYPEER => true,
-        CURLOPT_TIMEOUT        => 20,
-    ]);
-    $response  = curl_exec($ch);
-    $curl_err  = curl_error($ch);
-    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
+    $res = metaGraphGetAll($url, $token, $debug);
 
-    if ($curl_err) return ['error' => "cURL error: {$curl_err}", 'platform' => 'meta'];
+    if (isset($res['curl_error'])) return ['error' => "cURL error: {$res['curl_error']}", 'platform' => 'meta'];
 
-    $data = json_decode($response, true);
+    if ($debug) return ['debug' => true, 'http_code' => $res['http_code'], 'raw' => $res['raw']];
 
-    if ($debug) return ['debug' => true, 'http_code' => $http_code, 'raw' => $data];
-
-    if (isset($data['error'])) {
-        return ['error' => $data['error']['message'] ?? 'Error Meta API', 'platform' => 'meta'];
+    if (isset($res['raw']['error'])) {
+        return ['error' => $res['raw']['error']['message'] ?? 'Error Meta API', 'platform' => 'meta'];
     }
 
     $leadActionTypes = ['lead', 'offsite_conversion.fb_pixel_lead', 'onsite_conversion.lead_grouped', 'onsite_conversion.messaging_conversation_started_7d'];
     $campaigns = [];
     $currency  = 'USD';
 
-    foreach ($data['data'] ?? [] as $row) {
+    foreach ($res['rows'] as $row) {
         $leads    = 0;
         $messages = 0;
         foreach ($row['actions'] ?? [] as $act) {
@@ -444,21 +483,29 @@ function getGoogleCampaignDetail(string $customer_id, string $date_from, string 
         if ($row['customer']['currencyCode'] ?? '') $currency = $row['customer']['currencyCode'];
         if (!isset($bycamp[$id])) {
             $bycamp[$id] = [
-                'id'          => $id,
-                'name'        => $name,
-                'stage'       => detectFunnelStage($name),
-                'spend'       => 0.0,
-                'impressions' => 0,
-                'clicks'      => 0,
-                'leads'       => 0.0,
-                'reach'       => 0,
+                'id'           => $id,
+                'name'         => $name,
+                'stage'        => detectFunnelStage($name),
+                'cost_micros'  => 0,
+                'impressions'  => 0,
+                'clicks'       => 0,
+                'leads'        => 0.0,
+                'reach'        => 0,
             ];
         }
-        $bycamp[$id]['spend']       += round((int)($row['metrics']['costMicros'] ?? 0) / 1000000, 2);
+        // Acumular en micros y convertir al final: redondear fila por fila acumula error
+        $bycamp[$id]['cost_micros'] += (int)($row['metrics']['costMicros'] ?? 0);
         $bycamp[$id]['impressions'] += (int)($row['metrics']['impressions'] ?? 0);
         $bycamp[$id]['clicks']      += (int)($row['metrics']['clicks']      ?? 0);
-        $bycamp[$id]['leads']       += round((float)($row['metrics']['conversions'] ?? 0), 1);
+        $bycamp[$id]['leads']       += (float)($row['metrics']['conversions'] ?? 0);
     }
+
+    foreach ($bycamp as &$camp) {
+        $camp['spend'] = round($camp['cost_micros'] / 1000000, 2);
+        $camp['leads'] = round($camp['leads'], 1);
+        unset($camp['cost_micros']);
+    }
+    unset($camp);
 
     $campaigns = array_values($bycamp);
     usort($campaigns, fn($a, $b) => strcmp($a['stage'], $b['stage']));
