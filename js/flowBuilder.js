@@ -9,7 +9,7 @@ const FlowBuilder = (() => {
 
   const NODE_DEFS = {
     trigger_keyword:          { title: '🎯 Palabra clave',      inputs: 0, outputs: 1, defaultData: { keywords: [], platform_scope: 'both' } },
-    trigger_comment:          { title: '💭 Comentario en post', inputs: 0, outputs: 1, defaultData: { keywords: [], platform_scope: 'both', public_reply: '' } },
+    trigger_comment:          { title: '💭 Comentario en post', inputs: 0, outputs: 1, defaultData: { keywords: [], platform_scope: 'both', public_replies: [''] } },
     trigger_new_conversation: { title: '✨ Nueva conversación', inputs: 0, outputs: 1, defaultData: { platform_scope: 'both' } },
     trigger_story_reply:      { title: '📖 Respuesta a historia', inputs: 0, outputs: 1, defaultData: { keywords: [], platform_scope: 'instagram' } },
     message:                  { title: '💬 Mensaje',            inputs: 1, outputs: 1, defaultData: { text: '' } },
@@ -185,9 +185,16 @@ const FlowBuilder = (() => {
         <label class="text-xs text-slate-500">Plataforma</label>
         ${scopeSelectHtml(data)}
         <p class="text-xs text-slate-600 mt-3">Quien comenta recibe el primer mensaje del flujo <strong>por privado</strong>. Si responde al DM, el flujo continúa con los nodos siguientes.</p>
-        <label class="text-xs text-slate-500 mt-3 block">Respuesta pública en el comentario (opcional)</label>
-        <textarea id="insp-public-reply" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm mt-1" rows="2" placeholder="¡Gracias por comentar! Te escribimos por privado 💌">${data.public_reply || ''}</textarea>
-        <p class="text-xs text-slate-600 mt-2">Además de la respuesta privada, publica esta respuesta visible en el propio comentario — aumenta el engagement del post frente al resto de la comunidad.</p>`;
+        <label class="text-xs text-slate-500 mt-3 block">Respuestas públicas en el comentario (opcional) — se publica <strong>una al azar</strong></label>
+        <div id="insp-public-replies" class="flex flex-col gap-2 mt-1 mb-2">
+          ${(data.public_replies || (data.public_reply ? [data.public_reply] : [''])).map((r, i) => `
+            <div class="flex gap-1">
+              <textarea data-reply="${i}" rows="2" class="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm" placeholder="¡Gracias por comentar! Te escribimos por privado 💌">${r}</textarea>
+              <button data-reply-del="${i}" class="text-red-400 hover:text-red-300 px-2 text-sm flex-shrink-0" title="Quitar variante">✕</button>
+            </div>`).join('')}
+        </div>
+        <button id="insp-add-reply" class="text-indigo-400 hover:text-indigo-300 text-xs font-semibold">+ Agregar variante</button>
+        <p class="text-xs text-slate-600 mt-2">Además de la respuesta privada, publica <strong>una de estas variantes elegida al azar</strong>, visible en el propio comentario. Usar varias frases distintas (en vez de repetir siempre la misma) ayuda a que no se vea como respuesta automática.</p>`;
       document.getElementById('insp-keywords').oninput = (e) => {
         data.keywords = e.target.value.split(',').map((s) => s.trim()).filter(Boolean);
         editor.updateNodeDataFromId(nodeId, data);
@@ -195,7 +202,29 @@ const FlowBuilder = (() => {
         setStatusText('Sin guardar');
       };
       bindScopeSelect(nodeId, data);
-      bindInput('insp-public-reply', (v) => { data.public_reply = v; }, nodeId, type, data);
+      if (!data.public_replies) data.public_replies = data.public_reply ? [data.public_reply] : [''];
+      panel.querySelectorAll('[data-reply]').forEach((textarea) => {
+        textarea.oninput = (e) => {
+          data.public_replies[+e.target.dataset.reply] = e.target.value;
+          editor.updateNodeDataFromId(nodeId, data);
+          setStatusText('Sin guardar');
+        };
+      });
+      panel.querySelectorAll('[data-reply-del]').forEach((btn) => {
+        btn.onclick = () => {
+          if (data.public_replies.length <= 1) { data.public_replies = ['']; }
+          else { data.public_replies.splice(+btn.dataset.replyDel, 1); }
+          editor.updateNodeDataFromId(nodeId, data);
+          setStatusText('Sin guardar');
+          renderInspector(nodeId);
+        };
+      });
+      document.getElementById('insp-add-reply').onclick = () => {
+        data.public_replies.push('');
+        editor.updateNodeDataFromId(nodeId, data);
+        setStatusText('Sin guardar');
+        renderInspector(nodeId);
+      };
     } else if (type === 'trigger_new_conversation') {
       panel.innerHTML = `
         <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Disparador (nueva conversación)</p>

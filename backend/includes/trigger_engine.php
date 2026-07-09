@@ -118,8 +118,18 @@ class TriggerEngine
         $publicReply = '';
         $resumeNode  = null;
         if ($trigger) {
-            $config      = json_decode($trigger['match_config'] ?? '', true) ?? [];
-            $publicReply = trim((string)($config['public_reply'] ?? ''));
+            $config = json_decode($trigger['match_config'] ?? '', true) ?? [];
+
+            // Varias variantes de respuesta pública, elegidas al azar cada vez: repetir
+            // siempre el mismo texto en los comentarios de un post delata que es un bot.
+            $publicReplies = array_values(array_filter(array_map(
+                static fn($t) => trim((string)$t),
+                $config['public_replies'] ?? []
+            ), static fn($t) => $t !== ''));
+            if (!$publicReplies && !empty($config['public_reply'])) {
+                $publicReplies = [trim((string)$config['public_reply'])]; // compat: flujos con el campo viejo (una sola respuesta)
+            }
+            $publicReply = $publicReplies ? $publicReplies[array_rand($publicReplies)] : '';
 
             $graph = self::loadGraph((int)$trigger['flow_id']);
             $node  = self::findNode($graph, $trigger['node_id']);

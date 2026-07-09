@@ -198,18 +198,24 @@ const AtencionCliente = (() => {
     </div>`;
   }
 
+  let _flows = [];
+
   async function loadFlowsTab() {
     const panel = document.getElementById('ac-panel-flujos');
     panel.innerHTML = `<p class="text-slate-500 text-sm">Cargando…</p>`;
     try {
       const data = await api(`api/flows.php?client_id=${activeClient.id}`);
+      _flows = data.flows;
       const rows = data.flows.map((f) => `
         <div class="flex items-center justify-between bg-slate-800/60 border border-slate-700/60 rounded-lg px-4 py-3 cursor-pointer hover:border-indigo-500" onclick="AtencionCliente.openBuilder(${f.id})">
           <div class="min-w-0">
             <p class="text-sm font-semibold truncate">${_esc(f.name)}</p>
             <p class="text-xs text-slate-500">v${f.version} · actualizado ${new Date(f.updated_at).toLocaleString('es-MX')}</p>
           </div>
-          <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${f.status === 'active' ? 'bg-emerald-500/15 text-emerald-400' : f.status === 'paused' ? 'bg-amber-500/15 text-amber-400' : 'bg-slate-700 text-slate-400'}">${_esc(f.status)}</span>
+          <div class="flex items-center gap-2 flex-shrink-0">
+            <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full ${f.status === 'active' ? 'bg-emerald-500/15 text-emerald-400' : f.status === 'paused' ? 'bg-amber-500/15 text-amber-400' : 'bg-slate-700 text-slate-400'}">${_esc(f.status)}</span>
+            <button onclick="event.stopPropagation(); AtencionCliente.duplicateFlow(${f.id})" title="Duplicar como borrador" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 px-2 py-1 rounded-lg text-xs transition-colors">📋</button>
+          </div>
         </div>`).join('');
       panel.innerHTML = `
         <div class="flex flex-col gap-2 mb-4">${rows || '<p class="text-slate-500 text-sm">Todavía no hay flujos.</p>'}</div>
@@ -224,6 +230,23 @@ const AtencionCliente = (() => {
     if (!name) return;
     try {
       const data = await api('api/flows.php', { method: 'POST', body: JSON.stringify({ client_id: activeClient.id, name }) });
+      await openBuilder(data.id);
+    } catch (e) {
+      Utils.showToast(e.message, 'danger');
+    }
+  }
+
+  async function duplicateFlow(id) {
+    const source = _flows.find((f) => Number(f.id) === Number(id));
+    const defaultName = source ? `${source.name} (copia)` : 'Copia del flujo';
+    const name = prompt('Nombre del flujo duplicado:', defaultName);
+    if (!name) return;
+    try {
+      const data = await api('api/flows.php', {
+        method: 'POST',
+        body: JSON.stringify({ client_id: activeClient.id, name, duplicate_of: id }),
+      });
+      Utils.showToast('Flujo duplicado como borrador ✓', 'success');
       await openBuilder(data.id);
     } catch (e) {
       Utils.showToast(e.message, 'danger');
@@ -483,7 +506,7 @@ const AtencionCliente = (() => {
 
   return {
     init, openNewClientPrompt, openClient, closeClientModal, _switchTab, _overlayClose,
-    createFlow, openBuilder, closeBuilder,
+    createFlow, duplicateFlow, openBuilder, closeBuilder,
     openConversationThread, resolveFollowup, _closeThread,
     _selectPendingPage,
   };

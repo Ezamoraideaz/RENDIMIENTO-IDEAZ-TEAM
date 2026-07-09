@@ -48,8 +48,13 @@ function rebuild_flow_triggers(PDO $pdo, int $flowId, array $graph): void
         $scope = $node['data']['platform_scope'] ?? 'both';
         $matchConfig = ['keywords' => $keywords];
         if ($node['type'] === 'trigger_comment') {
-            // Respuesta pública opcional al comentario (además de la privada, siempre enviada).
-            $matchConfig['public_reply'] = trim((string)($node['data']['public_reply'] ?? ''));
+            // Variantes de respuesta pública opcionales (además de la privada, siempre
+            // enviada); se guarda la lista completa, el motor elige una al azar al ejecutar.
+            $replies = array_values(array_filter(array_map(
+                static fn($t) => trim((string)$t),
+                $node['data']['public_replies'] ?? []
+            ), static fn($t) => $t !== ''));
+            $matchConfig['public_replies'] = $replies;
         }
         $insert->execute([$flowId, $scope, $type, json_encode($matchConfig), $nextId, $priority]);
         $priority++;
@@ -88,11 +93,28 @@ switch ($method) {
         $socialAccountId = !empty($input['social_account_id']) ? (int)$input['social_account_id'] : null;
         $operator = current_operator();
 
+        // Duplicar un flujo existente: copia su graph_json completo y siempre nace en
+        // "draft" (nunca hereda triggers activos), para poder ajustarlo antes de publicar.
+        $graphJson = json_encode(['nodes' => [], 'edges' => []]);
+        $duplicateOf = (int)($input['duplicate_of'] ?? 0);
+        if ($duplicateOf > 0) {
+            $stmt = $pdo->prepare('SELECT graph_json, social_account_id FROM flows WHERE id = ? AND client_id = ?');
+            $stmt->execute([$duplicateOf, $clientId]);
+            $source = $stmt->fetch();
+            if (!$source) {
+                json_error('Flujo original no encontrado', 404);
+            }
+            $graphJson = $source['graph_json'];
+            if ($socialAccountId === null) {
+                $socialAccountId = $source['social_account_id'];
+            }
+        }
+
         $stmt = $pdo->prepare('
             INSERT INTO flows (client_id, social_account_id, name, status, graph_json, created_by)
             VALUES (?, ?, ?, "draft", ?, ?)
         ');
-        $stmt->execute([$clientId, $socialAccountId, $name, json_encode(['nodes' => [], 'edges' => []]), $operator['id'] ?? null]);
+        $stmt->execute([$clientId, $socialAccountId, $name, $graphJson, $operator['id'] ?? null]);
         json_response(['id' => (int)$pdo->lastInsertId()], 201);
         break;
 
