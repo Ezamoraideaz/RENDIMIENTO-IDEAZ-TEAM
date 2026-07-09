@@ -73,7 +73,7 @@ if ($method === 'POST') {
     ]);
 
     try {
-        MetaClient::subscribePageToWebhook($selected['id'], $selected['access_token'], ['messages', 'messaging_postbacks', 'feed']);
+        MetaClient::subscribePageToWebhook($selected['id'], $selected['access_token'], ['messages', 'messaging_postbacks', 'feed', 'leadgen']);
     } catch (Throwable $e) {
         // No bloquea la conexión si la suscripción al webhook falla — se puede
         // reintentar después; la cuenta ya queda guardada como conectada.

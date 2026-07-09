@@ -244,6 +244,32 @@ class MetaClient
         ];
     }
 
+    // Datos completos de un lead de formulario instantáneo (Instant Forms / Lead Ads),
+    // capturado vía el campo de webhook "leadgen". Requiere el permiso leads_retrieval.
+    public static function getLeadDetails(string $pageAccessToken, string $leadgenId): array
+    {
+        return self::request('GET', "/{$leadgenId}", [
+            'fields' => 'field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id,created_time',
+        ], $pageAccessToken);
+    }
+
+    // Formularios instantáneos configurados en la página (para mostrar nombres reales
+    // en vez de IDs al filtrar/organizar leads por formulario).
+    public static function listLeadForms(string $pageAccessToken, string $pageId): array
+    {
+        $data = self::request('GET', "/{$pageId}/leadgen_forms", [
+            'fields' => 'id,name,status',
+        ], $pageAccessToken);
+        return $data['data'] ?? [];
+    }
+
+    // Nombre de un formulario puntual (getLeadDetails solo trae form_id, no el nombre).
+    public static function getFormName(string $pageAccessToken, string $formId): string
+    {
+        $data = self::request('GET', "/{$formId}", ['fields' => 'name'], $pageAccessToken);
+        return (string)($data['name'] ?? '');
+    }
+
     public static function verifySignature(string $rawBody, ?string $signatureHeader, string $appSecret): bool
     {
         if (!$signatureHeader || strpos($signatureHeader, 'sha256=') !== 0) {
