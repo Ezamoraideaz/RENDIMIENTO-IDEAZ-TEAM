@@ -5,9 +5,24 @@ declare(strict_types=1);
 // Página/IG y puede enviar mensajes en nombre del negocio de un cliente, a diferencia
 // de las credenciales de Trello (solo lectura) que sí viven en localStorage.
 
+// Un solo reloj para "qué día es hoy": el proyecto nunca llama
+// date_default_timezone_set(), así que no se puede confiar en date()/time().
+function bogota_today(): string
+{
+    return (new DateTime('now', new DateTimeZone('America/Bogota')))->format('Y-m-d');
+}
+
 function current_operator(): ?array
 {
     if (empty($_SESSION['operator_id'])) {
+        return null;
+    }
+    // Expiración explícita a medianoche America/Bogota, independiente de la
+    // inactividad: si el día de login guardado ya no es "hoy" en Bogotá, la
+    // sesión murió (fuerza volver a iniciar sesión cada mañana).
+    if (($_SESSION['login_day'] ?? '') !== bogota_today()) {
+        $_SESSION = [];
+        session_destroy();
         return null;
     }
     $stmt = db()->prepare('SELECT id, email, name, role, trello_member_id FROM operators WHERE id = ? AND active = 1');
