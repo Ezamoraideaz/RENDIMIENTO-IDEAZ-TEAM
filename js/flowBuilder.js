@@ -614,7 +614,8 @@ const FlowBuilder = (() => {
     const body = { id: flowId, name, graph_json: exportGraph() };
     if (statusOverride) body.status = statusOverride;
     await api('api/flows.php', { method: 'PUT', body: JSON.stringify(body) });
-    setStatusText(statusOverride === 'active' ? 'Publicado' : 'Guardado');
+    const labels = { active: 'Publicado', paused: 'Pausado' };
+    setStatusText(labels[statusOverride] || 'Guardado');
   }
 
   async function saveDraft() {
@@ -635,12 +636,23 @@ const FlowBuilder = (() => {
     }
   }
 
+  // Desactiva el flujo (sus disparadores dejan de escuchar) sin perder el diseño;
+  // se puede volver a publicar en cualquier momento desde aquí o desde la lista.
+  async function pause() {
+    try {
+      await persist('paused');
+      Utils.showToast('Flujo pausado — sus disparadores ya no están activos', 'success');
+    } catch (e) {
+      Utils.showToast(e.message, 'danger');
+    }
+  }
+
   function destroy() {
     editor = null;
     flowId = null;
   }
 
-  return { load, save: saveDraft, publish, destroy };
+  return { load, save: saveDraft, publish, pause, destroy };
 })();
 
 window.FlowBuilder = FlowBuilder;

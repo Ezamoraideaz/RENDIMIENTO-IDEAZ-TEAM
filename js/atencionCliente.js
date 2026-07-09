@@ -214,6 +214,7 @@ const AtencionCliente = (() => {
           </div>
           <div class="flex items-center gap-2 flex-shrink-0">
             <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full ${f.status === 'active' ? 'bg-emerald-500/15 text-emerald-400' : f.status === 'paused' ? 'bg-amber-500/15 text-amber-400' : 'bg-slate-700 text-slate-400'}">${_esc(f.status)}</span>
+            <button onclick="event.stopPropagation(); AtencionCliente.toggleFlowStatus(${f.id}, '${f.status}')" title="${f.status === 'active' ? 'Pausar' : 'Activar'}" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 px-2 py-1 rounded-lg text-xs transition-colors">${f.status === 'active' ? '⏸' : '▶'}</button>
             <button onclick="event.stopPropagation(); AtencionCliente.duplicateFlow(${f.id})" title="Duplicar como borrador" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 px-2 py-1 rounded-lg text-xs transition-colors">📋</button>
           </div>
         </div>`).join('');
@@ -231,6 +232,19 @@ const AtencionCliente = (() => {
     try {
       const data = await api('api/flows.php', { method: 'POST', body: JSON.stringify({ client_id: activeClient.id, name }) });
       await openBuilder(data.id);
+    } catch (e) {
+      Utils.showToast(e.message, 'danger');
+    }
+  }
+
+  // Pausar desactiva los disparadores de ese flujo sin borrar su diseño; activar
+  // (desde borrador o pausado) lo publica igual que el botón "Publicar" del builder.
+  async function toggleFlowStatus(id, currentStatus) {
+    const nextStatus = currentStatus === 'active' ? 'paused' : 'active';
+    try {
+      await api('api/flows.php', { method: 'PUT', body: JSON.stringify({ id, status: nextStatus }) });
+      Utils.showToast(nextStatus === 'active' ? 'Flujo activado ✓' : 'Flujo pausado ✓', 'success');
+      await loadFlowsTab();
     } catch (e) {
       Utils.showToast(e.message, 'danger');
     }
@@ -506,7 +520,7 @@ const AtencionCliente = (() => {
 
   return {
     init, openNewClientPrompt, openClient, closeClientModal, _switchTab, _overlayClose,
-    createFlow, duplicateFlow, openBuilder, closeBuilder,
+    createFlow, duplicateFlow, toggleFlowStatus, openBuilder, closeBuilder,
     openConversationThread, resolveFollowup, _closeThread,
     _selectPendingPage,
   };
