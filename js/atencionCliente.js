@@ -233,6 +233,9 @@ const AtencionCliente = (() => {
   // ── Inbox de conversaciones ──────────────────────────────────────────────
 
   function windowBadge(conv) {
+    if (conv.status === 'handed_off') {
+      return { label: '🙋 Con humano', cls: 'bg-sky-500/15 text-sky-400' };
+    }
     if ((conv.pending_followups || 0) > 0) {
       return { label: 'Requiere seguimiento manual', cls: 'bg-amber-500/15 text-amber-400' };
     }
@@ -260,10 +263,16 @@ const AtencionCliente = (() => {
       list.innerHTML = data.conversations.map((conv) => {
         const badge = windowBadge(conv);
         const icon = conv.platform === 'instagram_business' ? '📷' : '📘';
+        let tags = [];
+        try { tags = JSON.parse(conv.state_vars || '{}').tags || []; } catch (_) { /* ignorar */ }
+        const tagsHtml = tags.length
+          ? `<div class="flex flex-wrap gap-1 mt-1">${tags.map((t) => `<span class="text-[9px] font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 px-1.5 py-0.5 rounded-full">🏷️ ${_esc(String(t))}</span>`).join('')}</div>`
+          : '';
         return `<div class="flex items-center justify-between bg-slate-800/60 border border-slate-700/60 rounded-lg px-4 py-3 cursor-pointer hover:border-indigo-500" onclick="AtencionCliente.openConversationThread(${conv.id})">
           <div class="min-w-0">
             <p class="text-sm font-semibold truncate">${icon} ${_esc(conv.contact_name || 'Contacto')}</p>
             <p class="text-xs text-slate-500 truncate max-w-md">${_esc(conv.last_message || '')}</p>
+            ${tagsHtml}
           </div>
           <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${badge.cls}">${badge.label}</span>
         </div>`;
@@ -283,10 +292,21 @@ const AtencionCliente = (() => {
     try {
       const data = await api(`api/conversations.php?id=${conversationId}`);
       const badge = windowBadge({ ...data.conversation, pending_followups: data.pending_followups.length });
+      const platformIcon = data.conversation.platform === 'instagram_business' ? '📷' : '📘';
+
+      // Origen del mensaje: DM normal vs. comentario/postback — para no confundir
+      // una respuesta pública/privada de comentario con un mensaje directo.
+      const MSG_TYPE_LABEL = {
+        comment_reply: '💭 Comentario',
+        private_reply: '💭 Respuesta a comentario',
+        postback: '👆 Botón',
+      };
       const bubbles = data.messages.map((m) => {
         const mine = m.direction === 'out';
+        const typeLabel = MSG_TYPE_LABEL[m.message_type] || '';
         return `<div class="flex ${mine ? 'justify-end' : 'justify-start'}">
           <div class="max-w-[75%] rounded-lg px-3 py-2 text-sm ${mine ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-200'}">
+            ${typeLabel ? `<div class="text-[10px] opacity-70 mb-1">${typeLabel}</div>` : ''}
             ${_esc(m.content || '')}
             ${m.tag === 'HUMAN_AGENT' ? '<div class="text-[10px] opacity-70 mt-1">Enviado por agente humano</div>' : ''}
           </div>
@@ -299,20 +319,27 @@ const AtencionCliente = (() => {
           <button onclick="AtencionCliente.resolveFollowup(${conversationId}, ${f.id})" class="text-amber-200 underline flex-shrink-0">Marcar resuelto</button>
         </div>`).join('');
 
-      // Datos de lead capturados por el flujo (nodos "Pregunta") + ficha del contacto
+      // Datos de lead capturados por el flujo (nodos "Pregunta") + ficha del contacto.
+      // Las etiquetas del flujo van aparte (tagsHtml), más visibles, justo bajo el título.
       const leadChips = [];
       if (data.conversation.contact_email) leadChips.push(`✉️ ${_esc(data.conversation.contact_email)}`);
       if (data.conversation.contact_phone) leadChips.push(`📞 ${_esc(data.conversation.contact_phone)}`);
+      let tags = [];
+      let csat = null;
       try {
         const vars = JSON.parse(data.conversation.state_vars || '{}');
         Object.entries(vars.fields || {}).forEach(([k, v]) => {
           if (k !== 'email' && k !== 'telefono') leadChips.push(`${_esc(k)}: ${_esc(String(v))}`);
         });
-        (vars.tags || []).forEach((t) => leadChips.push(`🏷️ ${_esc(String(t))}`));
+        tags = vars.tags || [];
+        csat = vars.csat || null;
       } catch (_) { /* state_vars malformado: se ignora */ }
       const leadHtml = leadChips.length
-        ? `<div class="flex flex-wrap gap-1.5 mb-3">${leadChips.map((c) => `<span class="text-[10px] font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 px-2 py-0.5 rounded-full">${c}</span>`).join('')}</div>`
+        ? `<div class="flex flex-wrap gap-1.5 mb-2">${leadChips.map((c) => `<span class="text-[10px] font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 px-2 py-0.5 rounded-full">${c}</span>`).join('')}</div>`
         : '';
+      const tagsHtml = tags.length
+        ? `<div class="flex flex-wrap gap-1.5 mb-2">${tags.map((t) => `<span class="text-[11px] font-semibold bg-indigo-500/15 border border-indigo-500/40 text-indigo-300 px-2 py-0.5 rounded-full">🏷️ ${_esc(String(t))}</span>`).join('')}${csat ? `<span class="text-[11px] font-semibold bg-amber-500/15 border border-amber-500/40 text-amber-300 px-2 py-0.5 rounded-full">⭐ CSAT ${csat}/5</span>` : ''}</div>`
+        : (csat ? `<div class="mb-2"><span class="text-[11px] font-semibold bg-amber-500/15 border border-amber-500/40 text-amber-300 px-2 py-0.5 rounded-full">⭐ CSAT ${csat}/5</span></div>` : '');
       const handoffBanner = data.conversation.status === 'handed_off'
         ? `<div class="bg-sky-500/10 border border-sky-500/30 rounded-lg px-3 py-2 text-xs text-sky-300 mb-2">🙋 Conversación transferida a humano — el bot está pausado aquí; responde tú desde abajo.</div>`
         : '';
@@ -320,9 +347,13 @@ const AtencionCliente = (() => {
       thread.innerHTML = `
         <button onclick="AtencionCliente._closeThread()" class="text-slate-400 hover:text-slate-100 text-xs font-semibold mb-3">← Volver a la lista</button>
         <div class="flex items-center justify-between mb-2">
-          <p class="text-sm font-semibold">${_esc(data.conversation.contact_name || 'Contacto')}</p>
-          <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full ${badge.cls}">${badge.label}</span>
+          <div class="flex items-center gap-2 min-w-0">
+            ${data.conversation.profile_pic_url ? `<img src="${_esc(data.conversation.profile_pic_url)}" class="w-6 h-6 rounded-full flex-shrink-0" alt="">` : ''}
+            <p class="text-sm font-semibold truncate">${platformIcon} ${_esc(data.conversation.contact_name || 'Contacto')}</p>
+          </div>
+          <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${badge.cls}">${badge.label}</span>
         </div>
+        ${tagsHtml}
         ${leadHtml}
         ${handoffBanner}
         ${followups}
