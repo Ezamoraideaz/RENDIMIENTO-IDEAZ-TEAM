@@ -26,6 +26,7 @@ if ((int)$operator['active'] !== 1) {
 
 session_regenerate_id(true);
 $_SESSION['operator_id'] = $operator['id'];
+$_SESSION['login_day'] = bogota_today();
 
 json_response([
     'operator' => [

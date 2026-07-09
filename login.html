@@ -60,8 +60,29 @@
     </form>
 
     <p class="text-center text-xs text-slate-500 mt-4">
-      ¿Sin cuenta u olvidaste tu contraseña? Pídele acceso al administrador.
+      <button type="button" id="forgot-link" class="text-indigo-400 hover:text-indigo-300 underline">¿Olvidaste tu contraseña?</button>
+      · Sin cuenta, pide acceso al administrador.
     </p>
+
+    <form id="forgot-form" style="display:none" class="bg-slate-900 border border-slate-700 rounded-2xl p-6">
+      <h1 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-5">Recuperar contraseña</h1>
+
+      <div id="forgot-message" style="display:none" class="mb-4 p-3 rounded-xl text-sm"></div>
+
+      <label class="block text-xs text-slate-400 font-medium mb-1" for="forgot-email">Email</label>
+      <input id="forgot-email" type="email" required autocomplete="username"
+        class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 mb-5"
+        placeholder="tu@email.com">
+
+      <button id="forgot-btn" type="submit"
+        class="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors mb-2">
+        Enviar instrucciones
+      </button>
+      <button id="forgot-cancel" type="button"
+        class="w-full bg-transparent hover:bg-slate-800 text-slate-400 font-semibold px-4 py-2 rounded-lg text-sm transition-colors">
+        Volver a iniciar sesión
+      </button>
+    </form>
   </div>
 
   <script>
@@ -82,10 +103,55 @@
     const errEl = document.getElementById('login-error');
     const btn = document.getElementById('login-btn');
 
+    const forgotLink = document.getElementById('forgot-link');
+    const forgotForm = document.getElementById('forgot-form');
+    const forgotCancel = document.getElementById('forgot-cancel');
+    const forgotBtn = document.getElementById('forgot-btn');
+    const forgotMsg = document.getElementById('forgot-message');
+
     function showError(msg) {
       errEl.textContent = msg;
       errEl.style.display = '';
     }
+
+    function showForgotMessage(msg, isError) {
+      forgotMsg.textContent = msg;
+      forgotMsg.className = isError
+        ? 'mb-4 p-3 rounded-xl text-sm bg-rose-500/10 border border-rose-500/30 text-rose-300'
+        : 'mb-4 p-3 rounded-xl text-sm bg-emerald-500/10 border border-emerald-500/30 text-emerald-300';
+      forgotMsg.style.display = '';
+    }
+
+    forgotLink.addEventListener('click', () => {
+      form.style.display = 'none';
+      forgotForm.style.display = '';
+      forgotMsg.style.display = 'none';
+    });
+
+    forgotCancel.addEventListener('click', () => {
+      forgotForm.style.display = 'none';
+      form.style.display = '';
+    });
+
+    forgotForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      forgotMsg.style.display = 'none';
+      forgotBtn.disabled = true;
+      try {
+        const res = await fetch(`${API}/auth/forgot_password.php`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: document.getElementById('forgot-email').value.trim() }),
+        });
+        const data = await res.json().catch(() => ({}));
+        showForgotMessage(data.message || data.error || 'Si el correo está registrado, enviaremos instrucciones para restablecer la contraseña.', !res.ok);
+      } catch (err) {
+        showForgotMessage('No se pudo contactar el servidor. Verifica tu conexión.', true);
+      } finally {
+        forgotBtn.disabled = false;
+      }
+    });
 
     function goHome(role) {
       location.replace(HOME_BY_ROLE[role] || 'agenda.html');

@@ -1045,6 +1045,8 @@
         <td class="px-4 py-3 whitespace-nowrap">
           <button onclick="resetUserPassword(${u.id})" title="Cambiar contraseña"
             class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 px-2 py-1 rounded-lg text-xs transition-colors">🔑</button>
+          <button onclick="resendPasswordReset(${u.id})" title="Enviar correo de recuperación"
+            class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 px-2 py-1 rounded-lg text-xs transition-colors">✉️</button>
           ${isMe ? '' : `<button onclick="updateUser(${u.id}, { active: ${inactive ? 1 : 0} })" title="${inactive ? 'Activar' : 'Desactivar'}"
             class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 px-2 py-1 rounded-lg text-xs transition-colors">${inactive ? '▶' : '⏸'}</button>`}
         </td>
@@ -1105,6 +1107,24 @@
     if (pass === null) return;
     if (pass.length < 8) { Utils.showToast('La contraseña debe tener al menos 8 caracteres', 'warning'); return; }
     updateUser(id, { password: pass });
+  }
+
+  async function resendPasswordReset(id) {
+    try {
+      const data = await Session.apiFetch('api/user_password_reset.php', {
+        method: 'POST',
+        body: JSON.stringify({ id }),
+      });
+      if (data.reason === 'throttled') {
+        Utils.showToast('Ya se envió un enlace recientemente, espera unos minutos antes de reenviar', 'warning');
+      } else if (data.mail_result === false) {
+        Utils.showToast('No se pudo entregar el correo (revisa la configuración de correo del servidor)', 'warning');
+      } else {
+        Utils.showToast('Enlace de recuperación enviado ✓', 'success');
+      }
+    } catch (e) {
+      Utils.showToast(e.message, 'error');
+    }
   }
 </script>
 </body>
