@@ -12,6 +12,27 @@ const AtencionCliente = (() => {
     return String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
   }
 
+  // ── Íconos oficiales de plataforma (SVG, mismo criterio que _platIcon en js/pauta.js) ──
+  let _iconSeq = 0;
+  function _platformIcon(platform, size = 16) {
+    const s = size;
+    const st = 'display:inline-block;vertical-align:middle;flex-shrink:0';
+    if (platform === 'instagram_business' || platform === 'instagram') {
+      const gid = `ig-grad-${_iconSeq++}`;
+      return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" style="${st}" xmlns="http://www.w3.org/2000/svg">
+        <defs><radialGradient id="${gid}" cx="30%" cy="107%" r="150%">
+          <stop offset="0%" stop-color="#fdf497"/><stop offset="5%" stop-color="#fdf497"/>
+          <stop offset="45%" stop-color="#fd5949"/><stop offset="60%" stop-color="#d6249f"/>
+          <stop offset="90%" stop-color="#285AEB"/>
+        </radialGradient></defs>
+        <path fill="url(#${gid})" d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.012-3.584.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.332.014 7.052.072c-4.354.2-6.782 2.618-6.979 6.98C.014 8.332 0 8.741 0 12s.014 3.668.072 4.948c.2 4.358 2.618 6.78 6.98 6.98C8.332 23.986 8.741 24 12 24s3.668-.014 4.948-.072c4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.668-.072-4.948-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/>
+      </svg>`;
+    }
+    return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" style="${st}" xmlns="http://www.w3.org/2000/svg">
+      <path fill="#1877F2" d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+    </svg>`;
+  }
+
   async function api(path, options = {}) {
     const opts = Object.assign({ credentials: 'include', headers: {} }, options);
     opts.headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers);
@@ -172,8 +193,8 @@ const AtencionCliente = (() => {
       const ig = data.accounts.find((a) => a.platform === 'instagram_business');
       panel.innerHTML = `
         <div class="flex flex-col gap-3">
-          ${renderAccountRow('Facebook', '📘', fb)}
-          ${renderAccountRow('Instagram', '📷', ig)}
+          ${renderAccountRow('Facebook', _platformIcon('facebook_page', 18), fb)}
+          ${renderAccountRow('Instagram', _platformIcon('instagram_business', 18), ig)}
         </div>
         <a href="${API}/oauth/facebook_connect.php?client_id=${activeClient.id}" class="inline-block mt-4 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
           Conectar Facebook / Instagram
@@ -299,7 +320,7 @@ const AtencionCliente = (() => {
       const list = document.getElementById('ac-conversation-list');
       list.innerHTML = data.conversations.map((conv) => {
         const badge = windowBadge(conv);
-        const icon = conv.platform === 'instagram_business' ? '📷' : '📘';
+        const icon = _platformIcon(conv.platform, 14);
         let tags = [];
         try { tags = JSON.parse(conv.state_vars || '{}').tags || []; } catch (_) { /* ignorar */ }
         const tagsHtml = tags.length
@@ -329,7 +350,7 @@ const AtencionCliente = (() => {
     try {
       const data = await api(`api/conversations.php?id=${conversationId}`);
       const badge = windowBadge({ ...data.conversation, pending_followups: data.pending_followups.length });
-      const platformIcon = data.conversation.platform === 'instagram_business' ? '📷' : '📘';
+      const platformIcon = _platformIcon(data.conversation.platform, 16);
 
       // Origen del mensaje: DM normal vs. comentario/postback — para no confundir
       // una respuesta pública/privada de comentario con un mensaje directo.
@@ -486,9 +507,9 @@ const AtencionCliente = (() => {
         <button onclick="AtencionCliente._selectPendingPage('${p.id}', ${clientId})"
           class="w-full text-left flex items-center justify-between bg-slate-800/60 border border-slate-700/60 hover:border-indigo-500 rounded-lg px-4 py-3 transition-colors">
           <div class="min-w-0">
-            <p class="text-sm font-semibold truncate">📘 ${_esc(p.name)}</p>
+            <p class="text-sm font-semibold truncate">${_platformIcon('facebook_page', 14)} ${_esc(p.name)}</p>
             ${p.has_instagram
-              ? `<p class="text-xs text-slate-500">📷 @${_esc(p.instagram_username || '')} vinculada</p>`
+              ? `<p class="text-xs text-slate-500">${_platformIcon('instagram_business', 12)} @${_esc(p.instagram_username || '')} vinculada</p>`
               : '<p class="text-xs text-slate-600">Sin cuenta de Instagram vinculada</p>'}
           </div>
         </button>`).join('');
