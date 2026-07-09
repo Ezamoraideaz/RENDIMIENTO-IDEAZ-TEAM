@@ -55,7 +55,8 @@ class TriggerEngine
         $pageToken = self::decryptAccountToken($account);
         $stateVars = self::loadStateVars($conversation);
 
-        // Mensaje que llegó por un anuncio "Enviar mensaje" (Click-to-Messenger): Meta
+        // Mensaje que llegó por un anuncio "Enviar mensaje" (Click-to-Messenger o su
+        // equivalente en Instagram — mismo formato de referral en ambas plataformas): Meta
         // manda un objeto referral con el ad_id. Se resuelve el nombre de campaña
         // (best-effort) para poder activar un flujo específico por campaña.
         $adCampaignName = null;
