@@ -18,6 +18,7 @@ require_once __DIR__ . '/includes/crypto.php';
 require_once __DIR__ . '/includes/response.php';
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/password_reset.php';
+require_once __DIR__ . '/includes/ad_leads.php';
 
 // Techo de infraestructura, no el mecanismo de expiración: la sesión debe
 // sobrevivir inactividad y navegación entre módulos durante el mismo día de

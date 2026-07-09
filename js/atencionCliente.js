@@ -132,7 +132,7 @@ const AtencionCliente = (() => {
     activeClient = clients.find((c) => c.id === clientId);
     if (!activeClient) return;
     renderClientModal();
-    await Promise.all([loadAccountsTab(), loadFlowsTab(), loadConversationsTab()]);
+    await Promise.all([loadAccountsTab(), loadFlowsTab(), loadConversationsTab(), loadAdLeadFormsTab()]);
   }
 
   function renderClientModal() {
@@ -140,6 +140,7 @@ const AtencionCliente = (() => {
       { key: 'cuentas', label: 'Cuentas conectadas' },
       { key: 'flujos', label: 'Flujos' },
       { key: 'conversaciones', label: 'Conversaciones' },
+      { key: 'leads', label: '🧾 Leads de Ads' },
     ];
     const tabBtns = tabs.map((t, i) => `
       <button onclick="AtencionCliente._switchTab('${t.key}')" data-tab="${t.key}"
@@ -158,6 +159,7 @@ const AtencionCliente = (() => {
             <div id="ac-panel-cuentas" class="ac-panel"></div>
             <div id="ac-panel-flujos" class="ac-panel" style="display:none"></div>
             <div id="ac-panel-conversaciones" class="ac-panel" style="display:none"></div>
+            <div id="ac-panel-leads" class="ac-panel" style="display:none"></div>
           </div>
         </div>
       </div>`);
@@ -539,11 +541,153 @@ const AtencionCliente = (() => {
     }
   }
 
+  // ── Leads de Ads (formularios instantáneos de Meta Ads) ─────────────────
+
+  let _adLeadForms = [];
+
+  async function loadAdLeadFormsTab() {
+    const panel = document.getElementById('ac-panel-leads');
+    panel.innerHTML = `<p class="text-slate-500 text-sm">Cargando…</p>`;
+    try {
+      const data = await api(`api/ad_leads.php?client_id=${activeClient.id}`);
+      _adLeadForms = data.forms;
+      if (!data.forms.length) {
+        panel.innerHTML = `<p class="text-slate-500 text-sm">Todavía no hay formularios de leads detectados. Reconecta la página de Facebook (para otorgar el permiso de leads) y verifica que tengas al menos un formulario instantáneo publicado.</p>`;
+        return;
+      }
+      panel.innerHTML = `<div id="ad-lead-forms-list" class="flex flex-col gap-2"></div><div id="ad-lead-form-detail"></div>`;
+      document.getElementById('ad-lead-forms-list').innerHTML = data.forms.map((f) => `
+        <div class="flex items-center justify-between bg-slate-800/60 border border-slate-700/60 rounded-lg px-4 py-3 cursor-pointer hover:border-indigo-500"
+          onclick="AtencionCliente.openAdLeadForm('${f.form_id}')">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold truncate">${_platformIcon('facebook_page', 14)} ${_esc(f.form_name)}</p>
+            <p class="text-xs text-slate-500 truncate">${_esc(f.page_name)}${f.status ? ' · ' + _esc(f.status) : ''}</p>
+          </div>
+          <div class="text-right flex-shrink-0">
+            <p class="text-sm font-bold text-indigo-400">${f.leads_count}</p>
+            <p class="text-[10px] text-slate-500">${f.last_lead_at ? new Date(f.last_lead_at).toLocaleDateString('es-MX') : 'sin leads'}</p>
+          </div>
+        </div>`).join('');
+    } catch (e) {
+      panel.innerHTML = `<p class="text-red-400 text-sm">${_esc(e.message)}</p>`;
+    }
+  }
+
+  async function renderAdLeadRuleSection(form) {
+    let rules = [];
+    try {
+      const data = await api(`api/ad_lead_rules.php?social_account_id=${form.social_account_id}`);
+      rules = (data.rules || []).filter((r) => r.form_id === form.form_id || !r.form_id);
+    } catch (_) { /* si falla, se muestra igual el formulario para crear una nueva */ }
+
+    const rulesHtml = rules.map((r) => `
+      <div class="flex items-center justify-between bg-slate-800/60 border border-slate-700/60 rounded-lg px-3 py-2 text-xs">
+        <span class="text-slate-300">${r.campaign_name ? 'Campaña contiene "' + _esc(r.campaign_name) + '"' : 'Cualquier campaña'}${r.tag ? ' · 🏷️ ' + _esc(r.tag) : ''}${r.notify_email ? ' · ✉️ ' + _esc(r.notify_email) : ''}</span>
+        <button onclick="AtencionCliente.deleteAdLeadRule(${r.id}, '${form.form_id}')" class="text-red-400 hover:text-red-300">✕</button>
+      </div>`).join('');
+
+    return `
+      <div class="bg-slate-900 border border-slate-700 rounded-lg p-3 mb-3">
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Notificación / etiqueta para este formulario</p>
+        <div class="flex flex-col gap-1.5 mb-2">${rulesHtml || '<p class="text-xs text-slate-600">Sin reglas todavía — el lead se respalda igual, solo sin notificar a nadie.</p>'}</div>
+        <form id="ad-lead-rule-form" class="flex flex-wrap gap-2 items-end">
+          <div><label class="text-[10px] text-slate-500 block">Campaña contiene (opcional)</label>
+            <input id="rule-campaign" class="bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs w-36"></div>
+          <div><label class="text-[10px] text-slate-500 block">Etiqueta (opcional)</label>
+            <input id="rule-tag" class="bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs w-28"></div>
+          <div><label class="text-[10px] text-slate-500 block">Notificar a (opcional)</label>
+            <input id="rule-email" type="email" class="bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs w-44"></div>
+          <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-xs font-semibold">+ Agregar regla</button>
+        </form>
+      </div>`;
+  }
+
+  function bindAdLeadRuleForm(form) {
+    const el = document.getElementById('ad-lead-rule-form');
+    if (!el) return;
+    el.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const campaign_name = document.getElementById('rule-campaign').value.trim();
+      const tag = document.getElementById('rule-tag').value.trim();
+      const notify_email = document.getElementById('rule-email').value.trim();
+      if (!tag && !notify_email) { Utils.showToast('Define al menos una etiqueta o un correo', 'warning'); return; }
+      try {
+        await api('api/ad_lead_rules.php', {
+          method: 'POST',
+          body: JSON.stringify({ social_account_id: form.social_account_id, form_id: form.form_id, campaign_name, tag, notify_email }),
+        });
+        Utils.showToast('Regla guardada ✓', 'success');
+        openAdLeadForm(form.form_id);
+      } catch (err) {
+        Utils.showToast(err.message, 'danger');
+      }
+    });
+  }
+
+  async function deleteAdLeadRule(id, formId) {
+    try {
+      await api(`api/ad_lead_rules.php?id=${id}`, { method: 'DELETE' });
+      Utils.showToast('Regla eliminada', 'success');
+      openAdLeadForm(formId);
+    } catch (e) {
+      Utils.showToast(e.message, 'danger');
+    }
+  }
+
+  async function openAdLeadForm(formId) {
+    const form = _adLeadForms.find((f) => f.form_id === formId);
+    const listEl = document.getElementById('ad-lead-forms-list');
+    const detailEl = document.getElementById('ad-lead-form-detail');
+    if (!detailEl || !form) return;
+    listEl.style.display = 'none';
+    detailEl.innerHTML = `<p class="text-slate-500 text-sm">Cargando…</p>`;
+
+    try {
+      const [data, rulesHtml] = await Promise.all([
+        api(`api/ad_leads.php?client_id=${activeClient.id}&form_id=${encodeURIComponent(formId)}`),
+        renderAdLeadRuleSection(form),
+      ]);
+
+      const leadsHtml = data.leads.map((lead) => {
+        let fields = [];
+        try { fields = JSON.parse(lead.field_data || '[]'); } catch (_) { /* ignorar */ }
+        const chips = fields.map((f) => `<span class="text-[10px] bg-slate-800 border border-slate-700 text-slate-300 px-2 py-0.5 rounded-full">${_esc(f.name)}: ${_esc((f.values || []).join(', '))}</span>`).join('');
+        return `
+          <div class="bg-slate-800/60 border border-slate-700/60 rounded-lg px-4 py-3">
+            <div class="flex items-center justify-between mb-1">
+              <p class="text-sm font-semibold">${_esc(lead.name || 'Sin nombre')}</p>
+              <span class="text-[10px] text-slate-500">${lead.lead_created_at ? new Date(lead.lead_created_at).toLocaleString('es-MX') : ''}</span>
+            </div>
+            <p class="text-xs text-slate-400 mb-2">${lead.email ? '✉️ ' + _esc(lead.email) + '  ' : ''}${lead.phone ? '📞 ' + _esc(lead.phone) : ''}</p>
+            ${lead.tag ? `<span class="text-[10px] font-semibold bg-indigo-500/15 border border-indigo-500/40 text-indigo-300 px-2 py-0.5 rounded-full inline-block mb-2">🏷️ ${_esc(lead.tag)}</span>` : ''}
+            <div class="flex flex-wrap gap-1.5 mt-1">${chips}</div>
+          </div>`;
+      }).join('');
+
+      detailEl.innerHTML = `
+        <button onclick="AtencionCliente._closeAdLeadForm()" class="text-slate-400 hover:text-slate-100 text-xs font-semibold mb-3">← Volver a formularios</button>
+        <h3 class="text-sm font-bold text-slate-100 mb-1">${_esc(form.form_name)}</h3>
+        <p class="text-xs text-slate-500 mb-4">${data.leads.length} lead(s) respaldado(s) — Meta solo los conserva ~90 días, aquí quedan para siempre.</p>
+        ${rulesHtml}
+        <div class="flex flex-col gap-2 mt-4">${leadsHtml || '<p class="text-slate-500 text-sm">Sin leads todavía.</p>'}</div>`;
+      bindAdLeadRuleForm(form);
+    } catch (e) {
+      detailEl.innerHTML = `<p class="text-red-400 text-sm">${_esc(e.message)}</p>`;
+    }
+  }
+
+  function _closeAdLeadForm() {
+    document.getElementById('ad-lead-form-detail').innerHTML = '';
+    const listEl = document.getElementById('ad-lead-forms-list');
+    if (listEl) listEl.style.display = '';
+  }
+
   return {
     init, openNewClientPrompt, openClient, closeClientModal, _switchTab, _overlayClose,
     createFlow, duplicateFlow, toggleFlowStatus, openBuilder, closeBuilder,
     openConversationThread, resolveFollowup, _closeThread,
     _selectPendingPage,
+    loadAdLeadFormsTab, openAdLeadForm, _closeAdLeadForm, deleteAdLeadRule,
   };
 })();
 

@@ -84,6 +84,13 @@ class TriggerEngine
         $field = $change['field'] ?? '';
         $value = $change['value'] ?? [];
 
+        // Lead de formulario instantáneo (Instant Forms): no hay chat de por medio, se
+        // maneja aparte del motor conversacional (ver backend/includes/ad_leads.php).
+        if ($field === 'leadgen') {
+            capture_ad_lead($change, $pageId);
+            return;
+        }
+
         $isComment = $field === 'comments' || ($field === 'feed' && ($value['item'] ?? '') === 'comment');
         if (!$isComment) {
             return;

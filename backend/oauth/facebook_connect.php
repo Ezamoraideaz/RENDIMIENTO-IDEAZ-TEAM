@@ -32,6 +32,7 @@ $scopes = [
     'instagram_manage_messages',
     'instagram_manage_comments',
     'business_management',
+    'leads_retrieval', // leer los datos de formularios instantáneos (Instant Forms) de Meta Ads
 ];
 
 $params = http_build_query([
