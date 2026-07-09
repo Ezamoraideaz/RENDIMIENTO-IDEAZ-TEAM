@@ -55,6 +55,19 @@ class TriggerEngine
         $pageToken = self::decryptAccountToken($account);
         $stateVars = self::loadStateVars($conversation);
 
+        // Mensaje que llegó por un anuncio "Enviar mensaje" (Click-to-Messenger): Meta
+        // manda un objeto referral con el ad_id. Se resuelve el nombre de campaña
+        // (best-effort) para poder activar un flujo específico por campaña.
+        $adCampaignName = null;
+        $referral = $event['referral'] ?? null;
+        if (!empty($referral['ad_id']) && ($referral['source'] ?? '') === 'ADS') {
+            try {
+                $adCampaignName = MetaClient::getAdCampaignName($pageToken, (string)$referral['ad_id']);
+            } catch (Throwable $e) {
+                // sin permiso/API caída: se sigue el ruteo normal, sin filtrar por campaña
+            }
+        }
+
         // 1) Respuesta a un nodo de botones (quick reply): continúa por la rama elegida.
         if ($qrPayload !== null && preg_match('/^qr:(\d+):([\w-]+):(\d+)$/', $qrPayload, $m)) {
             self::continueFromOutput((int)$m[1], $m[2], (int)$m[3], $conversation, $platform, $pageToken);
@@ -76,7 +89,7 @@ class TriggerEngine
             return;
         }
 
-        self::routeToFlow($account, $conversation, $platform, $text, $isNew, $pageToken, $isStoryReply);
+        self::routeToFlow($account, $conversation, $platform, $text, $isNew, $pageToken, $isStoryReply, $adCampaignName);
     }
 
     public static function handleChangeEvent(array $change, string $platform, string $pageId): void
@@ -171,13 +184,18 @@ class TriggerEngine
 
     // ── Ruteo a flujo (mensajes/postbacks) ──────────────────────────────────
 
-    private static function routeToFlow(array $account, array $conversation, string $platform, string $text, bool $isNew, string $pageToken, bool $isStoryReply = false): void
+    private static function routeToFlow(array $account, array $conversation, string $platform, string $text, bool $isNew, string $pageToken, bool $isStoryReply = false, ?string $adCampaignName = null): void
     {
-        // Respuesta a una historia de Instagram: se prueba primero (más específico que
-        // una palabra clave genérica); si no hay flujo para esto, sigue el ruteo normal.
-        $trigger = $isStoryReply
-            ? self::matchTrigger((int)$account['client_id'], (int)$account['id'], $platform, $text, false, 'story_reply')
+        // Prioridad 1: el mensaje vino de un anuncio "Enviar mensaje" — permite un
+        // flujo específico por campaña (más específico que cualquier otra cosa).
+        $trigger = $adCampaignName !== null
+            ? self::matchTrigger((int)$account['client_id'], (int)$account['id'], $platform, $adCampaignName, false, 'ad_message')
             : null;
+
+        // Prioridad 2: respuesta a una historia de Instagram.
+        if (!$trigger && $isStoryReply) {
+            $trigger = self::matchTrigger((int)$account['client_id'], (int)$account['id'], $platform, $text, false, 'story_reply');
+        }
 
         if (!$trigger) {
             $trigger = self::matchTrigger((int)$account['client_id'], (int)$account['id'], $platform, $text);
@@ -235,9 +253,10 @@ class TriggerEngine
             $config   = json_decode($row['match_config'], true) ?? [];
             $keywords = $config['keywords'] ?? [];
 
-            // "new_conversation" no filtra por texto; en "comment_on_post" una lista vacía
-            // significa "cualquier comentario".
-            if ($triggerType === 'new_conversation' || ($triggerType === 'comment_on_post' && !array_filter($keywords))) {
+            // "new_conversation" no filtra por texto; en "comment_on_post"/"ad_message"
+            // una lista vacía significa "cualquier comentario"/"cualquier campaña".
+            if ($triggerType === 'new_conversation'
+                || (($triggerType === 'comment_on_post' || $triggerType === 'ad_message') && !array_filter($keywords))) {
                 return $row;
             }
             foreach ($keywords as $keyword) {

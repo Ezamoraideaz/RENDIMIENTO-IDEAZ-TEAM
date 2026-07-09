@@ -270,6 +270,14 @@ class MetaClient
         return (string)($data['name'] ?? '');
     }
 
+    // Nombre de la campaña de un anuncio "Enviar mensaje" (Click-to-Messenger), a
+    // partir del ad_id que llega en el referral del primer mensaje. Requiere ads_management.
+    public static function getAdCampaignName(string $pageAccessToken, string $adId): string
+    {
+        $data = self::request('GET', "/{$adId}", ['fields' => 'campaign{name}'], $pageAccessToken);
+        return (string)($data['campaign']['name'] ?? '');
+    }
+
     public static function verifySignature(string $rawBody, ?string $signatureHeader, string $appSecret): bool
     {
         if (!$signatureHeader || strpos($signatureHeader, 'sha256=') !== 0) {

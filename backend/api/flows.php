@@ -16,6 +16,7 @@ function rebuild_flow_triggers(PDO $pdo, int $flowId, array $graph): void
         'trigger_comment'          => 'comment_on_post',
         'trigger_new_conversation' => 'new_conversation',
         'trigger_story_reply'      => 'story_reply',
+        'trigger_ad_message'       => 'ad_message',
     ];
 
     $nodes = $graph['nodes'] ?? [];

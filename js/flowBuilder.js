@@ -12,6 +12,7 @@ const FlowBuilder = (() => {
     trigger_comment:          { title: '💭 Comentario en post', inputs: 0, outputs: 1, defaultData: { keywords: [], platform_scope: 'both', public_replies: [''] } },
     trigger_new_conversation: { title: '✨ Nueva conversación', inputs: 0, outputs: 1, defaultData: { platform_scope: 'both' } },
     trigger_story_reply:      { title: '📖 Respuesta a historia', inputs: 0, outputs: 1, defaultData: { keywords: [], platform_scope: 'instagram' } },
+    trigger_ad_message:       { title: '📢 Anuncio de Messenger', inputs: 0, outputs: 1, defaultData: { keywords: [], platform_scope: 'both' } },
     message:                  { title: '💬 Mensaje',            inputs: 1, outputs: 1, defaultData: { text: '' } },
     image:                    { title: '🖼️ Imagen',             inputs: 1, outputs: 1, defaultData: { url: '' } },
     card:                     { title: '🃏 Tarjeta CTA',        inputs: 1, outputs: 1, defaultData: { title: '', subtitle: '', image_url: '', buttons: [{ title: 'Ver más', url: '' }] } },
@@ -35,6 +36,7 @@ const FlowBuilder = (() => {
     if (type === 'trigger_comment') return (data.keywords || []).join(', ') || 'cualquier comentario';
     if (type === 'trigger_new_conversation') return 'primer mensaje del contacto';
     if (type === 'trigger_story_reply') return (data.keywords || []).join(', ') || 'cualquier respuesta a historia';
+    if (type === 'trigger_ad_message') return (data.keywords || []).join(', ') || 'cualquier campaña de mensajes';
     if (type === 'message') return (data.text || '').slice(0, 40) || '(vacío)';
     if (type === 'image') return (data.url || '').split('/').pop() || '(sin imagen)';
     if (type === 'card') return (data.title || '').slice(0, 30) || '(sin título)';
@@ -245,6 +247,22 @@ const FlowBuilder = (() => {
         updatePreviewDom(nodeId, type, data);
         setStatusText('Sin guardar');
       };
+    } else if (type === 'trigger_ad_message') {
+      panel.innerHTML = `
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Disparador (anuncio de Messenger)</p>
+        <p class="text-xs text-slate-500 mb-3">Se activa cuando alguien escribe por primera vez desde un anuncio <strong>"Enviar mensaje"</strong> (Click-to-Messenger). Permite dar una bienvenida distinta según la campaña que lo trajo.</p>
+        <label class="text-xs text-slate-500">La campaña contiene (opcional, separado por coma)</label>
+        <textarea id="insp-keywords" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm mt-1 mb-1" rows="2">${(data.keywords || []).join(', ')}</textarea>
+        <p class="text-xs text-slate-600 mb-3">Déjalo vacío para activar con <strong>cualquier</strong> campaña de mensajes. Compara contra el nombre real de la campaña en Meta Ads Manager (no distingue mayúsculas).</p>
+        <label class="text-xs text-slate-500">Plataforma</label>
+        ${scopeSelectHtml(data)}`;
+      document.getElementById('insp-keywords').oninput = (e) => {
+        data.keywords = e.target.value.split(',').map((s) => s.trim()).filter(Boolean);
+        editor.updateNodeDataFromId(nodeId, data);
+        updatePreviewDom(nodeId, type, data);
+        setStatusText('Sin guardar');
+      };
+      bindScopeSelect(nodeId, data);
     } else if (type === 'quick_replies') {
       const options = data.options || [];
       panel.innerHTML = `
