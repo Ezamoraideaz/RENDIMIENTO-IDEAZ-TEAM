@@ -114,19 +114,31 @@ const PautaMonitor = (() => {
 
   // ── API fetch ──────────────────────────────────────────────────────────────
 
-  async function _fetchSpend(platform, accountId, from, to) {
-    const key = `${platform}:${accountId}`;
-    const url = `${API_PATH}?platform=${encodeURIComponent(platform)}&account_id=${encodeURIComponent(accountId)}&from=${from}&to=${to}`;
+  function _accountIdOf(plat) {
+    return plat.account_id || plat.customer_id || plat.advertiser_id || '';
+  }
+
+  // La clave incluye el rango: sin él, cambiar de período mostraba datos del rango
+  // anterior como si fueran del actual mientras cargaba el nuevo.
+  function _spendKey(platform, accountId, from, to) {
+    return `${platform}:${accountId}:${from}:${to}`;
+  }
+
+  async function _fetchSpend(platform, accountId, from, to, fresh) {
+    const key = _spendKey(platform, accountId, from, to);
+    const url = `${API_PATH}?platform=${encodeURIComponent(platform)}&account_id=${encodeURIComponent(accountId)}&from=${from}&to=${to}${fresh ? '&fresh=1' : ''}`;
     try {
       const res  = await fetch(url);
       const data = await res.json();
+      if (!res.ok && !data.error) data.error = `Error ${res.status} del servidor`;
       _spend[key] = data;
     } catch (e) {
       _spend[key] = { error: 'No se pudo conectar al servidor', platform };
     }
   }
 
-  async function loadData() {
+  // fresh = true (botón "Actualizar") salta el caché de 10 min del servidor.
+  async function loadData(fresh = false) {
     if (_loading) return;
     _loading = true;
     _setLoadingState(true);
@@ -138,15 +150,19 @@ const PautaMonitor = (() => {
     for (const client of _clients) {
       for (const plat of (client.platforms || [])) {
         if (!plat.enabled) continue;
-        const accountId = plat.account_id || plat.customer_id || plat.advertiser_id || '';
+        const accountId = _accountIdOf(plat);
         if (!accountId) continue;
-        calls.push(_fetchSpend(plat.platform, accountId, from, to));
+        calls.push(_fetchSpend(plat.platform, accountId, from, to, fresh));
       }
     }
 
     await Promise.all(calls);
     _loading = false;
     _setLoadingState(false);
+
+    const lastEl = document.getElementById('last-updated');
+    if (lastEl) lastEl.textContent = 'Actualizado: ' + new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+
     render();
   }
 
@@ -249,16 +265,17 @@ const PautaMonitor = (() => {
   // ── Filtros ────────────────────────────────────────────────────────────────
 
   function _clientHasSpendInPeriod(client) {
+    const { from, to } = _dateRange();
     for (const plat of (client.platforms || [])) {
       if (!plat.enabled) continue;
-      const accountId = plat.account_id || plat.customer_id || plat.advertiser_id || '';
-      const result    = _spend[`${plat.platform}:${accountId}`];
+      const result = _spend[_spendKey(plat.platform, _accountIdOf(plat), from, to)];
       if (result && !result.error && (result.total_spend || 0) > 0) return true;
     }
     return false;
   }
 
   function _clientIsActiveNow(client) {
+    const { from, to } = _dateRange();
     const now    = new Date();
     const cutoff = new Date(now);
     cutoff.setDate(cutoff.getDate() - 2); // últimos 3 días desde hoy real
@@ -268,8 +285,7 @@ const PautaMonitor = (() => {
 
     for (const plat of (client.platforms || [])) {
       if (!plat.enabled) continue;
-      const accountId = plat.account_id || plat.customer_id || plat.advertiser_id || '';
-      const result    = _spend[`${plat.platform}:${accountId}`];
+      const result = _spend[_spendKey(plat.platform, _accountIdOf(plat), from, to)];
       if (!result || result.error) continue;
       if ((result.daily_data || []).some(d => d.date >= cutoffStr && d.date <= todayStr && d.spend > 0)) return true;
     }
@@ -341,11 +357,11 @@ const PautaMonitor = (() => {
     // Sum spend across enabled platforms and aggregate daily data
     let globalSpend = 0;
     const globalDailyMap = {};
+    const currencies = new Set();
     const platformRows = (client.platforms || []).map(plat => {
       if (!plat.enabled) return null;
-      const accountId = plat.account_id || plat.customer_id || plat.advertiser_id || '';
-      const key       = `${plat.platform}:${accountId}`;
-      const result    = _spend[key];
+      const accountId = _accountIdOf(plat);
+      const result    = _spend[_spendKey(plat.platform, accountId, from, to)];
       const budget    = _budgetForRange(plat.budgets, from, to);
       const dailyB    = _dailyBudget(plat.budgets, from);
 
@@ -354,11 +370,21 @@ const PautaMonitor = (() => {
 
       const spend     = result.total_spend || 0;
       globalSpend    += spend;
+      if (result.currency) currencies.add(result.currency);
       (result.daily_data || []).forEach(d => {
         globalDailyMap[d.date] = (globalDailyMap[d.date] || 0) + d.spend;
       });
-      return _renderPlatformRow(plat, spend, budget, dailyB, days, 'ok', null, result.daily_data || []);
+      return _renderPlatformRow(plat, spend, budget, dailyB, days, 'ok', null, result.daily_data || [], result.currency || '');
     }).filter(Boolean).join('');
+
+    // Moneda: si todas las cuentas comparten una, se muestra; si hay varias, el
+    // total global suma monedas distintas sin convertir — se advierte visiblemente.
+    const currency        = currencies.size === 1 ? [...currencies][0] : '';
+    const mixedCurrencies = currencies.size > 1;
+    const currencyWarning = mixedCurrencies ? `
+      <div class="text-xs text-red-400 border border-red-500/30 bg-red-500/10 rounded-lg px-2.5 py-1.5">
+        ⚠ Este cliente mezcla monedas (${_esc([...currencies].join(', '))}): el total global no es comparable — revisa cada plataforma por separado.
+      </div>` : '';
 
     const globalDailyArr    = Object.entries(globalDailyMap)
       .sort((a, b) => a[0].localeCompare(b[0]))
@@ -406,10 +432,12 @@ const PautaMonitor = (() => {
         </div>
       </div>
 
+      ${currencyWarning}
+
       <!-- Global progress -->
       <div>
         <div class="flex justify-between text-xs mb-1">
-          <span class="text-slate-400">Gastado <strong class="${ac.text}">$${_fmt(globalSpend)}</strong></span>
+          <span class="text-slate-400">Gastado <strong class="${ac.text}">$${_fmt(globalSpend)}${currency ? ` <span class="font-normal text-slate-500">${_esc(currency)}</span>` : ''}</strong></span>
           <span class="${ac.text} font-bold">${pctNum}%</span>
         </div>
         <div class="w-full bg-slate-800 rounded-full h-3 overflow-hidden">
@@ -432,9 +460,9 @@ const PautaMonitor = (() => {
     </div>`;
   }
 
-  function _renderPlatformRow(plat, spend, budget, dailyB, days, status, errMsg, dailyArr = []) {
+  function _renderPlatformRow(plat, spend, budget, dailyB, days, status, errMsg, dailyArr = [], currency = '') {
     const meta  = PLATFORMS.find(p => p.key === plat.platform) || { label: plat.platform, icon: '📡' };
-    const accountId = plat.account_id || plat.customer_id || plat.advertiser_id || '—';
+    const accountId = _accountIdOf(plat) || '—';
 
     if (status === 'loading') {
       return `<div class="flex items-center gap-2 text-xs text-slate-500">
@@ -472,7 +500,7 @@ const PautaMonitor = (() => {
     <div>
       <div class="flex justify-between items-center text-xs mb-1">
         <span class="text-slate-300 font-medium">${meta.icon} ${meta.label}
-          <span class="text-slate-500 font-normal">(${accountId})</span>${paceTag}
+          <span class="text-slate-500 font-normal">(${_esc(accountId)})</span>${paceTag}
         </span>
         <span class="${ac.text} font-bold">${pctLbl}</span>
       </div>
@@ -480,7 +508,7 @@ const PautaMonitor = (() => {
         <div class="flex-1 bg-slate-800 rounded-full h-2 overflow-hidden">
           <div class="${ac.bar} h-2 rounded-full transition-all duration-500" style="width:${pct}%"></div>
         </div>
-        <span class="text-xs text-slate-400 w-28 text-right">$${_fmt(spend)} / $${_fmt(budget)}</span>
+        <span class="text-xs text-slate-400 w-28 text-right">$${_fmt(spend)} / $${_fmt(budget)}${currency ? ` <span class="text-slate-600">${_esc(currency)}</span>` : ''}</span>
       </div>
       ${sparkHtml}
     </div>`;
@@ -726,10 +754,12 @@ const PautaMonitor = (() => {
   // ── Quick date buttons ─────────────────────────────────────────────────────
 
   function setThisMonth() {
+    // Fecha LOCAL, no toISOString() (UTC): de noche en UTC-5 el día UTC ya es "mañana"
+    // y descuadraría el rango contra el resto de cálculos, que usan hora local.
     const now   = new Date();
     const y     = now.getFullYear();
     const m     = String(now.getMonth() + 1).padStart(2, '0');
-    const today = now.toISOString().slice(0, 10);
+    const today = `${y}-${m}-${String(now.getDate()).padStart(2, '0')}`;
     document.getElementById('p-from').value = `${y}-${m}-01`;
     document.getElementById('p-to').value   = today;
     _markQuick('this');
@@ -764,7 +794,7 @@ const PautaMonitor = (() => {
   }
 
   function _esc(s) {
-    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
 
   // ── Platform icons (SVG) ──────────────────────────────────────────────────
@@ -795,19 +825,23 @@ const PautaMonitor = (() => {
 
   const LS_LEADS = 'pauta_leads';
 
-  function _leadsKey(clientId, from, to) { return `${clientId}:${from}:${to}`; }
+  // Clave por MES, no por rango exacto: con "Este mes" el `to` cambia cada día y los
+  // leads capturados ayer quedaban huérfanos (parecían perderse a diario).
+  function _leadsKey(clientId, from) { return `${clientId}:${_monthKey(from)}`; }
 
   function _loadLeads(clientId, from, to) {
     try {
       const all = JSON.parse(localStorage.getItem(LS_LEADS) || '{}');
-      return all[_leadsKey(clientId, from, to)] || { total: 0, qualified: 0 };
+      return all[_leadsKey(clientId, from)]
+        || all[`${clientId}:${from}:${to}`] // compat: formato viejo por rango exacto
+        || { total: 0, qualified: 0 };
     } catch { return { total: 0, qualified: 0 }; }
   }
 
   function _saveLeads(clientId, from, to, data) {
     try {
       const all = JSON.parse(localStorage.getItem(LS_LEADS) || '{}');
-      all[_leadsKey(clientId, from, to)] = data;
+      all[_leadsKey(clientId, from)] = data;
       localStorage.setItem(LS_LEADS, JSON.stringify(all));
     } catch {}
   }
@@ -836,7 +870,7 @@ const PautaMonitor = (() => {
     const calls = [];
     for (const plat of (client.platforms || [])) {
       if (!plat.enabled) continue;
-      const accountId = plat.account_id || plat.customer_id || plat.advertiser_id || '';
+      const accountId = _accountIdOf(plat);
       if (!accountId) continue;
       const detailPlat = plat.platform === 'google' ? 'google_detail'
                        : plat.platform === 'meta'   ? 'meta_detail' : null;
@@ -1297,7 +1331,8 @@ const PautaMonitor = (() => {
 
         <!-- Comparación actual vs proyectado -->
         <div>
-          <p class="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-3">Proyección de resultados</p>
+          <p class="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-1">Proyección de resultados</p>
+          <p class="text-xs text-slate-600 mb-3">⚠ Estimación orientativa: asume que los CPM/CPL del período se mantienen y aplica un factor heurístico de embudo — no es una predicción de la plataforma.</p>
           <div class="bg-slate-800 rounded-xl overflow-hidden">
             <div class="grid grid-cols-3 text-xs font-semibold text-slate-500 px-4 py-2 border-b border-slate-700">
               <span>Métrica</span>
