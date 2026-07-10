@@ -701,7 +701,7 @@
     allProjects = projects;
     const tbody = document.getElementById('projects-table-body');
     if (!projects.length) {
-      tbody.innerHTML = '<tr><td colspan="10" class="text-slate-400 text-center py-8">No hay proyectos.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="12" class="text-slate-400 text-center py-8">No hay proyectos.</td></tr>';
       return;
     }
     const activePeriod = document.getElementById('filter-period').value;
@@ -936,6 +936,7 @@
 
     const arrow = (cur, prev, lowerIsBetter = false) => {
       if (prev === undefined || prev === null || cur === null) return '';
+      if (cur === prev) return '';
       const up = cur > prev;
       const good = lowerIsBetter ? !up : up;
       return up
@@ -989,7 +990,7 @@
   function renderTeamTable(members) {
     const tbody = document.getElementById('team-table-body');
     if (!members.length) {
-      tbody.innerHTML = '<tr><td colspan="7" class="text-slate-400 text-center py-8">No hay miembros.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="text-slate-400 text-center py-8">No hay miembros.</td></tr>';
       return;
     }
     const sorted = [...members].sort((a, b) => b.assigned - a.assigned);
