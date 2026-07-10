@@ -378,7 +378,6 @@
   }
 
   if (!boardId) window.location.href = 'index.html';
-  if (!Storage.hasCredentials()) window.location.href = 'configuracion.html';
 
   async function loadProject(forceRefresh = false) {
     const creds = Storage.getCredentials();
@@ -1071,6 +1070,7 @@
 
   // Init — espera la sesión (js/session.js redirige a login si no hay)
   Session.ready.then(() => {
+    if (!Storage.hasCredentials()) { window.location.href = 'configuracion.html'; return; }
     Sidebar.init('proyecto', { onRefresh: () => loadProject(true) });
     loadProject();
     Alarm.init();
