@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS clients (
     slug VARCHAR(160) NOT NULL,
     logo_url VARCHAR(500) NULL,
     timezone VARCHAR(64) NOT NULL DEFAULT 'America/Mexico_City',
+    ai_context TEXT NULL,
     status ENUM('active','paused','archived') NOT NULL DEFAULT 'active',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

@@ -56,6 +56,16 @@ function rebuild_flow_triggers(PDO $pdo, int $flowId, array $graph): void
                 $node['data']['public_replies'] ?? []
             ), static fn($t) => $t !== ''));
             $matchConfig['public_replies'] = $replies;
+
+            // Respuesta pública con IA (opcional): reemplaza la variante estática elegida
+            // al azar arriba, respetando un máximo de caracteres y una lista de palabras
+            // que, si aparecen en el comentario, desactivan la respuesta automática.
+            $matchConfig['ai_enabled'] = !empty($node['data']['ai_enabled']);
+            $matchConfig['ai_max_chars'] = max(1, (int)($node['data']['ai_max_chars'] ?? 300));
+            $matchConfig['ai_blocklist'] = array_values(array_filter(array_map(
+                static fn($t) => trim((string)$t),
+                $node['data']['ai_blocklist'] ?? []
+            ), static fn($t) => $t !== ''));
         }
         $insert->execute([$flowId, $scope, $type, json_encode($matchConfig), $nextId, $priority]);
         $priority++;
