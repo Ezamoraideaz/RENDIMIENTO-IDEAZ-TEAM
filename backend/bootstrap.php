@@ -29,6 +29,21 @@ const SESSION_LIFETIME_SECONDS = 90000;
 
 ini_set('session.gc_maxlifetime', (string)SESSION_LIFETIME_SECONDS);
 
+// En hosting compartido, session.save_path suele ser el mismo directorio para
+// TODOS los sitios de la cuenta cPanel. El barrido de garbage collection borra
+// por mtime usando el gc_maxlifetime del proceso que lo dispara, no el del que
+// creó el archivo — si cualquier otro sitio de la cuenta corre con el default
+// de PHP (1440s = 24 min), destruye también las sesiones de este dashboard
+// mucho antes de las 90000s configuradas arriba. Un directorio propio evita
+// que otros sitios puedan barrer estos archivos.
+$sessionDir = __DIR__ . '/storage/sessions';
+if (!is_dir($sessionDir)) {
+    @mkdir($sessionDir, 0700, true);
+}
+if (is_dir($sessionDir) && is_writable($sessionDir)) {
+    ini_set('session.save_path', $sessionDir);
+}
+
 session_name(SESSION_COOKIE_NAME);
 session_set_cookie_params([
     'lifetime' => SESSION_LIFETIME_SECONDS,

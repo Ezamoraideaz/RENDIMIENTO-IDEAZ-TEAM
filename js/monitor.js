@@ -69,7 +69,7 @@ const Monitor = (() => {
           projectId: boardId, projectName,
           cardId: card.id, cardName: card.name, shortLink: card.shortLink,
           date: p.date,
-          detail: `Estuvo ${min} min en "En Proceso" — umbral: 5 min`
+          detail: `Estuvo ${min} min en "En Proceso" — umbral: 2 min`
         }));
       });
   }

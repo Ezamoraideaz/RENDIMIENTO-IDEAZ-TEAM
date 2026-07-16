@@ -308,11 +308,11 @@
         </div>
         <div id="new-user-member-row" style="display:none" class="md:col-span-2">
           <label class="block text-xs text-slate-400 font-medium mb-1">Miembro del equipo (Trello)</label>
-          <select id="new-user-member"
+          <select id="new-user-member" onchange="onNewUserMemberChange()"
             class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 w-full">
             <option value="">— Carga los datos de Trello primero —</option>
           </select>
-          <p class="text-xs text-slate-500 mt-1">Este usuario solo verá tareas asignadas a este miembro, sin poder cambiarlo.</p>
+          <p id="new-user-member-hint" class="text-xs text-slate-500 mt-1"></p>
         </div>
       </div>
       <div class="mt-4">
@@ -330,18 +330,6 @@
         Los datos de Trello se guardan temporalmente en este navegador (tableros 30 min · tarjetas/acciones 20 min) para reducir las llamadas a la API. Si necesitas ver cambios recientes, limpia el caché o usa el botón <strong class="text-slate-200">↻ Actualizar</strong> del dashboard.
       </p>
       <button class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-1.5 rounded-lg text-sm transition-colors" onclick="clearTrelloCache()">↻ Limpiar caché de Trello</button>
-    </div>
-
-    <!-- MIGRACIÓN (solo superadmin, un solo uso) -->
-    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4" id="section-migrate" style="display:none">
-      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">📦 Migrar datos de este navegador a la BD</h2>
-      <p class="text-sm text-slate-400 mb-3">
-        Si antes usabas este navegador con la versión anterior (credenciales y configuración en localStorage), este botón sube todo a la base de datos compartida:
-        credenciales de Trello, Client ID de Drive, datos financieros por proyecto, carpetas Drive, y nombres/roles/tarifas de miembros. Úsalo una sola vez.
-      </p>
-      <button class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors" onclick="migrateLocalData()">
-        📤 Migrar datos locales a la base de datos
-      </button>
     </div>
 
     <!-- DANGER ZONE -->
@@ -387,10 +375,9 @@
         if (el) el.style.display = 'none';
       });
     }
-    // La gestión de usuarios, credenciales y la migración son exclusivas del superadmin
+    // La gestión de usuarios y credenciales es exclusiva del superadmin
     if (_isSuperAdmin) {
       document.getElementById('section-users').style.display = 'block';
-      document.getElementById('section-migrate').style.display = 'block';
       loadUsers();
     } else {
       const trelloSection = document.getElementById('section-trello');
@@ -823,64 +810,6 @@
     setTimeout(() => window.location.reload(), 1000);
   }
 
-  // ---- Migración única: localStorage → base de datos (solo superadmin) ----
-  async function migrateLocalData() {
-    if (!confirm('¿Subir los datos guardados en este navegador a la base de datos compartida? Los valores existentes en la BD se sobreescriben.')) return;
-    const report = [];
-    try {
-      // 1. Credenciales de Trello + Client ID de Drive
-      const settings = {};
-      const oldCreds = JSON.parse(localStorage.getItem('ideaz_credentials') || '{}');
-      if (oldCreds.key && oldCreds.token) {
-        settings.trello_key = oldCreds.key;
-        settings.trello_token = oldCreds.token;
-      }
-      const oldDriveId = localStorage.getItem('ideaz_drive_client_id') || '';
-      if (oldDriveId) settings.drive_client_id = oldDriveId;
-      if (Object.keys(settings).length) {
-        await Session.apiFetch('api/settings.php', { method: 'POST', body: JSON.stringify({ settings }) });
-        Object.assign(Storage._settings, settings);
-        report.push('credenciales');
-      }
-
-      // 2. Datos financieros por proyecto + carpetas Drive por tablero
-      const projects = JSON.parse(localStorage.getItem('ideaz_projects') || '{}');
-      const folders = JSON.parse(localStorage.getItem('ideaz_drive_folders') || '{}');
-      for (const [boardId, folderId] of Object.entries(folders)) {
-        projects[boardId] = { ...(projects[boardId] || {}), driveFolderId: folderId };
-      }
-      if (Object.keys(projects).length) {
-        await Session.apiFetch('api/project_settings.php', { method: 'POST', body: JSON.stringify({ projects }) });
-        report.push(`${Object.keys(projects).length} proyectos`);
-      }
-
-      // 3. Miembros: nombres + roles + tarifas
-      const rates = JSON.parse(localStorage.getItem('ideaz_rates') || '{}');
-      const names = JSON.parse(localStorage.getItem('ideaz_members') || '{}');
-      const roles = JSON.parse(localStorage.getItem('ideaz_roles') || '{}');
-      const members = {};
-      for (const id of new Set([...Object.keys(rates), ...Object.keys(names), ...Object.keys(roles)])) {
-        members[id] = {};
-        if (names[id]) members[id].name = names[id];
-        if (roles[id]) members[id].role = roles[id];
-        if (rates[id]) members[id].rate = rates[id];
-      }
-      if (Object.keys(members).length) {
-        await Session.apiFetch('api/member_settings.php', { method: 'POST', body: JSON.stringify({ members }) });
-        report.push(`${Object.keys(members).length} miembros`);
-      }
-
-      // 4. Limpiar del navegador lo ya migrado
-      ['ideaz_credentials', 'ideaz_projects', 'ideaz_rates', 'ideaz_members', 'ideaz_roles',
-       'ideaz_drive_client_id', 'ideaz_drive_folders'].forEach(k => localStorage.removeItem(k));
-
-      Utils.showToast(report.length ? `Migrado a la BD: ${report.join(', ')} ✓` : 'No había datos locales para migrar', 'success');
-      setTimeout(() => window.location.reload(), 1200);
-    } catch (e) {
-      Utils.showToast('Error migrando: ' + e.message, 'error');
-    }
-  }
-
   function autoDetectAllPeriods() {
     let filled = 0;
     for (const b of allBoards) {
@@ -967,10 +896,16 @@
     { value: 'admin',         label: '🛠 Administrador — todo excepto gestión de usuarios' },
     { value: 'agenda_full',   label: '📅 Agenda completa — todos los filtros disponibles' },
     { value: 'agenda_member', label: '👤 Agenda bloqueada — solo ve sus propias tareas' },
-    { value: 'cm',            label: '🎨 CM — Drive + Carpetas + Agenda' },
+    { value: 'cm',            label: '🎨 CM — Drive + Carpetas + Agenda + Monitor (solo sus fallas)' },
     { value: 'agent',         label: '💬 Agente — solo Atención al Cliente' },
     { value: 'superadmin',    label: '👑 Superadministrador — control total' },
   ];
+  // Roles que requieren vincularse a un miembro de Trello (bloquean su vista al Monitor/Agenda a ese miembro)
+  const ROLES_WITH_MEMBER_LINK = ['agenda_member', 'cm'];
+  const MEMBER_LINK_HINT = {
+    agenda_member: 'Este usuario solo verá tareas asignadas a este miembro, sin poder cambiarlo. Al seleccionarlo se autocompleta el nombre con el de Trello.',
+    cm: 'En el Monitor de Faltas, este CM solo verá sus propias faltas. Al seleccionarlo se autocompleta el nombre con el de Trello.',
+  };
   let _users = [];
 
   function _escHTML(s) {
@@ -1031,7 +966,7 @@
           </select>
         </td>
         <td class="px-4 py-3">
-          ${u.role === 'agenda_member' ? `
+          ${ROLES_WITH_MEMBER_LINK.includes(u.role) ? `
           <select onchange="updateUser(${u.id}, { trello_member_id: this.value })"
             class="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500">
             ${_memberOptionsHTML(u.trello_member_id)}
@@ -1057,9 +992,23 @@
   function toggleNewUserMemberRow() {
     const role = document.getElementById('new-user-role').value;
     const row = document.getElementById('new-user-member-row');
-    row.style.display = role === 'agenda_member' ? 'block' : 'none';
-    if (role === 'agenda_member') {
+    const show = ROLES_WITH_MEMBER_LINK.includes(role);
+    row.style.display = show ? 'block' : 'none';
+    if (show) {
       document.getElementById('new-user-member').innerHTML = _memberOptionsHTML('');
+      document.getElementById('new-user-member-hint').textContent = MEMBER_LINK_HINT[role] || '';
+    }
+  }
+
+  // Vincular un usuario nuevo a su fila existente en "Equipo": al elegir el
+  // miembro de Trello, autocompleta el nombre (si el campo sigue vacío) para
+  // evitar que quede un nombre distinto al de Trello para la misma persona.
+  function onNewUserMemberChange() {
+    const memberId = document.getElementById('new-user-member').value;
+    const nameInput = document.getElementById('new-user-name');
+    const member = allMembers[memberId];
+    if (member && !nameInput.value.trim()) {
+      nameInput.value = member.fullName;
     }
   }
 
@@ -1072,14 +1021,14 @@
 
     if (!email) { Utils.showToast('Ingresa el email del usuario', 'warning'); return; }
     if (password.length < 8) { Utils.showToast('La contraseña debe tener al menos 8 caracteres', 'warning'); return; }
-    if (role === 'agenda_member' && !memberId) {
+    if (ROLES_WITH_MEMBER_LINK.includes(role) && !memberId) {
       Utils.showToast('Selecciona el miembro de Trello para este usuario', 'warning'); return;
     }
 
     try {
       await Session.apiFetch('api/users.php', {
         method: 'POST',
-        body: JSON.stringify({ name, email, password, role, trello_member_id: role === 'agenda_member' ? memberId : '' }),
+        body: JSON.stringify({ name, email, password, role, trello_member_id: ROLES_WITH_MEMBER_LINK.includes(role) ? memberId : '' }),
       });
       Utils.showToast('Usuario creado ✓', 'success');
       ['new-user-name', 'new-user-email', 'new-user-password'].forEach(id => document.getElementById(id).value = '');

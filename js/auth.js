@@ -40,7 +40,7 @@ const Auth = (() => {
       allowed: true,
       role: user.role,
       name: user.name,
-      lockedMemberId: user.dbRole === 'agenda_member' ? user.memberId : null,
+      lockedMemberId: (user.dbRole === 'agenda_member' || user.dbRole === 'cm') ? user.memberId : null,
     };
   }
 
