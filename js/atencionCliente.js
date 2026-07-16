@@ -132,7 +132,7 @@ const AtencionCliente = (() => {
     activeClient = clients.find((c) => c.id === clientId);
     if (!activeClient) return;
     renderClientModal();
-    await Promise.all([loadAccountsTab(), loadFlowsTab(), loadConversationsTab(), loadAdLeadFormsTab()]);
+    await Promise.all([loadAccountsTab(), loadFlowsTab(), loadConversationsTab(), loadAdLeadFormsTab(), loadContextoTab()]);
   }
 
   function renderClientModal() {
@@ -141,6 +141,7 @@ const AtencionCliente = (() => {
       { key: 'flujos', label: 'Flujos' },
       { key: 'conversaciones', label: 'Conversaciones' },
       { key: 'leads', label: '🧾 Leads de Ads' },
+      { key: 'contexto', label: '🧠 Contexto IA' },
     ];
     const tabBtns = tabs.map((t, i) => `
       <button onclick="AtencionCliente._switchTab('${t.key}')" data-tab="${t.key}"
@@ -160,6 +161,7 @@ const AtencionCliente = (() => {
             <div id="ac-panel-flujos" class="ac-panel" style="display:none"></div>
             <div id="ac-panel-conversaciones" class="ac-panel" style="display:none"></div>
             <div id="ac-panel-leads" class="ac-panel" style="display:none"></div>
+            <div id="ac-panel-contexto" class="ac-panel" style="display:none"></div>
           </div>
         </div>
       </div>`);
@@ -205,6 +207,31 @@ const AtencionCliente = (() => {
     } catch (e) {
       panel.innerHTML = `<p class="text-red-400 text-sm">${_esc(e.message)}</p>`;
     }
+  }
+
+  // ── Contexto de negocio para IA (nodo "ai" y respuesta con IA a comentarios) ──
+
+  async function loadContextoTab() {
+    const panel = document.getElementById('ac-panel-contexto');
+    panel.innerHTML = `
+      <p class="text-sm text-slate-400 mb-3">
+        Contá acá lo básico del negocio de este cliente (servicios, horarios, precios, tono
+        de voz). Lo usa cualquier nodo "🤖 Respuesta IA" de sus flujos y la opción "Responder
+        con IA" del disparador de comentarios, para que la IA responda con información real
+        en vez de inventar datos.
+      </p>
+      <textarea id="ac-ai-context" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm" rows="10" placeholder="Ej: Somos una peluquería en Barranquilla, abierto lunes a sábado de 9am a 7pm. Servicios: corte, color, alisado. Precios desde $30.000. No hacemos servicios a domicilio.">${_esc(activeClient.ai_context || '')}</textarea>
+      <button id="ac-ai-context-save" class="mt-3 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">Guardar contexto</button>`;
+    document.getElementById('ac-ai-context-save').onclick = async () => {
+      const ai_context = document.getElementById('ac-ai-context').value;
+      try {
+        await api('api/clients.php', { method: 'PUT', body: JSON.stringify({ id: activeClient.id, ai_context }) });
+        activeClient.ai_context = ai_context;
+        Utils.showToast('Contexto guardado', 'success');
+      } catch (e) {
+        Utils.showToast(e.message, 'danger');
+      }
+    };
   }
 
   function renderAccountRow(label, icon, account) {

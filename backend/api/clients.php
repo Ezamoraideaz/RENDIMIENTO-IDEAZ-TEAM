@@ -16,7 +16,7 @@ function slugify(string $name): string
 switch ($method) {
     case 'GET':
         $stmt = $pdo->query('
-            SELECT c.id, c.name, c.slug, c.logo_url, c.timezone, c.status, c.created_at,
+            SELECT c.id, c.name, c.slug, c.logo_url, c.timezone, c.ai_context, c.status, c.created_at,
                    (SELECT COUNT(*) FROM social_accounts sa WHERE sa.client_id = c.id AND sa.status = "active") AS connected_accounts
             FROM clients c
             ORDER BY c.name ASC
@@ -57,7 +57,7 @@ switch ($method) {
         }
         $fields = [];
         $values = [];
-        foreach (['name', 'logo_url', 'timezone', 'status'] as $field) {
+        foreach (['name', 'logo_url', 'timezone', 'ai_context', 'status'] as $field) {
             if (array_key_exists($field, $input)) {
                 $fields[] = "{$field} = ?";
                 $values[] = $input[$field];

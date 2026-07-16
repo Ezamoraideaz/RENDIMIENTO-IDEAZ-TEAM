@@ -20,6 +20,10 @@ define('META_APP_SECRET', '');
 // Generar con: php -r "echo bin2hex(random_bytes(16)), PHP_EOL;"
 define('WEBHOOK_VERIFY_TOKEN', '');
 
+// Groq (console.groq.com → API Keys) — capa gratuita, usada por el nodo de IA y la
+// respuesta con IA a comentarios en el constructor de flujos
+define('GROQ_API_KEY', '');
+
 // URL pública donde vive el dashboard, SIN slash final
 define('APP_BASE_URL', 'https://marketingdigitalideaz.com/dashboard');
 define('OAUTH_REDIRECT_URI', APP_BASE_URL . '/backend/oauth/facebook_callback.php');

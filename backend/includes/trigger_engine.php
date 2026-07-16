@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/ai_responder.php';
+
 // Recibe eventos ya verificados del webhook, resuelve cuenta/contacto/conversación,
 // hace matching contra los flujos activos de esa cuenta y ejecuta la cadena de nodos
 // hasta un nodo de retraso (delegado a scheduled_actions + cron de la Fase 3) o hasta
@@ -159,6 +161,20 @@ class TriggerEngine
                 $publicReplies = [trim((string)$config['public_reply'])]; // compat: flujos con el campo viejo (una sola respuesta)
             }
             $publicReply = $publicReplies ? $publicReplies[array_rand($publicReplies)] : '';
+
+            // Respuesta pública con IA (opcional, configurada en el nodo): reemplaza la
+            // variante estática elegida arriba. Si el comentario contiene alguna palabra
+            // de la lista de bloqueo, o la IA falla, se mantiene la variante estática
+            // (o ninguna respuesta pública, si tampoco hay variantes configuradas).
+            if (!empty($config['ai_enabled'])) {
+                $businessContext = self::loadClientAiContext((int)$account['id']);
+                $maxChars = max(1, (int)($config['ai_max_chars'] ?? 300));
+                $blocklist = $config['ai_blocklist'] ?? [];
+                $aiReply = AiResponder::generateCommentReply($businessContext, $text, $maxChars, $blocklist);
+                if ($aiReply !== null) {
+                    $publicReply = $aiReply;
+                }
+            }
 
             $graph = self::loadGraph((int)$trigger['flow_id']);
             $node  = self::findNode($graph, $trigger['node_id']);
@@ -398,6 +414,23 @@ class TriggerEngine
                 continue;
             }
 
+            // Respuesta con IA: interpreta el mensaje libre del usuario usando el
+            // contexto de negocio del cliente y un historial corto de la conversación.
+            // Si la IA no responde (sin API key, error, timeout), se sigue de largo sin
+            // enviar nada — no rompe el flujo.
+            if ($node['type'] === 'ai') {
+                $businessContext = self::loadClientAiContext((int)$conversation['social_account_id']);
+                $history = self::loadRecentMessages((int)$conversation['id'], 6);
+                $maxChars = max(1, (int)($node['data']['max_chars'] ?? 500));
+                $reply = AiResponder::generateNodeReply($businessContext, $history, $maxChars);
+                if ($reply !== null) {
+                    self::sendOutbound($platform, $pageToken, self::recipientId($conversation), $reply);
+                    self::recordMessage($conversation['id'], 'out', 'text', $reply, null, 'flow');
+                }
+                $node = self::nextNode($graph, $node['id']);
+                continue;
+            }
+
             // Encuesta de satisfacción (CSAT): 5 salidas fijas, una por calificación
             // (1=😡 … 5=😍). El rating elegido se guarda en continueFromOutput().
             if ($node['type'] === 'csat') {
@@ -523,6 +556,35 @@ class TriggerEngine
         $end   = (string)($data['end'] ?? '18:00');
         $time  = $now->format('H:i');
         return $time >= $start && $time < $end;
+    }
+
+    // Contexto de negocio libre configurado por el cliente (pestaña "Contexto IA" del
+    // panel), usado por el nodo "ai" y por la respuesta con IA a comentarios.
+    private static function loadClientAiContext(int $socialAccountId): string
+    {
+        $stmt = db()->prepare('
+            SELECT c.ai_context FROM clients c
+            JOIN social_accounts sa ON sa.client_id = c.id
+            WHERE sa.id = ?
+        ');
+        $stmt->execute([$socialAccountId]);
+        return (string)($stmt->fetchColumn() ?: '');
+    }
+
+    // Últimos mensajes de la conversación, en orden cronológico, para darle memoria
+    // corta al nodo "ai" sin tener que rediseñar cómo se llama executeFromNode().
+    private static function loadRecentMessages(int $conversationId, int $limit): array
+    {
+        $stmt = db()->prepare('
+            SELECT direction, content FROM messages
+            WHERE conversation_id = ?
+            ORDER BY id DESC
+            LIMIT ?
+        ');
+        $stmt->bindValue(1, $conversationId, PDO::PARAM_INT);
+        $stmt->bindValue(2, $limit, PDO::PARAM_INT);
+        $stmt->execute();
+        return array_reverse($stmt->fetchAll());
     }
 
     private static function notifyTeam(array $data, array $conversation): void
