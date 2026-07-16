@@ -110,7 +110,7 @@ card.closed       // boolean — si está archivada
 
 ### Login y roles (control de acceso)
 - Todo el sitio requiere sesión: `login.html` + cookie de sesión PHP (la misma del módulo Atención al Cliente). `js/session.js` redirige a login si no hay sesión y aplica permisos por página.
-- Roles (tabla `operators`): `superadmin` (todo + gestión de usuarios y credenciales), `admin` (todo menos usuarios), `agenda_full` (solo agenda), `agenda_member` (agenda + monitor, bloqueado a su miembro de Trello), `cm` (agenda + configuración solo Drive/carpetas), `agent` (solo Atención al Cliente).
+- Roles (tabla `operators`): `superadmin` (todo + gestión de usuarios y credenciales), `admin` (todo menos usuarios), `agenda_full` (solo agenda), `agenda_member` (agenda + monitor, bloqueado a su miembro de Trello), `cm` (agenda + configuración solo Drive/carpetas + monitor, bloqueado a sus propias faltas), `agent` (solo Atención al Cliente).
 - Los usuarios se gestionan en `configuracion.html` → sección "Usuarios" (solo superadmin), vía `backend/api/users.php`.
 - Las URLs de acceso antiguas (`?access=` con credenciales en base64) fueron eliminadas; `js/auth.js` es ahora un adaptador de permisos sobre `Session`.
 - Página nueva = incluir `js/session.js`, envolver la inicialización en `Session.ready.then(...)` y registrar la página en los mapas de `js/session.js` (`PAGE_BY_FILE`, `ACCESS`, `FILE_BY_PAGE`).

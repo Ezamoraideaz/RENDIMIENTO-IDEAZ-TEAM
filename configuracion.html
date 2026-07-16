@@ -312,7 +312,7 @@
             class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 w-full">
             <option value="">— Carga los datos de Trello primero —</option>
           </select>
-          <p class="text-xs text-slate-500 mt-1">Este usuario solo verá tareas asignadas a este miembro, sin poder cambiarlo. Al seleccionarlo se autocompleta el nombre con el de Trello.</p>
+          <p id="new-user-member-hint" class="text-xs text-slate-500 mt-1"></p>
         </div>
       </div>
       <div class="mt-4">
@@ -896,10 +896,16 @@
     { value: 'admin',         label: '🛠 Administrador — todo excepto gestión de usuarios' },
     { value: 'agenda_full',   label: '📅 Agenda completa — todos los filtros disponibles' },
     { value: 'agenda_member', label: '👤 Agenda bloqueada — solo ve sus propias tareas' },
-    { value: 'cm',            label: '🎨 CM — Drive + Carpetas + Agenda' },
+    { value: 'cm',            label: '🎨 CM — Drive + Carpetas + Agenda + Monitor (solo sus fallas)' },
     { value: 'agent',         label: '💬 Agente — solo Atención al Cliente' },
     { value: 'superadmin',    label: '👑 Superadministrador — control total' },
   ];
+  // Roles que requieren vincularse a un miembro de Trello (bloquean su vista al Monitor/Agenda a ese miembro)
+  const ROLES_WITH_MEMBER_LINK = ['agenda_member', 'cm'];
+  const MEMBER_LINK_HINT = {
+    agenda_member: 'Este usuario solo verá tareas asignadas a este miembro, sin poder cambiarlo. Al seleccionarlo se autocompleta el nombre con el de Trello.',
+    cm: 'En el Monitor de Faltas, este CM solo verá sus propias faltas. Al seleccionarlo se autocompleta el nombre con el de Trello.',
+  };
   let _users = [];
 
   function _escHTML(s) {
@@ -960,7 +966,7 @@
           </select>
         </td>
         <td class="px-4 py-3">
-          ${u.role === 'agenda_member' ? `
+          ${ROLES_WITH_MEMBER_LINK.includes(u.role) ? `
           <select onchange="updateUser(${u.id}, { trello_member_id: this.value })"
             class="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500">
             ${_memberOptionsHTML(u.trello_member_id)}
@@ -986,9 +992,11 @@
   function toggleNewUserMemberRow() {
     const role = document.getElementById('new-user-role').value;
     const row = document.getElementById('new-user-member-row');
-    row.style.display = role === 'agenda_member' ? 'block' : 'none';
-    if (role === 'agenda_member') {
+    const show = ROLES_WITH_MEMBER_LINK.includes(role);
+    row.style.display = show ? 'block' : 'none';
+    if (show) {
       document.getElementById('new-user-member').innerHTML = _memberOptionsHTML('');
+      document.getElementById('new-user-member-hint').textContent = MEMBER_LINK_HINT[role] || '';
     }
   }
 
@@ -1013,14 +1021,14 @@
 
     if (!email) { Utils.showToast('Ingresa el email del usuario', 'warning'); return; }
     if (password.length < 8) { Utils.showToast('La contraseña debe tener al menos 8 caracteres', 'warning'); return; }
-    if (role === 'agenda_member' && !memberId) {
+    if (ROLES_WITH_MEMBER_LINK.includes(role) && !memberId) {
       Utils.showToast('Selecciona el miembro de Trello para este usuario', 'warning'); return;
     }
 
     try {
       await Session.apiFetch('api/users.php', {
         method: 'POST',
-        body: JSON.stringify({ name, email, password, role, trello_member_id: role === 'agenda_member' ? memberId : '' }),
+        body: JSON.stringify({ name, email, password, role, trello_member_id: ROLES_WITH_MEMBER_LINK.includes(role) ? memberId : '' }),
       });
       Utils.showToast('Usuario creado ✓', 'success');
       ['new-user-name', 'new-user-email', 'new-user-password'].forEach(id => document.getElementById(id).value = '');
