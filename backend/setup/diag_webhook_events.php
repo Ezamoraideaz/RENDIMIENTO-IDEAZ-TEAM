@@ -67,6 +67,16 @@ $triggers = $pdo->query('
     ORDER BY ft.flow_id DESC, ft.priority DESC
 ')->fetchAll();
 
+$conversations = $pdo->query('
+    SELECT conv.id, c.psid, c.platform, conv.status, conv.active_flow_id, conv.current_node_id,
+           conv.last_inbound_at, conv.window_expires_at, conv.human_agent_tag_until, conv.state_vars,
+           conv.updated_at
+    FROM conversations conv
+    JOIN contacts c ON c.id = conv.contact_id
+    ORDER BY conv.id DESC
+    LIMIT 15
+')->fetchAll();
+
 header('Content-Type: text/plain; charset=utf-8');
 
 echo "⚠️ Borra este archivo del servidor cuando termines — expone contenido de conversaciones de clientes.\n\n";
@@ -134,5 +144,23 @@ foreach ($triggers as $t) {
         . ' | ' . ($t['active'] ? 'sí' : '**no**')
         . ' | ' . (int)$t['priority']
         . ' | ' . md((string)$t['match_config'], 300)
+        . " |\n";
+}
+
+echo "\n## conversations (últimas 15)\n\n";
+echo "| id | psid | plataforma | status | active_flow_id | current_node_id | last_inbound_at | window_expires_at | human_agent_tag_until | state_vars | updated_at |\n";
+echo "|---|---|---|---|---|---|---|---|---|---|---|\n";
+foreach ($conversations as $c) {
+    echo '| ' . (int)$c['id']
+        . ' | ' . md((string)$c['psid'])
+        . ' | ' . md((string)$c['platform'])
+        . ' | ' . ($c['status'] === 'open' ? $c['status'] : '**' . $c['status'] . '**')
+        . ' | ' . md((string)($c['active_flow_id'] ?? ''))
+        . ' | ' . md((string)($c['current_node_id'] ?? ''))
+        . ' | ' . md((string)$c['last_inbound_at'])
+        . ' | ' . md((string)$c['window_expires_at'])
+        . ' | ' . md((string)$c['human_agent_tag_until'])
+        . ' | ' . md((string)$c['state_vars'], 200)
+        . ' | ' . md((string)$c['updated_at'])
         . " |\n";
 }
