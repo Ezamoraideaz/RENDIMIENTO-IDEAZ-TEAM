@@ -196,9 +196,9 @@ const FlowBuilder = (() => {
         <label class="text-xs text-slate-500">Plataforma</label>
         ${scopeSelectHtml(data)}
         <p class="text-xs text-slate-600 mt-3">Quien comenta recibe el primer mensaje del flujo <strong>por privado</strong>. Si responde al DM, el flujo continúa con los nodos siguientes. El comentario público (si configuraste alguno abajo) siempre se manda de inmediato, con prioridad.</p>
-        <label class="text-xs text-slate-500 mt-3 block">Retraso antes de enviar el DM privado (minutos)</label>
-        <input id="insp-dm-delay" type="number" min="0" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm mt-1" value="${data.dm_delay_minutes || 0}">
-        <p class="text-xs text-slate-600 mt-1 mb-3">0 = inmediato. Un pequeño retraso (ej. 2-5 min) se siente menos robótico.</p>
+        <label class="text-xs text-slate-500 mt-3 block">Retraso antes de enviar el DM privado (horas:minutos)</label>
+        <input id="insp-dm-delay" type="time" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm mt-1" value="${minutesToHHMM(data.dm_delay_minutes || 0)}">
+        <p class="text-xs text-slate-600 mt-1 mb-3">00:00 = inmediato. Un pequeño retraso (ej. 00:02) se siente menos robótico.</p>
         <label class="flex items-center gap-2 text-xs text-slate-400 mt-3">
           <input type="checkbox" id="insp-ai-enabled" ${data.ai_enabled ? 'checked' : ''}>
           Responder el DM privado con IA (en vez del texto fijo o el nodo conectado)
@@ -226,7 +226,7 @@ const FlowBuilder = (() => {
         setStatusText('Sin guardar');
       };
       bindScopeSelect(nodeId, data);
-      bindInput('insp-dm-delay', (v) => { data.dm_delay_minutes = Math.max(0, parseInt(v, 10) || 0); }, nodeId, type, data);
+      bindInput('insp-dm-delay', (v) => { data.dm_delay_minutes = hhmmToMinutes(v); }, nodeId, type, data);
       if (!data.public_replies) data.public_replies = data.public_reply ? [data.public_reply] : [''];
       panel.querySelectorAll('[data-reply]').forEach((textarea) => {
         textarea.oninput = (e) => {
@@ -618,6 +618,20 @@ const FlowBuilder = (() => {
   }
 
   // ── Helpers de inspector ───────────────────────────────────────────────────
+
+  // Convierte minutos totales (lo que se guarda y consume en el backend) a
+  // "HH:MM" para el input type="time" — evita el error humano de escribir un
+  // número de minutos ambiguo (ej. "130" vs. "2:10").
+  function minutesToHHMM(totalMinutes) {
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+  }
+
+  function hhmmToMinutes(value) {
+    const [h, m] = String(value || '00:00').split(':').map((n) => parseInt(n, 10) || 0);
+    return h * 60 + m;
+  }
 
   function scopeSelectHtml(data) {
     return `<select id="insp-scope" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm mt-1">
