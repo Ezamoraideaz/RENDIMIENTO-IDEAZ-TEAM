@@ -308,11 +308,11 @@
         </div>
         <div id="new-user-member-row" style="display:none" class="md:col-span-2">
           <label class="block text-xs text-slate-400 font-medium mb-1">Miembro del equipo (Trello)</label>
-          <select id="new-user-member"
+          <select id="new-user-member" onchange="onNewUserMemberChange()"
             class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 w-full">
             <option value="">— Carga los datos de Trello primero —</option>
           </select>
-          <p class="text-xs text-slate-500 mt-1">Este usuario solo verá tareas asignadas a este miembro, sin poder cambiarlo.</p>
+          <p class="text-xs text-slate-500 mt-1">Este usuario solo verá tareas asignadas a este miembro, sin poder cambiarlo. Al seleccionarlo se autocompleta el nombre con el de Trello.</p>
         </div>
       </div>
       <div class="mt-4">
@@ -1060,6 +1060,18 @@
     row.style.display = role === 'agenda_member' ? 'block' : 'none';
     if (role === 'agenda_member') {
       document.getElementById('new-user-member').innerHTML = _memberOptionsHTML('');
+    }
+  }
+
+  // Vincular un usuario nuevo a su fila existente en "Equipo": al elegir el
+  // miembro de Trello, autocompleta el nombre (si el campo sigue vacío) para
+  // evitar que quede un nombre distinto al de Trello para la misma persona.
+  function onNewUserMemberChange() {
+    const memberId = document.getElementById('new-user-member').value;
+    const nameInput = document.getElementById('new-user-name');
+    const member = allMembers[memberId];
+    if (member && !nameInput.value.trim()) {
+      nameInput.value = member.fullName;
     }
   }
 
