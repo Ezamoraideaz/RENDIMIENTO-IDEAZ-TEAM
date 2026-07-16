@@ -196,7 +196,17 @@ const FlowBuilder = (() => {
         <label class="text-xs text-slate-500">Plataforma</label>
         ${scopeSelectHtml(data)}
         <p class="text-xs text-slate-600 mt-3">Quien comenta recibe el primer mensaje del flujo <strong>por privado</strong>. Si responde al DM, el flujo continúa con los nodos siguientes.</p>
-        <label class="text-xs text-slate-500 mt-3 block">Respuestas públicas en el comentario (opcional) — se publica <strong>una al azar</strong></label>
+        <label class="flex items-center gap-2 text-xs text-slate-400 mt-3">
+          <input type="checkbox" id="insp-ai-enabled" ${data.ai_enabled ? 'checked' : ''}>
+          Responder el DM privado con IA (en vez del texto fijo o el nodo conectado)
+        </label>
+        <div id="insp-ai-wrap" class="mt-2" style="${data.ai_enabled ? '' : 'display:none'}">
+          <label class="text-xs text-slate-500">Máximo de caracteres de la respuesta privada</label>
+          <input id="insp-ai-max-chars" type="number" min="1" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm mt-1 mb-3" value="${data.ai_max_chars || 300}">
+          <label class="text-xs text-slate-500">Palabras/temas a evitar (separados por coma) — si el comentario contiene alguna, se usa el texto fijo/nodo conectado en su lugar</label>
+          <textarea id="insp-ai-blocklist" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm mt-1" rows="2">${(data.ai_blocklist || []).join(', ')}</textarea>
+        </div>
+        <label class="text-xs text-slate-500 mt-4 block">Respuestas públicas en el comentario (opcional) — se publica <strong>una al azar</strong></label>
         <div id="insp-public-replies" class="flex flex-col gap-2 mt-1 mb-2">
           ${(data.public_replies || (data.public_reply ? [data.public_reply] : [''])).map((r, i) => `
             <div class="flex gap-1">
@@ -205,17 +215,7 @@ const FlowBuilder = (() => {
             </div>`).join('')}
         </div>
         <button id="insp-add-reply" class="text-indigo-400 hover:text-indigo-300 text-xs font-semibold">+ Agregar variante</button>
-        <p class="text-xs text-slate-600 mt-2">Además de la respuesta privada, publica <strong>una de estas variantes elegida al azar</strong>, visible en el propio comentario. Usar varias frases distintas (en vez de repetir siempre la misma) ayuda a que no se vea como respuesta automática.</p>
-        <label class="flex items-center gap-2 text-xs text-slate-400 mt-4">
-          <input type="checkbox" id="insp-ai-enabled" ${data.ai_enabled ? 'checked' : ''}>
-          Responder el comentario público con IA (en vez de las variantes de arriba)
-        </label>
-        <div id="insp-ai-wrap" class="mt-2" style="${data.ai_enabled ? '' : 'display:none'}">
-          <label class="text-xs text-slate-500">Máximo de caracteres de la respuesta</label>
-          <input id="insp-ai-max-chars" type="number" min="1" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm mt-1 mb-3" value="${data.ai_max_chars || 300}">
-          <label class="text-xs text-slate-500">Palabras/temas a evitar (separados por coma) — si el comentario contiene alguna, no se responde con IA</label>
-          <textarea id="insp-ai-blocklist" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm mt-1" rows="2">${(data.ai_blocklist || []).join(', ')}</textarea>
-        </div>`;
+        <p class="text-xs text-slate-600 mt-2">Además de la respuesta privada, publica <strong>una de estas variantes elegida al azar</strong>, visible en el propio comentario (siempre texto fijo, nunca generado por IA, para no exponer info del negocio en público). Usar varias frases distintas ayuda a que no se vea como respuesta automática.</p>`;
       document.getElementById('insp-keywords').oninput = (e) => {
         data.keywords = e.target.value.split(',').map((s) => s.trim()).filter(Boolean);
         editor.updateNodeDataFromId(nodeId, data);

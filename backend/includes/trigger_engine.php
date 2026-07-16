@@ -162,20 +162,6 @@ class TriggerEngine
             }
             $publicReply = $publicReplies ? $publicReplies[array_rand($publicReplies)] : '';
 
-            // Respuesta pública con IA (opcional, configurada en el nodo): reemplaza la
-            // variante estática elegida arriba. Si el comentario contiene alguna palabra
-            // de la lista de bloqueo, o la IA falla, se mantiene la variante estática
-            // (o ninguna respuesta pública, si tampoco hay variantes configuradas).
-            if (!empty($config['ai_enabled'])) {
-                $businessContext = self::loadClientAiContext((int)$account['id']);
-                $maxChars = max(1, (int)($config['ai_max_chars'] ?? 300));
-                $blocklist = $config['ai_blocklist'] ?? [];
-                $aiReply = AiResponder::generateCommentReply($businessContext, $text, $maxChars, $blocklist);
-                if ($aiReply !== null) {
-                    $publicReply = $aiReply;
-                }
-            }
-
             $graph = self::loadGraph((int)$trigger['flow_id']);
             $node  = self::findNode($graph, $trigger['node_id']);
             if ($node && $node['type'] === 'message') {
@@ -187,6 +173,21 @@ class TriggerEngine
                 // El primer nodo no es un mensaje simple (p.ej. botones/pregunta): la respuesta
                 // privada invita a continuar y el resto del flujo corre cuando responda.
                 $resumeNode = $node;
+            }
+
+            // Respuesta privada (DM) con IA (opcional, configurada en el nodo): reemplaza
+            // el texto fijo o el del nodo conectado de arriba — el comentario público se
+            // queda con el texto genérico/variantes estáticas, para no exponer info del
+            // negocio ante cualquiera que vea el post. Si el comentario contiene alguna
+            // palabra de la lista de bloqueo, o la IA falla, se mantiene el texto anterior.
+            if (!empty($config['ai_enabled'])) {
+                $businessContext = self::loadClientAiContext((int)$account['id']);
+                $maxChars = max(1, (int)($config['ai_max_chars'] ?? 300));
+                $blocklist = $config['ai_blocklist'] ?? [];
+                $aiReply = AiResponder::generateCommentReply($businessContext, $text, $maxChars, $blocklist);
+                if ($aiReply !== null) {
+                    $replyText = $aiReply;
+                }
             }
         }
 

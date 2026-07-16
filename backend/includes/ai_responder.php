@@ -69,9 +69,12 @@ class AiResponder
         return mb_substr($reply, 0, $maxChars);
     }
 
-    // Respuesta pública automática a un comentario de Instagram/Facebook. Antes de
-    // llamar a la IA, filtra por lista de palabras a evitar — si el comentario la
-    // contiene, no se genera respuesta (el llamador cae al comportamiento estático).
+    // Respuesta privada (DM) automática a alguien que comentó en una publicación de
+    // Instagram/Facebook — el comentario público se queda con un texto genérico/estático
+    // para no exponer info del negocio ante cualquiera que vea el post; esta respuesta
+    // detallada va solo por privado. Antes de llamar a la IA, filtra por lista de
+    // palabras a evitar — si el comentario la contiene, no se genera respuesta (el
+    // llamador cae al texto fijo o al del nodo conectado).
     public static function generateCommentReply(string $businessContext, string $commentText, int $maxChars, array $blocklist): ?string
     {
         $needle = mb_strtolower($commentText);
@@ -83,7 +86,7 @@ class AiResponder
         }
 
         $system = "Sos el asistente de atención al cliente de este negocio, respondiendo "
-            . "públicamente a un comentario de una publicación. Contexto del negocio:\n\n"
+            . "por mensaje privado a alguien que comentó en una publicación. Contexto del negocio:\n\n"
             . ($businessContext !== '' ? $businessContext : '(sin contexto configurado — respondé de forma genérica y cordial)')
             . "\n\nRespondé breve y en tono profesional, máximo {$maxChars} caracteres. "
             . "No inventes precios, horarios ni datos que no estén en el contexto.";

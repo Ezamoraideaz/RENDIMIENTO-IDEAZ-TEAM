@@ -1,9 +1,11 @@
-# Evita que el navegador cachee las páginas HTML del dashboard.
+# Evita que el navegador cachee las páginas HTML/JS/CSS del dashboard.
 # Sin esto, tras cada deploy los usuarios pueden seguir viendo una versión
-# vieja de una página (ej. proyecto.html) hasta que el caché expira por su
-# cuenta, causando bugs "fantasma" que ya fueron corregidos en el código.
+# vieja de una página o de un script (ej. flowBuilder.js) hasta que el caché
+# expira por su cuenta, causando bugs "fantasma" que ya fueron corregidos en
+# el código. Sitio pequeño, sin build step ni cache-busting por versión —
+# preferimos consistencia sobre el ahorro de caché.
 <IfModule mod_headers.c>
-  <FilesMatch "\.html$">
+  <FilesMatch "\.(html|js|css)$">
     Header set Cache-Control "no-cache, must-revalidate"
   </FilesMatch>
 </IfModule>
