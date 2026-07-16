@@ -701,7 +701,14 @@ const FlowBuilder = (() => {
     flowId = null;
   }
 
-  return { load, save: saveDraft, publish, pause, destroy };
+  // Controles de zoom del lienzo (Drawflow ya soporta Ctrl+rueda del mouse, pero sin
+  // botones visibles no era descubrible — al crecer el flujo no había forma obvia de
+  // alejar la vista para seguir viendo/agregando nodos).
+  function zoomIn() { editor?.zoom_in(); }
+  function zoomOut() { editor?.zoom_out(); }
+  function zoomReset() { editor?.zoom_reset(); }
+
+  return { load, save: saveDraft, publish, pause, destroy, zoomIn, zoomOut, zoomReset };
 })();
 
 window.FlowBuilder = FlowBuilder;

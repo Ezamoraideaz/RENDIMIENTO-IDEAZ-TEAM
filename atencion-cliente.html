@@ -106,7 +106,13 @@
           <p class="text-[11px] text-slate-600 mt-2">Arrastra un nodo al lienzo. Conecta desde el punto de salida de un nodo al de entrada de otro.</p>
         </div>
         <!-- Canvas -->
-        <div id="drawflow" class="flex-1 relative"></div>
+        <div id="drawflow" class="flex-1 relative">
+          <div class="absolute bottom-4 right-4 z-10 flex items-center gap-1 bg-slate-900/90 border border-slate-700 rounded-lg p-1 shadow-lg">
+            <button onclick="FlowBuilder.zoomOut()" title="Alejar" class="w-8 h-8 flex items-center justify-center text-slate-300 hover:bg-slate-800 rounded-md text-lg font-bold">−</button>
+            <button onclick="FlowBuilder.zoomReset()" title="Restablecer zoom" class="px-2 h-8 flex items-center justify-center text-slate-400 hover:bg-slate-800 rounded-md text-xs font-semibold">100%</button>
+            <button onclick="FlowBuilder.zoomIn()" title="Acercar" class="w-8 h-8 flex items-center justify-center text-slate-300 hover:bg-slate-800 rounded-md text-lg font-bold">+</button>
+          </div>
+        </div>
         <!-- Inspector -->
         <div id="builder-inspector" class="w-72 border-l border-slate-700 bg-slate-900 p-4 flex-shrink-0 overflow-y-auto">
           <p class="text-slate-500 text-sm">Selecciona un nodo para editarlo.</p>
