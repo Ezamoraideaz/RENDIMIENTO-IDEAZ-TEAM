@@ -114,7 +114,7 @@ const TimeCalc = {
         member:       move.member,
         isActive,
         calendarMs,
-        isSameInterval:  i < movements.length - 1 && calendarMs < 5 * 60 * 1000,
+        isSameInterval:  i < movements.length - 1 && calendarMs < 2 * 60 * 1000,
         isOutsideHours:  isActive && this.isOutsideOfficeHours(periodStart),
         workingHours: isActive ? this.calcWorkingHours(periodStart, periodEnd) : 0
       };
