@@ -176,10 +176,15 @@ class MetaClient
         ], $pageAccessToken);
     }
 
+    // El sub-nodo /{comment_id}/private_replies solo existe para comentarios de
+    // Página de Facebook. Instagram no lo soporta (Meta responde "does not support
+    // this operation") — la respuesta privada a un comentario de Instagram se manda
+    // por el mismo endpoint de mensajería normal, con el comment_id como recipient.
     public static function sendPrivateReply(string $pageAccessToken, string $commentId, string $text): array
     {
-        return self::request('POST', "/{$commentId}/private_replies", [
-            'message' => $text,
+        return self::request('POST', '/me/messages', [
+            'recipient' => json_encode(['comment_id' => $commentId]),
+            'message'   => json_encode(['text' => $text]),
         ], $pageAccessToken);
     }
 
