@@ -26,6 +26,14 @@ const Auth = (() => {
     };
   }
 
+  // Páginas en las que cada rol queda bloqueado a su propio miembro de Trello.
+  // agenda_member: bloqueado en agenda y monitor (solo ve/cuenta lo suyo en ambas).
+  // cm: ve la agenda completa del equipo, pero en el Monitor solo sus propias faltas.
+  const LOCKED_PAGES = {
+    agenda_member: ['agenda', 'monitor'],
+    cm: ['monitor'],
+  };
+
   // page: 'dashboard' | 'proyecto' | 'agenda' | 'monitor' | 'pauta' |
   //       'atencion-cliente' | 'configuracion' | 'protocolo'
   // Mantiene la firma histórica ({allowed, role, name, lockedMemberId});
@@ -36,11 +44,12 @@ const Auth = (() => {
     if (!Session.canView(page)) {
       return { allowed: false, redirectTo: Session.defaultPage(user.dbRole) };
     }
+    const lockedPages = LOCKED_PAGES[user.dbRole] || [];
     return {
       allowed: true,
       role: user.role,
       name: user.name,
-      lockedMemberId: (user.dbRole === 'agenda_member' || user.dbRole === 'cm') ? user.memberId : null,
+      lockedMemberId: lockedPages.includes(page) ? user.memberId : null,
     };
   }
 

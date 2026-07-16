@@ -117,8 +117,8 @@ const Monitor = (() => {
       (byDay[day] = byDay[day] || []).push(m);
     }
     return Object.values(byDay).flatMap(moves => {
-      if (moves.length < 2) return [];
-      return moves.slice(1).flatMap(m => {
+      if (moves.length < 3) return [];
+      return moves.slice(2).flatMap(m => {
         const ids = m.member && n2id[m.member]
           ? [n2id[m.member]]
           : _byRole(card.idMembers, 'cm', roles);
@@ -126,7 +126,7 @@ const Monitor = (() => {
           projectId: boardId, projectName,
           cardId: card.id, cardName: card.name, shortLink: card.shortLink,
           date: m.date,
-          detail: `${moves.length}° movimiento a "Cambios" el ${m.date.toLocaleDateString('es-MX')} — deben agruparse en uno solo`
+          detail: `${moves.length}° movimiento a "Cambios" el ${m.date.toLocaleDateString('es-MX')} — máximo 2 movimientos por día`
         }));
       });
     });
