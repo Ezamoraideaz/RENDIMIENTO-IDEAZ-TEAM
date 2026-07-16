@@ -191,9 +191,13 @@ class MetaClient
     // Respuesta pública al propio comentario (visible para el resto de la comunidad,
     // a diferencia de sendPrivateReply que solo la ve quien comentó). Sube el engagement
     // del post y muestra a otros seguidores que la marca responde.
-    public static function replyToComment(string $pageAccessToken, string $commentId, string $text): array
+    // El edge difiere por plataforma: Instagram usa /replies, Facebook usa /comments
+    // (confirmado en Graph API Explorer — Instagram rechaza /comments con "does not
+    // support this operation", igual que pasaba con sendPrivateReply).
+    public static function replyToComment(string $pageAccessToken, string $commentId, string $text, string $platform = 'messenger'): array
     {
-        return self::request('POST', "/{$commentId}/comments", [
+        $edge = $platform === 'instagram' ? 'replies' : 'comments';
+        return self::request('POST', "/{$commentId}/{$edge}", [
             'message' => $text,
         ], $pageAccessToken);
     }
