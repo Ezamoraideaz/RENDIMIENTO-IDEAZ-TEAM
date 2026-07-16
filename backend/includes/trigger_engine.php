@@ -118,6 +118,14 @@ class TriggerEngine
             return;
         }
 
+        // Meta reenvía por webhook también los comentarios/respuestas que el propio
+        // bot publica (respuesta pública a comentario, o una respuesta anidada). Sin
+        // este filtro, el bot podría terminar respondiéndose a sí mismo en bucle si
+        // el texto de su propia respuesta llega a coincidir con algún trigger.
+        if ($commenterId === $pageId) {
+            return;
+        }
+
         $account = self::findAccount($platform, $pageId);
         if (!$account) {
             return;

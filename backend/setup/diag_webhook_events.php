@@ -74,7 +74,7 @@ $conversations = $pdo->query('
     FROM conversations conv
     JOIN contacts c ON c.id = conv.contact_id
     ORDER BY conv.id DESC
-    LIMIT 15
+    LIMIT 40
 ')->fetchAll();
 
 header('Content-Type: text/plain; charset=utf-8');
