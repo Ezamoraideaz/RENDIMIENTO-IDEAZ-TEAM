@@ -7,4 +7,5 @@ backend/config.php
 ideaz-chatbot/
 backend/*.zip
 backend/notas/
+backend/storage/
 capturas/

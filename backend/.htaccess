@@ -7,7 +7,7 @@
 # Bloquea acceso directo a carpetas que no son endpoints HTTP
 <IfModule mod_rewrite.c>
     RewriteEngine On
-    RewriteRule ^(includes|sql|cli)/ - [F,L]
+    RewriteRule ^(includes|sql|cli|storage)/ - [F,L]
 </IfModule>
 
 Options -Indexes
