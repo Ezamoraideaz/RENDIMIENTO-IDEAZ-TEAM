@@ -70,6 +70,10 @@ function rebuild_flow_triggers(PDO $pdo, int $flowId, array $graph): void
                 static fn($t) => trim((string)$t),
                 $node['data']['ai_blocklist'] ?? []
             ), static fn($t) => $t !== ''));
+
+            // Retraso antes de enviar el DM privado (minutos, 0 = inmediato); el
+            // comentario público siempre se manda de inmediato, sin retraso.
+            $matchConfig['dm_delay_minutes'] = max(0, (int)($node['data']['dm_delay_minutes'] ?? 0));
         }
         $insert->execute([$flowId, $scope, $type, json_encode($matchConfig), $nextId ?? '', $priority]);
         $priority++;

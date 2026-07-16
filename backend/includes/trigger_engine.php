@@ -191,14 +191,32 @@ class TriggerEngine
             }
         }
 
-        MetaClient::sendPrivateReply($pageToken, (string)$commentId, $replyText);
-        self::recordMessage($conversation['id'], 'out', 'private_reply', $replyText, null, 'flow');
-
-        // Respuesta pública opcional (visible en el post, sube el engagement de la
-        // comunidad), configurada en el propio nodo disparador "Comentario en post".
+        // Respuesta pública primero (prioridad): visible en el post de inmediato, sube
+        // el engagement de la comunidad — configurada en el propio nodo disparador.
         if ($publicReply !== '') {
             MetaClient::replyToComment($pageToken, (string)$commentId, $publicReply, $platform);
             self::recordMessage($conversation['id'], 'out', 'comment_reply', $publicReply, null, 'flow');
+        }
+
+        // DM privado: inmediato por defecto, o programado si el nodo tiene un retraso
+        // configurado (se siente menos robótico que una respuesta instantánea). Se
+        // reutiliza scheduled_actions + el cron de la Fase 3 con un payload de tipo
+        // "comment_private_reply" en vez de un nodo de flujo.
+        $dmDelayMinutes = $trigger ? max(0, (int)($config['dm_delay_minutes'] ?? 0)) : 0;
+        if ($dmDelayMinutes > 0) {
+            db()->prepare('
+                INSERT INTO scheduled_actions (conversation_id, flow_id, node_id, run_at, status, payload_json)
+                VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL ? MINUTE), "pending", ?)
+            ')->execute([
+                $conversation['id'],
+                (int)$trigger['flow_id'],
+                (string)$trigger['node_id'],
+                $dmDelayMinutes,
+                json_encode(['type' => 'comment_private_reply', 'comment_id' => $commentId, 'text' => $replyText, 'platform' => $platform]),
+            ]);
+        } else {
+            MetaClient::sendPrivateReply($pageToken, (string)$commentId, $replyText);
+            self::recordMessage($conversation['id'], 'out', 'private_reply', $replyText, null, 'flow');
         }
 
         if ($trigger && $resumeNode !== null) {
@@ -824,6 +842,27 @@ class TriggerEngine
 
         $pageToken = self::decryptAccountToken($account);
         self::executeFromNode($flowId, $nodeId, $conversation, $platform, $pageToken);
+        return 'sent';
+    }
+
+    // Respuesta privada a un comentario con retraso configurado (llamado por el cron,
+    // en vez de reanudar un nodo de flujo). Usa el mismo endpoint de "una sola respuesta
+    // privada por comentario" que la versión inmediata, solo que más tarde.
+    public static function runScheduledCommentPrivateReply(int $conversationId, string $commentId, string $text): string
+    {
+        $conversation = self::loadConversation($conversationId);
+        if (!$conversation) {
+            return 'cancelled';
+        }
+
+        $account = self::loadAccountForConversation($conversation);
+        if (!$account) {
+            return 'failed';
+        }
+
+        $pageToken = self::decryptAccountToken($account);
+        MetaClient::sendPrivateReply($pageToken, $commentId, $text);
+        self::recordMessage($conversationId, 'out', 'private_reply', $text, null, 'flow');
         return 'sent';
     }
 

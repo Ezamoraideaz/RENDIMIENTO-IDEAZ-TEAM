@@ -9,7 +9,7 @@ const FlowBuilder = (() => {
 
   const NODE_DEFS = {
     trigger_keyword:          { title: '🎯 Palabra clave',      inputs: 0, outputs: 1, defaultData: { keywords: [], platform_scope: 'both' } },
-    trigger_comment:          { title: '💭 Comentario en post', inputs: 0, outputs: 1, defaultData: { keywords: [], platform_scope: 'both', public_replies: [''], ai_enabled: false, ai_max_chars: 300, ai_blocklist: [] } },
+    trigger_comment:          { title: '💭 Comentario en post', inputs: 0, outputs: 1, defaultData: { keywords: [], platform_scope: 'both', public_replies: [''], ai_enabled: false, ai_max_chars: 300, ai_blocklist: [], dm_delay_minutes: 0 } },
     trigger_new_conversation: { title: '✨ Nueva conversación', inputs: 0, outputs: 1, defaultData: { platform_scope: 'both' } },
     trigger_story_reply:      { title: '📖 Respuesta a historia', inputs: 0, outputs: 1, defaultData: { keywords: [], platform_scope: 'instagram' } },
     trigger_ad_message:       { title: '📢 Anuncio "Enviar mensaje"', inputs: 0, outputs: 1, defaultData: { keywords: [], platform_scope: 'both' } },
@@ -195,7 +195,10 @@ const FlowBuilder = (() => {
         <p class="text-xs text-slate-600 mb-3">Déjalo vacío para responder a <strong>cualquier</strong> comentario.</p>
         <label class="text-xs text-slate-500">Plataforma</label>
         ${scopeSelectHtml(data)}
-        <p class="text-xs text-slate-600 mt-3">Quien comenta recibe el primer mensaje del flujo <strong>por privado</strong>. Si responde al DM, el flujo continúa con los nodos siguientes.</p>
+        <p class="text-xs text-slate-600 mt-3">Quien comenta recibe el primer mensaje del flujo <strong>por privado</strong>. Si responde al DM, el flujo continúa con los nodos siguientes. El comentario público (si configuraste alguno abajo) siempre se manda de inmediato, con prioridad.</p>
+        <label class="text-xs text-slate-500 mt-3 block">Retraso antes de enviar el DM privado (minutos)</label>
+        <input id="insp-dm-delay" type="number" min="0" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm mt-1" value="${data.dm_delay_minutes || 0}">
+        <p class="text-xs text-slate-600 mt-1 mb-3">0 = inmediato. Un pequeño retraso (ej. 2-5 min) se siente menos robótico.</p>
         <label class="flex items-center gap-2 text-xs text-slate-400 mt-3">
           <input type="checkbox" id="insp-ai-enabled" ${data.ai_enabled ? 'checked' : ''}>
           Responder el DM privado con IA (en vez del texto fijo o el nodo conectado)
@@ -223,6 +226,7 @@ const FlowBuilder = (() => {
         setStatusText('Sin guardar');
       };
       bindScopeSelect(nodeId, data);
+      bindInput('insp-dm-delay', (v) => { data.dm_delay_minutes = Math.max(0, parseInt(v, 10) || 0); }, nodeId, type, data);
       if (!data.public_replies) data.public_replies = data.public_reply ? [data.public_reply] : [''];
       panel.querySelectorAll('[data-reply]').forEach((textarea) => {
         textarea.oninput = (e) => {

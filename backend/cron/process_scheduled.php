@@ -40,12 +40,20 @@ foreach ($pending as $action) {
     $platform = $payload['platform'] ?? 'messenger';
 
     try {
-        $result = TriggerEngine::runScheduledNode(
-            (int)$action['conversation_id'],
-            (int)$action['flow_id'],
-            (string)$action['node_id'],
-            $platform
-        );
+        if (($payload['type'] ?? '') === 'comment_private_reply') {
+            $result = TriggerEngine::runScheduledCommentPrivateReply(
+                (int)$action['conversation_id'],
+                (string)($payload['comment_id'] ?? ''),
+                (string)($payload['text'] ?? '')
+            );
+        } else {
+            $result = TriggerEngine::runScheduledNode(
+                (int)$action['conversation_id'],
+                (int)$action['flow_id'],
+                (string)$action['node_id'],
+                $platform
+            );
+        }
 
         $status = match ($result) {
             'sent' => 'sent',
