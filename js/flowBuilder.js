@@ -196,9 +196,19 @@ const FlowBuilder = (() => {
         <label class="text-xs text-slate-500">Plataforma</label>
         ${scopeSelectHtml(data)}
         <p class="text-xs text-slate-600 mt-3">Quien comenta recibe el primer mensaje del flujo <strong>por privado</strong>. Si responde al DM, el flujo continúa con los nodos siguientes. El comentario público (si configuraste alguno abajo) siempre se manda de inmediato, con prioridad.</p>
-        <label class="text-xs text-slate-500 mt-3 block">Retraso antes de enviar el DM privado (horas:minutos)</label>
-        <input id="insp-dm-delay" type="time" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm mt-1" value="${minutesToHHMM(data.dm_delay_minutes || 0)}">
-        <p class="text-xs text-slate-600 mt-1 mb-3">00:00 = inmediato. Un pequeño retraso (ej. 00:02) se siente menos robótico.</p>
+        <label class="text-xs text-slate-500 mt-3 block">Retraso antes de enviar el DM privado</label>
+        <div class="flex items-center gap-2 mt-1">
+          <div class="flex-1">
+            <input id="insp-dm-delay-h" type="number" min="0" max="23" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-center" value="${Math.floor((data.dm_delay_minutes || 0) / 60)}">
+            <p class="text-[10px] text-slate-600 mt-0.5 text-center">horas</p>
+          </div>
+          <span class="text-slate-500 pb-4">:</span>
+          <div class="flex-1">
+            <input id="insp-dm-delay-m" type="number" min="0" max="59" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-center" value="${(data.dm_delay_minutes || 0) % 60}">
+            <p class="text-[10px] text-slate-600 mt-0.5 text-center">minutos</p>
+          </div>
+        </div>
+        <p class="text-xs text-slate-600 mt-1 mb-3">0 y 0 = inmediato. Un pequeño retraso (ej. 0 horas, 2 minutos) se siente menos robótico.</p>
         <label class="flex items-center gap-2 text-xs text-slate-400 mt-3">
           <input type="checkbox" id="insp-ai-enabled" ${data.ai_enabled ? 'checked' : ''}>
           Responder el DM privado con IA (en vez del texto fijo o el nodo conectado)
@@ -226,7 +236,15 @@ const FlowBuilder = (() => {
         setStatusText('Sin guardar');
       };
       bindScopeSelect(nodeId, data);
-      bindInput('insp-dm-delay', (v) => { data.dm_delay_minutes = hhmmToMinutes(v); }, nodeId, type, data);
+      const updateDmDelay = () => {
+        const h = Math.max(0, parseInt(document.getElementById('insp-dm-delay-h').value, 10) || 0);
+        const m = Math.max(0, Math.min(59, parseInt(document.getElementById('insp-dm-delay-m').value, 10) || 0));
+        data.dm_delay_minutes = h * 60 + m;
+        editor.updateNodeDataFromId(nodeId, data);
+        setStatusText('Sin guardar');
+      };
+      document.getElementById('insp-dm-delay-h').oninput = updateDmDelay;
+      document.getElementById('insp-dm-delay-m').oninput = updateDmDelay;
       if (!data.public_replies) data.public_replies = data.public_reply ? [data.public_reply] : [''];
       panel.querySelectorAll('[data-reply]').forEach((textarea) => {
         textarea.oninput = (e) => {
@@ -618,20 +636,6 @@ const FlowBuilder = (() => {
   }
 
   // ── Helpers de inspector ───────────────────────────────────────────────────
-
-  // Convierte minutos totales (lo que se guarda y consume en el backend) a
-  // "HH:MM" para el input type="time" — evita el error humano de escribir un
-  // número de minutos ambiguo (ej. "130" vs. "2:10").
-  function minutesToHHMM(totalMinutes) {
-    const h = Math.floor(totalMinutes / 60);
-    const m = totalMinutes % 60;
-    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
-  }
-
-  function hhmmToMinutes(value) {
-    const [h, m] = String(value || '00:00').split(':').map((n) => parseInt(n, 10) || 0);
-    return h * 60 + m;
-  }
 
   function scopeSelectHtml(data) {
     return `<select id="insp-scope" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm mt-1">
