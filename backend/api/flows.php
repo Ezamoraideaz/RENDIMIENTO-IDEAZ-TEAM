@@ -42,8 +42,12 @@ function rebuild_flow_triggers(PDO $pdo, int $flowId, array $graph): void
                 break;
             }
         }
-        if ($nextId === null) {
-            continue; // disparador sin nodo siguiente conectado: se ignora
+        // "Comentario en post" no necesita un nodo siguiente conectado: la respuesta
+        // privada (fija o generada por IA) y la pública ya son una interacción completa
+        // por sí solas. El resto de disparadores sí necesitan un flujo conectado para
+        // hacer algo, así que se ignoran sin nodo siguiente.
+        if ($nextId === null && $node['type'] !== 'trigger_comment') {
+            continue;
         }
         $keywords = $node['data']['keywords'] ?? [];
         $scope = $node['data']['platform_scope'] ?? 'both';
@@ -57,8 +61,8 @@ function rebuild_flow_triggers(PDO $pdo, int $flowId, array $graph): void
             ), static fn($t) => $t !== ''));
             $matchConfig['public_replies'] = $replies;
 
-            // Respuesta pública con IA (opcional): reemplaza la variante estática elegida
-            // al azar arriba, respetando un máximo de caracteres y una lista de palabras
+            // Respuesta privada (DM) con IA (opcional): reemplaza el texto fijo o el del
+            // nodo conectado, respetando un máximo de caracteres y una lista de palabras
             // que, si aparecen en el comentario, desactivan la respuesta automática.
             $matchConfig['ai_enabled'] = !empty($node['data']['ai_enabled']);
             $matchConfig['ai_max_chars'] = max(1, (int)($node['data']['ai_max_chars'] ?? 300));
@@ -67,7 +71,7 @@ function rebuild_flow_triggers(PDO $pdo, int $flowId, array $graph): void
                 $node['data']['ai_blocklist'] ?? []
             ), static fn($t) => $t !== ''));
         }
-        $insert->execute([$flowId, $scope, $type, json_encode($matchConfig), $nextId, $priority]);
+        $insert->execute([$flowId, $scope, $type, json_encode($matchConfig), $nextId ?? '', $priority]);
         $priority++;
     }
 }
