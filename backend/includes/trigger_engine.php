@@ -172,7 +172,7 @@ class TriggerEngine
         // Respuesta pública opcional (visible en el post, sube el engagement de la
         // comunidad), configurada en el propio nodo disparador "Comentario en post".
         if ($publicReply !== '') {
-            MetaClient::replyToComment($pageToken, (string)$commentId, $publicReply);
+            MetaClient::replyToComment($pageToken, (string)$commentId, $publicReply, $platform);
             self::recordMessage($conversation['id'], 'out', 'comment_reply', $publicReply, null, 'flow');
         }
 
