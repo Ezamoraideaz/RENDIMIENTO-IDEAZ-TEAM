@@ -531,9 +531,13 @@ const AtencionCliente = (() => {
 
   async function _selectPendingPage(pageId, clientId) {
     try {
-      await api('api/oauth_pages.php', { method: 'POST', body: JSON.stringify({ page_id: pageId }) });
+      const result = await api('api/oauth_pages.php', { method: 'POST', body: JSON.stringify({ page_id: pageId }) });
       document.getElementById('page-picker-overlay')?.remove();
-      Utils.showToast('Cuenta conectada correctamente', 'success');
+      if (result.webhook_warning) {
+        Utils.showToast(result.webhook_warning, 'danger');
+      } else {
+        Utils.showToast('Cuenta conectada correctamente', 'success');
+      }
       await loadClients();
       openClient(clientId);
     } catch (e) {

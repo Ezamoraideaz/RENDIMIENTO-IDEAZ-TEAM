@@ -72,11 +72,17 @@ if ($method === 'POST') {
         $userEnc['ciphertext'], $userEnc['iv'], $operator['id'] ?? null,
     ]);
 
+    // Si esto falla, la página queda conectada pero sin recibir eventos del
+    // webhook (mensajes/comentarios) — hay que avisarlo, no tragarlo en silencio.
+    $webhookFields = ['messages', 'messaging_postbacks', 'feed', 'leadgen', 'messaging_referrals'];
+    $webhookWarning = null;
     try {
-        MetaClient::subscribePageToWebhook($selected['id'], $selected['access_token'], ['messages', 'messaging_postbacks', 'feed', 'leadgen', 'messaging_referrals']);
+        MetaClient::subscribePageToWebhook($selected['id'], $selected['access_token'], $webhookFields);
+        $pdo->prepare('UPDATE social_accounts SET webhook_subscribed_fields = ? WHERE page_id = ?')
+            ->execute([json_encode($webhookFields), $selected['id']]);
     } catch (Throwable $e) {
-        // No bloquea la conexión si la suscripción al webhook falla — se puede
-        // reintentar después; la cuenta ya queda guardada como conectada.
+        $webhookWarning = 'La página se conectó, pero la suscripción al webhook falló: ' . $e->getMessage()
+            . '. No recibirá mensajes/comentarios hasta reintentar la conexión.';
     }
 
     $igAccount = $selected['instagram_business_account'] ?? null;
@@ -106,7 +112,7 @@ if ($method === 'POST') {
     }
 
     unset($_SESSION['fb_oauth_pending']);
-    json_response(['ok' => true]);
+    json_response(['ok' => true, 'webhook_warning' => $webhookWarning]);
 }
 
 json_error('Método no permitido', 405);
