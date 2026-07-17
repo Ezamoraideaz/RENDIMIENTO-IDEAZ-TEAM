@@ -448,6 +448,10 @@ const Monitor = (() => {
     }
   }
 
+  function refresh() {
+    return load(true, _lockedMemberId);
+  }
+
   function toggleNotas(panelId) {
     const row = document.getElementById(panelId);
     if (!row) return;
@@ -490,7 +494,7 @@ const Monitor = (() => {
     }
   }
 
-  return { load, select, applyFilters, applyDateRange, clearDateRange, toggleNotas, addNota };
+  return { load, refresh, select, applyFilters, applyDateRange, clearDateRange, toggleNotas, addNota };
 })();
 
 window.Monitor = Monitor;

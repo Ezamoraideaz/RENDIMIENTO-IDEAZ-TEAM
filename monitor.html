@@ -44,7 +44,7 @@
           <button onclick="Monitor.clearDateRange()" title="Limpiar rango"
             class="text-slate-500 hover:text-slate-300 text-xs px-1">✕</button>
         </div>
-        <button onclick="Monitor.load(true)"
+        <button onclick="Monitor.refresh()"
           class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-2 rounded-lg text-sm transition-colors whitespace-nowrap">
           ↻ Actualizar
         </button>
@@ -66,7 +66,7 @@
           <div class="text-4xl mb-3">⚠️</div>
           <h2 class="text-lg font-bold text-slate-100 mb-2">Error al cargar datos</h2>
           <p id="error-msg" class="text-slate-400 text-sm mb-4"></p>
-          <button onclick="Monitor.load()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors">
+          <button onclick="Monitor.refresh()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors">
             Reintentar
           </button>
         </div>
@@ -122,7 +122,7 @@
     if (!Storage.hasCredentials()) window.location.href = 'configuracion.html';
 
     const _mSidebarKeys = _mAccess.role === 'admin' ? null : Session.allowedNavKeys();
-    Sidebar.init('monitor', { allowedKeys: _mSidebarKeys, onRefresh: () => Monitor.load(true, _mAccess.lockedMemberId) });
+    Sidebar.init('monitor', { allowedKeys: _mSidebarKeys, onRefresh: () => Monitor.refresh() });
     Monitor.load(false, _mAccess.lockedMemberId);
     Alarm.init();
   });
