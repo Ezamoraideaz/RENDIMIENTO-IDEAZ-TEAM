@@ -25,10 +25,10 @@ const Session = (() => {
   const ACCESS = {
     superadmin:    ALL_PAGES,
     admin:         ALL_PAGES,
-    agent:         ['atencion-cliente'],
-    agenda_full:   ['agenda'],
-    agenda_member: ['agenda', 'monitor'],
-    cm:            ['agenda', 'configuracion', 'monitor'],
+    agent:         ['atencion-cliente', 'protocolo'],
+    agenda_full:   ['agenda', 'protocolo'],
+    agenda_member: ['agenda', 'monitor', 'protocolo'],
+    cm:            ['agenda', 'configuracion', 'monitor', 'protocolo'],
   };
 
   // Claves de navegación del sidebar (subconjunto de páginas)
