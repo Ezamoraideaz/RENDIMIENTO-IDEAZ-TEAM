@@ -476,6 +476,18 @@
 
     // Build timelines from Trello action history
     globalTimelines = TimeCalc.buildCardTimelines(actions || [], openCards);
+
+    // Apply time overrides (corrections posted as Trello comments with IDEAZ_OVERRIDE)
+    // so every downstream stat (KPIs, panel financiero, miembros, tabla de horas) queda recalculado.
+    for (const [cardId, fix] of Object.entries(globalCorrections)) {
+      const tl = globalTimelines[cardId];
+      if (tl && fix.hours !== null) {
+        tl.originalWorkingHours = tl.workingHours;
+        tl.workingHours = fix.hours;
+        tl.isOverridden = true;
+      }
+    }
+
     const summary   = TimeCalc.calcProjectSummary(globalTimelines);
 
     const doneCards = openCards.filter(c => doneListIds.has(c.idList) || c.dueComplete);
@@ -754,7 +766,7 @@
         : '';
       const editBtn = `<button
         data-card-id="${card.id}"
-        data-original-hours="${tl.workingHours || 0}"
+        data-original-hours="${(tl.isOverridden ? tl.originalWorkingHours : tl.workingHours) || 0}"
         onclick="event.stopPropagation(); openTimeEditModal(this)"
         title="Corregir tiempo manualmente"
         style="margin-left:6px;padding:1px 5px;border-radius:4px;font-size:0.68rem;cursor:pointer;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.35);color:#a5b4fc;transition:all .15s"
@@ -765,7 +777,7 @@
              ${override ? `<span style="margin-left:4px;padding:1px 6px;border-radius:999px;font-size:0.65rem;font-weight:700;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);color:#fbbf24" title="Motivo: ${(override.motivo || '').replace(/"/g, '&quot;')}">✎ Editado</span>` : `${outsideTag}${warningTag}`}
              ${editBtn}
            </div>
-           ${override ? `<div class="text-xs text-slate-500" style="text-decoration:line-through">calc: ${Utils.fmtHours(tl.workingHours)}</div>` : ''}
+           ${override ? `<div class="text-xs text-slate-500" style="text-decoration:line-through">calc: ${Utils.fmtHours(tl.originalWorkingHours)}</div>` : ''}
            <div class="text-xs text-slate-400" title="Tiempo transcurrido total desde En Proceso">transcurrido: ${TimeCalc.formatDuration(tl.totalHours)}</div>`
         : `<span class="text-slate-500">Sin iniciar</span>${editBtn}`;
 
@@ -827,7 +839,7 @@
                   <tbody>${desgloseRows}</tbody>
                 </table>
                 <div class="text-xs text-slate-400 mt-2" style="border-top:1px solid #334155;padding-top:8px">
-                  Total activo (Trello): <strong class="text-slate-200">${Utils.fmtHours(tl.workingHours)}</strong>
+                  Total activo (Trello): <strong class="text-slate-200">${Utils.fmtHours(override ? tl.originalWorkingHours : tl.workingHours)}</strong>
                   ${override ? `→ <strong style="color:#fbbf24">Corregido: ${Utils.fmtHours(override.hours)}</strong>` : ''}
                   · Cuenta: <strong>En Proceso</strong>
                   · Pausa: <strong>Cambios</strong> (mover a En Proceso para contabilizar) · <strong>Enviado al Cliente</strong>
@@ -835,7 +847,7 @@
                   ${hasOutsideHours ? '· <span style="color:#818cf8">🌙 Incluye trabajo fuera del horario de oficina</span>' : ''}
                 </div>
                 ${override ? `<div style="margin-top:8px;padding:8px 12px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:6px;font-size:0.72rem;color:#fbbf24">
-                  ✎ <strong>Tiempo editado manualmente</strong> · Original: ${Utils.fmtHours(tl.workingHours)} → Corregido: ${Utils.fmtHours(override.hours)}<br>
+                  ✎ <strong>Tiempo editado manualmente</strong> · Original: ${Utils.fmtHours(tl.originalWorkingHours)} → Corregido: ${Utils.fmtHours(override.hours)}<br>
                   <span style="color:#94a3b8">Motivo: "${override.motivo || '—'}"</span>
                   <span style="float:right;color:#64748b">${override.author ? override.author + ' · ' : ''}${new Date(override.date).toLocaleDateString('es-CO', { dateStyle: 'medium' })}</span>
                 </div>` : ''}
