@@ -725,6 +725,19 @@
       </div>
     </div>
 
+    <div class="rule-card" style="border-left: 3px solid #0ea5e9">
+      <div class="rule-header">
+        <span class="rule-code" style="background:rgba(14,165,233,0.15);color:#7dd3fc;border-color:rgba(14,165,233,0.3)">R-14</span>
+        <span class="rule-title">No saltar de "En Proceso" a "Cambios" sin pasar por "Enviado"</span>
+      </div>
+      <div class="rule-body">
+        Solo la PM o la CM mueven una tarjeta a "Cambios", y únicamente desde "Enviado" (cuando llegan correcciones sobre algo ya entregado para revisión). Si la tarjeta pasa directo de <strong>"En Proceso"</strong> a <strong>"Cambios"</strong>, se saltó el paso de envío/revisión y se genera una falta R-14.
+      </div>
+      <div class="rule-why">
+        <strong>Por qué:</strong> "Cambios" implica que hubo una entrega previa que el cliente o el equipo interno revisó. Si nunca se envió, no hay revisión real que justifique mover la tarjeta a ese estado — probablemente se usó "Cambios" como sinónimo incorrecto de "sigue en ajustes".
+      </div>
+    </div>
+
     <div class="rule-card" style="border-left: 3px solid var(--red)">
       <div class="rule-header">
         <span class="rule-code" style="background:rgba(239,68,68,0.15);color:#fca5a5;border-color:rgba(239,68,68,0.3)">R-13</span>
