@@ -5,6 +5,7 @@ const Monitor = (() => {
     R08: { code: 'R-08', label: 'Tarjeta olvidada en "En Proceso"',          short: 'Olvidada >2 días',  color: '#ef4444' },
     R11: { code: 'R-11', label: '"Cambios" no retornó a "En Proceso"',       short: 'Bypass Cambios',    color: '#6366f1' },
     R12: { code: 'R-12', label: 'Múltiples movimientos a "Cambios" el mismo día', short: 'Cambios duplicados', color: '#a855f7' },
+    R14: { code: 'R-14', label: '"En Proceso" saltó a "Cambios" sin pasar por "Enviado"', short: 'Salto a Cambios', color: '#0ea5e9' },
   };
 
   const ROLE_LABELS = { diseñador: 'Diseñador', cm: 'CM', pm: 'PM', otro: 'Otro' };
@@ -132,6 +133,20 @@ const Monitor = (() => {
     });
   }
 
+  function _scanR14(card, tl, projectName, boardId, n2id) {
+    return (tl.movements || []).flatMap(m => {
+      if (m.fromStage !== 'inProgress' || m.toStage !== 'clientRevision') return [];
+      const id = m.member && n2id[m.member];
+      if (!id) return [];
+      return [_violation(id, RULES.R14, {
+        projectId: boardId, projectName,
+        cardId: card.id, cardName: card.name, shortLink: card.shortLink,
+        date: m.date,
+        detail: `De "En Proceso" pasó directo a "Cambios" sin pasar por "Enviado"`
+      })];
+    });
+  }
+
   function _scan(boards, details) {
     const violations = [];
     const roles = Storage.getAllRoles();
@@ -153,7 +168,8 @@ const Monitor = (() => {
           ..._scanR07(card, tl, board.name, board.id, n2id, roles),
           ..._scanR08(card, tl, board.name, board.id, roles),
           ..._scanR11(card, tl, board.name, board.id, n2id),
-          ..._scanR12(card, tl, board.name, board.id, n2id, roles)
+          ..._scanR12(card, tl, board.name, board.id, n2id, roles),
+          ..._scanR14(card, tl, board.name, board.id, n2id)
         );
       }
     });

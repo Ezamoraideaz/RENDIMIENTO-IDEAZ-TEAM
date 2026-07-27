@@ -145,11 +145,13 @@
       <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 mb-6" id="kpi-global"></div>
 
       <!-- FINANCIAL KPIs -->
-      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Financiero</h2>
-      <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 mb-6" id="kpi-financial"></div>
+      <div id="section-financial">
+        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Financiero</h2>
+        <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 mb-6" id="kpi-financial"></div>
+      </div>
 
       <!-- CHARTS ROW 1 -->
-      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4" id="section-charts-1">
         <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5">
           <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Progreso por Proyecto</h2>
           <div class="chart-container">
@@ -165,7 +167,7 @@
       </div>
 
       <!-- CHARTS ROW 2 -->
-      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4" id="section-charts-2">
         <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5">
           <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">ROI por Proyecto (%)</h2>
           <div class="chart-container">
@@ -192,7 +194,7 @@
       </div>
 
       <!-- PROJECTS TABLE -->
-      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4">
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4" id="section-projects-table">
         <div class="flex justify-between items-center mb-3 flex-wrap gap-2">
           <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-0">Proyectos (Tableros de Trello)</h2>
         </div>
@@ -220,7 +222,7 @@
       </div>
 
       <!-- TEAM PERFORMANCE -->
-      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4">
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4" id="section-team-performance">
         <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Rendimiento del Equipo</h2>
         <div class="overflow-x-auto rounded-xl border border-slate-700">
           <table class="w-full text-sm">
@@ -242,8 +244,10 @@
       </div>
 
       <!-- PROJECT CARDS GRID -->
-      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Vista Rápida de Proyectos</h2>
-      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="project-cards-grid"></div>
+      <div id="section-project-cards">
+        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Vista Rápida de Proyectos</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="project-cards-grid"></div>
+      </div>
 
       <div class="h-8"></div>
     </div>
@@ -252,6 +256,7 @@
 </main>
 
 <script src="js/session.js"></script>
+<script src="js/auth.js"></script>
 <script src="js/storage.js"></script>
 <script src="js/cache.js"></script>
 <script src="js/api.js"></script>
@@ -260,6 +265,7 @@
 <script src="js/alarm.js"></script>
 <script>
   let dashboardData = null;
+  let _cmDashboardMode = false;
   let chartProgress, chartFinancial, chartROI, chartCards;
   let _currentFilteredProjects = [];
   let _memberModalCharts = {};
@@ -899,6 +905,8 @@
     } else {
       document.getElementById('trend-section').style.display = 'none';
     }
+    // El rol CM solo ve Resumen Global — la tendencia mensual queda oculta pase lo que pase
+    if (_cmDashboardMode) document.getElementById('trend-section').style.display = 'none';
   }
 
   function clearFilters() {
@@ -1524,6 +1532,18 @@
 
   // Initial load — espera la sesión (js/session.js redirige a login si no hay)
   Session.ready.then(() => {
+    const _access = Auth.checkPageAccess('dashboard');
+    _cmDashboardMode = _access.role === 'cm';
+
+    if (_cmDashboardMode) {
+      // El rol CM solo ve el Resumen Global — el resto del dashboard queda oculto.
+      ['section-financial', 'section-charts-1', 'section-charts-2', 'trend-section',
+       'section-projects-table', 'section-team-performance', 'section-project-cards'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+      });
+    }
+
     Sidebar.init('dashboard', { onRefresh: () => loadDashboard(true) });
     loadDashboard();
     Alarm.init();
