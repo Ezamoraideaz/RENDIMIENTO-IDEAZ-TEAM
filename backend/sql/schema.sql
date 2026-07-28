@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS clients (
     timezone VARCHAR(64) NOT NULL DEFAULT 'America/Mexico_City',
     ai_context TEXT NULL,
     sheet_id VARCHAR(100) NULL,
+    trello_board_id VARCHAR(64) NULL,
     status ENUM('active','paused','archived') NOT NULL DEFAULT 'active',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

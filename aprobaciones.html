@@ -43,16 +43,29 @@
     </div>
 
     <!-- Controles -->
-    <div class="flex items-center gap-3 mb-6 flex-wrap">
+    <div class="flex items-center gap-3 mb-3 flex-wrap">
       <select id="ap-client-select"
         class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 min-w-[220px]">
         <option value="">Cargando clientes…</option>
       </select>
+      <button id="ap-auto-batch-btn"
+        class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-3 py-2 rounded-lg text-sm transition-colors whitespace-nowrap" disabled>
+        ⚡ Generar tanda automática
+      </button>
       <button id="ap-new-batch-btn"
         class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-3 py-2 rounded-lg text-sm transition-colors whitespace-nowrap" disabled>
         + Nueva tanda
       </button>
       <span id="ap-count" class="ml-auto text-xs text-slate-500"></span>
+    </div>
+    <div class="flex items-center gap-2 mb-6 text-xs text-slate-500 flex-wrap">
+      <span>Tablero de Trello:</span>
+      <span id="ap-board-status" class="font-semibold text-slate-400">—</span>
+      <button id="ap-link-board-btn" class="text-indigo-400 hover:text-indigo-300 font-semibold">Vincular / cambiar</button>
+      <span class="text-slate-700">·</span>
+      <span>Google Sheet (parrilla):</span>
+      <span id="ap-sheet-status" class="font-semibold text-slate-400">—</span>
+      <button id="ap-link-sheet-btn" class="text-indigo-400 hover:text-indigo-300 font-semibold" style="display:none">Vincular / cambiar</button>
     </div>
 
     <!-- Lista de tandas -->
@@ -135,9 +148,62 @@
   </div>
 </div>
 
+<!-- Modal: vincular tablero de Trello -->
+<div id="ap-modal-board" class="fixed inset-0 bg-black/60 z-[60] items-center justify-center p-4" style="display:none">
+  <div class="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-md max-h-[80vh] flex flex-col">
+    <h2 class="text-lg font-bold text-slate-100 mb-1">Vincular tablero de Trello</h2>
+    <p class="text-xs text-slate-500 mb-4">Necesario para "Generar tanda automática" — así el sistema sabe dónde buscar las tarjetas en "Enviado".</p>
+    <div id="ap-board-list" class="space-y-1.5 overflow-y-auto flex-1">Cargando tableros…</div>
+    <div class="flex justify-end gap-2 mt-4">
+      <button onclick="Aprobaciones.closeBoardModal()" class="px-3 py-2 rounded-lg text-sm font-semibold text-slate-400 hover:bg-slate-800">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: generar tanda automática -->
+<div id="ap-modal-auto" class="fixed inset-0 bg-black/60 z-[60] items-center justify-center p-4" style="display:none">
+  <div class="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+    <div class="flex items-start justify-between mb-4">
+      <div>
+        <h2 class="text-lg font-bold text-slate-100">Generar tanda automática</h2>
+        <p class="text-xs text-slate-500 mt-1">Busca en el tablero las tarjetas en "Enviado" y las cruza con la parrilla del mes elegido.</p>
+      </div>
+      <button onclick="Aprobaciones.closeAutoModal()" class="text-slate-400 hover:text-slate-200 text-xl leading-none">×</button>
+    </div>
+
+    <div class="flex items-end gap-3 mb-5 flex-wrap">
+      <div>
+        <label class="block text-xs font-semibold text-slate-400 mb-1">Mes de la parrilla</label>
+        <select id="ap-auto-month" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"></select>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-400 mb-1">Año</label>
+        <input id="ap-auto-year" type="number" class="w-24 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+      </div>
+      <button id="ap-auto-search-btn" onclick="Aprobaciones.autoSearch()"
+        class="px-3 py-2 rounded-lg text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white">Buscar en Enviado</button>
+    </div>
+
+    <div id="ap-auto-status" class="text-sm text-slate-400 mb-3"></div>
+    <div id="ap-auto-results" class="space-y-3 mb-5"></div>
+
+    <div id="ap-auto-footer" class="flex items-center gap-3 border-t border-slate-700 pt-4" style="display:none">
+      <input id="ap-auto-label" type="text" placeholder="Nombre de la tanda (ej. Julio — Enviado)"
+        class="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+      <button onclick="Aprobaciones.autoCreateBatch()" class="px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white whitespace-nowrap">
+        Crear tanda con las marcadas
+      </button>
+    </div>
+  </div>
+</div>
+
 <script src="js/session.js"></script>
 <script src="js/sidebar.js?v=20260728"></script>
 <script src="js/utils.js?v=20260728"></script>
+<script src="js/storage.js?v=20260728"></script>
+<script src="js/cache.js?v=20260728"></script>
+<script src="js/api.js?v=20260728"></script>
+<script src="js/drive.js?v=20260728"></script>
 <script src="js/aprobaciones.js?v=20260728"></script>
 <script>
   Session.ready.then(() => {

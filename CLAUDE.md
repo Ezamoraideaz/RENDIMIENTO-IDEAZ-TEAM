@@ -60,6 +60,7 @@ webhook HTTPS público y no permite guardar tokens de Página/Instagram en el na
 4. Configurar un Cron Job en cPanel que ejecute cada minuto: `php backend/cron/process_scheduled.php`.
 5. Crear la App de Meta (developers.facebook.com, tipo Business) y completar `META_APP_ID`/`META_APP_SECRET`/`WEBHOOK_VERIFY_TOKEN` en `config.php`. Mientras la App esté en modo Development, los admins/testers del App pueden usar `pages_messaging`/`instagram_business_manage_messages` sin esperar App Review.
 6. Dar de alta el Webhook en Meta apuntando a `https://tudominio.com/dashboard/backend/webhook/webhook.php`, con el mismo `WEBHOOK_VERIFY_TOKEN`.
+7. Para la tanda automática del módulo Aprobaciones (lectura en vivo de la parrilla de Excel/Google Sheets): crear una cuenta de servicio de Google, subir su clave JSON a `backend/storage/google-service-account.json` y completar `GOOGLE_SERVICE_ACCOUNT_KEY_FILE` en `config.php`. Compartir el Google Sheet de cada cliente (como Lector) con el `client_email` de esa cuenta de servicio, y guardar el ID del Sheet en `configuracion.html` o vía `clients.sheet_id`.
 
 ### Reglas propias de este módulo
 - El backend PHP sigue el mismo patrón que `api/spend.php` (config gitignored + `.htaccess` con CORS), pero con su propia carpeta, base de datos y `.htaccess`.

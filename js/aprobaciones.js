@@ -15,10 +15,15 @@ const Aprobaciones = (() => {
     changes_requested: 'bg-rose-500/15 text-rose-400',
   };
 
+  const MONTHS_UPPER = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO',
+                         'JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+  const REASON = { OK: 'ok', NO_SHEET_ROW: 'no_sheet_row', NO_DRIVE: 'no_drive', NO_POST_NUMBER: 'no_post_number' };
+
   let clients = [];
   let batches = [];
   let activeClientId = null;
   let activeBatch = null; // último detalle cargado en el modal
+  let autoResults = []; // filas de la búsqueda de "Generar tanda automática"
 
   function esc(s) {
     return String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
@@ -46,10 +51,30 @@ const Aprobaciones = (() => {
     return m ? m[1] : v;
   }
 
+  function activeClient() {
+    return clients.find((c) => c.id === activeClientId) || null;
+  }
+
   async function init() {
     document.getElementById('ap-client-select').addEventListener('change', onClientChange);
     document.getElementById('ap-new-batch-btn').addEventListener('click', openNewBatchModal);
+    document.getElementById('ap-auto-batch-btn').addEventListener('click', openAutoModal);
+    document.getElementById('ap-link-board-btn').addEventListener('click', openBoardModal);
+    const sheetBtn = document.getElementById('ap-link-sheet-btn');
+    if (Session.user && Session.user.role !== 'cm') {
+      sheetBtn.style.display = '';
+      sheetBtn.addEventListener('click', linkSheet);
+    }
+    document.getElementById('ap-board-list').addEventListener('click', onBoardListClick);
+    document.getElementById('ap-auto-results').addEventListener('input', onAutoResultsInput);
+    document.getElementById('ap-auto-results').addEventListener('click', onAutoResultsClick);
     await loadClients();
+  }
+
+  function getTrelloApi() {
+    const { key, token } = Storage.getCredentials();
+    if (!key || !token) throw new Error('Faltan las credenciales de Trello — configúralas en Configuración');
+    return new TrelloAPI(key, token);
   }
 
   async function loadClients() {
@@ -69,12 +94,46 @@ const Aprobaciones = (() => {
     sel.innerHTML = clients.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
     document.getElementById('ap-new-batch-btn').disabled = false;
     activeClientId = Number(sel.value);
+    renderBoardStatus();
     await loadBatches();
   }
 
   function onClientChange(e) {
     activeClientId = Number(e.target.value);
+    renderBoardStatus();
     loadBatches();
+  }
+
+  function renderBoardStatus() {
+    const c = activeClient();
+    const boardEl = document.getElementById('ap-board-status');
+    const sheetEl = document.getElementById('ap-sheet-status');
+    const autoBtn = document.getElementById('ap-auto-batch-btn');
+    if (!c) { boardEl.textContent = '—'; sheetEl.textContent = '—'; autoBtn.disabled = true; return; }
+    boardEl.textContent = c.trello_board_id ? `vinculado (${c.trello_board_id})` : 'sin vincular';
+    sheetEl.textContent = c.sheet_id ? `vinculado (${c.sheet_id})` : 'sin vincular';
+    autoBtn.disabled = !c.trello_board_id || !c.sheet_id;
+    autoBtn.title = !c.trello_board_id
+      ? 'Vincula primero el tablero de Trello'
+      : (!c.sheet_id ? 'Este cliente no tiene un Google Sheet vinculado' : '');
+  }
+
+  async function linkSheet() {
+    const c = activeClient();
+    if (!c) return;
+    const id = prompt('ID del Google Sheet de este cliente (está en su URL: .../spreadsheets/d/ESTE-ID/edit):', c.sheet_id || '');
+    if (id === null) return;
+    try {
+      await Session.apiFetch('api/clients.php', {
+        method: 'PUT',
+        body: JSON.stringify({ id: c.id, sheet_id: id.trim() || null }),
+      });
+      c.sheet_id = id.trim() || null;
+      renderBoardStatus();
+      Utils.showToast('Google Sheet vinculado', 'success');
+    } catch (e) {
+      Utils.showToast(e.message, 'danger');
+    }
   }
 
   async function loadBatches() {
@@ -300,9 +359,290 @@ const Aprobaciones = (() => {
     }
   }
 
+  // ── Vincular tablero de Trello ───────────────────────────────────────────
+  async function openBoardModal() {
+    if (!activeClientId) return;
+    document.getElementById('ap-modal-board').style.display = 'flex';
+    const list = document.getElementById('ap-board-list');
+    list.innerHTML = 'Cargando tableros…';
+    try {
+      const api = getTrelloApi();
+      const boards = await api.getBoards();
+      if (!boards.length) {
+        list.innerHTML = '<p class="text-slate-500 text-sm">No se encontraron tableros.</p>';
+        return;
+      }
+      const linkedId = (activeClient() || {}).trello_board_id;
+      list.innerHTML = boards.map((b) => `
+        <button type="button" data-board-id="${esc(b.id)}" data-board-name="${esc(b.name)}"
+          class="w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-slate-800 text-slate-200 flex items-center justify-between">
+          <span>${esc(b.name)}</span>
+          ${linkedId === b.id ? '<span class="text-emerald-400 text-xs flex-shrink-0">✓ vinculado</span>' : ''}
+        </button>`).join('');
+    } catch (e) {
+      list.innerHTML = `<p class="text-rose-400 text-sm">${esc(e.message)}</p>`;
+    }
+  }
+
+  function closeBoardModal() {
+    document.getElementById('ap-modal-board').style.display = 'none';
+  }
+
+  function onBoardListClick(e) {
+    const btn = e.target.closest('[data-board-id]');
+    if (!btn) return;
+    selectBoard(btn.dataset.boardId, btn.dataset.boardName);
+  }
+
+  async function selectBoard(boardId, boardName) {
+    try {
+      await Session.apiFetch('api/clients.php', {
+        method: 'PUT',
+        body: JSON.stringify({ id: activeClientId, trello_board_id: boardId }),
+      });
+      const c = activeClient();
+      if (c) c.trello_board_id = boardId;
+      renderBoardStatus();
+      Utils.showToast(`Tablero "${boardName}" vinculado`, 'success');
+      closeBoardModal();
+    } catch (e) {
+      Utils.showToast(e.message, 'danger');
+    }
+  }
+
+  // ── Generar tanda automática ─────────────────────────────────────────────
+  function openAutoModal() {
+    const monthSel = document.getElementById('ap-auto-month');
+    const now = new Date();
+    monthSel.innerHTML = MONTHS_UPPER.map((m, i) =>
+      `<option value="${m}" ${i === now.getMonth() ? 'selected' : ''}>${m.charAt(0) + m.slice(1).toLowerCase()}</option>`
+    ).join('');
+    document.getElementById('ap-auto-year').value = now.getFullYear();
+    document.getElementById('ap-auto-status').textContent = '';
+    document.getElementById('ap-auto-results').innerHTML = '';
+    document.getElementById('ap-auto-footer').style.display = 'none';
+    document.getElementById('ap-auto-label').value = '';
+    autoResults = [];
+    document.getElementById('ap-modal-auto').style.display = 'flex';
+  }
+
+  function closeAutoModal() {
+    document.getElementById('ap-modal-auto').style.display = 'none';
+  }
+
+  async function autoSearch() {
+    const client = activeClient();
+    if (!client || !client.trello_board_id) return;
+    const month = document.getElementById('ap-auto-month').value;
+    const statusEl = document.getElementById('ap-auto-status');
+    const searchBtn = document.getElementById('ap-auto-search-btn');
+    searchBtn.disabled = true;
+    statusEl.textContent = 'Buscando tarjetas en "Enviado"…';
+    document.getElementById('ap-auto-results').innerHTML = '';
+    document.getElementById('ap-auto-footer').style.display = 'none';
+    autoResults = [];
+
+    try {
+      const api = getTrelloApi();
+      const boardId = client.trello_board_id;
+      const [lists, cards] = await Promise.all([api.getLists(boardId), api.getCards(boardId)]);
+      const enviadoList = lists.find((l) => l.name === 'Enviado');
+      if (!enviadoList) throw new Error('Este tablero no tiene una lista llamada "Enviado"');
+      const enviadoCards = cards.filter((c) => c.idList === enviadoList.id && !c.closed);
+      if (!enviadoCards.length) {
+        statusEl.textContent = 'No hay tarjetas en "Enviado" ahora mismo.';
+        return;
+      }
+
+      statusEl.textContent = `${enviadoCards.length} tarjeta(s) en Enviado — cruzando con la parrilla de ${month}…`;
+      let sheetRows = [];
+      let sheetWarning = '';
+      try {
+        const sheetData = await Session.apiFetch(`api/sheet_import.php?client_id=${client.id}&tab=${encodeURIComponent(month)}`);
+        sheetRows = sheetData.rows || [];
+      } catch (e) {
+        sheetWarning = ` ⚠ No se pudo leer la parrilla (${e.message}) — completa los campos a mano.`;
+      }
+
+      const driveFolderId = (Storage.getProjectData(boardId).driveFolderId || '').trim();
+      const driveReady = DriveAPI.isConnected() && !!driveFolderId;
+      let driveWarning = '';
+      if (!driveReady) {
+        driveWarning = DriveAPI.isConnected()
+          ? ' ⚠ Este tablero no tiene carpeta de Drive configurada.'
+          : ' ⚠ Drive no conectado — ve a Configuración.';
+      }
+
+      const results = [];
+      for (const card of enviadoCards) {
+        const m = card.name.match(/post\s*#?\s*(\d+)/i) || card.name.match(/\b(\d+)\b/);
+        const postNumber = m ? parseInt(m[1], 10) : null;
+        const row = postNumber ? sheetRows.find((r) => r.post_number === postNumber) : null;
+
+        let files = [];
+        if (driveReady && postNumber) {
+          try {
+            const found = await DriveAPI.findApprovalMedia(driveFolderId, postNumber);
+            files = found.files || [];
+          } catch (e) { /* sin medios — la CM completa a mano */ }
+        }
+
+        let reason = REASON.OK;
+        if (!postNumber) reason = REASON.NO_POST_NUMBER;
+        else if (!row) reason = REASON.NO_SHEET_ROW;
+        else if (!files.length) reason = REASON.NO_DRIVE;
+
+        results.push({
+          cardId: card.id,
+          cardName: card.name,
+          postNumber,
+          type: row ? row.type : 'feed',
+          day: row ? row.day : '',
+          caption: row ? row.caption : '',
+          manualUrl: '',
+          files,
+          selectedFileIds: new Set(
+            files.length ? (row && row.type === 'carousel' ? files.map((f) => f.id) : [files[0].id]) : []
+          ),
+          reason,
+          selected: reason === REASON.OK,
+        });
+      }
+      autoResults = results;
+      statusEl.textContent = `${results.length} tarjeta(s) encontradas — revisa antes de crear la tanda.${sheetWarning}${driveWarning}`;
+      renderAutoResults();
+      document.getElementById('ap-auto-footer').style.display = 'flex';
+      document.getElementById('ap-auto-label').value = `${month.charAt(0) + month.slice(1).toLowerCase()} — Enviado`;
+    } catch (e) {
+      statusEl.textContent = '';
+      Utils.showToast(e.message, 'danger');
+    } finally {
+      searchBtn.disabled = false;
+    }
+  }
+
+  function renderAutoResults() {
+    const el = document.getElementById('ap-auto-results');
+    if (!autoResults.length) { el.innerHTML = ''; return; }
+    const BADGE = {
+      [REASON.OK]: '<span class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">✓ listo</span>',
+      [REASON.NO_SHEET_ROW]: '<span class="text-xs px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400">⚠ sin fila en el Excel</span>',
+      [REASON.NO_DRIVE]: '<span class="text-xs px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400">⚠ sin archivo en Drive</span>',
+      [REASON.NO_POST_NUMBER]: '<span class="text-xs px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400">⚠ sin # de post en el nombre</span>',
+    };
+    el.innerHTML = autoResults.map((r, i) => {
+      const filesHtml = r.files.length
+        ? `<div class="flex flex-wrap gap-1.5 mt-2">` + r.files.map((f) => `
+            <button type="button" data-auto-file="${i}:${esc(f.id)}"
+              class="text-[11px] px-2 py-1 rounded border ${r.selectedFileIds.has(f.id) ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-800 border-slate-600 text-slate-400'}">
+              ${esc(f.name)}
+            </button>`).join('') + `</div>`
+        : '<p class="text-xs text-slate-500 mt-2">Sin archivos encontrados en Drive.</p>';
+      return `
+        <div class="bg-slate-800/40 border border-slate-700 rounded-lg p-3">
+          <div class="flex items-start gap-3">
+            <input type="checkbox" data-auto-select="${i}" ${r.selected ? 'checked' : ''} class="mt-1.5 flex-shrink-0">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-sm font-semibold text-slate-200">${esc(r.cardName)}</span>
+                ${BADGE[r.reason] || ''}
+              </div>
+              <div class="grid grid-cols-2 gap-2 mt-2">
+                <select data-auto-type="${i}" class="bg-slate-800 border border-slate-600 rounded px-2 py-1.5 text-xs text-slate-100">
+                  ${Object.entries(TYPE_LABEL).map(([v, l]) => `<option value="${v}" ${r.type === v ? 'selected' : ''}>${l}</option>`).join('')}
+                </select>
+                <input type="text" data-auto-day="${i}" value="${esc(r.day)}" placeholder="Día del mes" class="bg-slate-800 border border-slate-600 rounded px-2 py-1.5 text-xs text-slate-100">
+              </div>
+              <textarea data-auto-caption="${i}" rows="2" placeholder="Copy (vacío si es historia)" class="w-full mt-2 bg-slate-800 border border-slate-600 rounded px-2 py-1.5 text-xs text-slate-100">${esc(r.caption)}</textarea>
+              <input type="text" data-auto-manual-media="${i}" value="${esc(r.manualUrl)}" placeholder="O pega un link manualmente" class="w-full mt-2 bg-slate-800 border border-slate-600 rounded px-2 py-1.5 text-xs text-slate-100">
+              ${filesHtml}
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function onAutoResultsInput(e) {
+    const t = e.target;
+    if (t.matches('[data-auto-select]')) { autoResults[+t.dataset.autoSelect].selected = t.checked; return; }
+    if (t.matches('[data-auto-type]')) { autoResults[+t.dataset.autoType].type = t.value; return; }
+    if (t.matches('[data-auto-day]')) { autoResults[+t.dataset.autoDay].day = t.value; return; }
+    if (t.matches('[data-auto-caption]')) { autoResults[+t.dataset.autoCaption].caption = t.value; return; }
+    if (t.matches('[data-auto-manual-media]')) { autoResults[+t.dataset.autoManualMedia].manualUrl = t.value; return; }
+  }
+
+  function onAutoResultsClick(e) {
+    const btn = e.target.closest('[data-auto-file]');
+    if (!btn) return;
+    const raw = btn.dataset.autoFile;
+    const sep = raw.indexOf(':');
+    const idx = +raw.slice(0, sep);
+    const fileId = raw.slice(sep + 1);
+    const r = autoResults[idx];
+    if (r.selectedFileIds.has(fileId)) r.selectedFileIds.delete(fileId); else r.selectedFileIds.add(fileId);
+    renderAutoResults();
+  }
+
+  function buildScheduledAt(day, monthUpper, year) {
+    const monthIdx = MONTHS_UPPER.indexOf(monthUpper);
+    const d = parseInt(day, 10);
+    if (monthIdx < 0 || !d || !year) return null;
+    const mm = String(monthIdx + 1).padStart(2, '0');
+    const dd = String(d).padStart(2, '0');
+    return `${year}-${mm}-${dd} 00:00:00`;
+  }
+
+  async function autoCreateBatch() {
+    const label = document.getElementById('ap-auto-label').value.trim();
+    if (!label) return Utils.showToast('Ponle un nombre a la tanda', 'danger');
+    const selected = autoResults.filter((r) => r.selected);
+    if (!selected.length) return Utils.showToast('Marca al menos una pieza', 'danger');
+
+    const client = activeClient();
+    const month = document.getElementById('ap-auto-month').value;
+    const year = document.getElementById('ap-auto-year').value;
+
+    try {
+      const batchData = await Session.apiFetch('api/content_batches.php', {
+        method: 'POST',
+        body: JSON.stringify({ client_id: client.id, label }),
+      });
+      const batchId = batchData.id;
+
+      let created = 0, skipped = 0;
+      for (const r of selected) {
+        const urls = r.files.filter((f) => r.selectedFileIds.has(f.id)).map((f) => f.webViewLink);
+        if (r.manualUrl && r.manualUrl.trim()) urls.push(r.manualUrl.trim());
+        if (!urls.length) { skipped++; continue; }
+        const media = urls.map((url, i) => ({ url, order: i }));
+        await Session.apiFetch('api/content_items.php', {
+          method: 'POST',
+          body: JSON.stringify({
+            batch_id: batchId,
+            type: r.type,
+            caption: r.caption || null,
+            scheduled_at: buildScheduledAt(r.day, month, year),
+            media,
+            trello_card_id: r.cardId,
+            position: created,
+          }),
+        });
+        created++;
+      }
+      Utils.showToast(`Tanda creada con ${created} pieza(s)${skipped ? ` — ${skipped} sin medios se omitieron` : ''}`, created ? 'success' : 'danger');
+      closeAutoModal();
+      await loadBatches();
+      if (created) await openBatchModal(batchId);
+    } catch (e) {
+      Utils.showToast(e.message, 'danger');
+    }
+  }
+
   return {
     init, openNewBatchModal, closeNewBatchModal, submitNewBatch,
     openBatchModal, closeBatchModal, submitNewItem, deleteItem, generateLink,
+    openBoardModal, closeBoardModal, selectBoard,
+    openAutoModal, closeAutoModal, autoSearch, autoCreateBatch,
   };
 })();
 

@@ -3,12 +3,13 @@ require_once __DIR__ . '/../bootstrap.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 
-// Lectura: también cm (necesita el selector de clientes en aprobaciones.html).
-// Escritura: se mantiene restringida a Atención al Cliente (superadmin/admin/agent).
-if ($method === 'GET') {
-    require_role(['superadmin', 'admin', 'agent', 'cm']);
+// Lectura y PUT: también cm (selector de clientes + vincular su tablero de Trello
+// en aprobaciones.html — el PUT limita qué campos puede tocar cm, ver más abajo).
+// Alta/baja de clientes: se mantiene restringida a Atención al Cliente (superadmin/admin/agent).
+if ($method === 'GET' || $method === 'PUT') {
+    $operator = require_role(['superadmin', 'admin', 'agent', 'cm']);
 } else {
-    require_atencion_access();
+    $operator = require_atencion_access();
 }
 
 $pdo = db();
@@ -23,7 +24,7 @@ function slugify(string $name): string
 switch ($method) {
     case 'GET':
         $stmt = $pdo->query('
-            SELECT c.id, c.name, c.slug, c.logo_url, c.timezone, c.ai_context, c.status, c.created_at,
+            SELECT c.id, c.name, c.slug, c.logo_url, c.timezone, c.ai_context, c.sheet_id, c.trello_board_id, c.status, c.created_at,
                    (SELECT COUNT(*) FROM social_accounts sa WHERE sa.client_id = c.id AND sa.status = "active") AS connected_accounts
             FROM clients c
             ORDER BY c.name ASC
@@ -62,9 +63,16 @@ switch ($method) {
         if ($id <= 0) {
             json_error('id requerido', 400);
         }
+        // cm solo puede vincular su tablero de Trello — el resto de los campos de
+        // cliente (nombre, logo, credenciales de marca, etc.) sigue siendo de
+        // Atención al Cliente, igual que la creación/baja de clientes.
+        $editableFields = $operator['role'] === 'cm'
+            ? ['trello_board_id']
+            : ['name', 'logo_url', 'timezone', 'ai_context', 'sheet_id', 'trello_board_id', 'status'];
+
         $fields = [];
         $values = [];
-        foreach (['name', 'logo_url', 'timezone', 'ai_context', 'status'] as $field) {
+        foreach ($editableFields as $field) {
             if (array_key_exists($field, $input)) {
                 $fields[] = "{$field} = ?";
                 $values[] = $input[$field];

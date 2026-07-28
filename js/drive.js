@@ -238,11 +238,41 @@ const DriveAPI = (() => {
     return results;
   }
 
+  // ── Carpeta "Para aprobación" (módulo aprobaciones) ─────────────────────────
+  // El diseñador sube el contenido listo para revisión a una carpeta llamada
+  // "Para aprobación" (dentro del mismo rootFolderId del proyecto), nombrando
+  // el archivo o subcarpeta con el identificador del post (columna A del
+  // cronograma, ej. "POST #3" — mismo criterio que _matchPost ya usa arriba).
+  function _matchApprovalFolderName(name) {
+    return name.toLowerCase().indexOf('para aprobaci') !== -1; // cubre "aprobación"/"aprobacion"
+  }
+
+  // Devuelve { folder, files } — folder es la subcarpeta del post si existe
+  // (y ahí se listan los files), o directamente la carpeta "Para aprobación"
+  // si el diseñador subió el archivo suelto ahí con el nombre del post.
+  // folder === null si ni siquiera existe la carpeta "Para aprobación".
+  async function findApprovalMedia(rootFolderId, postNumber) {
+    const top = await _listSubfolders(rootFolderId);
+    const approvalFolder = top.find(f => _matchApprovalFolderName(f.name));
+    if (!approvalFolder) return { folder: null, files: [] };
+
+    const subfolders = await _listSubfolders(approvalFolder.id);
+    const postFolder = subfolders.find(f => _matchPost(f.name, postNumber));
+    if (postFolder) {
+      const files = await _listFiles(postFolder.id);
+      return { folder: postFolder, files };
+    }
+
+    const looseFiles = await _listFiles(approvalFolder.id);
+    const matched = looseFiles.filter(f => _matchPost(f.name, postNumber));
+    return { folder: approvalFolder, files: matched };
+  }
+
   return {
     getClientId, saveClientId,
     isConnected, connect, handleCallback, clearToken,
     getFolderForBoard, saveFolderForBoard,
-    findPostFolder, createStructure
+    findPostFolder, createStructure, findApprovalMedia
   };
 })();
 
