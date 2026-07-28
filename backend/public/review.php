@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../bootstrap.php';
 require_once __DIR__ . '/../includes/trello_sync.php';
+require_once __DIR__ . '/../includes/drive_approval_sync.php';
 
 // Portal público de revisión del cliente (revisar.html?t=<token>). Sin sesión,
 // sin CSRF — el cliente no es un operator, se autentica solo con el token del
@@ -158,6 +159,10 @@ switch ($method) {
         }
 
         trello_sync_decision($pdo, $item['trello_card_id'], $decision, $comment, $reasonTags);
+
+        if ($decision === 'approved') {
+            drive_approval_sync($pdo, $itemId, (int)$batch['client_id']);
+        }
 
         $pendingStmt = $pdo->prepare("SELECT COUNT(*) FROM content_items WHERE batch_id = ? AND status = 'pending'");
         $pendingStmt->execute([$batch['id']]);

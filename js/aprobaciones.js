@@ -65,6 +65,7 @@ const Aprobaciones = (() => {
       sheetBtn.style.display = '';
       sheetBtn.addEventListener('click', linkSheet);
     }
+    document.getElementById('ap-link-approval-folder-btn')?.addEventListener('click', linkApprovalFolder);
     document.getElementById('ap-board-list').addEventListener('click', onBoardListClick);
     document.getElementById('ap-auto-results').addEventListener('input', onAutoResultsInput);
     document.getElementById('ap-auto-results').addEventListener('click', onAutoResultsClick);
@@ -108,10 +109,17 @@ const Aprobaciones = (() => {
     const c = activeClient();
     const boardEl = document.getElementById('ap-board-status');
     const sheetEl = document.getElementById('ap-sheet-status');
+    const approvalEl = document.getElementById('ap-approval-folder-status');
     const autoBtn = document.getElementById('ap-auto-batch-btn');
-    if (!c) { boardEl.textContent = '—'; sheetEl.textContent = '—'; autoBtn.disabled = true; return; }
+    if (!c) {
+      boardEl.textContent = '—'; sheetEl.textContent = '—';
+      if (approvalEl) approvalEl.textContent = '—';
+      autoBtn.disabled = true;
+      return;
+    }
     boardEl.textContent = c.trello_board_id ? `vinculado (${c.trello_board_id})` : 'sin vincular';
     sheetEl.textContent = c.sheet_id ? `vinculado (${c.sheet_id})` : 'sin vincular';
+    if (approvalEl) approvalEl.textContent = c.drive_approval_folder_id ? `vinculada (${c.drive_approval_folder_id})` : 'sin vincular';
     autoBtn.disabled = !c.trello_board_id || !c.sheet_id;
     autoBtn.title = !c.trello_board_id
       ? 'Vincula primero el tablero de Trello'
@@ -131,6 +139,27 @@ const Aprobaciones = (() => {
       c.sheet_id = id.trim() || null;
       renderBoardStatus();
       Utils.showToast('Google Sheet vinculado', 'success');
+    } catch (e) {
+      Utils.showToast(e.message, 'danger');
+    }
+  }
+
+  // Carpeta externa "Para aprobación" de la marca (separada de ARTES): el
+  // contenido aprobado se mueve automáticamente de aquí hacia ARTES/año/mes/
+  // POST # cuando el cliente aprueba en el portal (backend/includes/drive_approval_sync.php).
+  async function linkApprovalFolder() {
+    const c = activeClient();
+    if (!c) return;
+    const id = prompt('ID de la carpeta "Para aprobación" de este cliente (está en su URL de Drive, después de /folders/):', c.drive_approval_folder_id || '');
+    if (id === null) return;
+    try {
+      await Session.apiFetch('api/clients.php', {
+        method: 'PUT',
+        body: JSON.stringify({ id: c.id, drive_approval_folder_id: id.trim() || null }),
+      });
+      c.drive_approval_folder_id = id.trim() || null;
+      renderBoardStatus();
+      Utils.showToast('Carpeta "Para aprobación" vinculada', 'success');
     } catch (e) {
       Utils.showToast(e.message, 'danger');
     }
@@ -622,6 +651,7 @@ const Aprobaciones = (() => {
           body: JSON.stringify({
             batch_id: batchId,
             type: r.type,
+            post_number: r.postNumber || null,
             caption: r.caption || null,
             scheduled_at: buildScheduledAt(r.day, month, year),
             media,

@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS clients (
     timezone VARCHAR(64) NOT NULL DEFAULT 'America/Mexico_City',
     ai_context TEXT NULL,
     sheet_id VARCHAR(100) NULL,
+    drive_approval_folder_id VARCHAR(128) NULL,
     trello_board_id VARCHAR(64) NULL,
     status ENUM('active','paused','archived') NOT NULL DEFAULT 'active',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -106,12 +107,15 @@ CREATE TABLE IF NOT EXISTS content_items (
     batch_id INT UNSIGNED NOT NULL,
     trello_card_id VARCHAR(64) NULL,
     type ENUM('feed','story','reel','carousel') NOT NULL,
+    post_number SMALLINT UNSIGNED NULL, -- para ubicar la carpeta ARTES/año/mes/POST # al aprobar
     caption TEXT NULL,
     scheduled_at DATETIME NULL,
     media JSON NOT NULL,          -- [{ "url": "...", "order": 0 }, ...]
     position INT UNSIGNED NOT NULL DEFAULT 0,
     status ENUM('pending','approved','changes_requested') NOT NULL DEFAULT 'pending',
     decided_at DATETIME NULL,
+    drive_move_status ENUM('pending','moved','error','skipped') NOT NULL DEFAULT 'pending',
+    drive_move_error TEXT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_content_items_batch (batch_id, position),
     CONSTRAINT fk_content_items_batch FOREIGN KEY (batch_id) REFERENCES content_batches(id) ON DELETE CASCADE

@@ -75,15 +75,19 @@ switch ($method) {
         $scheduledAt = $input['scheduled_at'] ?? null;
         $trelloCardId = $input['trello_card_id'] ?? null;
         $position = (int)($input['position'] ?? 0);
+        // Necesario para ubicar la carpeta ARTES/año/mes/POST # al momento de
+        // mover automáticamente el contenido aprobado (drive_approval_sync.php).
+        $postNumber = isset($input['post_number']) && $input['post_number'] !== null ? (int)$input['post_number'] : null;
 
         $stmt = $pdo->prepare('
-            INSERT INTO content_items (batch_id, trello_card_id, type, caption, scheduled_at, media, position)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO content_items (batch_id, trello_card_id, type, post_number, caption, scheduled_at, media, position)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ');
         $stmt->execute([
             $batchId,
             $trelloCardId ?: null,
             $type,
+            $postNumber,
             $caption,
             $scheduledAt ?: null,
             json_encode(array_values($media)),
@@ -105,7 +109,7 @@ switch ($method) {
 
         $fields = [];
         $values = [];
-        foreach (['trello_card_id', 'caption', 'scheduled_at', 'position'] as $field) {
+        foreach (['trello_card_id', 'post_number', 'caption', 'scheduled_at', 'position'] as $field) {
             if (array_key_exists($field, $input)) {
                 $fields[] = "{$field} = ?";
                 $values[] = $input[$field];
