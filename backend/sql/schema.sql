@@ -327,3 +327,25 @@ CREATE TABLE IF NOT EXISTS scheduled_actions (
     CONSTRAINT fk_scheduled_actions_conversation FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
     CONSTRAINT fk_scheduled_actions_flow FOREIGN KEY (flow_id) REFERENCES flows(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Configuración compartida del Monitor de Pauta (pauta.html) — clientes,
+-- presupuestos por plataforma/mes. Ver migration_010_pauta_clients.sql para
+-- el detalle de por qué esto vive en JSON y no en columnas planas.
+CREATE TABLE IF NOT EXISTS pauta_clients (
+    id VARCHAR(32) NOT NULL PRIMARY KEY,
+    name VARCHAR(190) NOT NULL,
+    budgets JSON NOT NULL,
+    platforms JSON NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS pauta_leads (
+    client_id VARCHAR(32) NOT NULL,
+    month_key VARCHAR(7) NOT NULL,
+    total INT UNSIGNED NOT NULL DEFAULT 0,
+    qualified INT UNSIGNED NOT NULL DEFAULT 0,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (client_id, month_key),
+    CONSTRAINT fk_pauta_leads_client FOREIGN KEY (client_id) REFERENCES pauta_clients(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
