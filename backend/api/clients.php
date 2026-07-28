@@ -1,9 +1,16 @@
 <?php
 require_once __DIR__ . '/../bootstrap.php';
 
-require_atencion_access();
-
 $method = $_SERVER['REQUEST_METHOD'];
+
+// Lectura: también cm (necesita el selector de clientes en aprobaciones.html).
+// Escritura: se mantiene restringida a Atención al Cliente (superadmin/admin/agent).
+if ($method === 'GET') {
+    require_role(['superadmin', 'admin', 'agent', 'cm']);
+} else {
+    require_atencion_access();
+}
+
 $pdo = db();
 
 function slugify(string $name): string
