@@ -144,17 +144,60 @@ const PautaMonitor = (() => {
     return `${platform}:${accountId}:${from}:${to}`;
   }
 
-  async function _fetchSpend(platform, accountId, from, to, fresh) {
-    const key = _spendKey(platform, accountId, from, to);
-    const url = `${API_PATH}?platform=${encodeURIComponent(platform)}&account_id=${encodeURIComponent(accountId)}&from=${from}&to=${to}${fresh ? '&fresh=1' : ''}`;
+  function _splitIds(accountId) {
+    return String(accountId || '').split(',').map(s => s.trim()).filter(Boolean);
+  }
+
+  async function _fetchOneSpend(platform, id, from, to, fresh) {
+    const url = `${API_PATH}?platform=${encodeURIComponent(platform)}&account_id=${encodeURIComponent(id)}&from=${from}&to=${to}${fresh ? '&fresh=1' : ''}`;
     try {
       const res  = await fetch(url);
       const data = await res.json();
       if (!res.ok && !data.error) data.error = `Error ${res.status} del servidor`;
-      _spend[key] = data;
+      return data;
     } catch (e) {
-      _spend[key] = { error: 'No se pudo conectar al servidor', platform };
+      return { error: 'No se pudo conectar al servidor', platform };
     }
+  }
+
+  // El campo de cuenta admite varios IDs separados por coma (ej. varias cuentas
+  // publicitarias de Meta para el mismo cliente): se piden por separado y se
+  // suman como si fuera una sola cuenta.
+  async function _fetchSpend(platform, accountId, from, to, fresh) {
+    const key = _spendKey(platform, accountId, from, to);
+    const ids = _splitIds(accountId);
+
+    if (ids.length <= 1) {
+      _spend[key] = await _fetchOneSpend(platform, ids[0] || accountId, from, to, fresh);
+      return;
+    }
+
+    const results = await Promise.all(ids.map(id => _fetchOneSpend(platform, id, from, to, fresh)));
+    const ok = results.filter(r => !r.error);
+    if (ok.length === 0) {
+      _spend[key] = { error: results.map(r => r.error).join(' · '), platform };
+      return;
+    }
+
+    const dailyMap = {};
+    let total = 0, currency = '';
+    for (const r of ok) {
+      total += r.total_spend || 0;
+      if (!currency) currency = r.currency || '';
+      for (const d of (r.daily_data || [])) dailyMap[d.date] = (dailyMap[d.date] || 0) + d.spend;
+    }
+    const failed = results.filter(r => r.error);
+    if (failed.length) console.warn(`Pauta: ${failed.length}/${ids.length} cuentas de ${platform} fallaron para ${accountId}:`, failed.map(r => r.error));
+
+    _spend[key] = {
+      platform,
+      account_id: accountId,
+      total_spend: Math.round(total * 100) / 100,
+      currency,
+      daily_data: Object.entries(dailyMap).sort((a, b) => a[0].localeCompare(b[0])).map(([date, spend]) => ({ date, spend })),
+      date_from: from,
+      date_to: to,
+    };
   }
 
   // fresh = true (botón "Actualizar") salta el caché de 10 min del servidor.
@@ -560,8 +603,8 @@ const PautaMonitor = (() => {
           </label>
           <div id="plat-fields-${p.key}" style="${enabled ? '' : 'display:none'}">
             <div class="mb-3">
-              <label class="text-xs text-slate-400 block mb-1">${accLabel}</label>
-              <input type="text" id="plat-account-${p.key}" value="${_esc(accountId)}" placeholder="ej. act_123456789"
+              <label class="text-xs text-slate-400 block mb-1">${accLabel} <span class="text-slate-600 font-normal">(varias, separadas por coma)</span></label>
+              <input type="text" id="plat-account-${p.key}" value="${_esc(accountId)}" placeholder="ej. act_123456789, act_987654321"
                 class="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
             </div>
             <div>
@@ -874,6 +917,30 @@ const PautaMonitor = (() => {
     _leads[clientId][monthKey] = data;
   }
 
+  // Igual que _fetchSpend: el campo de cuenta puede traer varios IDs separados
+  // por coma — se pide el detalle de cada uno y se juntan las campañas.
+  async function _fetchDetailMerged(detailPlat, accountId, from, to) {
+    const ids = _splitIds(accountId);
+    const results = await Promise.all(ids.map(id => {
+      const url = `${API_PATH}?platform=${encodeURIComponent(detailPlat)}&account_id=${encodeURIComponent(id)}&from=${from}&to=${to}`;
+      return fetch(url).then(r => r.json()).catch(() => ({ error: 'Sin conexión al servidor' }));
+    }));
+
+    if (ids.length <= 1) return results[0] || { error: 'Sin conexión al servidor' };
+
+    const ok = results.filter(r => !r.error);
+    if (ok.length === 0) return { error: results.map(r => r.error).join(' · ') };
+
+    const failed = results.filter(r => r.error);
+    if (failed.length) console.warn(`Pauta: ${failed.length}/${ids.length} cuentas de ${detailPlat} fallaron para ${accountId}:`, failed.map(r => r.error));
+
+    return {
+      platform: detailPlat,
+      campaigns: ok.flatMap(r => r.campaigns || []),
+      currency: ok.find(r => r.currency)?.currency || 'USD',
+    };
+  }
+
   async function openBrandModal(clientId) {
     const client = _clients.find(c => c.id === clientId);
     if (!client) return;
@@ -903,11 +970,9 @@ const PautaMonitor = (() => {
       const detailPlat = plat.platform === 'google' ? 'google_detail'
                        : plat.platform === 'meta'   ? 'meta_detail' : null;
       if (!detailPlat) continue;
-      const url = `${API_PATH}?platform=${encodeURIComponent(detailPlat)}&account_id=${encodeURIComponent(accountId)}&from=${from}&to=${to}`;
       calls.push(
-        fetch(url).then(r => r.json())
+        _fetchDetailMerged(detailPlat, accountId, from, to)
           .then(data => { detailData[plat.platform] = data; })
-          .catch(() => { detailData[plat.platform] = { error: 'Sin conexión al servidor' }; })
       );
     }
     await Promise.all(calls);
