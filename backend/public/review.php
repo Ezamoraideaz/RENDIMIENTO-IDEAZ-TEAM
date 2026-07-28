@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../bootstrap.php';
 require_once __DIR__ . '/../includes/trello_sync.php';
 require_once __DIR__ . '/../includes/drive_approval_sync.php';
+require_once __DIR__ . '/../includes/content_batch_lookup.php';
 
 // Portal público de revisión del cliente (revisar.html?t=<token>). Sin sesión,
 // sin CSRF — el cliente no es un operator, se autentica solo con el token del
@@ -19,21 +20,6 @@ const CONTENT_REVIEW_REASON_TAGS = [
 
 $method = $_SERVER['REQUEST_METHOD'];
 $pdo = db();
-
-function content_review_find_batch(PDO $pdo, string $rawToken): ?array
-{
-    $tokenHash = hash('sha256', $rawToken);
-    $stmt = $pdo->prepare('
-        SELECT b.id, b.client_id, b.label, b.expires_at, b.opened_at, b.completed_at,
-               c.name AS client_name, c.logo_url AS client_logo_url, c.timezone AS client_timezone
-        FROM content_batches b
-        JOIN clients c ON c.id = b.client_id
-        WHERE b.token_hash = ?
-    ');
-    $stmt->execute([$tokenHash]);
-    $batch = $stmt->fetch();
-    return $batch ?: null;
-}
 
 switch ($method) {
     case 'GET':

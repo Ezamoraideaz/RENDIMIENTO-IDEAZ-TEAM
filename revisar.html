@@ -506,6 +506,7 @@
   "use strict";
 
   var API = 'backend/public/review.php';
+  var STREAM_API = 'backend/public/stream_media.php';
   var TOKEN = new URLSearchParams(location.search).get('t') || '';
 
   var ITEMS = [];
@@ -736,9 +737,52 @@
     else el.textContent = initial(CLIENT.name);
   }
 
-  function mediaSlideEl(url) {
+  function isVideoMedia(m) {
+    if (m.mimeType) return /^video\//.test(m.mimeType);
+    return /\.(mp4|mov|webm|m4v)(\?|$)/i.test(m.url || '');
+  }
+
+  // Videos: <video> nativo transmitido por nuestro backend (stream_media.php)
+  // en vez del iframe de Drive — así sí podemos forzar autoplay con audio
+  // real, cosa que un iframe de Google (caja negra) nunca permite controlar.
+  function mediaSlideEl(m, itemId) {
     var wrap = document.createElement('div');
     wrap.style.position = 'absolute'; wrap.style.inset = '0';
+    var url = m.url;
+
+    if (isVideoMedia(m) && itemId != null && m.idx != null) {
+      var video = document.createElement('video');
+      video.className = 'media-frame';
+      video.autoplay = true;
+      video.loop = true;
+      video.muted = false;
+      video.volume = 1.0;
+      video.playsInline = true;
+      video.setAttribute('playsinline', '');
+      video.preload = 'auto';
+      video.src = STREAM_API + '?t=' + encodeURIComponent(TOKEN) + '&item_id=' + itemId + '&i=' + m.idx;
+      video.addEventListener('canplay', function () {
+        var p = video.play();
+        if (p && p.catch) {
+          p.catch(function () {
+            // El navegador bloqueó el audio por falta de interacción todavía
+            // (pasa en la primera tarjeta, antes de tocar el splash) — se
+            // reintenta silenciado para que al menos reproduzca, y
+            // dismiss() del splash vuelve a intentarlo con audio apenas
+            // el usuario interactúa.
+            video.muted = true;
+            video.play().catch(function () {});
+          });
+        }
+      });
+      var openV = document.createElement('a');
+      openV.className = 'media-open-link';
+      openV.href = url; openV.target = '_blank'; openV.rel = 'noopener';
+      openV.textContent = '↗ Ver';
+      wrap.appendChild(video); wrap.appendChild(openV);
+      return wrap;
+    }
+
     var fid = driveFileId(url);
     if (fid) {
       var frame = document.createElement('iframe');
@@ -775,35 +819,40 @@
     var media = card.querySelector('[data-media]');
     if (!media) return;
     mountAvatar(card);
-    var urls = (item.media || []).slice().sort(function (a, b) { return (a.order || 0) - (b.order || 0); }).map(function (m) { return m.url; });
-    if (!urls.length) return;
+    // idx conserva la posición original en item.media (antes de ordenar por
+    // "order"), porque stream_media.php indexa contra el arreglo tal como
+    // está guardado en la BD.
+    var mediaList = (item.media || []).map(function (m, i) {
+      return { url: m.url, mimeType: m.mimeType, order: m.order || 0, idx: i };
+    }).sort(function (a, b) { return a.order - b.order; });
+    if (!mediaList.length) return;
 
-    if (item.type === 'carousel' && urls.length > 1) {
+    if (item.type === 'carousel' && mediaList.length > 1) {
       var current = 0;
       var dotsWrap = document.createElement('div');
       dotsWrap.className = 'dots-nav';
-      urls.forEach(function (_, i) {
+      mediaList.forEach(function (_, i) {
         var s = document.createElement('span');
         if (i === 0) s.className = 'on';
         dotsWrap.appendChild(s);
       });
       var countEl = document.createElement('div');
       countEl.className = 'carousel-count';
-      countEl.textContent = '1/' + urls.length;
+      countEl.textContent = '1/' + mediaList.length;
       var slideHolder = document.createElement('div');
       slideHolder.style.position = 'absolute'; slideHolder.style.inset = '0';
-      slideHolder.appendChild(mediaSlideEl(urls[0]));
+      slideHolder.appendChild(mediaSlideEl(mediaList[0], item.id));
 
       var left = document.createElement('div'); left.className = 'tapzone left';
       var right = document.createElement('div'); right.className = 'tapzone right';
       function paint() {
         slideHolder.innerHTML = '';
-        slideHolder.appendChild(mediaSlideEl(urls[current]));
-        countEl.textContent = (current + 1) + '/' + urls.length;
+        slideHolder.appendChild(mediaSlideEl(mediaList[current], item.id));
+        countEl.textContent = (current + 1) + '/' + mediaList.length;
         Array.prototype.forEach.call(dotsWrap.children, function (d, i) { d.classList.toggle('on', i === current); });
       }
       left.addEventListener('click', function (e) { e.stopPropagation(); current = Math.max(0, current - 1); paint(); });
-      right.addEventListener('click', function (e) { e.stopPropagation(); current = Math.min(urls.length - 1, current + 1); paint(); });
+      right.addEventListener('click', function (e) { e.stopPropagation(); current = Math.min(mediaList.length - 1, current + 1); paint(); });
 
       media.appendChild(slideHolder);
       media.appendChild(dotsWrap);
@@ -813,7 +862,7 @@
       return;
     }
 
-    media.appendChild(mediaSlideEl(urls[0]));
+    media.appendChild(mediaSlideEl(mediaList[0], item.id));
   }
 
   function renderDeck() {
@@ -1044,6 +1093,14 @@
   }
 
   // ── Splash ───────────────────────────────────────────────────────────────
+  // Reintenta reproducir con audio el video de la tarjeta actual — se llama
+  // directo desde el click/keydown del splash (no desde el timeout), porque
+  // solo un gesto real del usuario destraba el autoplay con sonido en el navegador.
+  function retryTopVideoWithAudio() {
+    var vid = deckEl && deckEl.querySelector('.card video');
+    if (vid) { vid.muted = false; vid.play().catch(function () {}); }
+  }
+
   function setupSplash() {
     var splash = document.getElementById('splash');
     var splashBar = document.getElementById('splashBar');
@@ -1056,9 +1113,9 @@
     }
     requestAnimationFrame(function () { splashBar.style.width = '100%'; });
     var timer = setTimeout(dismiss, 1700);
-    splash.addEventListener('click', function () { clearTimeout(timer); dismiss(); });
+    splash.addEventListener('click', function () { clearTimeout(timer); retryTopVideoWithAudio(); dismiss(); });
     splash.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); clearTimeout(timer); dismiss(); }
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); clearTimeout(timer); retryTopVideoWithAudio(); dismiss(); }
     });
   }
 

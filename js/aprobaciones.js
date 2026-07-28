@@ -645,10 +645,12 @@ const Aprobaciones = (() => {
 
       let created = 0, skipped = 0;
       for (const r of selected) {
-        const urls = r.files.filter((f) => r.selectedFileIds.has(f.id)).map((f) => f.webViewLink);
-        if (r.manualUrl && r.manualUrl.trim()) urls.push(r.manualUrl.trim());
-        if (!urls.length) { skipped++; continue; }
-        const media = urls.map((url, i) => ({ url, order: i }));
+        // mimeType se guarda junto al archivo para que revisar.html sepa si es
+        // un video (y lo reproduzca con <video> nativo) sin adivinar por la URL.
+        const media = r.files.filter((f) => r.selectedFileIds.has(f.id)).map((f) => ({ url: f.webViewLink, mimeType: f.mimeType }));
+        if (r.manualUrl && r.manualUrl.trim()) media.push({ url: r.manualUrl.trim() });
+        if (!media.length) { skipped++; continue; }
+        media.forEach((m, i) => { m.order = i; });
         await Session.apiFetch('api/content_items.php', {
           method: 'POST',
           body: JSON.stringify({
