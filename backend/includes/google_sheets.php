@@ -14,10 +14,12 @@ declare(strict_types=1);
 function google_sheets_access_token(): ?string
 {
     if (!defined('GOOGLE_SERVICE_ACCOUNT_KEY_FILE') || !GOOGLE_SERVICE_ACCOUNT_KEY_FILE || !is_file(GOOGLE_SERVICE_ACCOUNT_KEY_FILE)) {
+        error_log('[google_sheets] GOOGLE_SERVICE_ACCOUNT_KEY_FILE no está definido o el archivo no existe: ' . (defined('GOOGLE_SERVICE_ACCOUNT_KEY_FILE') ? GOOGLE_SERVICE_ACCOUNT_KEY_FILE : '(no definido)'));
         return null;
     }
     $key = json_decode((string)file_get_contents(GOOGLE_SERVICE_ACCOUNT_KEY_FILE), true);
     if (!is_array($key) || empty($key['client_email']) || empty($key['private_key'])) {
+        error_log('[google_sheets] El archivo de la cuenta de servicio no es un JSON válido o le falta client_email/private_key');
         return null;
     }
 
@@ -40,6 +42,7 @@ function google_sheets_access_token(): ?string
     $signature = '';
     $signed = openssl_sign($signingInput, $signature, $key['private_key'], 'sha256WithRSAEncryption');
     if (!$signed) {
+        error_log('[google_sheets] openssl_sign falló — la private_key del JSON parece inválida (' . openssl_error_string() . ')');
         return null;
     }
     $jwt = $signingInput . '.' . $b64($signature);
@@ -57,12 +60,17 @@ function google_sheets_access_token(): ?string
     ]);
     $raw = curl_exec($ch);
     $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlErr = curl_error($ch);
     curl_close($ch);
 
     if ($raw === false || $status !== 200) {
+        error_log("[google_sheets] Fallo al pedir el access_token (HTTP {$status}): " . ($curlErr ?: $raw));
         return null;
     }
     $data = json_decode((string)$raw, true);
+    if (empty($data['access_token'])) {
+        error_log('[google_sheets] Google respondió 200 pero sin access_token: ' . $raw);
+    }
     return $data['access_token'] ?? null;
 }
 
@@ -73,6 +81,7 @@ function google_sheets_get_values(string $spreadsheetId, string $range): ?array
 {
     $token = google_sheets_access_token();
     if (!$token) {
+        // El motivo específico ya quedó en el log dentro de google_sheets_access_token().
         return null;
     }
 
@@ -86,9 +95,11 @@ function google_sheets_get_values(string $spreadsheetId, string $range): ?array
     ]);
     $raw = curl_exec($ch);
     $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlErr = curl_error($ch);
     curl_close($ch);
 
     if ($raw === false || $status !== 200) {
+        error_log("[google_sheets] Fallo al leer {$spreadsheetId}!{$range} (HTTP {$status}): " . ($curlErr ?: $raw));
         return null;
     }
     $data = json_decode((string)$raw, true);
