@@ -136,10 +136,35 @@
     position: absolute; top: 10px; right: 10px; z-index: 4; background: rgba(0,0,0,.55); color: #fff;
     font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
   }
-  .ig-media .reel-tag {
-    position: absolute; bottom: 10px; left: 10px; z-index: 4; color: #fff; font-size: 11px; font-weight: 700;
-    display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,.4); padding: 3px 8px; border-radius: 999px;
+  /* ---------- Reel: video a pantalla completa, iconos/caption superpuestos ---------- */
+  .reel-vignette-bottom {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 45%; z-index: 3;
+    background: linear-gradient(to top, rgba(0,0,0,.75), transparent); pointer-events: none;
   }
+  .reel-actions-rail {
+    position: absolute; right: 10px; bottom: 92px; z-index: 4;
+    display: flex; flex-direction: column; align-items: center; gap: 18px;
+  }
+  .reel-action { display: flex; flex-direction: column; align-items: center; gap: 3px; color: #fff; }
+  .reel-icon { font-size: 25px; filter: drop-shadow(0 1px 3px rgba(0,0,0,.5)); }
+  .reel-count { font-size: 11px; font-weight: 700; text-shadow: 0 1px 2px rgba(0,0,0,.5); }
+  .reel-disc {
+    width: 30px; height: 30px; border-radius: 50%; overflow: hidden; margin-top: 6px;
+    border: 2px solid #fff; background: linear-gradient(135deg, #caa06a, #7a5230);
+    display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; color: #fff;
+    animation: reelSpin 4s linear infinite;
+  }
+  .reel-disc img { width: 100%; height: 100%; object-fit: cover; }
+  @keyframes reelSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  .reel-bottom { position: absolute; left: 12px; right: 68px; bottom: 16px; z-index: 4; color: #fff; }
+  .reel-caption { font-size: 13px; line-height: 1.4; text-shadow: 0 1px 3px rgba(0,0,0,.45); }
+  .reel-caption b { margin-right: 4px; }
+  .reel-audio { font-size: 11.5px; margin-top: 6px; opacity: .9; text-shadow: 0 1px 2px rgba(0,0,0,.4); }
+  .reel-schedule {
+    font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; font-weight: 600;
+    color: rgba(255,255,255,.85); margin-top: 6px; text-shadow: 0 1px 2px rgba(0,0,0,.4);
+  }
+  @media (prefers-reduced-motion: reduce) { .reel-disc { animation: none; } }
 
   .story-bar-track { position: absolute; top: 9px; left: 10px; right: 10px; z-index: 5; height: 2.5px; background: rgba(255,255,255,.35); border-radius: 2px; overflow: hidden; }
   .story-bar-fill { height: 100%; width: 100%; background: #fff; border-radius: 2px; }
@@ -666,6 +691,28 @@
       return html;
     }
 
+    if (item.type === 'reel') {
+      var reelCaption = item.caption
+        ? '<b>' + esc(handle) + '</b>' + esc(item.caption)
+        : '<b>' + esc(handle) + '</b>';
+      html += '<div class="ig-media" style="flex:1" data-media>'
+        + '  <div class="reel-vignette-bottom"></div>'
+        + '  <div class="reel-actions-rail">'
+        + '    <div class="reel-action"><span class="reel-icon">♡</span><span class="reel-count">' + likes + '</span></div>'
+        + '    <div class="reel-action"><span class="reel-icon">💬</span><span class="reel-count">' + comments + '</span></div>'
+        + '    <div class="reel-action"><span class="reel-icon">➤</span></div>'
+        + '    <div class="reel-action"><span class="reel-icon">&#8942;</span></div>'
+        + '    <div class="reel-disc" data-ava></div>'
+        + '  </div>'
+        + '  <div class="reel-bottom">'
+        + '    <div class="reel-caption">' + reelCaption + '</div>'
+        + '    <div class="reel-audio">🎵 Audio original</div>'
+        + '    <div class="reel-schedule">Se publicará: ' + esc(fmtSchedule(item.scheduled_at)) + '</div>'
+        + '  </div>'
+        + '</div>';
+      return html;
+    }
+
     html += '<div class="ig-head">'
       + '  <div class="ava" data-ava></div>'
       + '  <div class="who"><div class="uname">' + esc(handle) + ' <span class="badge">✓</span></div>'
@@ -763,15 +810,6 @@
       media.appendChild(countEl);
       media.appendChild(left);
       media.appendChild(right);
-      return;
-    }
-
-    if (item.type === 'reel') {
-      var badge = document.createElement('div'); badge.className = 'play-badge'; badge.textContent = '▶';
-      var tag = document.createElement('div'); tag.className = 'reel-tag'; tag.textContent = '🎬 Reel';
-      media.appendChild(mediaSlideEl(urls[0]));
-      media.appendChild(badge);
-      media.appendChild(tag);
       return;
     }
 
