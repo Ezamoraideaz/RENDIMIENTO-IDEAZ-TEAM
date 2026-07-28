@@ -46,7 +46,9 @@ foreach ($values as $row) {
         'post_number' => (int)$m[1],
         'label'       => $colA,
         'format_raw'  => $row[1] ?? '',
-        'type'        => SHEET_TYPE_MAP[$formatRaw] ?? 'feed',
+        // Match exacto primero (HISTORIA/CARRUSEL); "REEL" además cubre variantes
+        // como "REEL FEED" que también deben tratarse como reel, no como feed.
+        'type'        => SHEET_TYPE_MAP[$formatRaw] ?? (str_contains($formatRaw, 'REEL') ? 'reel' : 'feed'),
         'day'         => trim((string)($row[2] ?? '')),
         'caption'     => trim((string)($row[5] ?? '')),
         'hashtags'    => trim((string)($row[6] ?? '')),
