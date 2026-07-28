@@ -446,7 +446,9 @@ const Aprobaciones = (() => {
       const api = getTrelloApi();
       const boardId = client.trello_board_id;
       const [lists, cards] = await Promise.all([api.getLists(boardId), api.getCards(boardId)]);
-      const enviadoList = lists.find((l) => l.name === 'Enviado');
+      // Comparación sin distinguir mayúsculas: algunos tableros usan "ENVIADO"
+      // todo en mayúsculas en vez de "Enviado" (protocolo-trello.html).
+      const enviadoList = lists.find((l) => l.name.trim().toUpperCase() === 'ENVIADO');
       if (!enviadoList) throw new Error('Este tablero no tiene una lista llamada "Enviado"');
       const enviadoCards = cards.filter((c) => c.idList === enviadoList.id && !c.closed);
       if (!enviadoCards.length) {
