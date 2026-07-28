@@ -1,6 +1,5 @@
 const PautaMonitor = (() => {
 
-  const LS_KEY   = 'pauta_clients';
   const API_PATH = 'api/spend.php';
 
   const PLATFORMS = [
@@ -15,15 +14,36 @@ const PautaMonitor = (() => {
   let _simState = null; // estado del simulador de presupuesto
   const _filters = { period: false, now: false };
 
-  // ── Storage ────────────────────────────────────────────────────────────────
+  // ── Storage (BD compartida — backend/api/pauta_clients.php + pauta_leads.php) ──
+  // Antes vivía en localStorage: cada usuario veía su propia lista de clientes.
+  // Ahora todos comparten la misma configuración vía MySQL.
 
-  function _load() {
-    try { _clients = JSON.parse(localStorage.getItem(LS_KEY) || '[]'); }
-    catch { _clients = []; }
+  let _leads = {}; // { clientId: { 'YYYY-MM': { total, qualified } } }
+
+  async function _load() {
+    try {
+      const [clientsRes, leadsRes] = await Promise.all([
+        Session.apiFetch('api/pauta_clients.php'),
+        Session.apiFetch('api/pauta_leads.php'),
+      ]);
+      _clients = clientsRes.clients || [];
+      _leads   = leadsRes.leads || {};
+    } catch (e) {
+      _clients = [];
+      _leads   = {};
+      if (window.Utils && Utils.showToast) Utils.showToast('No se pudo cargar la configuración de pauta: ' + e.message, 'error');
+    }
   }
 
-  function _save() {
-    localStorage.setItem(LS_KEY, JSON.stringify(_clients));
+  async function _saveClientToDb(client) {
+    await Session.apiFetch('api/pauta_clients.php', {
+      method: 'POST',
+      body: JSON.stringify({ id: client.id, name: client.name, budgets: client.budgets, platforms: client.platforms }),
+    });
+  }
+
+  async function _deleteClientFromDb(clientId) {
+    await Session.apiFetch(`api/pauta_clients.php?id=${encodeURIComponent(clientId)}`, { method: 'DELETE' });
   }
 
   function _uid() {
@@ -694,7 +714,7 @@ const PautaMonitor = (() => {
     document.getElementById('pauta-modal-overlay')?.remove();
   }
 
-  function saveClient(existingId) {
+  async function saveClient(existingId) {
     const name          = document.getElementById('modal-client-name')?.value.trim();
     const globalBudget  = parseFloat(document.getElementById('modal-global-budget')?.value || '0') || 0;
     const { from }      = _dateRange();
@@ -728,25 +748,38 @@ const PautaMonitor = (() => {
       return platData;
     });
 
-    if (existingId) {
-      const idx = _clients.findIndex(c => c.id === existingId);
-      if (idx !== -1) {
-        const existBudgets = _clients[idx].budgets || {};
-        _clients[idx] = { ..._clients[idx], name, platforms, budgets: { ...existBudgets, [monthKey]: globalBudget } };
-      }
-    } else {
-      _clients.push({ id: _uid(), name, platforms, budgets: { [monthKey]: globalBudget } });
+    const existBudgets = existingId ? (_clients.find(c => c.id === existingId)?.budgets || {}) : {};
+    const client = {
+      id: existingId || _uid(),
+      name,
+      platforms,
+      budgets: { ...existBudgets, [monthKey]: globalBudget },
+    };
+
+    try {
+      await _saveClientToDb(client);
+    } catch (e) {
+      alert('No se pudo guardar en el servidor: ' + e.message);
+      return;
     }
 
-    _save();
+    const idx = _clients.findIndex(c => c.id === client.id);
+    if (idx !== -1) _clients[idx] = client;
+    else _clients.push(client);
+
     closeModal();
     render();
   }
 
-  function deleteClient(clientId) {
+  async function deleteClient(clientId) {
     if (!confirm('¿Eliminar este cliente y todos sus datos?')) return;
+    try {
+      await _deleteClientFromDb(clientId);
+    } catch (e) {
+      alert('No se pudo eliminar en el servidor: ' + e.message);
+      return;
+    }
     _clients = _clients.filter(c => c.id !== clientId);
-    _save();
     closeModal();
     render();
   }
@@ -823,27 +856,22 @@ const PautaMonitor = (() => {
 
   // ── Brand Detail Modal ─────────────────────────────────────────────────────
 
-  const LS_LEADS = 'pauta_leads';
-
   // Clave por MES, no por rango exacto: con "Este mes" el `to` cambia cada día y los
   // leads capturados ayer quedaban huérfanos (parecían perderse a diario).
-  function _leadsKey(clientId, from) { return `${clientId}:${_monthKey(from)}`; }
+  // _leads se precarga en _load() desde backend/api/pauta_leads.php.
 
-  function _loadLeads(clientId, from, to) {
-    try {
-      const all = JSON.parse(localStorage.getItem(LS_LEADS) || '{}');
-      return all[_leadsKey(clientId, from)]
-        || all[`${clientId}:${from}:${to}`] // compat: formato viejo por rango exacto
-        || { total: 0, qualified: 0 };
-    } catch { return { total: 0, qualified: 0 }; }
+  function _loadLeads(clientId, from) {
+    return (_leads[clientId] || {})[_monthKey(from)] || { total: 0, qualified: 0 };
   }
 
-  function _saveLeads(clientId, from, to, data) {
-    try {
-      const all = JSON.parse(localStorage.getItem(LS_LEADS) || '{}');
-      all[_leadsKey(clientId, from)] = data;
-      localStorage.setItem(LS_LEADS, JSON.stringify(all));
-    } catch {}
+  async function _saveLeads(clientId, from, data) {
+    const monthKey = _monthKey(from);
+    await Session.apiFetch('api/pauta_leads.php', {
+      method: 'POST',
+      body: JSON.stringify({ client_id: clientId, month_key: monthKey, total: data.total, qualified: data.qualified }),
+    });
+    if (!_leads[clientId]) _leads[clientId] = {};
+    _leads[clientId][monthKey] = data;
   }
 
   async function openBrandModal(clientId) {
@@ -925,7 +953,7 @@ const PautaMonitor = (() => {
     const bof = _stageTotals(stages.bof);
 
     const apiLeads  = tof.leads + mof.leads + bof.leads;
-    const saved     = _loadLeads(client.id, from, to);
+    const saved     = _loadLeads(client.id, from);
     const totLeads  = saved.total     || apiLeads;
     const qualified = saved.qualified || 0;
     const unqual    = Math.max(0, totLeads - qualified);
@@ -1230,7 +1258,12 @@ const PautaMonitor = (() => {
     const total     = parseInt(document.getElementById('bm-total')?.value     || '0') || 0;
     const qualified = parseInt(document.getElementById('bm-qualified')?.value || '0') || 0;
     if (qualified > total) { alert('Los calificados no pueden superar el total.'); return; }
-    _saveLeads(clientId, from, to, { total, qualified });
+    try {
+      await _saveLeads(clientId, from, { total, qualified });
+    } catch (e) {
+      alert('No se pudo guardar el registro de leads: ' + e.message);
+      return;
+    }
     closeBrandModal();
     await openBrandModal(clientId);
     _switchBrandTab('leads');
@@ -1635,8 +1668,8 @@ const PautaMonitor = (() => {
 
   // ── Init ───────────────────────────────────────────────────────────────────
 
-  function init() {
-    _load();
+  async function init() {
+    await _load();
     setThisMonth();
     loadData();
   }
