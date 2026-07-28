@@ -25,16 +25,32 @@ function google_sheets_last_error(?string $set = null): ?string
     return $last;
 }
 
+// Acepta la cuenta de servicio de dos formas: pegada directo en config.php
+// (GOOGLE_SERVICE_ACCOUNT_JSON, el .json completo como string) o como archivo
+// subido al servidor (GOOGLE_SERVICE_ACCOUNT_KEY_FILE) — la primera gana si
+// ambas están definidas.
+function google_sheets_service_account_json(): ?string
+{
+    if (defined('GOOGLE_SERVICE_ACCOUNT_JSON') && trim((string)GOOGLE_SERVICE_ACCOUNT_JSON) !== '') {
+        return (string)GOOGLE_SERVICE_ACCOUNT_JSON;
+    }
+    if (defined('GOOGLE_SERVICE_ACCOUNT_KEY_FILE') && GOOGLE_SERVICE_ACCOUNT_KEY_FILE && is_file(GOOGLE_SERVICE_ACCOUNT_KEY_FILE)) {
+        return (string)file_get_contents(GOOGLE_SERVICE_ACCOUNT_KEY_FILE);
+    }
+    return null;
+}
+
 function google_sheets_access_token(): ?string
 {
-    if (!defined('GOOGLE_SERVICE_ACCOUNT_KEY_FILE') || !GOOGLE_SERVICE_ACCOUNT_KEY_FILE || !is_file(GOOGLE_SERVICE_ACCOUNT_KEY_FILE)) {
-        google_sheets_last_error('GOOGLE_SERVICE_ACCOUNT_KEY_FILE no está definido en config.php o el archivo no existe en: '
-            . (defined('GOOGLE_SERVICE_ACCOUNT_KEY_FILE') ? GOOGLE_SERVICE_ACCOUNT_KEY_FILE : '(constante no definida)'));
+    $raw = google_sheets_service_account_json();
+    if ($raw === null) {
+        google_sheets_last_error('No se encontró la cuenta de servicio de Google: define GOOGLE_SERVICE_ACCOUNT_JSON '
+            . '(el .json completo pegado en config.php) o GOOGLE_SERVICE_ACCOUNT_KEY_FILE (ruta a un archivo existente)');
         return null;
     }
-    $key = json_decode((string)file_get_contents(GOOGLE_SERVICE_ACCOUNT_KEY_FILE), true);
+    $key = json_decode($raw, true);
     if (!is_array($key) || empty($key['client_email']) || empty($key['private_key'])) {
-        google_sheets_last_error('El archivo de la cuenta de servicio no es un JSON válido o le falta client_email/private_key');
+        google_sheets_last_error('La cuenta de servicio no es un JSON válido o le falta client_email/private_key');
         return null;
     }
 
