@@ -11,6 +11,8 @@ declare(strict_types=1);
 // La llave de la cuenta de servicio vive en backend/storage/ (gitignored,
 // bloqueado por .htaccess) — nunca en el repo ni en config.php.
 
+require_once __DIR__ . '/google_service_account.php';
+
 // Guarda el motivo del último fallo para que el caller (sheet_import.php) lo
 // pueda devolver en la respuesta JSON — en hosting compartido no siempre se
 // puede confiar en que error_log() caiga en un archivo visible, así que el
@@ -25,69 +27,34 @@ function google_sheets_last_error(?string $set = null): ?string
     return $last;
 }
 
-// Acepta la cuenta de servicio de dos formas: pegada directo en config.php
-// (GOOGLE_SERVICE_ACCOUNT_JSON, el .json completo como string) o como archivo
-// subido al servidor (GOOGLE_SERVICE_ACCOUNT_KEY_FILE) — la primera gana si
-// ambas están definidas.
-function google_sheets_service_account_json(): ?string
-{
-    if (defined('GOOGLE_SERVICE_ACCOUNT_JSON') && trim((string)GOOGLE_SERVICE_ACCOUNT_JSON) !== '') {
-        return (string)GOOGLE_SERVICE_ACCOUNT_JSON;
-    }
-    if (defined('GOOGLE_SERVICE_ACCOUNT_KEY_FILE') && GOOGLE_SERVICE_ACCOUNT_KEY_FILE && is_file(GOOGLE_SERVICE_ACCOUNT_KEY_FILE)) {
-        return (string)file_get_contents(GOOGLE_SERVICE_ACCOUNT_KEY_FILE);
-    }
-    return null;
-}
-
 function google_sheets_access_token(): ?string
 {
-    $raw = google_sheets_service_account_json();
-    if ($raw === null) {
-        google_sheets_last_error('No se encontró la cuenta de servicio de Google: define GOOGLE_SERVICE_ACCOUNT_JSON '
-            . '(el .json completo pegado en config.php) o GOOGLE_SERVICE_ACCOUNT_KEY_FILE (ruta a un archivo existente)');
+    return google_service_account_token(
+        'https://www.googleapis.com/auth/spreadsheets.readonly',
+        function (string $msg): void { google_sheets_last_error($msg); }
+    );
+}
+
+// Busca, entre las pestañas reales del Sheet, una que coincida con $wanted sin
+// exigir coincidencia exacta: ignora mayúsculas/minúsculas y espacios de más
+// (ej. "JULIO " con espacio al final), y si no hay match exacto acepta la
+// primera pestaña cuyo nombre CONTENGA lo buscado (ej. "JULIO-AGOSTO" para
+// "JULIO"). Devuelve el título EXACTO tal como está en el Sheet (para armar el
+// rango A1 correctamente) o null si ninguna pestaña coincide.
+function google_sheets_find_tab(string $spreadsheetId, string $wanted): ?string
+{
+    $token = google_sheets_access_token();
+    if (!$token) {
         return null;
     }
-    $key = json_decode($raw, true);
-    if (!is_array($key) || empty($key['client_email']) || empty($key['private_key'])) {
-        google_sheets_last_error('La cuenta de servicio no es un JSON válido o le falta client_email/private_key');
-        return null;
-    }
 
-    $b64 = static function ($data): string {
-        $json = is_string($data) ? $data : json_encode($data);
-        return rtrim(strtr(base64_encode($json), '+/', '-_'), '=');
-    };
-
-    $now = time();
-    $header = ['alg' => 'RS256', 'typ' => 'JWT'];
-    $claims = [
-        'iss'   => $key['client_email'],
-        'scope' => 'https://www.googleapis.com/auth/spreadsheets.readonly',
-        'aud'   => 'https://oauth2.googleapis.com/token',
-        'iat'   => $now,
-        'exp'   => $now + 3600,
-    ];
-    $signingInput = $b64($header) . '.' . $b64($claims);
-
-    $signature = '';
-    $signed = openssl_sign($signingInput, $signature, $key['private_key'], 'sha256WithRSAEncryption');
-    if (!$signed) {
-        google_sheets_last_error('openssl_sign falló — la private_key del JSON parece inválida (' . openssl_error_string() . ')');
-        return null;
-    }
-    $jwt = $signingInput . '.' . $b64($signature);
-
-    $ch = curl_init('https://oauth2.googleapis.com/token');
+    $url = 'https://sheets.googleapis.com/v4/spreadsheets/' . rawurlencode($spreadsheetId) . '?fields=' . rawurlencode('sheets.properties.title');
+    $ch = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_SSL_VERIFYPEER => true,
-        CURLOPT_POST           => true,
-        CURLOPT_TIMEOUT        => 10,
-        CURLOPT_POSTFIELDS     => http_build_query([
-            'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-            'assertion'  => $jwt,
-        ]),
+        CURLOPT_TIMEOUT        => 15,
+        CURLOPT_HTTPHEADER     => ['Authorization: Bearer ' . $token],
     ]);
     $raw = curl_exec($ch);
     $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -95,15 +62,35 @@ function google_sheets_access_token(): ?string
     curl_close($ch);
 
     if ($raw === false || $status !== 200) {
-        google_sheets_last_error("Fallo al pedir el access_token a Google (HTTP {$status}): " . trim($curlErr ?: (string)$raw));
+        google_sheets_last_error("Fallo al listar las pestañas del Sheet {$spreadsheetId} (HTTP {$status}): " . trim($curlErr ?: (string)$raw));
         return null;
     }
     $data = json_decode((string)$raw, true);
-    if (empty($data['access_token'])) {
-        google_sheets_last_error('Google respondió 200 al pedir el token pero sin access_token: ' . $raw);
-        return null;
+    $titles = array_map(fn($s) => (string)($s['properties']['title'] ?? ''), $data['sheets'] ?? []);
+
+    $wantedNorm = mb_strtoupper(trim($wanted));
+
+    foreach ($titles as $t) {
+        if (mb_strtoupper(trim($t)) === $wantedNorm) {
+            return $t; // match exacto (salvo espacios/mayúsculas)
+        }
     }
-    return $data['access_token'];
+    foreach ($titles as $t) {
+        if ($wantedNorm !== '' && mb_strpos(mb_strtoupper($t), $wantedNorm) !== false) {
+            return $t; // ej. pestaña "JULIO-AGOSTO" al buscar "JULIO"
+        }
+    }
+
+    google_sheets_last_error("Ninguna pestaña del Sheet coincide con \"{$wanted}\" — pestañas disponibles: " . implode(', ', $titles));
+    return null;
+}
+
+// Envuelve el nombre de pestaña en comillas simples para el rango A1 (necesario
+// si el nombre tiene espacios o caracteres especiales), escapando comillas
+// simples internas al estilo de Google Sheets (duplicándolas).
+function google_sheets_quote_tab(string $tab): string
+{
+    return "'" . str_replace("'", "''", $tab) . "'";
 }
 
 // $range en formato A1, ej. "JULIO!A:G". Devuelve las filas crudas (array de

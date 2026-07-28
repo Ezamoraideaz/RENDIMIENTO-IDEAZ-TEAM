@@ -25,7 +25,17 @@ if (!$sheetId) {
     json_error('Este cliente no tiene un Google Sheet vinculado todavía', 400);
 }
 
-$values = google_sheets_get_values((string)$sheetId, $tab . '!A:G');
+// El nombre de pestaña real casi nunca coincide carácter por carácter con el
+// mes esperado (espacios de más, mayúsculas distintas, "JULIO-AGOSTO" en vez
+// de "JULIO"), así que primero se resuelve el título exacto entre las pestañas
+// del Sheet en vez de asumir que $tab existe tal cual.
+$realTab = google_sheets_find_tab((string)$sheetId, $tab);
+if ($realTab === null) {
+    $detail = google_sheets_last_error();
+    json_error('No se pudo leer el Google Sheet' . ($detail ? " — {$detail}" : ' — revisa que esté compartido con la cuenta de servicio y que la pestaña exista'), 502);
+}
+
+$values = google_sheets_get_values((string)$sheetId, google_sheets_quote_tab($realTab) . '!A:G');
 if ($values === null) {
     $detail = google_sheets_last_error();
     json_error('No se pudo leer el Google Sheet' . ($detail ? " — {$detail}" : ' — revisa que esté compartido con la cuenta de servicio y que la pestaña exista'), 502);
