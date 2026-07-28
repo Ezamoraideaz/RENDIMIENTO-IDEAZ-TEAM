@@ -11,15 +11,30 @@ declare(strict_types=1);
 // La llave de la cuenta de servicio vive en backend/storage/ (gitignored,
 // bloqueado por .htaccess) — nunca en el repo ni en config.php.
 
+// Guarda el motivo del último fallo para que el caller (sheet_import.php) lo
+// pueda devolver en la respuesta JSON — en hosting compartido no siempre se
+// puede confiar en que error_log() caiga en un archivo visible, así que el
+// diagnóstico viaja también en la respuesta HTTP, no solo en el log.
+function google_sheets_last_error(?string $set = null): ?string
+{
+    static $last = null;
+    if ($set !== null) {
+        $last = $set;
+        error_log('[google_sheets] ' . $set);
+    }
+    return $last;
+}
+
 function google_sheets_access_token(): ?string
 {
     if (!defined('GOOGLE_SERVICE_ACCOUNT_KEY_FILE') || !GOOGLE_SERVICE_ACCOUNT_KEY_FILE || !is_file(GOOGLE_SERVICE_ACCOUNT_KEY_FILE)) {
-        error_log('[google_sheets] GOOGLE_SERVICE_ACCOUNT_KEY_FILE no está definido o el archivo no existe: ' . (defined('GOOGLE_SERVICE_ACCOUNT_KEY_FILE') ? GOOGLE_SERVICE_ACCOUNT_KEY_FILE : '(no definido)'));
+        google_sheets_last_error('GOOGLE_SERVICE_ACCOUNT_KEY_FILE no está definido en config.php o el archivo no existe en: '
+            . (defined('GOOGLE_SERVICE_ACCOUNT_KEY_FILE') ? GOOGLE_SERVICE_ACCOUNT_KEY_FILE : '(constante no definida)'));
         return null;
     }
     $key = json_decode((string)file_get_contents(GOOGLE_SERVICE_ACCOUNT_KEY_FILE), true);
     if (!is_array($key) || empty($key['client_email']) || empty($key['private_key'])) {
-        error_log('[google_sheets] El archivo de la cuenta de servicio no es un JSON válido o le falta client_email/private_key');
+        google_sheets_last_error('El archivo de la cuenta de servicio no es un JSON válido o le falta client_email/private_key');
         return null;
     }
 
@@ -42,7 +57,7 @@ function google_sheets_access_token(): ?string
     $signature = '';
     $signed = openssl_sign($signingInput, $signature, $key['private_key'], 'sha256WithRSAEncryption');
     if (!$signed) {
-        error_log('[google_sheets] openssl_sign falló — la private_key del JSON parece inválida (' . openssl_error_string() . ')');
+        google_sheets_last_error('openssl_sign falló — la private_key del JSON parece inválida (' . openssl_error_string() . ')');
         return null;
     }
     $jwt = $signingInput . '.' . $b64($signature);
@@ -64,25 +79,25 @@ function google_sheets_access_token(): ?string
     curl_close($ch);
 
     if ($raw === false || $status !== 200) {
-        error_log("[google_sheets] Fallo al pedir el access_token (HTTP {$status}): " . ($curlErr ?: $raw));
+        google_sheets_last_error("Fallo al pedir el access_token a Google (HTTP {$status}): " . trim($curlErr ?: (string)$raw));
         return null;
     }
     $data = json_decode((string)$raw, true);
     if (empty($data['access_token'])) {
-        error_log('[google_sheets] Google respondió 200 pero sin access_token: ' . $raw);
+        google_sheets_last_error('Google respondió 200 al pedir el token pero sin access_token: ' . $raw);
+        return null;
     }
-    return $data['access_token'] ?? null;
+    return $data['access_token'];
 }
 
 // $range en formato A1, ej. "JULIO!A:G". Devuelve las filas crudas (array de
 // arrays de celdas) o null si algo falló (credenciales, permisos, pestaña
-// inexistente, etc.) — el caller decide cómo comunicar el error.
+// inexistente, etc.) — llamar google_sheets_last_error() después para saber por qué.
 function google_sheets_get_values(string $spreadsheetId, string $range): ?array
 {
     $token = google_sheets_access_token();
     if (!$token) {
-        // El motivo específico ya quedó en el log dentro de google_sheets_access_token().
-        return null;
+        return null; // google_sheets_last_error() ya quedó seteado arriba
     }
 
     $url = 'https://sheets.googleapis.com/v4/spreadsheets/' . rawurlencode($spreadsheetId) . '/values/' . rawurlencode($range);
@@ -99,7 +114,7 @@ function google_sheets_get_values(string $spreadsheetId, string $range): ?array
     curl_close($ch);
 
     if ($raw === false || $status !== 200) {
-        error_log("[google_sheets] Fallo al leer {$spreadsheetId}!{$range} (HTTP {$status}): " . ($curlErr ?: $raw));
+        google_sheets_last_error("Fallo al leer \"{$range}\" del Sheet {$spreadsheetId} (HTTP {$status}): " . trim($curlErr ?: (string)$raw));
         return null;
     }
     $data = json_decode((string)$raw, true);

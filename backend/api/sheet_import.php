@@ -27,7 +27,8 @@ if (!$sheetId) {
 
 $values = google_sheets_get_values((string)$sheetId, $tab . '!A:G');
 if ($values === null) {
-    json_error('No se pudo leer el Google Sheet — revisa que esté compartido con la cuenta de servicio y que la pestaña exista', 502);
+    $detail = google_sheets_last_error();
+    json_error('No se pudo leer el Google Sheet' . ($detail ? " — {$detail}" : ' — revisa que esté compartido con la cuenta de servicio y que la pestaña exista'), 502);
 }
 
 // Columnas del cronograma: A=POST#, B=formato, C=día, D/E=uso interno del
