@@ -495,12 +495,15 @@ const Aprobaciones = (() => {
         sheetWarning = ` ⚠ No se pudo leer la parrilla (${e.message}) — completa los campos a mano.`;
       }
 
-      const driveFolderId = (Storage.getProjectData(boardId).driveFolderId || '').trim();
-      const driveReady = DriveAPI.isConnected() && !!driveFolderId;
+      // La carpeta "Para aprobación" es externa a ARTES y se vincula por
+      // cliente (no por tablero) — ver botón "Vincular / cambiar" junto a
+      // Trello/Sheet arriba en la página.
+      const approvalFolderId = (client.drive_approval_folder_id || '').trim();
+      const driveReady = DriveAPI.isConnected() && !!approvalFolderId;
       let driveWarning = '';
       if (!driveReady) {
         driveWarning = DriveAPI.isConnected()
-          ? ' ⚠ Este tablero no tiene carpeta de Drive configurada.'
+          ? ' ⚠ Este cliente no tiene carpeta "Para aprobación" vinculada.'
           : ' ⚠ Drive no conectado — ve a Configuración.';
       }
 
@@ -513,7 +516,7 @@ const Aprobaciones = (() => {
         let files = [];
         if (driveReady && postNumber) {
           try {
-            const found = await DriveAPI.findApprovalMedia(driveFolderId, postNumber);
+            const found = await DriveAPI.findApprovalMedia(approvalFolderId, postNumber);
             files = found.files || [];
           } catch (e) { /* sin medios — la CM completa a mano */ }
         }

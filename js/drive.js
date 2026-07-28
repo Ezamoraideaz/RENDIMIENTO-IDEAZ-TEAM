@@ -239,33 +239,27 @@ const DriveAPI = (() => {
   }
 
   // ── Carpeta "Para aprobación" (módulo aprobaciones) ─────────────────────────
-  // El diseñador sube el contenido listo para revisión a una carpeta llamada
-  // "Para aprobación" (dentro del mismo rootFolderId del proyecto), nombrando
-  // el archivo o subcarpeta con el identificador del post (columna A del
-  // cronograma, ej. "POST #3" — mismo criterio que _matchPost ya usa arriba).
-  function _matchApprovalFolderName(name) {
-    return name.toLowerCase().indexOf('para aprobaci') !== -1; // cubre "aprobación"/"aprobacion"
-  }
-
+  // Carpeta externa por marca (clients.drive_approval_folder_id), separada de
+  // la carpeta ARTES del proyecto — el diseñador sube ahí el contenido listo
+  // para revisión, nombrando el archivo o subcarpeta con el identificador del
+  // post (columna A del cronograma, ej. "POST #3" — mismo criterio que
+  // _matchPost ya usa arriba). approvalFolderId ES esa carpeta directamente,
+  // no una carpeta raíz donde buscarla.
+  //
   // Devuelve { folder, files } — folder es la subcarpeta del post si existe
-  // (y ahí se listan los files), o directamente la carpeta "Para aprobación"
-  // si el diseñador subió el archivo suelto ahí con el nombre del post.
-  // folder === null si ni siquiera existe la carpeta "Para aprobación".
-  async function findApprovalMedia(rootFolderId, postNumber) {
-    const top = await _listSubfolders(rootFolderId);
-    const approvalFolder = top.find(f => _matchApprovalFolderName(f.name));
-    if (!approvalFolder) return { folder: null, files: [] };
-
-    const subfolders = await _listSubfolders(approvalFolder.id);
+  // (y ahí se listan los files), o directamente approvalFolderId si el
+  // diseñador subió el archivo suelto ahí con el nombre del post.
+  async function findApprovalMedia(approvalFolderId, postNumber) {
+    const subfolders = await _listSubfolders(approvalFolderId);
     const postFolder = subfolders.find(f => _matchPost(f.name, postNumber));
     if (postFolder) {
       const files = await _listFiles(postFolder.id);
       return { folder: postFolder, files };
     }
 
-    const looseFiles = await _listFiles(approvalFolder.id);
+    const looseFiles = await _listFiles(approvalFolderId);
     const matched = looseFiles.filter(f => _matchPost(f.name, postNumber));
-    return { folder: approvalFolder, files: matched };
+    return { folder: matched.length ? { id: approvalFolderId } : null, files: matched };
   }
 
   return {
