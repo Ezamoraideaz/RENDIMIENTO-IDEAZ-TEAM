@@ -67,6 +67,16 @@ function google_drive_request(string $method, string $url, ?array $body = null):
     return is_array($data) ? $data : [];
 }
 
+// El webViewLink de Drive nunca trae el nombre/extensión del archivo original,
+// así que no hay forma de adivinar por la URL si algo es un video — hay que
+// preguntarle a Drive. Se usa como respaldo para contenido creado antes de que
+// el frontend empezara a guardar mimeType junto al archivo.
+function google_drive_get_mime_type(string $fileId): ?string
+{
+    $data = google_drive_request('GET', "https://www.googleapis.com/drive/v3/files/{$fileId}?fields=mimeType");
+    return $data['mimeType'] ?? null;
+}
+
 function google_drive_list_subfolders(string $parentId): ?array
 {
     $q = rawurlencode("'{$parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false");

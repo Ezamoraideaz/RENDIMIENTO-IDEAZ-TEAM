@@ -3,6 +3,7 @@ require_once __DIR__ . '/../bootstrap.php';
 require_once __DIR__ . '/../includes/trello_sync.php';
 require_once __DIR__ . '/../includes/drive_approval_sync.php';
 require_once __DIR__ . '/../includes/content_batch_lookup.php';
+require_once __DIR__ . '/../includes/google_drive.php';
 
 // Portal público de revisión del cliente (revisar.html?t=<token>). Sin sesión,
 // sin CSRF — el cliente no es un operator, se autentica solo con el token del
@@ -57,6 +58,32 @@ switch ($method) {
         $items = $itemsStmt->fetchAll();
         foreach ($items as &$item) {
             $item['media'] = json_decode($item['media'], true) ?? [];
+
+            // Contenido creado antes de que el frontend guardara mimeType: el
+            // webViewLink de Drive no trae el nombre/extensión del archivo, así
+            // que sin esto el portal no puede saber si es un video y cae al
+            // iframe de Drive — que Google ahora bloquea embeber (CSP
+            // frame-ancestors). Se resuelve una sola vez y se guarda en la BD.
+            $mediaChanged = false;
+            foreach ($item['media'] as &$m) {
+                if (!empty($m['mimeType']) || empty($m['url'])) {
+                    continue;
+                }
+                $fileId = google_drive_extract_file_id((string)$m['url']);
+                if (!$fileId) {
+                    continue;
+                }
+                $mime = google_drive_get_mime_type($fileId);
+                if ($mime) {
+                    $m['mimeType'] = $mime;
+                    $mediaChanged = true;
+                }
+            }
+            unset($m);
+            if ($mediaChanged) {
+                $pdo->prepare('UPDATE content_items SET media = ? WHERE id = ?')
+                    ->execute([json_encode(array_values($item['media'])), $item['id']]);
+            }
         }
         unset($item);
 
