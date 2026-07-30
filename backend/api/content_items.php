@@ -103,8 +103,23 @@ switch ($method) {
         if ($id <= 0) {
             json_error('id requerido', 400);
         }
-        if (!content_item_row($pdo, $id)) {
+        $existing = content_item_row($pdo, $id);
+        if (!$existing) {
             json_error('Pieza no encontrada', 404);
+        }
+
+        // Reenviar a revisión: el diseñador ya corrigió la pieza (tras
+        // "Cambios") y hay que hacerla aparecer de nuevo para el cliente sin
+        // crear una tanda nueva — alcanza con devolverla a 'pending' (el
+        // historial de decisiones previas queda intacto en content_reviews).
+        // Si la tanda ya se había marcado completed_at (porque esta era la
+        // última pieza pendiente), se limpia para que el portal no la trate
+        // como cerrada; el link solo hay que regenerarlo aparte si venció.
+        if (($input['action'] ?? null) === 'resend_for_review') {
+            $pdo->prepare("UPDATE content_items SET status = 'pending', decided_at = NULL WHERE id = ?")->execute([$id]);
+            $pdo->prepare('UPDATE content_batches SET completed_at = NULL WHERE id = ?')->execute([$existing['batch_id']]);
+            json_response(['ok' => true]);
+            break;
         }
 
         $fields = [];

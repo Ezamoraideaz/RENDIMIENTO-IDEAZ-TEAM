@@ -126,6 +126,51 @@ function trello_sync_decision(PDO $pdo, ?string $cardId, string $decision, ?stri
     }
 }
 
+// Segunda confirmación en Trello, que se llama solo cuando drive_approval_sync()
+// ya verificó que el archivo terminó movido con éxito a la carpeta ARTES/año/
+// mes/POST #N: mueve la tarjeta a la lista de "subida a Drive" — buscada por
+// la palabra "drive" en el nombre (sin importar mayúsculas ni cómo la haya
+// escrito cada tablero: "Subido a Drive", "Montado a Drive", "Montado en
+// Drive", etc.) — y deja un comentario confirmando en qué carpeta quedó.
+// Mismo criterio best-effort que trello_sync_decision(): nunca lanza excepción.
+function trello_sync_mark_drive_uploaded(PDO $pdo, ?string $cardId, ?string $postLabel): void
+{
+    if (!$cardId) {
+        return;
+    }
+    try {
+        $creds = trello_sync_credentials($pdo);
+        if ($creds === null) {
+            return;
+        }
+
+        $card = trello_sync_request('GET', "/cards/{$cardId}", $creds, ['fields' => 'idBoard']);
+        $boardId = $card['idBoard'] ?? null;
+        if (!$boardId) {
+            return;
+        }
+
+        $lists = trello_sync_request('GET', "/boards/{$boardId}/lists", $creds, ['fields' => 'id,name']);
+        $targetList = null;
+        foreach ($lists as $list) {
+            if (mb_stripos((string)($list['name'] ?? ''), 'drive') !== false) {
+                $targetList = $list;
+                break;
+            }
+        }
+        if ($targetList !== null) {
+            trello_sync_request('PUT', "/cards/{$cardId}", $creds, [], ['idList' => $targetList['id']]);
+        }
+
+        $label = $postLabel ? " en {$postLabel}" : '';
+        trello_sync_request('POST', "/cards/{$cardId}/actions/comments", $creds, [], [
+            'text' => "📁 Contenido subido correctamente a Drive{$label}.",
+        ]);
+    } catch (Throwable $e) {
+        error_log('[trello_sync] ' . $e->getMessage());
+    }
+}
+
 function trello_sync_comment_text(string $decision, ?string $comment, array $reasonTags, array $mentions): string
 {
     $mentionLine = $mentions ? implode(' ', $mentions) . "\n\n" : '';

@@ -174,7 +174,14 @@ switch ($method) {
         trello_sync_decision($pdo, $item['trello_card_id'], $decision, $comment, $reasonTags);
 
         if ($decision === 'approved') {
-            drive_approval_sync($pdo, $itemId, (int)$batch['client_id']);
+            $driveResult = drive_approval_sync($pdo, $itemId, (int)$batch['client_id']);
+            // Solo se avisa en Trello y se mueve a la lista de "subida a Drive"
+            // si el archivo quedó efectivamente movido a la carpeta correcta
+            // (verificado por drive_approval_sync) — si falló o se saltó, la
+            // tarjeta se queda en "Aprobado" para que el equipo lo revise a mano.
+            if (($driveResult['status'] ?? null) === 'moved') {
+                trello_sync_mark_drive_uploaded($pdo, $item['trello_card_id'], $driveResult['post_label'] ?? null);
+            }
         }
 
         $pendingStmt = $pdo->prepare("SELECT COUNT(*) FROM content_items WHERE batch_id = ? AND status = 'pending'");

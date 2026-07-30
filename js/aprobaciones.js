@@ -311,6 +311,7 @@ const Aprobaciones = (() => {
           </div>
           <div class="flex items-center gap-2 flex-shrink-0">
             <span class="text-xs px-2 py-0.5 rounded-full ${statusCls}">${statusLbl}</span>
+            ${item.status === 'changes_requested' ? `<button onclick="Aprobaciones.resendForReview(${item.id})" class="text-xs px-2 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-semibold" title="Ya se corrigió — volver a mandarla al cliente">Reenviar a revisión</button>` : ''}
             ${item.status === 'pending' ? `<button onclick="Aprobaciones.deleteItem(${item.id})" class="text-slate-500 hover:text-rose-400 text-xs" title="Eliminar pieza">🗑</button>` : ''}
           </div>
         </div>
@@ -349,6 +350,24 @@ const Aprobaciones = (() => {
       document.getElementById('ap-item-trello').value = '';
       document.getElementById('ap-add-item-details').open = false;
       Utils.showToast('Pieza agregada', 'success');
+      await openBatchModal(activeBatch.id);
+      await loadBatches();
+    } catch (e) {
+      Utils.showToast(e.message, 'danger');
+    }
+  }
+
+  // Reenviar a revisión sin crear una tanda nueva: la pieza vuelve a
+  // 'pending' y reaparece en el mismo link que ya tiene el cliente (si venció,
+  // hay que regenerarlo aparte con el botón de arriba).
+  async function resendForReview(id) {
+    if (!confirm('¿Reenviar esta pieza a revisión? Volverá a aparecer como pendiente para el cliente.')) return;
+    try {
+      await Session.apiFetch('api/content_items.php', {
+        method: 'PUT',
+        body: JSON.stringify({ id, action: 'resend_for_review' }),
+      });
+      Utils.showToast('Pieza reenviada a revisión', 'success');
       await openBatchModal(activeBatch.id);
       await loadBatches();
     } catch (e) {
@@ -677,7 +696,7 @@ const Aprobaciones = (() => {
 
   return {
     init, openNewBatchModal, closeNewBatchModal, submitNewBatch,
-    openBatchModal, closeBatchModal, submitNewItem, deleteItem, generateLink,
+    openBatchModal, closeBatchModal, submitNewItem, deleteItem, generateLink, resendForReview,
     openBoardModal, closeBoardModal, selectBoard,
     openAutoModal, closeAutoModal, autoSearch, autoCreateBatch,
   };
