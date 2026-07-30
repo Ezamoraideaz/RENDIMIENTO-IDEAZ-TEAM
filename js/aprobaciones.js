@@ -70,6 +70,10 @@ const Aprobaciones = (() => {
     document.getElementById('ap-board-list').addEventListener('click', onBoardListClick);
     document.getElementById('ap-auto-results').addEventListener('input', onAutoResultsInput);
     document.getElementById('ap-auto-results').addEventListener('click', onAutoResultsClick);
+    const autoResultsEl = document.getElementById('ap-auto-results');
+    autoResultsEl.addEventListener('dragstart', onAutoFileDragStart);
+    autoResultsEl.addEventListener('dragover', onAutoFileDragOver);
+    autoResultsEl.addEventListener('drop', onAutoFileDrop);
     await loadClients();
   }
 
@@ -632,11 +636,12 @@ const Aprobaciones = (() => {
           + r.duplicateFolders.map((f) => esc(f.name)).join(', ')
           + '. Corrige el nombre de las carpetas en Drive (debe quedar una sola) antes de crear la tanda.</p>'
         : (r.files.length
-          ? `<div class="flex flex-wrap gap-1.5 mt-2">` + r.files.map((f) => `
-              <button type="button" data-auto-file="${i}:${esc(f.id)}"
-                class="text-[11px] px-2 py-1 rounded border ${r.selectedFileIds.has(f.id) ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-800 border-slate-600 text-slate-400'}">
-                ${esc(f.name)}
+          ? `<div class="flex flex-wrap gap-1.5 mt-2">` + r.files.map((f, fi) => `
+              <button type="button" draggable="true" data-auto-file="${i}:${esc(f.id)}" title="Arrastrar para reordenar el carrusel"
+                class="text-[11px] px-2 py-1 rounded border cursor-move ${r.selectedFileIds.has(f.id) ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-800 border-slate-600 text-slate-400'}">
+                ${fi + 1}. ${esc(f.name)}
               </button>`).join('') + `</div>`
+            + (r.files.length > 1 ? '<p class="text-[10px] text-slate-500 mt-1">Arrastra los archivos para corregir el orden del carrusel si no quedó como 1, 2, 3…</p>' : '')
           : '<p class="text-xs text-slate-500 mt-2">Sin archivos encontrados en Drive.</p>');
       return `
         <div class="bg-slate-800/40 border border-slate-700 rounded-lg p-3">
@@ -680,6 +685,41 @@ const Aprobaciones = (() => {
     const fileId = raw.slice(sep + 1);
     const r = autoResults[idx];
     if (r.selectedFileIds.has(fileId)) r.selectedFileIds.delete(fileId); else r.selectedFileIds.add(fileId);
+    renderAutoResults();
+  }
+
+  // Reordenar a mano el carrusel por si el auto-orden (número en el nombre
+  // del archivo) no coincidió con el orden real — arrastrar un chip de
+  // archivo sobre otro los intercambia de posición dentro de esa misma tarjeta.
+  function onAutoFileDragStart(e) {
+    const btn = e.target.closest('[data-auto-file]');
+    if (!btn) return;
+    e.dataTransfer.setData('text/plain', btn.dataset.autoFile);
+    e.dataTransfer.effectAllowed = 'move';
+  }
+  function onAutoFileDragOver(e) {
+    if (e.target.closest('[data-auto-file]')) e.preventDefault();
+  }
+  function onAutoFileDrop(e) {
+    const targetBtn = e.target.closest('[data-auto-file]');
+    if (!targetBtn) return;
+    e.preventDefault();
+    const raw = e.dataTransfer.getData('text/plain');
+    if (!raw) return;
+    const srcSep = raw.indexOf(':');
+    const srcIdx = +raw.slice(0, srcSep);
+    const srcFileId = raw.slice(srcSep + 1);
+    const dstRaw = targetBtn.dataset.autoFile;
+    const dstSep = dstRaw.indexOf(':');
+    const dstIdx = +dstRaw.slice(0, dstSep);
+    const dstFileId = dstRaw.slice(dstSep + 1);
+    if (srcIdx !== dstIdx || srcFileId === dstFileId) return;
+    const r = autoResults[srcIdx];
+    const from = r.files.findIndex((f) => f.id === srcFileId);
+    const to = r.files.findIndex((f) => f.id === dstFileId);
+    if (from < 0 || to < 0) return;
+    const [moved] = r.files.splice(from, 1);
+    r.files.splice(to, 0, moved);
     renderAutoResults();
   }
 

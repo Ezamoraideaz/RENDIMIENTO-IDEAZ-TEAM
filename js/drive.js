@@ -128,6 +128,21 @@ const DriveAPI = (() => {
     return nums.some(n => parseInt(n) === targetNum);
   }
 
+  // Orden de un archivo dentro del carrusel: el primer número que aparezca en
+  // el nombre ("1.jpg", "slide 2.png", "Foto-03.png" → 1, 2, 3). Sin número,
+  // se manda al final y desempata por nombre — la API de Drive no garantiza
+  // ningún orden propio al listar archivos de una carpeta.
+  function _slideOrderNum(name) {
+    const m = (name || '').match(/\d+/);
+    return m ? parseInt(m[0], 10) : Infinity;
+  }
+  function _sortBySlideOrder(files) {
+    return files.slice().sort((a, b) => {
+      const diff = _slideOrderNum(a.name) - _slideOrderNum(b.name);
+      return diff !== 0 ? diff : a.name.localeCompare(b.name);
+    });
+  }
+
   // ── Main search: artes → year → month → post ──────────────────────────────────
   async function findPostFolder(rootFolderId, cardName, dueDate) {
     const year  = dueDate.getFullYear().toString();
@@ -261,12 +276,12 @@ const DriveAPI = (() => {
     const postFolder = matchingFolders[0];
     if (postFolder) {
       const files = await _listFiles(postFolder.id);
-      return { folder: postFolder, files };
+      return { folder: postFolder, files: _sortBySlideOrder(files) };
     }
 
     const looseFiles = await _listFiles(approvalFolderId);
     const matched = looseFiles.filter(f => _matchPost(f.name, postNumber));
-    return { folder: matched.length ? { id: approvalFolderId } : null, files: matched };
+    return { folder: matched.length ? { id: approvalFolderId } : null, files: _sortBySlideOrder(matched) };
   }
 
   return {

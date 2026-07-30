@@ -813,7 +813,10 @@
   // Videos: <video> nativo transmitido por nuestro backend (stream_media.php)
   // en vez del iframe de Drive — así sí podemos forzar autoplay con audio
   // real, cosa que un iframe de Google (caja negra) nunca permite controlar.
-  function mediaSlideEl(m, itemId, itemType) {
+  // onReady(w, h): opcional, avisa el tamaño natural del archivo apenas se
+  // conoce, para que la tarjeta (feed/carrusel) ajuste su proporción a 1:1 o
+  // 4:5 en vez de quedar forzada al 9:16 de reels/historias.
+  function mediaSlideEl(m, itemId, itemType, onReady) {
     var wrap = document.createElement('div');
     wrap.style.position = 'absolute'; wrap.style.inset = '0';
     var url = m.url;
@@ -829,6 +832,9 @@
       video.setAttribute('playsinline', '');
       video.preload = 'auto';
       video.src = STREAM_API + '?t=' + encodeURIComponent(TOKEN) + '&item_id=' + itemId + '&i=' + m.idx;
+      video.addEventListener('loadedmetadata', function () {
+        onReady && onReady(video.videoWidth, video.videoHeight);
+      });
       video.addEventListener('canplay', function () {
         var p = video.play();
         if (p && p.catch) {
@@ -855,24 +861,46 @@
 
     var fid = driveFileId(url);
     if (fid) {
-      var frame = document.createElement('iframe');
-      frame.className = 'media-frame';
-      frame.loading = 'lazy';
-      frame.src = 'https://drive.google.com/file/d/' + fid + '/preview';
-      frame.setAttribute('allow', 'autoplay');
-      wrap.appendChild(frame);
+      var img = document.createElement('img');
+      img.className = 'media-frame';
+      img.loading = 'lazy';
+      img.draggable = false;
+      // Imagen real servida por nuestro backend (mismo mecanismo que el
+      // video) en vez del iframe /preview de Drive — ese iframe trae encima
+      // sus propios controles (zoom, etc.) que acá no hacen falta y no se
+      // pueden ocultar por ser contenido de otro origen.
+      if (itemId != null && m.idx != null) {
+        img.src = STREAM_API + '?t=' + encodeURIComponent(TOKEN) + '&item_id=' + itemId + '&i=' + m.idx;
+      } else {
+        img.src = url;
+      }
+      img.addEventListener('load', function () {
+        onReady && onReady(img.naturalWidth, img.naturalHeight);
+      });
+      img.addEventListener('error', function () {
+        var fb = document.createElement('a');
+        fb.className = 'media-fallback';
+        fb.href = url; fb.target = '_blank'; fb.rel = 'noopener';
+        fb.textContent = '📎 Ver archivo';
+        wrap.innerHTML = '';
+        wrap.appendChild(fb);
+      });
+      wrap.appendChild(img);
       wrap.appendChild(buildMediaActions(
         'https://drive.google.com/file/d/' + fid + '/view',
         'https://drive.google.com/uc?export=download&id=' + fid
       ));
       return wrap;
     }
-    var img = document.createElement('img');
-    img.className = 'media-frame';
-    img.loading = 'lazy';
-    img.draggable = false;
-    img.src = url;
-    img.addEventListener('error', function () {
+    var plainImg = document.createElement('img');
+    plainImg.className = 'media-frame';
+    plainImg.loading = 'lazy';
+    plainImg.draggable = false;
+    plainImg.src = url;
+    plainImg.addEventListener('load', function () {
+      onReady && onReady(plainImg.naturalWidth, plainImg.naturalHeight);
+    });
+    plainImg.addEventListener('error', function () {
       var fb = document.createElement('a');
       fb.className = 'media-fallback';
       fb.href = url; fb.target = '_blank'; fb.rel = 'noopener';
@@ -880,7 +908,7 @@
       wrap.innerHTML = '';
       wrap.appendChild(fb);
     });
-    wrap.appendChild(img);
+    wrap.appendChild(plainImg);
     return wrap;
   }
 
@@ -924,7 +952,7 @@
     return seek;
   }
 
-  function mountMedia(card, item) {
+  function mountMedia(card, item, onAspectReady) {
     var media = card.querySelector('[data-media]');
     if (!media) return;
     mountAvatar(card);
@@ -950,13 +978,13 @@
       countEl.textContent = '1/' + mediaList.length;
       var slideHolder = document.createElement('div');
       slideHolder.style.position = 'absolute'; slideHolder.style.inset = '0';
-      slideHolder.appendChild(mediaSlideEl(mediaList[0], item.id, item.type));
+      slideHolder.appendChild(mediaSlideEl(mediaList[0], item.id, item.type, onAspectReady));
 
       var left = document.createElement('div'); left.className = 'tapzone left';
       var right = document.createElement('div'); right.className = 'tapzone right';
       function paint() {
         slideHolder.innerHTML = '';
-        slideHolder.appendChild(mediaSlideEl(mediaList[current], item.id, item.type));
+        slideHolder.appendChild(mediaSlideEl(mediaList[current], item.id, item.type, onAspectReady));
         countEl.textContent = (current + 1) + '/' + mediaList.length;
         Array.prototype.forEach.call(dotsWrap.children, function (d, i) { d.classList.toggle('on', i === current); });
       }
@@ -971,12 +999,28 @@
       return;
     }
 
-    media.appendChild(mediaSlideEl(mediaList[0], item.id, item.type));
+    media.appendChild(mediaSlideEl(mediaList[0], item.id, item.type, onAspectReady));
+  }
+
+  // Instagram solo acepta 1:1 (cuadrado) o 4:5 (vertical) en feed/carrusel —
+  // reels/historias siempre son 9:16. Arranca en el default de cada formato
+  // (evita el salto de layout) y se afina a 1:1 apenas se conoce el tamaño
+  // real del archivo, si resulta más cuadrado que 4:5.
+  function applyDeckAspect(type, w, h) {
+    if (type === 'reel' || type === 'story') return;
+    if (!w || !h) return;
+    var ratio = w / h;
+    var closerToSquare = Math.abs(ratio - 1) <= Math.abs(ratio - 0.8);
+    deckWrap.style.aspectRatio = closerToSquare ? '1 / 1' : '4 / 5';
   }
 
   function renderDeck() {
     deckEl.innerHTML = '';
     var visible = ITEMS.slice(idx, idx + 3);
+    var topItem = visible[0];
+    if (topItem) {
+      deckWrap.style.aspectRatio = (topItem.type === 'reel' || topItem.type === 'story') ? '9 / 16' : '4 / 5';
+    }
     visible.forEach(function (item, i) {
       var card = document.createElement('div');
       card.className = 'card settled';
@@ -985,7 +1029,7 @@
       card.style.opacity = i > 2 ? '0' : String(1 - i * 0.12);
       card.innerHTML = buildCardShell(item);
       deckEl.appendChild(card);
-      mountMedia(card, item);
+      mountMedia(card, item, i === 0 ? function (w, h) { applyDeckAspect(item.type, w, h); } : null);
       if (i === 0) setupDrag(card, item);
     });
     updateHeader();
