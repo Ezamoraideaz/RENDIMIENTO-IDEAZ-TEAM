@@ -134,13 +134,16 @@
   }
   .ig-media .tapzone { position: absolute; top: 0; bottom: 0; width: 33%; z-index: 3; }
   .ig-media .tapzone.left { left: 0; } .ig-media .tapzone.right { right: 0; }
-  .ig-media .dots-nav { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 5px; z-index: 4; }
-  .ig-media .dots-nav span { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,.45); }
-  .ig-media .dots-nav span.on { background: #fff; }
   .ig-media .carousel-count {
     position: absolute; top: 10px; right: 10px; z-index: 4; background: rgba(0,0,0,.55); color: #fff;
     font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
   }
+  /* Bullets del carrusel: fuera de la imagen, justo debajo y antes de los
+     íconos de like/comentario/compartir (no tapando el contenido). */
+  .carousel-dots-row { display: flex; justify-content: center; align-items: center; gap: 5px; padding: 8px 0 0; flex-shrink: 0; }
+  .carousel-dots-row:empty { display: none; padding: 0; }
+  .carousel-dots-row .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ig-line); transition: background .15s ease; }
+  .carousel-dots-row .dot.on { background: #3897f0; }
   /* ---------- Reel: video a pantalla completa, iconos/caption superpuestos ---------- */
   .reel-vignette-bottom {
     position: absolute; left: 0; right: 0; bottom: 0; height: 45%; z-index: 3;
@@ -578,6 +581,19 @@
     return String(name || '?').trim().charAt(0).toUpperCase() || '?';
   }
 
+  // SVGs inline (sin librería externa) calcados de los íconos reales de
+  // Instagram, en vez de los glifos de texto (♡ 💬 ➤ ▭) que no se parecían.
+  // "1em" para que hereden el tamaño de fuente del span que los envuelve.
+  var ICONS = {
+    heart: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16.792 3.904A4.989 4.989 0 0 1 21.5 9.122c0 3.072-2.652 4.959-5.197 7.222-2.512 2.243-3.865 3.469-4.303 3.752-.438-.283-1.791-1.51-4.303-3.752C5.152 14.081 2.5 12.194 2.5 9.122a4.989 4.989 0 0 1 4.708-5.218 4.21 4.21 0 0 1 3.675 1.941c.84 1.175.98 1.763 1.117 1.763s.276-.588 1.117-1.763a4.21 4.21 0 0 1 3.675-1.941Z"/></svg>',
+    comment: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20.656 17.008a9.993 9.993 0 1 0-3.59 3.615L21 21Z"/></svg>',
+    share: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="3" x2="9.218" y2="10.083"/><polygon points="11.698 20.334 22 3.001 2 3.001 9.218 10.083 11.698 20.334"/></svg>',
+    bookmark: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polygon points="20 21 12 13.44 4 21 4 3 20 3 20 21"/></svg>',
+    dotsHorizontal: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><circle cx="12" cy="12" r="1.5"/><circle cx="6" cy="12" r="1.5"/><circle cx="18" cy="12" r="1.5"/></svg>',
+    dotsVertical: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="6" r="1.5"/><circle cx="12" cy="18" r="1.5"/></svg>',
+    verified: '<svg viewBox="0 0 24 24" width="1em" height="1em"><circle cx="12" cy="12" r="10" fill="#3897f0"/><path d="M9.5 12.5l1.8 1.8 3.6-4.1" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  };
+
   function driveFileId(url) {
     if (!url) return null;
     var m = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
@@ -743,10 +759,10 @@
       html += '<div class="ig-media" style="flex:1" data-media>'
         + '  <div class="reel-vignette-bottom"></div>'
         + '  <div class="reel-actions-rail">'
-        + '    <div class="reel-action"><span class="reel-icon">♡</span><span class="reel-count">' + likes + '</span></div>'
-        + '    <div class="reel-action"><span class="reel-icon">💬</span><span class="reel-count">' + comments + '</span></div>'
-        + '    <div class="reel-action"><span class="reel-icon">➤</span></div>'
-        + '    <div class="reel-action"><span class="reel-icon">&#8942;</span></div>'
+        + '    <div class="reel-action"><span class="reel-icon">' + ICONS.heart + '</span><span class="reel-count">' + likes + '</span></div>'
+        + '    <div class="reel-action"><span class="reel-icon">' + ICONS.comment + '</span><span class="reel-count">' + comments + '</span></div>'
+        + '    <div class="reel-action"><span class="reel-icon">' + ICONS.share + '</span></div>'
+        + '    <div class="reel-action"><span class="reel-icon">' + ICONS.dotsVertical + '</span></div>'
         + '    <div class="reel-disc" data-ava></div>'
         + '  </div>'
         + '  <div class="reel-bottom">'
@@ -761,13 +777,14 @@
 
     html += '<div class="ig-head">'
       + '  <div class="ava" data-ava></div>'
-      + '  <div class="who"><div class="uname">' + esc(handle) + ' <span class="badge">✓</span></div>'
+      + '  <div class="who"><div class="uname">' + esc(handle) + ' <span class="badge">' + ICONS.verified + '</span></div>'
       + '    <div class="meta">' + (typeTag(item.type) ? esc(typeTag(item.type)) + ' · ' + esc(CLIENT.name) : esc(CLIENT.name)) + '</div>'
-      + '  </div><div class="dots">&#8942;</div>'
+      + '  </div><div class="dots">' + ICONS.dotsHorizontal + '</div>'
       + '</div>'
       + '<div class="ig-media" data-media></div>'
+      + '<div class="carousel-dots-row" data-carousel-dots></div>'
       + '<div class="ig-foot">'
-      + '  <div class="ig-icons"><span>♡</span><span>💬</span><span>➤</span><span class="push">▭</span></div>'
+      + '  <div class="ig-icons"><span>' + ICONS.heart + '</span><span>' + ICONS.comment + '</span><span>' + ICONS.share + '</span><span class="push">' + ICONS.bookmark + '</span></div>'
       + '  <div class="ig-likes">' + likes + ' me gusta</div>'
       + (item.caption ? '  <div class="ig-caption"><b>' + esc(handle) + '</b>' + esc(item.caption) + '</div><div class="ig-viewcomments">Ver los ' + comments + ' comentarios</div>' : '')
       + '  <div class="ig-schedule">Se publicará: ' + esc(fmtSchedule(item.scheduled_at)) + '</div>'
@@ -966,13 +983,14 @@
 
     if (item.type === 'carousel' && mediaList.length > 1) {
       var current = 0;
-      var dotsWrap = document.createElement('div');
-      dotsWrap.className = 'dots-nav';
-      mediaList.forEach(function (_, i) {
-        var s = document.createElement('span');
-        if (i === 0) s.className = 'on';
-        dotsWrap.appendChild(s);
-      });
+      // Los bullets viven fuera de la imagen (data-carousel-dots, entre
+      // .ig-media y .ig-foot) — no tapan el contenido como el overlay viejo.
+      var dotsContainer = card.querySelector('[data-carousel-dots]');
+      if (dotsContainer) {
+        dotsContainer.innerHTML = mediaList.map(function (_, i) {
+          return '<span class="dot' + (i === 0 ? ' on' : '') + '"></span>';
+        }).join('');
+      }
       var countEl = document.createElement('div');
       countEl.className = 'carousel-count';
       countEl.textContent = '1/' + mediaList.length;
@@ -986,13 +1004,14 @@
         slideHolder.innerHTML = '';
         slideHolder.appendChild(mediaSlideEl(mediaList[current], item.id, item.type, onAspectReady));
         countEl.textContent = (current + 1) + '/' + mediaList.length;
-        Array.prototype.forEach.call(dotsWrap.children, function (d, i) { d.classList.toggle('on', i === current); });
+        if (dotsContainer) {
+          Array.prototype.forEach.call(dotsContainer.children, function (d, i) { d.classList.toggle('on', i === current); });
+        }
       }
       left.addEventListener('click', function (e) { e.stopPropagation(); current = Math.max(0, current - 1); paint(); });
       right.addEventListener('click', function (e) { e.stopPropagation(); current = Math.min(mediaList.length - 1, current + 1); paint(); });
 
       media.appendChild(slideHolder);
-      media.appendChild(dotsWrap);
       media.appendChild(countEl);
       media.appendChild(left);
       media.appendChild(right);
@@ -1003,15 +1022,44 @@
   }
 
   // Instagram solo acepta 1:1 (cuadrado) o 4:5 (vertical) en feed/carrusel —
-  // reels/historias siempre son 9:16. Arranca en el default de cada formato
-  // (evita el salto de layout) y se afina a 1:1 apenas se conoce el tamaño
-  // real del archivo, si resulta más cuadrado que 4:5.
+  // reels/historias siempre son 9:16. El CSS (aspect-ratio + height fijo) no
+  // alcanza acá: al cambiar a una proporción más ancha que 9:16, "height"
+  // seguía fijo y "max-width:100%" recortaba el ancho ideal, dejando la
+  // tarjeta más angosta/alta de lo real — la imagen se veía recortada
+  // (con object-fit:cover) en vez de mostrarse en su 4:5 real. Por eso el
+  // tamaño se calcula acá a mano ("letterbox": el rectángulo más grande con
+  // esa proporción que entra en el alto y ancho disponibles).
+  var deckRatio = 9 / 16;
+  function deckMaxHeight() {
+    var vh = window.innerHeight;
+    var isMobile = window.matchMedia('(max-width: 480px)').matches;
+    return isMobile ? Math.min(vh * 0.82, 760) : Math.min(vh * 0.72, 640);
+  }
+  function deckMaxWidth() {
+    var stageEl = document.querySelector('.stage');
+    return stageEl ? stageEl.clientWidth : Math.min(window.innerWidth, 420);
+  }
+  function setDeckRatio(ratio) {
+    deckRatio = ratio;
+    var maxH = deckMaxHeight();
+    var maxW = deckMaxWidth();
+    var h = maxH;
+    var w = h * ratio;
+    if (w > maxW) { w = maxW; h = w / ratio; }
+    deckWrap.style.width = w + 'px';
+    deckWrap.style.height = h + 'px';
+  }
+  window.addEventListener('resize', function () { if (deckWrap) setDeckRatio(deckRatio); });
+
+  // Arranca en el default de cada formato (evita el salto de layout) y se
+  // afina a 1:1 apenas se conoce el tamaño real del archivo, si resulta más
+  // cuadrado que 4:5.
   function applyDeckAspect(type, w, h) {
     if (type === 'reel' || type === 'story') return;
     if (!w || !h) return;
     var ratio = w / h;
     var closerToSquare = Math.abs(ratio - 1) <= Math.abs(ratio - 0.8);
-    deckWrap.style.aspectRatio = closerToSquare ? '1 / 1' : '4 / 5';
+    setDeckRatio(closerToSquare ? 1 : 4 / 5);
   }
 
   function renderDeck() {
@@ -1019,7 +1067,7 @@
     var visible = ITEMS.slice(idx, idx + 3);
     var topItem = visible[0];
     if (topItem) {
-      deckWrap.style.aspectRatio = (topItem.type === 'reel' || topItem.type === 'story') ? '9 / 16' : '4 / 5';
+      setDeckRatio((topItem.type === 'reel' || topItem.type === 'story') ? 9 / 16 : 4 / 5);
     }
     visible.forEach(function (item, i) {
       var card = document.createElement('div');
