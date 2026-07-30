@@ -294,11 +294,11 @@
     padding: 24px; cursor: pointer; transition: opacity .45s ease; overflow: hidden;
   }
   .splash.hide { opacity: 0; pointer-events: none; }
-  /* Imagen de fondo personalizada (logo/portada de la marca) — oculta por
-     defecto, solo se muestra si el cliente tiene logo_url configurado; si no,
-     queda el degradé de arriba como fondo. El scrim oscuro garantiza que el
-     texto blanco sea legible sobre cualquier imagen. */
-  .splash-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; display: none; }
+  /* Fondo fijo compartido por todas las marcas (img/splash-bg.jpeg) — si el
+     archivo no existe aún, el onerror en el <img> lo oculta y queda el
+     degradé de arriba. El scrim oscuro garantiza que el texto blanco sea
+     legible sobre la imagen. */
+  .splash-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
   .splash-scrim { position: absolute; inset: 0; z-index: 1; background: linear-gradient(180deg, rgba(6,7,16,.35), rgba(6,7,16,.6) 55%, rgba(6,7,16,.9)); }
   .splash-inner { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 14px; max-width: 300px; text-align: center; }
   .splash-title { color: #fff; font-size: 21px; font-weight: 800; letter-spacing: -.01em; }
@@ -400,7 +400,11 @@
 
 <div id="app" style="display:none">
   <div class="splash" id="splash" role="button" tabindex="0" aria-label="Toca para comenzar la revisión">
-    <img class="splash-bg" id="splashBg" alt="">
+    <!-- Fondo fijo, igual para todas las marcas (no es el logo del cliente,
+         ese solo se usa para el avatar/identidad de marca en las tarjetas).
+         Reemplazar img/splash-bg.jpeg por el archivo real para activarlo — si
+         no existe todavía, el onerror lo oculta y queda el degradé. -->
+    <img class="splash-bg" id="splashBg" src="img/splash-bg.jpeg" alt="" onerror="this.style.display='none'">
     <div class="splash-scrim"></div>
     <div class="splash-inner">
       <div class="splash-title">Revisión de contenido</div>
@@ -662,17 +666,14 @@
     document.getElementById('brandName').textContent = CLIENT.name;
     document.getElementById('splashSub').textContent = CLIENT.name + ' · vista previa de Instagram';
 
+    // logo_url es solo identidad de marca (avatar del topbar acá, y las
+    // tarjetas de atencion-cliente.html) — el splash usa el fondo fijo
+    // compartido (img/splash-bg.jpeg), no el logo del cliente.
     var topAvatar = document.getElementById('topAvatar');
     if (CLIENT.logo_url) {
       topAvatar.innerHTML = '<img src="' + esc(CLIENT.logo_url) + '" alt="">';
     } else {
       topAvatar.textContent = initial(CLIENT.name);
-    }
-
-    var splashBg = document.getElementById('splashBg');
-    if (CLIENT.logo_url) {
-      splashBg.src = CLIENT.logo_url;
-      splashBg.style.display = 'block';
     }
 
     window._revisarHandle = handle;
