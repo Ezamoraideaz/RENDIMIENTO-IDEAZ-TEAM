@@ -1022,14 +1022,10 @@
   }
 
   // Instagram solo acepta 1:1 (cuadrado) o 4:5 (vertical) en feed/carrusel —
-  // reels/historias siempre son 9:16. El CSS (aspect-ratio + height fijo) no
-  // alcanza acá: al cambiar a una proporción más ancha que 9:16, "height"
-  // seguía fijo y "max-width:100%" recortaba el ancho ideal, dejando la
-  // tarjeta más angosta/alta de lo real — la imagen se veía recortada
-  // (con object-fit:cover) en vez de mostrarse en su 4:5 real. Por eso el
-  // tamaño se calcula acá a mano ("letterbox": el rectángulo más grande con
-  // esa proporción que entra en el alto y ancho disponibles).
+  // reels/historias siempre son 9:16.
+  var deckMode = 'reel'; // 'reel' (toda la tarjeta es el medio) | 'feed' (header + imagen + pie)
   var deckRatio = 9 / 16;
+  var currentTopCard = null;
   function deckMaxHeight() {
     var vh = window.innerHeight;
     var isMobile = window.matchMedia('(max-width: 480px)').matches;
@@ -1039,7 +1035,11 @@
     var stageEl = document.querySelector('.stage');
     return stageEl ? stageEl.clientWidth : Math.min(window.innerWidth, 420);
   }
+
+  // Reels/historias: toda la tarjeta ES el medio (sin header/pie aparte),
+  // así que ancho/alto se resuelven directo contra la proporción 9:16.
   function setDeckRatio(ratio) {
+    deckMode = 'reel';
     deckRatio = ratio;
     var maxH = deckMaxHeight();
     var maxW = deckMaxWidth();
@@ -1049,26 +1049,60 @@
     deckWrap.style.width = w + 'px';
     deckWrap.style.height = h + 'px';
   }
-  window.addEventListener('resize', function () { if (deckWrap) setDeckRatio(deckRatio); });
+
+  // Feed/Carrusel: la tarjeta tiene header + imagen + pie (con el copy, que
+  // puede ser largo). Aplicarle la proporción 1:1/4:5 a TODA la tarjeta (como
+  // se hacía antes) hace que el copy le coma alto a la imagen y esta termine
+  // viéndose achatada/horizontal aunque el archivo real sea vertical. Acá se
+  // mide el alto real del header + bullets + pie ya renderizados, y la
+  // proporción se aplica solo a la imagen — el resto se suma aparte.
+  function sizeFeedCard(card, ratio) {
+    var mediaEl = card.querySelector('[data-media]');
+    if (!mediaEl) return;
+    deckMode = 'feed';
+    deckRatio = ratio;
+    currentTopCard = card;
+
+    var headEl = card.querySelector('.ig-head');
+    var dotsEl = card.querySelector('.carousel-dots-row');
+    var footEl = card.querySelector('.ig-foot');
+    var chromeH = (headEl ? headEl.getBoundingClientRect().height : 0)
+      + (dotsEl ? dotsEl.getBoundingClientRect().height : 0)
+      + (footEl ? footEl.getBoundingClientRect().height : 0);
+
+    var maxH = deckMaxHeight();
+    var maxW = deckMaxWidth();
+    var width = maxW;
+    var imageH = width / ratio;
+    if (chromeH + imageH > maxH) {
+      imageH = Math.max(80, maxH - chromeH);
+      width = imageH * ratio;
+    }
+    mediaEl.style.flex = '0 0 ' + imageH + 'px';
+    deckWrap.style.width = width + 'px';
+    deckWrap.style.height = (chromeH + imageH) + 'px';
+  }
+
+  window.addEventListener('resize', function () {
+    if (!deckWrap) return;
+    if (deckMode === 'feed' && currentTopCard) sizeFeedCard(currentTopCard, deckRatio);
+    else if (deckMode === 'reel') setDeckRatio(deckRatio);
+  });
 
   // Arranca en el default de cada formato (evita el salto de layout) y se
   // afina a 1:1 apenas se conoce el tamaño real del archivo, si resulta más
   // cuadrado que 4:5.
-  function applyDeckAspect(type, w, h) {
+  function applyDeckAspect(card, type, w, h) {
     if (type === 'reel' || type === 'story') return;
     if (!w || !h) return;
     var ratio = w / h;
     var closerToSquare = Math.abs(ratio - 1) <= Math.abs(ratio - 0.8);
-    setDeckRatio(closerToSquare ? 1 : 4 / 5);
+    sizeFeedCard(card, closerToSquare ? 1 : 4 / 5);
   }
 
   function renderDeck() {
     deckEl.innerHTML = '';
     var visible = ITEMS.slice(idx, idx + 3);
-    var topItem = visible[0];
-    if (topItem) {
-      setDeckRatio((topItem.type === 'reel' || topItem.type === 'story') ? 9 / 16 : 4 / 5);
-    }
     visible.forEach(function (item, i) {
       var card = document.createElement('div');
       card.className = 'card settled';
@@ -1077,8 +1111,12 @@
       card.style.opacity = i > 2 ? '0' : String(1 - i * 0.12);
       card.innerHTML = buildCardShell(item);
       deckEl.appendChild(card);
-      mountMedia(card, item, i === 0 ? function (w, h) { applyDeckAspect(item.type, w, h); } : null);
-      if (i === 0) setupDrag(card, item);
+      mountMedia(card, item, i === 0 ? function (w, h) { applyDeckAspect(card, item.type, w, h); } : null);
+      if (i === 0) {
+        setupDrag(card, item);
+        if (item.type === 'reel' || item.type === 'story') setDeckRatio(9 / 16);
+        else sizeFeedCard(card, 4 / 5);
+      }
     });
     updateHeader();
   }
