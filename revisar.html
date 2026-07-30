@@ -291,21 +291,21 @@
   .splash {
     position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center;
     background: radial-gradient(85% 60% at 50% 8%, color-mix(in srgb, var(--accent) 38%, transparent), transparent 65%), linear-gradient(160deg, #120e1f, #0c1020 55%, #090b16);
-    padding: 24px; cursor: pointer; transition: opacity .45s ease;
+    padding: 24px; cursor: pointer; transition: opacity .45s ease; overflow: hidden;
   }
   .splash.hide { opacity: 0; pointer-events: none; }
-  .splash-inner { display: flex; flex-direction: column; align-items: center; gap: 22px; max-width: 300px; }
-  .splash-cards { position: relative; width: 96px; height: 96px; flex-shrink: 0; }
-  .splash-cards .c { position: absolute; inset: 0; border-radius: 20px; box-shadow: 0 14px 30px -8px rgba(0,0,0,.5); overflow: hidden; }
-  .splash-cards .c1 { background: linear-gradient(145deg, #2a2f52, #1b1e38); transform: rotate(-10deg); }
-  .splash-cards .c2 { background: linear-gradient(145deg, #3a3f6b, #23264a); transform: rotate(6deg); }
-  .splash-cards .c3 { background: linear-gradient(145deg, #caa06a, #7a5230); display: flex; align-items: center; justify-content: center; font-size: 34px; font-weight: 800; color: #fff; transform: rotate(-2deg); }
-  .splash-cards .c3 img { width: 100%; height: 100%; object-fit: cover; }
-  .splash-title { color: #fff; font-size: 20px; font-weight: 800; text-align: center; letter-spacing: -.01em; }
-  .splash-sub { color: rgba(231,233,245,.6); font-size: 13px; text-align: center; margin-top: -12px; }
-  .splash-bar-track { width: 130px; height: 3px; border-radius: 999px; background: rgba(255,255,255,.16); overflow: hidden; }
+  /* Imagen de fondo personalizada (logo/portada de la marca) — oculta por
+     defecto, solo se muestra si el cliente tiene logo_url configurado; si no,
+     queda el degradé de arriba como fondo. El scrim oscuro garantiza que el
+     texto blanco sea legible sobre cualquier imagen. */
+  .splash-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; display: none; }
+  .splash-scrim { position: absolute; inset: 0; z-index: 1; background: linear-gradient(180deg, rgba(6,7,16,.35), rgba(6,7,16,.6) 55%, rgba(6,7,16,.9)); }
+  .splash-inner { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 14px; max-width: 300px; text-align: center; }
+  .splash-title { color: #fff; font-size: 21px; font-weight: 800; letter-spacing: -.01em; }
+  .splash-sub { color: rgba(231,233,245,.75); font-size: 13px; }
+  .splash-bar-track { width: 130px; height: 3px; border-radius: 999px; background: rgba(255,255,255,.2); overflow: hidden; margin-top: 8px; }
   .splash-bar-fill { height: 100%; width: 0%; background: var(--accent); border-radius: 999px; transition: width 1.3s cubic-bezier(.3,.6,.4,1); }
-  .splash-hint { color: rgba(231,233,245,.4); font-size: 11px; letter-spacing: .04em; }
+  .splash-hint { color: rgba(231,233,245,.55); font-size: 11px; letter-spacing: .04em; }
   @media (prefers-reduced-motion: reduce) { .splash { transition: none; } .splash-bar-fill { transition: none; } }
 
   .help-fab {
@@ -400,16 +400,11 @@
 
 <div id="app" style="display:none">
   <div class="splash" id="splash" role="button" tabindex="0" aria-label="Toca para comenzar la revisión">
+    <img class="splash-bg" id="splashBg" alt="">
+    <div class="splash-scrim"></div>
     <div class="splash-inner">
-      <div class="splash-cards">
-        <div class="c c1"></div>
-        <div class="c c2"></div>
-        <div class="c c3" id="splashAvatar"></div>
-      </div>
-      <div>
-        <div class="splash-title">Revisión de contenido</div>
-        <div class="splash-sub" id="splashSub">vista previa de Instagram</div>
-      </div>
+      <div class="splash-title">Revisión de contenido</div>
+      <div class="splash-sub" id="splashSub">vista previa de Instagram</div>
       <div class="splash-bar-track"><div class="splash-bar-fill" id="splashBar"></div></div>
       <div class="splash-hint">Toca para comenzar</div>
     </div>
@@ -667,13 +662,18 @@
     document.getElementById('brandName').textContent = CLIENT.name;
     document.getElementById('splashSub').textContent = CLIENT.name + ' · vista previa de Instagram';
 
-    [document.getElementById('topAvatar'), document.getElementById('splashAvatar')].forEach(function (el) {
-      if (CLIENT.logo_url) {
-        el.innerHTML = '<img src="' + esc(CLIENT.logo_url) + '" alt="">';
-      } else {
-        el.textContent = initial(CLIENT.name);
-      }
-    });
+    var topAvatar = document.getElementById('topAvatar');
+    if (CLIENT.logo_url) {
+      topAvatar.innerHTML = '<img src="' + esc(CLIENT.logo_url) + '" alt="">';
+    } else {
+      topAvatar.textContent = initial(CLIENT.name);
+    }
+
+    var splashBg = document.getElementById('splashBg');
+    if (CLIENT.logo_url) {
+      splashBg.src = CLIENT.logo_url;
+      splashBg.style.display = 'block';
+    }
 
     window._revisarHandle = handle;
 
