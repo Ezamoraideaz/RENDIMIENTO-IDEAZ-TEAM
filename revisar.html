@@ -171,6 +171,12 @@
     color: rgba(255,255,255,.85); margin-top: 6px; text-shadow: 0 1px 2px rgba(0,0,0,.4);
   }
   @media (prefers-reduced-motion: reduce) { .reel-disc { animation: none; } }
+  .video-seek {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 22px; z-index: 3;
+    display: flex; align-items: center; padding: 0 10px; touch-action: none; cursor: pointer;
+  }
+  .video-seek-track { position: relative; flex: 1; height: 3px; border-radius: 999px; background: rgba(255,255,255,.32); }
+  .video-seek-fill { position: absolute; inset: 0; width: 0%; background: #fff; border-radius: 999px; pointer-events: none; }
 
   .story-bar-track { position: absolute; top: 9px; left: 10px; right: 10px; z-index: 5; height: 2.5px; background: rgba(255,255,255,.35); border-radius: 2px; overflow: hidden; }
   .story-bar-fill { height: 100%; width: 100%; background: #fff; border-radius: 2px; }
@@ -779,7 +785,7 @@
   // Videos: <video> nativo transmitido por nuestro backend (stream_media.php)
   // en vez del iframe de Drive — así sí podemos forzar autoplay con audio
   // real, cosa que un iframe de Google (caja negra) nunca permite controlar.
-  function mediaSlideEl(m, itemId) {
+  function mediaSlideEl(m, itemId, itemType) {
     var wrap = document.createElement('div');
     wrap.style.position = 'absolute'; wrap.style.inset = '0';
     var url = m.url;
@@ -814,6 +820,10 @@
       openV.href = url; openV.target = '_blank'; openV.rel = 'noopener';
       openV.textContent = '↗ Ver';
       wrap.appendChild(video); wrap.appendChild(openV);
+
+      if (itemType === 'reel') {
+        wrap.appendChild(buildVideoSeekBar(video));
+      }
       return wrap;
     }
 
@@ -849,6 +859,46 @@
     return wrap;
   }
 
+  // Barra de progreso del Reel (como la línea fina de IG bajo el video), pero
+  // interactiva: arrastrarla o tocarla mueve el playback a ese punto (video
+  // nativo, no el iframe de Drive, así que sí podemos leer/setear currentTime).
+  function buildVideoSeekBar(video) {
+    var seek = document.createElement('div');
+    seek.className = 'video-seek';
+    var track = document.createElement('div');
+    track.className = 'video-seek-track';
+    var fill = document.createElement('div');
+    fill.className = 'video-seek-fill';
+    track.appendChild(fill);
+    seek.appendChild(track);
+
+    function ratioFromEvent(e) {
+      var rect = track.getBoundingClientRect();
+      var x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+      return Math.min(1, Math.max(0, rect.width ? x / rect.width : 0));
+    }
+    function paint() {
+      if (!video.duration) return;
+      fill.style.width = (video.currentTime / video.duration * 100) + '%';
+    }
+    video.addEventListener('timeupdate', paint);
+
+    var seeking = false;
+    seek.addEventListener('pointerdown', function (e) {
+      seeking = true;
+      e.stopPropagation();
+      if (video.duration) { video.currentTime = ratioFromEvent(e) * video.duration; paint(); }
+    });
+    seek.addEventListener('pointermove', function (e) {
+      if (!seeking) return;
+      e.stopPropagation();
+      if (video.duration) { video.currentTime = ratioFromEvent(e) * video.duration; paint(); }
+    });
+    seek.addEventListener('pointerup', function (e) { seeking = false; e.stopPropagation(); });
+    seek.addEventListener('pointercancel', function (e) { seeking = false; e.stopPropagation(); });
+    return seek;
+  }
+
   function mountMedia(card, item) {
     var media = card.querySelector('[data-media]');
     if (!media) return;
@@ -875,13 +925,13 @@
       countEl.textContent = '1/' + mediaList.length;
       var slideHolder = document.createElement('div');
       slideHolder.style.position = 'absolute'; slideHolder.style.inset = '0';
-      slideHolder.appendChild(mediaSlideEl(mediaList[0], item.id));
+      slideHolder.appendChild(mediaSlideEl(mediaList[0], item.id, item.type));
 
       var left = document.createElement('div'); left.className = 'tapzone left';
       var right = document.createElement('div'); right.className = 'tapzone right';
       function paint() {
         slideHolder.innerHTML = '';
-        slideHolder.appendChild(mediaSlideEl(mediaList[current], item.id));
+        slideHolder.appendChild(mediaSlideEl(mediaList[current], item.id, item.type));
         countEl.textContent = (current + 1) + '/' + mediaList.length;
         Array.prototype.forEach.call(dotsWrap.children, function (d, i) { d.classList.toggle('on', i === current); });
       }
@@ -896,7 +946,7 @@
       return;
     }
 
-    media.appendChild(mediaSlideEl(mediaList[0], item.id));
+    media.appendChild(mediaSlideEl(mediaList[0], item.id, item.type));
   }
 
   function renderDeck() {
@@ -1000,8 +1050,24 @@
     });
   }
 
+  // El siguiente video ya existe en el DOM (deckEl precarga 3 tarjetas), así
+  // que hay que desmutearlo YA, dentro de este mismo gesto (tap/click) —
+  // para cuando termine el fetch de submitDecision() y renderDeck() lo
+  // reemplace, el navegador ya no lo cuenta como interacción del usuario y
+  // el audio vuelve a bloquearse (por eso antes solo sonaba si lo tocabas).
+  function unmuteUpcomingVideo() {
+    var cards = deckEl.querySelectorAll('.card');
+    var nextCard = cards[1];
+    if (!nextCard) return;
+    var vid = nextCard.querySelector('video');
+    if (!vid) return;
+    vid.muted = false;
+    if (vid.paused) vid.play().catch(function () {});
+  }
+
   function decideFromTop(card, kind) {
     var item = ITEMS[idx];
+    unmuteUpcomingVideo();
     card.classList.add('submitting');
     submitDecision(item, 'approved', null, null).then(function () {
       decided.push({ item: item, decision: 'approve', comment: null, tags: [] });
@@ -1040,6 +1106,7 @@
 
     var target = pendingRejectItem;
     if (!target) return;
+    unmuteUpcomingVideo();
     var tags = selectedTags.slice();
     var confirmBtn = document.getElementById('btnConfirmReject');
     var cancelBtn = document.getElementById('btnCancelReject');
@@ -1106,15 +1173,24 @@
       tourBack.hidden = tourStep === 0;
       tourNext.textContent = tourStep === tourSteps.length - 1 ? 'Empezar revisión' : 'Siguiente';
     }
-    function openTour() { tourStep = 0; paintTour(); tourOverlay.classList.add('open'); }
+    // Primera vez que entra a este link (por dispositivo, vía localStorage):
+    // se muestra la guía sin botón "Saltar" — solo se puede cerrar llegando
+    // al final ("Empezar revisión"). Reabrirla luego con el ? sí deja saltar.
+    function openTour(forced) {
+      tourStep = 0; paintTour();
+      tourSkip.style.display = forced ? 'none' : '';
+      pauseAllVideos();
+      tourOverlay.classList.add('open');
+    }
     function closeTour() {
       tourOverlay.classList.remove('open');
       try { localStorage.setItem(TOUR_KEY, '1'); } catch (e) {}
+      resumeTopVideo();
     }
     window._maybeAutoStartTour = function () {
       var seen = false;
       try { seen = localStorage.getItem(TOUR_KEY) === '1'; } catch (e) {}
-      if (!seen) openTour();
+      if (!seen) openTour(true);
     };
 
     tourNext.addEventListener('click', function () {
@@ -1123,7 +1199,7 @@
     });
     tourBack.addEventListener('click', function () { if (tourStep > 0) { tourStep--; paintTour(); } });
     tourSkip.addEventListener('click', closeTour);
-    helpFab.addEventListener('click', openTour);
+    helpFab.addEventListener('click', function () { openTour(false); });
   }
 
   // Tocar el video (cualquier formato) pausa/reproduce. Si todavía está
@@ -1141,6 +1217,18 @@
     }
     if (vid.paused) vid.play().catch(function () {});
     else vid.pause();
+  }
+
+  // Mientras la guía de uso está abierta no debe sonar ni reproducirse nada
+  // de fondo (leer y escuchar audio a la vez genera confusión) — se retoma
+  // al cerrarla.
+  function pauseAllVideos() {
+    var vids = deckEl ? deckEl.querySelectorAll('video') : [];
+    Array.prototype.forEach.call(vids, function (v) { v.pause(); });
+  }
+  function resumeTopVideo() {
+    var vid = deckEl && deckEl.querySelector('.card video');
+    if (vid) vid.play().catch(function () {});
   }
 
   // ── Splash ───────────────────────────────────────────────────────────────

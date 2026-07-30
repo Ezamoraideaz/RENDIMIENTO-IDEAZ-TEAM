@@ -9,9 +9,10 @@ declare(strict_types=1);
 // Reutiliza las credenciales de Trello (un solo juego, cifrado en app_settings)
 // que ya usa el resto del dashboard — no requiere configuración nueva.
 //
-// Resuelve la lista destino por NOMBRE ("Aprobado" / "Cambios"), igual que ya
-// hace js/timeCalc.js para reconocer los estados del protocolo en cualquier
-// tablero — no se guarda un mapeo de IDs de lista por proyecto.
+// Resuelve la lista destino por NOMBRE ("Aprobado" / "Cambios", sin distinguir
+// mayúsculas/minúsculas ni espacios extra), igual que ya hace js/timeCalc.js
+// para reconocer los estados del protocolo en cualquier tablero — no se
+// guarda un mapeo de IDs de lista por proyecto.
 //
 // Por regla de negocio (PRD §10): si Trello no responde, la decisión del
 // cliente ya quedó guardada en content_reviews antes de llamar aquí — este
@@ -106,8 +107,9 @@ function trello_sync_decision(PDO $pdo, ?string $cardId, string $decision, ?stri
         if ($targetListName !== null) {
             $lists = trello_sync_request('GET', "/boards/{$boardId}/lists", $creds, ['fields' => 'id,name']);
             $targetList = null;
+            $targetListNorm = mb_strtolower(trim($targetListName));
             foreach ($lists as $list) {
-                if (($list['name'] ?? '') === $targetListName) {
+                if (mb_strtolower(trim((string)($list['name'] ?? ''))) === $targetListNorm) {
                     $targetList = $list;
                     break;
                 }
