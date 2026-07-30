@@ -17,12 +17,13 @@ const Aprobaciones = (() => {
 
   const MONTHS_UPPER = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO',
                          'JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
-  const REASON = { OK: 'ok', NO_SHEET_ROW: 'no_sheet_row', NO_DRIVE: 'no_drive', NO_POST_NUMBER: 'no_post_number' };
+  const REASON = { OK: 'ok', NO_SHEET_ROW: 'no_sheet_row', NO_DRIVE: 'no_drive', NO_POST_NUMBER: 'no_post_number', DUPLICATE_POST: 'duplicate_post' };
 
   let clients = [];
   let batches = [];
   let activeClientId = null;
   let activeBatch = null; // último detalle cargado en el modal
+  let autoTargetBatchId = null; // si viene seteado, "Generar tanda automática" agrega piezas a esta tanda en vez de crear una nueva
   let autoResults = []; // filas de la búsqueda de "Generar tanda automática"
 
   function esc(s) {
@@ -58,7 +59,7 @@ const Aprobaciones = (() => {
   async function init() {
     document.getElementById('ap-client-select').addEventListener('change', onClientChange);
     document.getElementById('ap-new-batch-btn').addEventListener('click', openNewBatchModal);
-    document.getElementById('ap-auto-batch-btn').addEventListener('click', openAutoModal);
+    document.getElementById('ap-auto-batch-btn').addEventListener('click', function () { openAutoModal(); });
     document.getElementById('ap-link-board-btn').addEventListener('click', openBoardModal);
     const sheetBtn = document.getElementById('ap-link-sheet-btn');
     if (Session.user && Session.user.role !== 'cm') {
@@ -269,6 +270,27 @@ const Aprobaciones = (() => {
     } else {
       itemsList.innerHTML = b.items.map(renderItemRow).join('');
     }
+
+    document.getElementById('ap-auto-add-section').innerHTML = renderAutoAddSection(b);
+  }
+
+  // Agregar piezas a una tanda YA enviada buscando en Trello/Sheet/Drive (lo
+  // mismo que "Generar tanda automática", pero sumando a esta tanda en vez de
+  // crear una nueva) — solo tiene sentido mientras el cliente no completó su
+  // feedback, porque una vez completed_at el portal ya no vuelve a mostrarle
+  // nada de esta tanda.
+  function renderAutoAddSection(b) {
+    if (b.completed_at) {
+      return '<span class="text-xs text-slate-500" title="El cliente ya completó esta tanda">Tanda completada</span>';
+    }
+    const client = activeClient();
+    if (!client || !client.trello_board_id) {
+      return '';
+    }
+    return `<button type="button" onclick="Aprobaciones.openAutoModal(${b.id})"
+      class="text-xs px-2 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold whitespace-nowrap">
+      ⚡ Agregar desde Enviado
+    </button>`;
   }
 
   function renderLinkSection(b) {
@@ -459,7 +481,22 @@ const Aprobaciones = (() => {
   }
 
   // ── Generar tanda automática ─────────────────────────────────────────────
-  function openAutoModal() {
+  // batchId: si viene (desde el botón "⚡ Agregar desde Enviado" dentro de una
+  // tanda ya existente), las piezas marcadas se agregan a esa tanda en vez de
+  // crear una nueva — ver autoCreateBatch().
+  function openAutoModal(batchId) {
+    autoTargetBatchId = batchId || null;
+    const addingToExisting = !!autoTargetBatchId;
+
+    document.getElementById('ap-auto-modal-title').textContent =
+      addingToExisting ? 'Agregar piezas desde Enviado' : 'Generar tanda automática';
+    document.getElementById('ap-auto-modal-desc').textContent = addingToExisting
+      ? 'Busca en el tablero las tarjetas en "Enviado" y las agrega a esta misma tanda.'
+      : 'Busca en el tablero las tarjetas en "Enviado" y las cruza con la parrilla del mes elegido.';
+    document.getElementById('ap-auto-label-wrap').style.display = addingToExisting ? 'none' : '';
+    document.getElementById('ap-auto-create-btn').textContent =
+      addingToExisting ? 'Agregar las marcadas' : 'Crear tanda con las marcadas';
+
     const monthSel = document.getElementById('ap-auto-month');
     const now = new Date();
     monthSel.innerHTML = MONTHS_UPPER.map((m, i) =>
@@ -476,6 +513,7 @@ const Aprobaciones = (() => {
 
   function closeAutoModal() {
     document.getElementById('ap-modal-auto').style.display = 'none';
+    autoTargetBatchId = null;
   }
 
   async function autoSearch() {
@@ -533,15 +571,18 @@ const Aprobaciones = (() => {
         const row = postNumber ? sheetRows.find((r) => r.post_number === postNumber) : null;
 
         let files = [];
+        let duplicateFolders = null;
         if (driveReady && postNumber) {
           try {
             const found = await DriveAPI.findApprovalMedia(approvalFolderId, postNumber);
             files = found.files || [];
+            duplicateFolders = found.duplicateFolders || null;
           } catch (e) { /* sin medios — la CM completa a mano */ }
         }
 
         let reason = REASON.OK;
-        if (!postNumber) reason = REASON.NO_POST_NUMBER;
+        if (duplicateFolders) reason = REASON.DUPLICATE_POST;
+        else if (!postNumber) reason = REASON.NO_POST_NUMBER;
         else if (!row) reason = REASON.NO_SHEET_ROW;
         else if (!files.length) reason = REASON.NO_DRIVE;
 
@@ -554,6 +595,7 @@ const Aprobaciones = (() => {
           caption: row ? row.caption : '',
           manualUrl: '',
           files,
+          duplicateFolders,
           selectedFileIds: new Set(
             files.length ? (row && row.type === 'carousel' ? files.map((f) => f.id) : [files[0].id]) : []
           ),
@@ -582,15 +624,20 @@ const Aprobaciones = (() => {
       [REASON.NO_SHEET_ROW]: '<span class="text-xs px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400">⚠ sin fila en el Excel</span>',
       [REASON.NO_DRIVE]: '<span class="text-xs px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400">⚠ sin archivo en Drive</span>',
       [REASON.NO_POST_NUMBER]: '<span class="text-xs px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400">⚠ sin # de post en el nombre</span>',
+      [REASON.DUPLICATE_POST]: '<span class="text-xs px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400">⚠ post duplicado en Drive</span>',
     };
     el.innerHTML = autoResults.map((r, i) => {
-      const filesHtml = r.files.length
-        ? `<div class="flex flex-wrap gap-1.5 mt-2">` + r.files.map((f) => `
-            <button type="button" data-auto-file="${i}:${esc(f.id)}"
-              class="text-[11px] px-2 py-1 rounded border ${r.selectedFileIds.has(f.id) ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-800 border-slate-600 text-slate-400'}">
-              ${esc(f.name)}
-            </button>`).join('') + `</div>`
-        : '<p class="text-xs text-slate-500 mt-2">Sin archivos encontrados en Drive.</p>';
+      const filesHtml = r.duplicateFolders
+        ? `<p class="text-xs text-rose-400 mt-2">⚠ Hay ${r.duplicateFolders.length} carpetas para el POST #${r.postNumber} en "Para aprobación": `
+          + r.duplicateFolders.map((f) => esc(f.name)).join(', ')
+          + '. Corrige el nombre de las carpetas en Drive (debe quedar una sola) antes de crear la tanda.</p>'
+        : (r.files.length
+          ? `<div class="flex flex-wrap gap-1.5 mt-2">` + r.files.map((f) => `
+              <button type="button" data-auto-file="${i}:${esc(f.id)}"
+                class="text-[11px] px-2 py-1 rounded border ${r.selectedFileIds.has(f.id) ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-800 border-slate-600 text-slate-400'}">
+                ${esc(f.name)}
+              </button>`).join('') + `</div>`
+          : '<p class="text-xs text-slate-500 mt-2">Sin archivos encontrados en Drive.</p>');
       return `
         <div class="bg-slate-800/40 border border-slate-700 rounded-lg p-3">
           <div class="flex items-start gap-3">
@@ -646,8 +693,9 @@ const Aprobaciones = (() => {
   }
 
   async function autoCreateBatch() {
-    const label = document.getElementById('ap-auto-label').value.trim();
-    if (!label) return Utils.showToast('Ponle un nombre a la tanda', 'danger');
+    const addingToExisting = !!autoTargetBatchId;
+    const label = addingToExisting ? '' : document.getElementById('ap-auto-label').value.trim();
+    if (!addingToExisting && !label) return Utils.showToast('Ponle un nombre a la tanda', 'danger');
     const selected = autoResults.filter((r) => r.selected);
     if (!selected.length) return Utils.showToast('Marca al menos una pieza', 'danger');
 
@@ -656,11 +704,21 @@ const Aprobaciones = (() => {
     const year = document.getElementById('ap-auto-year').value;
 
     try {
-      const batchData = await Session.apiFetch('api/content_batches.php', {
-        method: 'POST',
-        body: JSON.stringify({ client_id: client.id, label }),
-      });
-      const batchId = batchData.id;
+      let batchId;
+      let startPosition = 0;
+      if (addingToExisting) {
+        batchId = autoTargetBatchId;
+        // Posición siguiente a las piezas que ya tiene la tanda, para no pisar
+        // el orden de lo que el cliente ya pudo haber revisado.
+        const current = await Session.apiFetch(`api/content_batches.php?id=${batchId}`);
+        startPosition = current.batch.items.length;
+      } else {
+        const batchData = await Session.apiFetch('api/content_batches.php', {
+          method: 'POST',
+          body: JSON.stringify({ client_id: client.id, label }),
+        });
+        batchId = batchData.id;
+      }
 
       let created = 0, skipped = 0;
       for (const r of selected) {
@@ -680,12 +738,17 @@ const Aprobaciones = (() => {
             scheduled_at: buildScheduledAt(r.day, month, year),
             media,
             trello_card_id: r.cardId,
-            position: created,
+            position: startPosition + created,
           }),
         });
         created++;
       }
-      Utils.showToast(`Tanda creada con ${created} pieza(s)${skipped ? ` — ${skipped} sin medios se omitieron` : ''}`, created ? 'success' : 'danger');
+      Utils.showToast(
+        addingToExisting
+          ? `${created} pieza(s) agregada(s) a la tanda${skipped ? ` — ${skipped} sin medios se omitieron` : ''}`
+          : `Tanda creada con ${created} pieza(s)${skipped ? ` — ${skipped} sin medios se omitieron` : ''}`,
+        created ? 'success' : 'danger'
+      );
       closeAutoModal();
       await loadBatches();
       if (created) await openBatchModal(batchId);

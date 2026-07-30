@@ -118,10 +118,15 @@
     display: flex; align-items: center; justify-content: center; overflow: hidden; user-select: none;
   }
   .media-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; object-fit: cover; pointer-events: none; -webkit-user-drag: none; user-select: none; background: #000; }
+  .media-actions { position: absolute; bottom: 10px; right: 10px; z-index: 4; display: flex; align-items: center; gap: 6px; pointer-events: auto; }
   .media-open-link {
-    position: absolute; bottom: 10px; right: 10px; z-index: 4; pointer-events: auto;
     background: rgba(0,0,0,.55); color: #fff; font-size: 11px; font-weight: 700;
     padding: 5px 10px; border-radius: 999px; text-decoration: none;
+  }
+  .media-download-link {
+    width: 24px; height: 24px; border-radius: 50%; background: rgba(0,0,0,.55); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-size: 12px;
+    text-decoration: none; flex-shrink: 0;
   }
   .media-fallback {
     position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
@@ -782,6 +787,29 @@
     return /\.(mp4|mov|webm|m4v)(\?|$)/i.test(m.url || '');
   }
 
+  // Pill "↗ Ver" + ícono de descarga sutil al lado — el cliente puede bajar
+  // el archivo original sin salir del portal.
+  function buildMediaActions(viewUrl, downloadUrl) {
+    var wrap = document.createElement('div');
+    wrap.className = 'media-actions';
+    var open = document.createElement('a');
+    open.className = 'media-open-link';
+    open.href = viewUrl; open.target = '_blank'; open.rel = 'noopener';
+    open.textContent = '↗ Ver';
+    wrap.appendChild(open);
+
+    var dl = document.createElement('a');
+    dl.className = 'media-download-link';
+    dl.href = downloadUrl;
+    dl.setAttribute('download', '');
+    dl.rel = 'noopener';
+    dl.title = 'Descargar';
+    dl.setAttribute('aria-label', 'Descargar');
+    dl.textContent = '⬇';
+    wrap.appendChild(dl);
+    return wrap;
+  }
+
   // Videos: <video> nativo transmitido por nuestro backend (stream_media.php)
   // en vez del iframe de Drive — así sí podemos forzar autoplay con audio
   // real, cosa que un iframe de Google (caja negra) nunca permite controlar.
@@ -815,11 +843,9 @@
           });
         }
       });
-      var openV = document.createElement('a');
-      openV.className = 'media-open-link';
-      openV.href = url; openV.target = '_blank'; openV.rel = 'noopener';
-      openV.textContent = '↗ Ver';
-      wrap.appendChild(video); wrap.appendChild(openV);
+      var videoDownloadUrl = STREAM_API + '?t=' + encodeURIComponent(TOKEN) + '&item_id=' + itemId + '&i=' + m.idx + '&dl=1';
+      wrap.appendChild(video);
+      wrap.appendChild(buildMediaActions(url, videoDownloadUrl));
 
       if (itemType === 'reel') {
         wrap.appendChild(buildVideoSeekBar(video));
@@ -834,12 +860,11 @@
       frame.loading = 'lazy';
       frame.src = 'https://drive.google.com/file/d/' + fid + '/preview';
       frame.setAttribute('allow', 'autoplay');
-      var open = document.createElement('a');
-      open.className = 'media-open-link';
-      open.href = 'https://drive.google.com/file/d/' + fid + '/view';
-      open.target = '_blank'; open.rel = 'noopener';
-      open.textContent = '↗ Ver';
-      wrap.appendChild(frame); wrap.appendChild(open);
+      wrap.appendChild(frame);
+      wrap.appendChild(buildMediaActions(
+        'https://drive.google.com/file/d/' + fid + '/view',
+        'https://drive.google.com/uc?export=download&id=' + fid
+      ));
       return wrap;
     }
     var img = document.createElement('img');

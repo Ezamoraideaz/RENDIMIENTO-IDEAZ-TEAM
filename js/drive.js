@@ -251,7 +251,14 @@ const DriveAPI = (() => {
   // diseñador subió el archivo suelto ahí con el nombre del post.
   async function findApprovalMedia(approvalFolderId, postNumber) {
     const subfolders = await _listSubfolders(approvalFolderId);
-    const postFolder = subfolders.find(f => _matchPost(f.name, postNumber));
+    const matchingFolders = subfolders.filter(f => _matchPost(f.name, postNumber));
+    // Dos (o más) subcarpetas para el mismo # de post en "Para aprobación" es
+    // ambiguo — no adivinamos cuál usar (podría subirse el contenido
+    // equivocado), se avisa para que el equipo lo resuelva a mano.
+    if (matchingFolders.length > 1) {
+      return { folder: null, files: [], duplicateFolders: matchingFolders };
+    }
+    const postFolder = matchingFolders[0];
     if (postFolder) {
       const files = await _listFiles(postFolder.id);
       return { folder: postFolder, files };

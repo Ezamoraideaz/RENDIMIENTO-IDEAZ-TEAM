@@ -49,6 +49,8 @@ if (!$item) {
 
 $media = json_decode((string)$item['media'], true) ?: [];
 $url = (string)($media[$mediaIndex]['url'] ?? '');
+$mimeType = (string)($media[$mediaIndex]['mimeType'] ?? '');
+$forceDownload = ($_GET['dl'] ?? '') === '1';
 $fileId = $url !== '' ? google_drive_extract_file_id($url) : null;
 if (!$fileId) {
     http_response_code(404);
@@ -93,8 +95,10 @@ $headerCallback = function ($ch, string $headerLine) use (&$responseStatus, &$re
     return $len;
 };
 
+$downloadExtensions = ['mp4' => 'mp4', 'quicktime' => 'mov', 'webm' => 'webm', 'x-m4v' => 'm4v'];
+
 $headersSent = false;
-$writeCallback = function ($ch, string $chunk) use (&$headersSent, &$responseStatus, &$responseHeaders): int {
+$writeCallback = function ($ch, string $chunk) use (&$headersSent, &$responseStatus, &$responseHeaders, $forceDownload, $mimeType, $itemId, $downloadExtensions): int {
     if (!$headersSent) {
         $headersSent = true;
         http_response_code($responseStatus);
@@ -105,6 +109,17 @@ $writeCallback = function ($ch, string $chunk) use (&$headersSent, &$responseSta
         }
         header('Accept-Ranges: bytes');
         header('Cache-Control: private, max-age=3600');
+        // Descarga real (no solo streaming inline) cuando el cliente toca el
+        // ícono de descargar en revisar.html — el navegador guarda el archivo
+        // en vez de intentar reproducirlo en la pestaña.
+        if ($forceDownload && $responseStatus >= 200 && $responseStatus < 300) {
+            $ext = null;
+            if (preg_match('#^video/([\w.-]+)#', $mimeType, $mm)) {
+                $ext = $downloadExtensions[$mm[1]] ?? $mm[1];
+            }
+            $filename = 'video-' . $itemId . ($ext ? '.' . $ext : '');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+        }
     }
     echo $chunk;
     if (ob_get_level() > 0) {

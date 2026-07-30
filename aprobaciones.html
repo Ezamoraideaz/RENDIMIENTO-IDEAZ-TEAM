@@ -110,7 +110,10 @@
     <div id="ap-link-section" class="bg-slate-800/50 border border-slate-700 rounded-lg p-4 mb-5"></div>
 
     <!-- Piezas -->
-    <h3 class="text-sm font-bold text-slate-300 mb-2">Piezas</h3>
+    <div class="flex items-center justify-between mb-2">
+      <h3 class="text-sm font-bold text-slate-300">Piezas</h3>
+      <div id="ap-auto-add-section"></div>
+    </div>
     <div id="ap-items-list" class="space-y-2 mb-5"></div>
 
     <!-- Agregar pieza -->
@@ -169,8 +172,8 @@
   <div class="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
     <div class="flex items-start justify-between mb-4">
       <div>
-        <h2 class="text-lg font-bold text-slate-100">Generar tanda automática</h2>
-        <p class="text-xs text-slate-500 mt-1">Busca en el tablero las tarjetas en "Enviado" y las cruza con la parrilla del mes elegido.</p>
+        <h2 id="ap-auto-modal-title" class="text-lg font-bold text-slate-100">Generar tanda automática</h2>
+        <p id="ap-auto-modal-desc" class="text-xs text-slate-500 mt-1">Busca en el tablero las tarjetas en "Enviado" y las cruza con la parrilla del mes elegido.</p>
       </div>
       <button onclick="Aprobaciones.closeAutoModal()" class="text-slate-400 hover:text-slate-200 text-xl leading-none">×</button>
     </div>
@@ -192,9 +195,11 @@
     <div id="ap-auto-results" class="space-y-3 mb-5"></div>
 
     <div id="ap-auto-footer" class="flex items-center gap-3 border-t border-slate-700 pt-4" style="display:none">
-      <input id="ap-auto-label" type="text" placeholder="Nombre de la tanda (ej. Julio — Enviado)"
-        class="flex-1 bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
-      <button onclick="Aprobaciones.autoCreateBatch()" class="px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white whitespace-nowrap">
+      <div id="ap-auto-label-wrap" class="flex-1">
+        <input id="ap-auto-label" type="text" placeholder="Nombre de la tanda (ej. Julio — Enviado)"
+          class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+      </div>
+      <button id="ap-auto-create-btn" onclick="Aprobaciones.autoCreateBatch()" class="px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-600 hover:bg-emerald-500 text-white whitespace-nowrap">
         Crear tanda con las marcadas
       </button>
     </div>
