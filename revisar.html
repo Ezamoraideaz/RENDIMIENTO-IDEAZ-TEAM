@@ -158,7 +158,13 @@
   @keyframes reelSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
   .reel-bottom { position: absolute; left: 12px; right: 68px; bottom: 16px; z-index: 4; color: #fff; }
   .reel-caption { font-size: 13px; line-height: 1.4; text-shadow: 0 1px 3px rgba(0,0,0,.45); }
+  .reel-caption.clamped { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
   .reel-caption b { margin-right: 4px; }
+  .reel-caption-toggle {
+    display: inline-block; margin-top: 3px; background: none; border: none; padding: 0;
+    font-family: inherit; color: rgba(255,255,255,.75); font-size: 12px; font-weight: 700;
+    cursor: pointer; text-shadow: 0 1px 2px rgba(0,0,0,.4);
+  }
   .reel-audio { font-size: 11.5px; margin-top: 6px; opacity: .9; text-shadow: 0 1px 2px rgba(0,0,0,.4); }
   .reel-schedule {
     font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; font-weight: 600;
@@ -344,6 +350,18 @@
   .tour-next { background: var(--accent); color: #fff; }
   .tour-nav button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
   @media (prefers-reduced-motion: reduce) { .tour-demo-card, .tour-demo-stamp, .tour-hand, .tour-mini-btn.reject, .tour-mini-btn.approve { animation: none !important; } .tour-demo-stamp.approve, .tour-demo-stamp.reject { opacity: .95; } }
+
+  /* ---------- Móvil: darle más espacio al video/imagen ---------- */
+  @media (max-width: 480px) {
+    body { padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); }
+    .stage { gap: 8px; }
+    .deck-wrap { height: min(82dvh, 760px); }
+    .topbar { padding: 2px 0; }
+    .hint { font-size: 10.5px; }
+    .actions { padding: 2px 0; gap: 18px; }
+    .actions button { width: 52px; height: 52px; }
+    .actions .btn-approve, .actions .btn-reject { width: 58px; height: 58px; }
+  }
 
   /* ---------- Estados de carga / error ---------- */
   .state-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; text-align: center; gap: 14px; max-width: 320px; margin: auto; }
@@ -661,6 +679,16 @@
       if (e.key === 'ArrowRight') document.getElementById('btnApprove').click();
       if (e.key === 'ArrowLeft') document.getElementById('btnReject').click();
     });
+    deckEl.addEventListener('click', function (e) {
+      var toggle = e.target.closest('[data-caption-toggle]');
+      if (!toggle) return;
+      e.stopPropagation();
+      var caption = toggle.previousElementSibling;
+      if (!caption || !caption.hasAttribute('data-caption')) return;
+      var expanded = !caption.classList.contains('clamped');
+      caption.classList.toggle('clamped', expanded);
+      toggle.textContent = expanded ? 'Ver más' : 'Ver menos';
+    });
 
     renderDeck();
     setupTour();
@@ -696,6 +724,11 @@
       var reelCaption = item.caption
         ? '<b>' + esc(handle) + '</b>' + esc(item.caption)
         : '<b>' + esc(handle) + '</b>';
+      // Copy largo tapaba el video en los Reels — arranca en 1 línea con
+      // "Ver más" y solo se expande si el usuario lo toca.
+      var reelCaptionToggle = item.caption
+        ? '<button type="button" class="reel-caption-toggle" data-caption-toggle>Ver más</button>'
+        : '';
       html += '<div class="ig-media" style="flex:1" data-media>'
         + '  <div class="reel-vignette-bottom"></div>'
         + '  <div class="reel-actions-rail">'
@@ -706,7 +739,8 @@
         + '    <div class="reel-disc" data-ava></div>'
         + '  </div>'
         + '  <div class="reel-bottom">'
-        + '    <div class="reel-caption">' + reelCaption + '</div>'
+        + '    <div class="reel-caption clamped" data-caption>' + reelCaption + '</div>'
+        + reelCaptionToggle
         + '    <div class="reel-audio">🎵 Audio original</div>'
         + '    <div class="reel-schedule">Se publicará: ' + esc(fmtSchedule(item.scheduled_at)) + '</div>'
         + '  </div>'
@@ -895,7 +929,7 @@
 
     function pointerDown(e) {
       if (card.classList.contains('submitting')) return;
-      if (e.target.closest('.tapzone') || e.target.closest('.media-open-link')) return;
+      if (e.target.closest('.tapzone') || e.target.closest('.media-open-link') || e.target.closest('[data-caption-toggle]')) return;
       dragging = true; moved = false;
       card.classList.remove('settled');
       startX = (e.touches ? e.touches[0].clientX : e.clientX);
@@ -919,7 +953,7 @@
     function pointerUp() {
       if (!dragging) return;
       dragging = false;
-      if (!moved) { resetCard(card); return; }
+      if (!moved) { resetCard(card); toggleCardVideo(card); return; }
       if (dx > THRESHOLD) { decideFromTop(card, 'approve'); }
       else if (dx < -THRESHOLD) { resetCard(card); openRejectModal(item, card); }
       else { resetCard(card); }
@@ -1090,6 +1124,23 @@
     tourBack.addEventListener('click', function () { if (tourStep > 0) { tourStep--; paintTour(); } });
     tourSkip.addEventListener('click', closeTour);
     helpFab.addEventListener('click', openTour);
+  }
+
+  // Tocar el video (cualquier formato) pausa/reproduce. Si todavía está
+  // silenciado por el bloqueo de autoplay del navegador (típico en celular,
+  // donde cada video nuevo del deck vuelve a arrancar muteado), el primer
+  // toque además le da sonido — es un gesto real del usuario sobre ese
+  // elemento puntual, que es justo lo que móvil exige para permitir audio.
+  function toggleCardVideo(card) {
+    var vid = card.querySelector('video');
+    if (!vid) return;
+    if (vid.muted) {
+      vid.muted = false;
+      if (vid.paused) vid.play().catch(function () {});
+      return;
+    }
+    if (vid.paused) vid.play().catch(function () {});
+    else vid.pause();
   }
 
   // ── Splash ───────────────────────────────────────────────────────────────
