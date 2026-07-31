@@ -8,6 +8,10 @@ const Alarm = (() => {
   const TARGET_MINUTE = 0;
   const LS_KEY = 'alarm_last_shown';
   const LS_LAST_AUDIO = 'alarm_last_audio';
+  // Rotación de audio de la alarma manual, separada de la del recordatorio
+  // diario — así el admin puede tocar el botón varias veces seguidas sin
+  // que se repita el mismo clip, sin afectar la rotación de las 5pm.
+  const LS_LAST_BROADCAST_AUDIO = 'alarm_last_broadcast_audio';
   // Último id de alarma manual (botón de admin) ya mostrado en este
   // navegador — independiente del recordatorio diario de las 5pm.
   const LS_BROADCAST_ID = 'alarm_broadcast_seen_id';
@@ -35,6 +39,18 @@ const Alarm = (() => {
       idx = choices[Math.floor(Math.random() * choices.length)];
     }
     localStorage.setItem(LS_LAST_AUDIO, idx);
+    return AUDIOS[idx];
+  }
+
+  // Igual de aleatorio pero con su propia rotación (LS_LAST_BROADCAST_AUDIO):
+  // nunca repite el clip inmediatamente anterior de la alarma MANUAL, sin
+  // importar cuál sonó ese día en el recordatorio automático de las 5pm.
+  function _audioForBroadcast() {
+    const lastIdx = localStorage.getItem(LS_LAST_BROADCAST_AUDIO);
+    const excluded = lastIdx !== null ? Number(lastIdx) : null;
+    const choices = AUDIOS.map((_, i) => i).filter(i => i !== excluded);
+    const idx = choices[Math.floor(Math.random() * choices.length)];
+    localStorage.setItem(LS_LAST_BROADCAST_AUDIO, idx);
     return AUDIOS[idx];
   }
 
@@ -80,12 +96,12 @@ const Alarm = (() => {
     document.body.appendChild(wrap);
   }
 
-  function _startPlayback() {
+  function _startPlayback(audioUrl) {
     const closeBtn = document.getElementById('alarm-close-btn');
     const playBtn  = document.getElementById('alarm-play-btn');
     const msg      = document.getElementById('alarm-autoplay-msg');
 
-    audioEl = new Audio(_audioForToday());
+    audioEl = new Audio(audioUrl);
     let playedOnce = false;
 
     audioEl.addEventListener('ended', () => {
@@ -129,7 +145,7 @@ const Alarm = (() => {
       opts.message || 'Revisa el estado de las tareas en curso antes de terminar el día.'
     );
     document.getElementById('alarm-close-btn').addEventListener('click', _closePopup);
-    _startPlayback();
+    _startPlayback(opts.daily ? _audioForToday() : _audioForBroadcast());
     if (opts.daily) _markShownToday();
   }
 
