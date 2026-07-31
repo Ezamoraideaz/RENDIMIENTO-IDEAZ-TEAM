@@ -1148,7 +1148,15 @@
 
     function pointerDown(e) {
       if (card.classList.contains('submitting')) return;
-      if (e.target.closest('.tapzone') || e.target.closest('.media-open-link') || e.target.closest('[data-caption-toggle]') || e.target.closest('.ig-foot')) return;
+      if (e.target.closest('.tapzone') || e.target.closest('.media-open-link') || e.target.closest('[data-caption-toggle]')) return;
+      // Con el copy retraído el pie puede arrastrarse igual que el resto de
+      // la tarjeta; solo se cede el gesto al scroll cuando está expandido
+      // (ahí sí puede haber texto para recorrer).
+      var footTarget = e.target.closest('.ig-foot');
+      if (footTarget) {
+        var caption = footTarget.querySelector('[data-caption]');
+        if (caption && !caption.classList.contains('clamped')) return;
+      }
       dragging = true; moved = false;
       card.classList.remove('settled');
       startX = (e.touches ? e.touches[0].clientX : e.clientX);
