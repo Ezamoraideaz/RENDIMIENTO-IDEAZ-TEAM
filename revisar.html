@@ -847,7 +847,7 @@
   // onReady(w, h): opcional, avisa el tamaño natural del archivo apenas se
   // conoce, para que la tarjeta (feed/carrusel) ajuste su proporción a 1:1 o
   // 4:5 en vez de quedar forzada al 9:16 de reels/historias.
-  function mediaSlideEl(m, itemId, itemType, onReady) {
+  function mediaSlideEl(m, itemId, itemType, onReady, isFront) {
     var wrap = document.createElement('div');
     wrap.style.position = 'absolute'; wrap.style.inset = '0';
     var url = m.url;
@@ -857,7 +857,10 @@
       video.className = 'media-frame';
       video.autoplay = true;
       video.loop = true;
-      video.muted = false;
+      // Solo la tarjeta del frente puede sonar — las de atrás (precargadas
+      // en el deck) se ven pero quedan mudas, si no se escuchaban varios
+      // audios superpuestos de tarjetas que ni siquiera están a la vista.
+      video.muted = !isFront;
       video.volume = 1.0;
       video.playsInline = true;
       video.setAttribute('playsinline', '');
@@ -983,7 +986,7 @@
     return seek;
   }
 
-  function mountMedia(card, item, onAspectReady) {
+  function mountMedia(card, item, onAspectReady, isFront) {
     var media = card.querySelector('[data-media]');
     if (!media) return;
     mountAvatar(card);
@@ -1010,13 +1013,13 @@
       countEl.textContent = '1/' + mediaList.length;
       var slideHolder = document.createElement('div');
       slideHolder.style.position = 'absolute'; slideHolder.style.inset = '0';
-      slideHolder.appendChild(mediaSlideEl(mediaList[0], item.id, item.type, onAspectReady));
+      slideHolder.appendChild(mediaSlideEl(mediaList[0], item.id, item.type, onAspectReady, isFront));
 
       var left = document.createElement('div'); left.className = 'tapzone left';
       var right = document.createElement('div'); right.className = 'tapzone right';
       function paint() {
         slideHolder.innerHTML = '';
-        slideHolder.appendChild(mediaSlideEl(mediaList[current], item.id, item.type, onAspectReady));
+        slideHolder.appendChild(mediaSlideEl(mediaList[current], item.id, item.type, onAspectReady, isFront));
         countEl.textContent = (current + 1) + '/' + mediaList.length;
         if (dotsContainer) {
           Array.prototype.forEach.call(dotsContainer.children, function (d, i) { d.classList.toggle('on', i === current); });
@@ -1032,7 +1035,7 @@
       return;
     }
 
-    media.appendChild(mediaSlideEl(mediaList[0], item.id, item.type, onAspectReady));
+    media.appendChild(mediaSlideEl(mediaList[0], item.id, item.type, onAspectReady, isFront));
   }
 
   // Instagram solo acepta 1:1 (cuadrado) o 4:5 (vertical) en feed/carrusel —
@@ -1125,7 +1128,7 @@
       card.style.opacity = i > 2 ? '0' : String(1 - i * 0.12);
       card.innerHTML = buildCardShell(item);
       deckEl.appendChild(card);
-      mountMedia(card, item, i === 0 ? function (w, h) { applyDeckAspect(card, item.type, w, h); } : null);
+      mountMedia(card, item, i === 0 ? function (w, h) { applyDeckAspect(card, item.type, w, h); } : null, i === 0);
       if (i === 0) {
         setupDrag(card, item);
         if (item.type === 'reel' || item.type === 'story') setDeckRatio(9 / 16);
@@ -1227,24 +1230,8 @@
     });
   }
 
-  // El siguiente video ya existe en el DOM (deckEl precarga 3 tarjetas), así
-  // que hay que desmutearlo YA, dentro de este mismo gesto (tap/click) —
-  // para cuando termine el fetch de submitDecision() y renderDeck() lo
-  // reemplace, el navegador ya no lo cuenta como interacción del usuario y
-  // el audio vuelve a bloquearse (por eso antes solo sonaba si lo tocabas).
-  function unmuteUpcomingVideo() {
-    var cards = deckEl.querySelectorAll('.card');
-    var nextCard = cards[1];
-    if (!nextCard) return;
-    var vid = nextCard.querySelector('video');
-    if (!vid) return;
-    vid.muted = false;
-    if (vid.paused) vid.play().catch(function () {});
-  }
-
   function decideFromTop(card, kind) {
     var item = ITEMS[idx];
-    unmuteUpcomingVideo();
     card.classList.add('submitting');
     submitDecision(item, 'approved', null, null).then(function () {
       decided.push({ item: item, decision: 'approve', comment: null, tags: [] });
@@ -1283,7 +1270,6 @@
 
     var target = pendingRejectItem;
     if (!target) return;
-    unmuteUpcomingVideo();
     var tags = selectedTags.slice();
     var confirmBtn = document.getElementById('btnConfirmReject');
     var cancelBtn = document.getElementById('btnCancelReject');
