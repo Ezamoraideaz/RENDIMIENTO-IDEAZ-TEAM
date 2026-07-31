@@ -211,7 +211,11 @@
   .story-reply .box { flex: 1; border: 1.5px solid rgba(255,255,255,.55); border-radius: 999px; color: rgba(255,255,255,.85); font-size: 12.5px; padding: 9px 14px; }
   .story-reply .heart { color: #fff; font-size: 20px; }
 
-  .ig-foot { padding: 8px 12px 12px; flex-shrink: 0; }
+  /* min-height:0 + overflow-y:auto: al abrir "Ver más" el copy puede crecer
+     más que el espacio ya reservado para el pie (calculado con el copy
+     clampeado) — en vez de desbordar y recortarse contra el overflow:hidden
+     de .card, el pie scrollea dentro de su propio alto. */
+  .ig-foot { padding: 8px 12px 12px; flex-shrink: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
   .ig-icons { display: flex; align-items: center; gap: 13px; font-size: 21px; padding: 4px 0 6px; }
   .ig-icons .push { margin-left: auto; }
   .ig-likes { font-weight: 700; font-size: 12.5px; margin-bottom: 3px; }
@@ -1144,7 +1148,7 @@
 
     function pointerDown(e) {
       if (card.classList.contains('submitting')) return;
-      if (e.target.closest('.tapzone') || e.target.closest('.media-open-link') || e.target.closest('[data-caption-toggle]')) return;
+      if (e.target.closest('.tapzone') || e.target.closest('.media-open-link') || e.target.closest('[data-caption-toggle]') || e.target.closest('.ig-foot')) return;
       dragging = true; moved = false;
       card.classList.remove('settled');
       startX = (e.touches ? e.touches[0].clientX : e.clientX);
