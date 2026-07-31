@@ -1,12 +1,13 @@
 const Alarm = (() => {
   const AUDIOS = [
-    'https://marketingdigitalideaz.com/audios/audio1.mp3',
-    'https://marketingdigitalideaz.com/audios/audio2.mp3',
-    'https://marketingdigitalideaz.com/audios/audio3.mp3'
+    'https://marketingdigitalideaz.com/audios/audio1.mpeg',
+    'https://marketingdigitalideaz.com/audios/audio2.mpeg',
+    'https://marketingdigitalideaz.com/audios/audio3.mpeg'
   ];
   const TARGET_HOUR   = 17;
   const TARGET_MINUTE = 0;
   const LS_KEY = 'alarm_last_shown';
+  const LS_LAST_AUDIO = 'alarm_last_audio';
 
   let audioEl = null;
 
@@ -20,10 +21,17 @@ const Alarm = (() => {
     return day >= 1 && day <= 5;
   }
 
-  // Lun=audio1, Mar=audio2, Mié=audio3, Jue=audio1, Vie=audio2
+  // Aleatorio, sin repetir el audio del día anterior. La primera vez que
+  // corre en un navegador (sin historial guardado) suena audio1.
   function _audioForToday() {
-    const day = new Date().getDay();
-    const idx = (day - 1) % AUDIOS.length;
+    const lastIdx = localStorage.getItem(LS_LAST_AUDIO);
+    let idx = 0;
+    if (lastIdx !== null) {
+      const excluded = Number(lastIdx);
+      const choices = AUDIOS.map((_, i) => i).filter(i => i !== excluded);
+      idx = choices[Math.floor(Math.random() * choices.length)];
+    }
+    localStorage.setItem(LS_LAST_AUDIO, idx);
     return AUDIOS[idx];
   }
 
