@@ -855,34 +855,37 @@
     if (isVideoMedia(m) && itemId != null && m.idx != null) {
       var video = document.createElement('video');
       video.className = 'media-frame';
-      video.autoplay = true;
+      // Solo la tarjeta del frente reproduce — las de atrás (precargadas en
+      // el deck para el swipe) ni siquiera descargan el video todavía: no se
+      // ven bien (escaladas/tapadas) y reproducirlas de fondo solo gastaba
+      // datos y audio para algo que el usuario no está mirando.
+      video.autoplay = isFront;
       video.loop = true;
-      // Solo la tarjeta del frente puede sonar — las de atrás (precargadas
-      // en el deck) se ven pero quedan mudas, si no se escuchaban varios
-      // audios superpuestos de tarjetas que ni siquiera están a la vista.
       video.muted = !isFront;
       video.volume = 1.0;
       video.playsInline = true;
       video.setAttribute('playsinline', '');
-      video.preload = 'auto';
+      video.preload = isFront ? 'auto' : 'none';
       video.src = STREAM_API + '?t=' + encodeURIComponent(TOKEN) + '&item_id=' + itemId + '&i=' + m.idx;
       video.addEventListener('loadedmetadata', function () {
         onReady && onReady(video.videoWidth, video.videoHeight);
       });
-      video.addEventListener('canplay', function () {
-        var p = video.play();
-        if (p && p.catch) {
-          p.catch(function () {
-            // El navegador bloqueó el audio por falta de interacción todavía
-            // (pasa en la primera tarjeta, antes de tocar el splash) — se
-            // reintenta silenciado para que al menos reproduzca, y
-            // dismiss() del splash vuelve a intentarlo con audio apenas
-            // el usuario interactúa.
-            video.muted = true;
-            video.play().catch(function () {});
-          });
-        }
-      });
+      if (isFront) {
+        video.addEventListener('canplay', function () {
+          var p = video.play();
+          if (p && p.catch) {
+            p.catch(function () {
+              // El navegador bloqueó el audio por falta de interacción todavía
+              // (pasa en la primera tarjeta, antes de tocar el splash) — se
+              // reintenta silenciado para que al menos reproduzca, y
+              // dismiss() del splash vuelve a intentarlo con audio apenas
+              // el usuario interactúa.
+              video.muted = true;
+              video.play().catch(function () {});
+            });
+          }
+        });
+      }
       var videoDownloadUrl = STREAM_API + '?t=' + encodeURIComponent(TOKEN) + '&item_id=' + itemId + '&i=' + m.idx + '&dl=1';
       wrap.appendChild(video);
       wrap.appendChild(buildMediaActions(url, videoDownloadUrl));
