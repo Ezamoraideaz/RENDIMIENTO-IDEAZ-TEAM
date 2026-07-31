@@ -900,7 +900,12 @@
     if (fid) {
       var img = document.createElement('img');
       img.className = 'media-frame';
-      img.loading = 'lazy';
+      img.loading = isFront ? 'eager' : 'lazy';
+      // El contenido inicial (tarjeta/slide del frente) va con prioridad
+      // alta; lo que se está "alistando" en segundo plano (tarjetas detrás,
+      // slides vecinos del carrusel) baja de prioridad para no competirle
+      // ancho de banda ni turno de conexión al contenido que sí se ve ya.
+      img.fetchPriority = isFront ? 'high' : 'low';
       img.draggable = false;
       // Imagen real servida por nuestro backend (mismo mecanismo que el
       // video) en vez del iframe /preview de Drive — ese iframe trae encima
@@ -931,7 +936,8 @@
     }
     var plainImg = document.createElement('img');
     plainImg.className = 'media-frame';
-    plainImg.loading = 'lazy';
+    plainImg.loading = isFront ? 'eager' : 'lazy';
+    plainImg.fetchPriority = isFront ? 'high' : 'low';
     plainImg.draggable = false;
     plainImg.src = url;
     plainImg.addEventListener('load', function () {
@@ -1018,6 +1024,20 @@
       slideHolder.style.position = 'absolute'; slideHolder.style.inset = '0';
       slideHolder.appendChild(mediaSlideEl(mediaList[0], item.id, item.type, onAspectReady, isFront));
 
+      // Alista en segundo plano (prioridad baja, no compite con el slide que
+      // se está viendo) los slides vecinos de imagen — así al tocar la
+      // flecha ya está en caché del navegador y no se ve el segundo de
+      // pantalla negro mientras pide el archivo a Drive. Solo en el frente:
+      // en las tarjetas de atrás nadie está paginando el carrusel todavía.
+      function preloadSlide(i) {
+        var mm = mediaList[i];
+        if (!mm || isVideoMedia(mm)) return;
+        var pre = new Image();
+        pre.fetchPriority = 'low';
+        pre.src = STREAM_API + '?t=' + encodeURIComponent(TOKEN) + '&item_id=' + item.id + '&i=' + mm.idx;
+      }
+      if (isFront) preloadSlide(1);
+
       var left = document.createElement('div'); left.className = 'tapzone left';
       var right = document.createElement('div'); right.className = 'tapzone right';
       function paint() {
@@ -1027,6 +1047,7 @@
         if (dotsContainer) {
           Array.prototype.forEach.call(dotsContainer.children, function (d, i) { d.classList.toggle('on', i === current); });
         }
+        if (isFront) { preloadSlide(current - 1); preloadSlide(current + 1); }
       }
       left.addEventListener('click', function (e) { e.stopPropagation(); current = Math.max(0, current - 1); paint(); });
       right.addEventListener('click', function (e) { e.stopPropagation(); current = Math.min(mediaList.length - 1, current + 1); paint(); });
