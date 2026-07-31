@@ -520,6 +520,15 @@ const Aprobaciones = (() => {
     autoTargetBatchId = null;
   }
 
+  // Columna G de la parrilla: hashtags del post. Se agregan como línea aparte
+  // del copy (feed/carrusel/reel) — las historias no llevan hashtags.
+  function captionWithHashtags(row) {
+    const base = (row.caption || '').trim();
+    const tags = (row.hashtags || '').trim();
+    if (!tags || row.type === 'story') return base;
+    return base ? `${base}\n\n${tags}` : tags;
+  }
+
   async function autoSearch() {
     const client = activeClient();
     if (!client || !client.trello_board_id) return;
@@ -596,7 +605,7 @@ const Aprobaciones = (() => {
           postNumber,
           type: row ? row.type : 'feed',
           day: row ? row.day : '',
-          caption: row ? row.caption : '',
+          caption: row ? captionWithHashtags(row) : '',
           manualUrl: '',
           files,
           duplicateFolders,
