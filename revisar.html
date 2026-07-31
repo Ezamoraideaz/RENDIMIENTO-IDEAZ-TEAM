@@ -216,7 +216,12 @@
   .ig-icons .push { margin-left: auto; }
   .ig-likes { font-weight: 700; font-size: 12.5px; margin-bottom: 3px; }
   .ig-caption { font-size: 12.5px; line-height: 1.4; }
+  .ig-caption.clamped { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
   .ig-caption b { margin-right: 4px; }
+  .ig-caption-toggle {
+    display: inline-block; margin-top: 2px; background: none; border: none; padding: 0;
+    font-family: inherit; color: var(--ig-dim); font-size: 12px; font-weight: 700; cursor: pointer;
+  }
   .ig-viewcomments { font-size: 12px; color: var(--ig-dim); margin-top: 3px; }
   .ig-schedule { font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--ig-dim); margin-top: 6px; font-weight: 600; }
 
@@ -787,7 +792,11 @@
       + '<div class="ig-foot">'
       + '  <div class="ig-icons"><span>' + ICONS.heart + '</span><span>' + ICONS.comment + '</span><span>' + ICONS.share + '</span><span class="push">' + ICONS.bookmark + '</span></div>'
       + '  <div class="ig-likes">' + likes + ' me gusta</div>'
-      + (item.caption ? '  <div class="ig-caption"><b>' + esc(handle) + '</b>' + esc(item.caption) + '</div><div class="ig-viewcomments">Ver los ' + comments + ' comentarios</div>' : '')
+      // Copy largo ocupaba mucho espacio en feed/carrusel — mismo patrón que
+      // en Reels: arranca en 1 línea con "Ver más" y se expande al tocarlo.
+      + (item.caption ? '  <div class="ig-caption clamped" data-caption><b>' + esc(handle) + '</b>' + esc(item.caption) + '</div>'
+        + '<button type="button" class="ig-caption-toggle" data-caption-toggle>Ver más</button>'
+        + '<div class="ig-viewcomments">Ver los ' + comments + ' comentarios</div>' : '')
       + '  <div class="ig-schedule">Se publicará: ' + esc(fmtSchedule(item.scheduled_at)) + '</div>'
       + '</div>';
     return html;
