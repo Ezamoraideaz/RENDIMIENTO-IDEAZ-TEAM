@@ -73,10 +73,66 @@ CREATE TABLE IF NOT EXISTS clients (
     logo_url VARCHAR(500) NULL,
     timezone VARCHAR(64) NOT NULL DEFAULT 'America/Mexico_City',
     ai_context TEXT NULL,
+    sheet_id VARCHAR(100) NULL,
+    drive_approval_folder_id VARCHAR(128) NULL,
+    trello_board_id VARCHAR(64) NULL,
     status ENUM('active','paused','archived') NOT NULL DEFAULT 'active',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uq_clients_slug (slug)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Módulo Aprobaciones — "tanda" de contenido para revisión (1 pieza puntual o
+-- varias). El token crudo del link nunca se guarda, solo su hash (mismo
+-- patrón que password_resets). token_hash/expires_at quedan NULL mientras la
+-- tanda es un borrador; se completan al pulsar "Generar link".
+CREATE TABLE IF NOT EXISTS content_batches (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    client_id INT UNSIGNED NOT NULL,
+    label VARCHAR(190) NOT NULL,
+    token_hash CHAR(64) NULL,
+    expires_at DATETIME NULL,
+    created_by INT UNSIGNED NOT NULL,
+    opened_at DATETIME NULL,
+    completed_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_content_batches_token_hash (token_hash),
+    KEY idx_content_batches_client (client_id, created_at),
+    CONSTRAINT fk_content_batches_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
+    CONSTRAINT fk_content_batches_operator FOREIGN KEY (created_by) REFERENCES operators(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS content_items (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    batch_id INT UNSIGNED NOT NULL,
+    trello_card_id VARCHAR(64) NULL,
+    type ENUM('feed','story','reel','carousel') NOT NULL,
+    post_number SMALLINT UNSIGNED NULL, -- para ubicar la carpeta ARTES/año/mes/POST # al aprobar
+    caption TEXT NULL,
+    scheduled_at DATETIME NULL,
+    media JSON NOT NULL,          -- [{ "url": "...", "order": 0 }, ...]
+    position INT UNSIGNED NOT NULL DEFAULT 0,
+    status ENUM('pending','approved','changes_requested') NOT NULL DEFAULT 'pending',
+    decided_at DATETIME NULL,
+    drive_move_status ENUM('pending','moved','error','skipped') NOT NULL DEFAULT 'pending',
+    drive_move_error TEXT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_content_items_batch (batch_id, position),
+    CONSTRAINT fk_content_items_batch FOREIGN KEY (batch_id) REFERENCES content_batches(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Registro de cada decisión, separado del estado actual de la pieza, para que
+-- una pieza rechazada → corregida → vuelta a revisar conserve el historial completo.
+CREATE TABLE IF NOT EXISTS content_reviews (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    content_item_id INT UNSIGNED NOT NULL,
+    decision ENUM('approved','changes_requested') NOT NULL,
+    comment TEXT NULL,
+    reason_tags JSON NULL,        -- ["Cambiar el copy", "Ortografía", ...] — solo si decision = changes_requested
+    reviewed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    reviewer_ip VARCHAR(45) NULL,
+    KEY idx_content_reviews_item (content_item_id),
+    CONSTRAINT fk_content_reviews_item FOREIGN KEY (content_item_id) REFERENCES content_items(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS social_accounts (
@@ -274,4 +330,26 @@ CREATE TABLE IF NOT EXISTS scheduled_actions (
     KEY idx_scheduled_actions_run (run_at, status),
     CONSTRAINT fk_scheduled_actions_conversation FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
     CONSTRAINT fk_scheduled_actions_flow FOREIGN KEY (flow_id) REFERENCES flows(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Configuración compartida del Monitor de Pauta (pauta.html) — clientes,
+-- presupuestos por plataforma/mes. Ver migration_010_pauta_clients.sql para
+-- el detalle de por qué esto vive en JSON y no en columnas planas.
+CREATE TABLE IF NOT EXISTS pauta_clients (
+    id VARCHAR(32) NOT NULL PRIMARY KEY,
+    name VARCHAR(190) NOT NULL,
+    budgets JSON NOT NULL,
+    platforms JSON NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS pauta_leads (
+    client_id VARCHAR(32) NOT NULL,
+    month_key VARCHAR(7) NOT NULL,
+    total INT UNSIGNED NOT NULL DEFAULT 0,
+    qualified INT UNSIGNED NOT NULL DEFAULT 0,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (client_id, month_key),
+    CONSTRAINT fk_pauta_leads_client FOREIGN KEY (client_id) REFERENCES pauta_clients(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -1,0 +1,1442 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Revisión de contenido</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0c1020">
+<meta name="robots" content="noindex, nofollow">
+<style>
+  :root {
+    --canvas: #0c1020;
+    --canvas-2: #12172b;
+    --ink: #e7e9f5;
+    --ink-dim: #9aa0bf;
+    --ink-faint: #656b8c;
+    --accent: #6f7bf7;
+    --accent-ink: #ffffff;
+    --reject: #fb5279;
+    --line: rgba(231,233,245,0.09);
+    --surface: #171b30;
+    --surface-2: #1e2340;
+    --shadow: rgba(5,6,15,0.55);
+    --ig-bg: #ffffff;
+    --ig-ink: #262626;
+    --ig-dim: #8e8e8e;
+    --ig-line: #efefef;
+    color-scheme: dark;
+  }
+  :root[data-theme="light"] {
+    --canvas: #eef0fb; --canvas-2: #e2e5f7; --ink: #171a2e; --ink-dim: #565c82;
+    --ink-faint: #8489ab; --surface: #ffffff; --surface-2: #f4f5fc;
+    --line: rgba(23,26,46,0.10); --shadow: rgba(80,84,140,0.18); color-scheme: light;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --canvas: #eef0fb; --canvas-2: #e2e5f7; --ink: #171a2e; --ink-dim: #565c82;
+      --ink-faint: #8489ab; --surface: #ffffff; --surface-2: #f4f5fc;
+      --line: rgba(23,26,46,0.10); --shadow: rgba(80,84,140,0.18); color-scheme: light;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; min-height: 100vh;
+    background: radial-gradient(60% 50% at 50% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%), var(--canvas);
+    color: var(--ink); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex; justify-content: center; padding: clamp(12px, 3vw, 40px);
+    overflow-x: hidden; overscroll-behavior-y: contain;
+  }
+
+  .stage { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 14px; }
+
+  .topbar { display: flex; align-items: center; gap: 10px; padding: 4px 2px; }
+  .topbar .brand-avatar {
+    width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; overflow: hidden;
+    background: linear-gradient(135deg, #caa06a, #7a5230);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; font-weight: 800; color: #fff;
+    box-shadow: 0 0 0 2px var(--canvas), 0 0 0 3.5px var(--accent);
+  }
+  .topbar .brand-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .topbar .brand-meta { min-width: 0; flex: 1; }
+  .topbar .brand-name { font-weight: 700; font-size: 13.5px; line-height: 1.2; }
+  .topbar .brand-sub { font-size: 11px; color: var(--ink-faint); letter-spacing: .02em; }
+  .topbar .counter {
+    font-variant-numeric: tabular-nums; font-size: 12.5px; font-weight: 600; color: var(--ink-dim);
+    background: var(--surface); border: 1px solid var(--line);
+    padding: 5px 10px; border-radius: 999px; flex-shrink: 0;
+  }
+  .progress-track { height: 3px; border-radius: 999px; background: var(--line); overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--accent); border-radius: 999px; transition: width .35s ease; }
+
+  .deck-wrap {
+    position: relative; align-self: center; width: auto; max-width: 100%;
+    height: min(72vh, 640px); height: min(72dvh, 640px); aspect-ratio: 9 / 16;
+  }
+  .deck { position: absolute; inset: 0; }
+  .card {
+    position: absolute; inset: 0; background: var(--ig-bg); border-radius: 20px; overflow: hidden;
+    box-shadow: 0 20px 45px -12px var(--shadow), 0 2px 8px var(--shadow);
+    display: flex; flex-direction: column; touch-action: none; will-change: transform; color: var(--ig-ink);
+  }
+  .card.settled { transition: transform .38s cubic-bezier(.2,.7,.3,1); }
+  .card.submitting { pointer-events: none; }
+  .card .stamp {
+    position: absolute; top: 22px; z-index: 5; font-size: 26px; font-weight: 900; letter-spacing: .03em;
+    padding: 6px 14px; border-radius: 8px; border: 3.5px solid; opacity: 0; text-transform: uppercase; pointer-events: none;
+  }
+  .card .stamp.approve { left: 18px; color: var(--accent); border-color: var(--accent); transform: rotate(-14deg); }
+  .card .stamp.reject { right: 18px; color: var(--reject); border-color: var(--reject); transform: rotate(14deg); }
+  .card .saving-badge {
+    position: absolute; inset: 0; z-index: 6; display: none; align-items: center; justify-content: center;
+    background: rgba(0,0,0,.35); backdrop-filter: blur(1px);
+  }
+  .card.submitting .saving-badge { display: flex; }
+  .saving-spin {
+    width: 30px; height: 30px; border-radius: 50%; border: 3px solid rgba(255,255,255,.35);
+    border-top-color: #fff; animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .ig-head { display: flex; align-items: center; gap: 9px; padding: 10px 12px; border-bottom: 1px solid var(--ig-line); flex-shrink: 0; }
+  .ig-head .ava {
+    width: 30px; height: 30px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
+    background: linear-gradient(135deg, #caa06a, #7a5230);
+    display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; color: #fff;
+  }
+  .ig-head .ava img { width: 100%; height: 100%; object-fit: cover; }
+  .ig-head .who { line-height: 1.15; min-width: 0; }
+  .ig-head .uname { font-weight: 700; font-size: 13px; }
+  .ig-head .uname .badge { color: #3897f0; }
+  .ig-head .meta { font-size: 11px; color: var(--ig-dim); }
+  .ig-head .dots { margin-left: auto; font-size: 16px; color: var(--ig-ink); letter-spacing: 1px; }
+
+  .ig-media {
+    position: relative; width: 100%; flex: 1; min-height: 0; background: #111;
+    display: flex; align-items: center; justify-content: center; overflow: hidden; user-select: none;
+  }
+  .media-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; object-fit: cover; pointer-events: none; -webkit-user-drag: none; user-select: none; background: #000; }
+  .media-actions { position: absolute; bottom: 10px; right: 10px; z-index: 4; display: flex; align-items: center; gap: 6px; pointer-events: auto; }
+  .media-open-link {
+    background: rgba(0,0,0,.55); color: #fff; font-size: 11px; font-weight: 700;
+    padding: 5px 10px; border-radius: 999px; text-decoration: none;
+  }
+  .media-download-link {
+    width: 24px; height: 24px; border-radius: 50%; background: rgba(0,0,0,.55); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-size: 12px;
+    text-decoration: none; flex-shrink: 0;
+  }
+  .media-fallback {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: rgba(255,255,255,.85); font-size: 13px; font-weight: 600; text-decoration: none; text-align: center; padding: 20px;
+  }
+  .ig-media .tapzone { position: absolute; top: 0; bottom: 0; width: 33%; z-index: 3; }
+  .ig-media .tapzone.left { left: 0; } .ig-media .tapzone.right { right: 0; }
+  .ig-media .carousel-count {
+    position: absolute; top: 10px; right: 10px; z-index: 4; background: rgba(0,0,0,.55); color: #fff;
+    font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+  }
+  /* Bullets del carrusel: fuera de la imagen, justo debajo y antes de los
+     íconos de like/comentario/compartir (no tapando el contenido). */
+  .carousel-dots-row { display: flex; justify-content: center; align-items: center; gap: 5px; padding: 8px 0 0; flex-shrink: 0; }
+  .carousel-dots-row:empty { display: none; padding: 0; }
+  .carousel-dots-row .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ig-line); transition: background .15s ease; }
+  .carousel-dots-row .dot.on { background: #3897f0; }
+  /* ---------- Reel: video a pantalla completa, iconos/caption superpuestos ---------- */
+  .reel-vignette-bottom {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 45%; z-index: 3;
+    background: linear-gradient(to top, rgba(0,0,0,.75), transparent); pointer-events: none;
+  }
+  .reel-actions-rail {
+    position: absolute; right: 10px; bottom: 92px; z-index: 4;
+    display: flex; flex-direction: column; align-items: center; gap: 18px;
+  }
+  .reel-action { display: flex; flex-direction: column; align-items: center; gap: 3px; color: #fff; }
+  .reel-icon { font-size: 25px; filter: drop-shadow(0 1px 3px rgba(0,0,0,.5)); }
+  .reel-count { font-size: 11px; font-weight: 700; text-shadow: 0 1px 2px rgba(0,0,0,.5); }
+  .reel-disc {
+    width: 30px; height: 30px; border-radius: 50%; overflow: hidden; margin-top: 6px;
+    border: 2px solid #fff; background: linear-gradient(135deg, #caa06a, #7a5230);
+    display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; color: #fff;
+    animation: reelSpin 4s linear infinite;
+  }
+  .reel-disc img { width: 100%; height: 100%; object-fit: cover; }
+  @keyframes reelSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  .reel-bottom { position: absolute; left: 12px; right: 68px; bottom: 16px; z-index: 4; color: #fff; }
+  .reel-caption { font-size: 13px; line-height: 1.4; text-shadow: 0 1px 3px rgba(0,0,0,.45); }
+  .reel-caption.clamped { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+  .reel-caption b { margin-right: 4px; }
+  .reel-caption-toggle {
+    display: inline-block; margin-top: 3px; background: none; border: none; padding: 0;
+    font-family: inherit; color: rgba(255,255,255,.75); font-size: 12px; font-weight: 700;
+    cursor: pointer; text-shadow: 0 1px 2px rgba(0,0,0,.4);
+  }
+  .reel-audio { font-size: 11.5px; margin-top: 6px; opacity: .9; text-shadow: 0 1px 2px rgba(0,0,0,.4); }
+  .reel-schedule {
+    font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; font-weight: 600;
+    color: rgba(255,255,255,.85); margin-top: 6px; text-shadow: 0 1px 2px rgba(0,0,0,.4);
+  }
+  @media (prefers-reduced-motion: reduce) { .reel-disc { animation: none; } }
+  .video-seek {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 22px; z-index: 3;
+    display: flex; align-items: center; padding: 0 10px; touch-action: none; cursor: pointer;
+  }
+  .video-seek-track { position: relative; flex: 1; height: 3px; border-radius: 999px; background: rgba(255,255,255,.32); }
+  .video-seek-fill { position: absolute; inset: 0; width: 0%; background: #fff; border-radius: 999px; pointer-events: none; }
+
+  .story-bar-track { position: absolute; top: 9px; left: 10px; right: 10px; z-index: 5; height: 2.5px; background: rgba(255,255,255,.35); border-radius: 2px; overflow: hidden; }
+  .story-bar-fill { height: 100%; width: 100%; background: #fff; border-radius: 2px; }
+  .story-head {
+    position: absolute; top: 0; left: 0; right: 0; z-index: 4; display: flex; align-items: center; gap: 8px;
+    padding: 18px 12px 34px; background: linear-gradient(to bottom, rgba(0,0,0,.55), transparent);
+  }
+  .story-head .ava {
+    width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0; overflow: hidden;
+    background: linear-gradient(135deg, #caa06a, #7a5230); display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 800; color: #fff; border: 1.5px solid rgba(255,255,255,.8);
+  }
+  .story-head .ava img { width: 100%; height: 100%; object-fit: cover; }
+  .story-head .who { line-height: 1.25; min-width: 0; flex: 1; }
+  .story-head .uname { color: #fff; font-weight: 700; font-size: 13px; }
+  .story-head .meta { color: rgba(255,255,255,.75); font-size: 10.5px; }
+  .story-vignette-bottom { position: absolute; left: 0; right: 0; bottom: 0; height: 30%; z-index: 3; background: linear-gradient(to top, rgba(0,0,0,.65), transparent); pointer-events: none; }
+  .story-sticker { position: absolute; left: 20px; right: 20px; bottom: 78px; z-index: 4; text-align: center; }
+  .story-sticker span {
+    display: inline-block; background: rgba(255,255,255,.95); color: #1a1a1a; font-size: 14px; font-weight: 700;
+    line-height: 1.35; padding: 10px 14px; border-radius: 14px; box-shadow: 0 8px 20px rgba(0,0,0,.28);
+  }
+  .story-reply { position: absolute; left: 12px; right: 12px; bottom: 14px; z-index: 4; display: flex; align-items: center; gap: 10px; }
+  .story-reply .box { flex: 1; border: 1.5px solid rgba(255,255,255,.55); border-radius: 999px; color: rgba(255,255,255,.85); font-size: 12.5px; padding: 9px 14px; }
+  .story-reply .heart { color: #fff; font-size: 20px; }
+
+  /* min-height:0 + overflow-y:auto: al abrir "Ver más" el copy puede crecer
+     más que el espacio ya reservado para el pie (calculado con el copy
+     clampeado) — en vez de desbordar y recortarse contra el overflow:hidden
+     de .card, el pie scrollea dentro de su propio alto. */
+  .ig-foot { padding: 8px 12px 12px; flex-shrink: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
+  .ig-icons { display: flex; align-items: center; gap: 13px; font-size: 21px; padding: 4px 0 6px; }
+  .ig-icons .push { margin-left: auto; }
+  .ig-likes { font-weight: 700; font-size: 12.5px; margin-bottom: 3px; }
+  .ig-caption { font-size: 12.5px; line-height: 1.4; }
+  .ig-caption.clamped { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+  .ig-caption b { margin-right: 4px; }
+  .ig-caption-toggle {
+    display: inline-block; margin-top: 2px; background: none; border: none; padding: 0;
+    font-family: inherit; color: var(--ig-dim); font-size: 12px; font-weight: 700; cursor: pointer;
+  }
+  .ig-viewcomments { font-size: 12px; color: var(--ig-dim); margin-top: 3px; }
+  .ig-schedule { font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--ig-dim); margin-top: 6px; font-weight: 600; }
+
+  .actions { display: flex; justify-content: center; align-items: center; gap: 22px; padding: 4px 0 2px; }
+  .actions button {
+    width: 58px; height: 58px; border-radius: 50%; border: none; cursor: pointer; font-size: 24px;
+    display: flex; align-items: center; justify-content: center; background: var(--surface); color: var(--ink);
+    box-shadow: 0 10px 24px -8px var(--shadow); transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .actions button:hover { transform: translateY(-2px); }
+  .actions button:active { transform: translateY(0) scale(.94); }
+  .actions button:disabled { opacity: .5; cursor: default; transform: none; }
+  .actions button:focus-visible { outline: 2.5px solid var(--accent); outline-offset: 3px; }
+  .actions .btn-reject { color: var(--reject); }
+  .actions .btn-approve { color: var(--accent); font-size: 26px; }
+  .actions .btn-approve, .actions .btn-reject { width: 64px; height: 64px; }
+  .hint { text-align: center; font-size: 11.5px; color: var(--ink-faint); letter-spacing: .02em; }
+
+  .tag-label { font-size: 11.5px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--ink-dim); margin: 14px 0 8px; }
+  .tag-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tag-chip {
+    font: inherit; font-size: 12.5px; font-weight: 600; color: var(--ink-dim); background: var(--surface-2);
+    border: 1.5px solid var(--line); border-radius: 999px; padding: 10px 14px; cursor: pointer; touch-action: manipulation;
+    transition: background .15s ease, border-color .15s ease, color .15s ease;
+  }
+  .tag-chip.selected { background: var(--reject); border-color: var(--reject); color: #fff; }
+  .tag-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(6,7,16,.6); backdrop-filter: blur(3px);
+    display: none; align-items: flex-end; justify-content: center; z-index: 50; padding: 0;
+  }
+  .modal-overlay.open { display: flex; }
+  @media (min-width: 480px) { .modal-overlay { align-items: center; } }
+  .modal {
+    width: 100%; max-width: 420px; background: var(--surface); border-radius: 22px 22px 0 0;
+    padding: 22px 20px calc(20px + env(safe-area-inset-bottom)); border: 1px solid var(--line); border-bottom: none;
+    animation: sheetUp .28s ease;
+  }
+  @media (min-width: 480px) { .modal { border-radius: 20px; border-bottom: 1px solid var(--line); } }
+  @keyframes sheetUp { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .modal h2 { margin: 0 0 4px; font-size: 16.5px; font-weight: 800; }
+  .modal p.sub { margin: 0 0 14px; font-size: 12.5px; color: var(--ink-dim); }
+  .modal textarea {
+    width: 100%; min-height: 90px; resize: vertical; background: var(--surface-2); border: 1px solid var(--line);
+    border-radius: 12px; color: var(--ink); font: inherit; font-size: 13.5px; padding: 12px;
+  }
+  .modal textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .modal .err { font-size: 11.5px; color: var(--reject); min-height: 15px; margin-top: 6px; }
+  .modal .modal-actions { display: flex; gap: 10px; margin-top: 10px; }
+  .modal .modal-actions button { flex: 1; padding: 12px; border-radius: 12px; border: none; cursor: pointer; font-weight: 700; font-size: 13.5px; font-family: inherit; }
+  .modal .modal-actions button:disabled { opacity: .6; cursor: default; }
+  .modal .m-cancel { background: var(--surface-2); color: var(--ink-dim); }
+  .modal .m-confirm { background: var(--reject); color: #fff; }
+  .modal .m-confirm:focus-visible, .modal .m-cancel:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .summary { display: none; background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 26px 22px; text-align: center; }
+  .summary.show { display: block; animation: sheetUp .3s ease; }
+  .summary .big { font-size: 34px; margin-bottom: 6px; }
+  .summary h2 { margin: 0 0 4px; font-size: 19px; }
+  .summary .tally { color: var(--ink-dim); font-size: 13px; margin-bottom: 18px; }
+  .summary .tally b.ok { color: var(--accent); } .summary .tally b.no { color: var(--reject); }
+  .summary .rejlist { text-align: left; display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
+  .summary .rejitem { background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+  .summary .rejitem .t { font-size: 11.5px; font-weight: 700; color: var(--reject); margin-bottom: 3px; text-transform: uppercase; letter-spacing: .03em; }
+  .summary .rejtags { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 7px; }
+  .summary .rejpill { font-size: 10.5px; font-weight: 700; color: var(--reject); background: color-mix(in srgb, var(--reject) 14%, transparent); padding: 3px 8px; border-radius: 999px; }
+  .summary .rejitem .c { font-size: 13px; line-height: 1.4; }
+
+  @media (prefers-reduced-motion: reduce) { .card.settled, .modal, .summary.show { transition: none !important; animation: none !important; } }
+
+  .splash {
+    position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(85% 60% at 50% 8%, color-mix(in srgb, var(--accent) 38%, transparent), transparent 65%), linear-gradient(160deg, #120e1f, #0c1020 55%, #090b16);
+    padding: 24px; cursor: pointer; transition: opacity .45s ease; overflow: hidden;
+  }
+  .splash.hide { opacity: 0; pointer-events: none; }
+  /* Fondo fijo compartido por todas las marcas (img/splash-bg.jpeg) — si el
+     archivo no existe aún, el onerror en el <img> lo oculta y queda el
+     degradé de arriba. El scrim oscuro garantiza que el texto blanco sea
+     legible sobre la imagen. */
+  .splash-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
+  .splash-scrim { position: absolute; inset: 0; z-index: 1; background: linear-gradient(180deg, rgba(6,7,16,.35), rgba(6,7,16,.6) 55%, rgba(6,7,16,.9)); }
+  .splash-inner { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 14px; max-width: 300px; text-align: center; }
+  .splash-title { color: #fff; font-size: 21px; font-weight: 800; letter-spacing: -.01em; }
+  .splash-sub { color: rgba(231,233,245,.75); font-size: 13px; }
+  .splash-bar-track { width: 130px; height: 3px; border-radius: 999px; background: rgba(255,255,255,.2); overflow: hidden; margin-top: 8px; }
+  .splash-bar-fill { height: 100%; width: 0%; background: var(--accent); border-radius: 999px; transition: width 1.3s cubic-bezier(.3,.6,.4,1); }
+  .splash-hint { color: rgba(231,233,245,.55); font-size: 11px; letter-spacing: .04em; }
+  @media (prefers-reduced-motion: reduce) { .splash { transition: none; } .splash-bar-fill { transition: none; } }
+
+  .help-fab {
+    width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface);
+    color: var(--ink-dim); font-weight: 800; font-size: 13px; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; flex-shrink: 0;
+  }
+  .help-fab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .tour-overlay { position: fixed; inset: 0; z-index: 90; background: rgba(6,7,16,.72); backdrop-filter: blur(3px); display: none; align-items: flex-end; justify-content: center; }
+  .tour-overlay.open { display: flex; }
+  @media (min-width: 480px) { .tour-overlay { align-items: center; } }
+  .tour-card { position: relative; width: 100%; max-width: 420px; background: var(--surface); border-radius: 22px 22px 0 0; border: 1px solid var(--line); border-bottom: none; padding: 20px 22px calc(22px + env(safe-area-inset-bottom)); animation: sheetUp .3s ease; }
+  @media (min-width: 480px) { .tour-card { border-radius: 20px; border-bottom: 1px solid var(--line); } }
+  .tour-skip { position: absolute; top: 16px; right: 18px; background: none; border: none; color: var(--ink-faint); font-size: 12px; font-weight: 700; cursor: pointer; padding: 4px; }
+  .tour-skip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .tour-dots { display: flex; gap: 6px; justify-content: center; margin: 4px 0 18px; }
+  .tour-dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--line); transition: background .2s ease, width .2s ease; }
+  .tour-dots span.on { background: var(--accent); width: 16px; border-radius: 3px; }
+  .tour-step { display: none; text-align: center; }
+  .tour-step.current { display: block; }
+  .tour-step h2 { margin: 4px 0 6px; font-size: 18px; font-weight: 800; }
+  .tour-step p { margin: 0; font-size: 13.5px; color: var(--ink-dim); line-height: 1.5; padding: 0 4px; }
+  .tour-visual { display: flex; align-items: center; justify-content: center; height: 124px; margin-bottom: 4px; position: relative; }
+  .tour-demo-caption { font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--ink-faint); margin-bottom: 10px; }
+  .tour-demo-card { position: relative; width: 118px; height: 104px; background: var(--ig-bg); border-radius: 14px; box-shadow: 0 12px 26px -8px var(--shadow); animation: tourDemoSwipe 3.6s ease-in-out infinite; }
+  .tour-demo-photo { height: 62px; border-radius: 14px 14px 0 0; background: linear-gradient(135deg, #caa06a, #7a5230); display: flex; align-items: center; justify-content: center; font-size: 24px; }
+  .tour-demo-lines { padding: 8px 10px; display: flex; flex-direction: column; gap: 5px; }
+  .tour-demo-lines span { display: block; height: 5px; border-radius: 3px; background: var(--ig-line); }
+  .tour-demo-lines span:last-child { width: 60%; }
+  .tour-demo-stamp { position: absolute; top: 8px; font-size: 10.5px; font-weight: 900; letter-spacing: .02em; padding: 3px 7px; border-radius: 5px; border: 2px solid; text-transform: uppercase; opacity: 0; animation-duration: 3.6s; animation-iteration-count: infinite; animation-timing-function: ease-in-out; }
+  .tour-demo-stamp.approve { left: 7px; color: var(--accent); border-color: var(--accent); transform: rotate(-14deg); animation-name: tourStampApprove; }
+  .tour-demo-stamp.reject { right: 7px; color: var(--reject); border-color: var(--reject); transform: rotate(14deg); animation-name: tourStampReject; }
+  .tour-hand { position: absolute; bottom: -6px; font-size: 24px; animation: tourHand 1.4s ease-in-out infinite; }
+  @keyframes tourDemoSwipe { 0%, 6% { transform: translateX(0) rotate(0); } 22% { transform: translateX(34px) rotate(9deg); } 33%, 39% { transform: translateX(0) rotate(0); } 55% { transform: translateX(-34px) rotate(-9deg); } 66%, 100% { transform: translateX(0) rotate(0); } }
+  @keyframes tourStampApprove { 0%, 6% { opacity: 0; } 18%, 26% { opacity: 1; } 33%, 100% { opacity: 0; } }
+  @keyframes tourStampReject { 0%, 39% { opacity: 0; } 51%, 59% { opacity: 1; } 66%, 100% { opacity: 0; } }
+  @keyframes tourHand { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(6px); } }
+  .tour-mini-actions { display: flex; gap: 20px; }
+  .tour-mini-btn { width: 52px; height: 52px; border-radius: 50%; background: var(--surface-2); display: flex; align-items: center; justify-content: center; font-size: 22px; box-shadow: 0 8px 18px -6px var(--shadow); }
+  .tour-mini-btn.reject { color: var(--reject); animation: tourPulse 1.8s ease-in-out infinite; }
+  .tour-mini-btn.approve { color: var(--accent); font-size: 24px; animation: tourPulse 1.8s ease-in-out infinite .9s; }
+  @keyframes tourPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+  .tour-mini-modal { width: 190px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 12px; text-align: left; }
+  .tour-mini-line { height: 7px; border-radius: 4px; background: var(--line); margin-bottom: 6px; }
+  .tour-mini-line.short { width: 55%; margin-bottom: 10px; }
+  .tour-mini-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tour-mini-tags span { font-size: 10.5px; font-weight: 700; color: #fff; background: var(--reject); padding: 4px 9px; border-radius: 999px; }
+  .tour-formats { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 260px; }
+  .tour-formats span { font-size: 12px; font-weight: 700; color: var(--ink-dim); background: var(--surface-2); border: 1px solid var(--line); padding: 7px 11px; border-radius: 999px; }
+  .tour-final-emoji { font-size: 44px; }
+  .tour-nav { display: flex; gap: 10px; margin-top: 18px; }
+  .tour-nav button { flex: 1; padding: 13px; border-radius: 12px; border: none; cursor: pointer; font-weight: 700; font-size: 13.5px; font-family: inherit; }
+  .tour-back { background: var(--surface-2); color: var(--ink-dim); }
+  .tour-back[hidden] { display: none; }
+  .tour-next { background: var(--accent); color: #fff; }
+  .tour-nav button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { .tour-demo-card, .tour-demo-stamp, .tour-hand, .tour-mini-btn.reject, .tour-mini-btn.approve { animation: none !important; } .tour-demo-stamp.approve, .tour-demo-stamp.reject { opacity: .95; } }
+
+  /* ---------- Móvil: darle más espacio al video/imagen ---------- */
+  @media (max-width: 480px) {
+    body { padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); }
+    .stage { gap: 8px; }
+    .deck-wrap { height: min(82dvh, 760px); }
+    .topbar { padding: 2px 0; }
+    .hint { font-size: 10.5px; }
+    .actions { padding: 2px 0; gap: 18px; }
+    .actions button { width: 52px; height: 52px; }
+    .actions .btn-approve, .actions .btn-reject { width: 58px; height: 58px; }
+  }
+
+  /* ---------- Estados de carga / error ---------- */
+  .state-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; text-align: center; gap: 14px; max-width: 320px; margin: auto; }
+  .state-screen .emoji { font-size: 44px; }
+  .state-screen h1 { font-size: 18px; margin: 0; }
+  .state-screen p { font-size: 13.5px; color: var(--ink-dim); margin: 0; line-height: 1.5; }
+  .state-spin { width: 30px; height: 30px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+</style>
+</head>
+<body>
+
+<div id="stateLoading" class="state-screen">
+  <div class="state-spin"></div>
+  <p>Cargando tu contenido…</p>
+</div>
+
+<div id="stateError" class="state-screen" style="display:none">
+  <div class="emoji" id="stateErrorEmoji">🔒</div>
+  <h1 id="stateErrorTitle">Link no válido</h1>
+  <p id="stateErrorMsg">Este link de revisión no existe o ya no está disponible.</p>
+</div>
+
+<div id="app" style="display:none">
+  <div class="splash" id="splash" role="button" tabindex="0" aria-label="Toca para comenzar la revisión">
+    <!-- Fondo fijo, igual para todas las marcas (no es el logo del cliente,
+         ese solo se usa para el avatar/identidad de marca en las tarjetas).
+         Reemplazar img/splash-bg.jpeg por el archivo real para activarlo — si
+         no existe todavía, el onerror lo oculta y queda el degradé. -->
+    <img class="splash-bg" id="splashBg" src="img/splash-bg.jpeg" alt="" onerror="this.style.display='none'">
+    <div class="splash-scrim"></div>
+    <div class="splash-inner">
+      <div class="splash-title">Revisión de contenido</div>
+      <div class="splash-sub" id="splashSub">vista previa de Instagram</div>
+      <div class="splash-bar-track"><div class="splash-bar-fill" id="splashBar"></div></div>
+      <div class="splash-hint">Toca para comenzar</div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="topbar">
+      <div class="brand-avatar" id="topAvatar"></div>
+      <div class="brand-meta">
+        <div class="brand-name" id="brandName"></div>
+        <div class="brand-sub" id="stageLabel">Revisando contenido para Instagram</div>
+      </div>
+      <div class="counter" id="counter">1 / 1</div>
+      <button class="help-fab" id="helpFab" type="button" aria-label="Ver la ayuda otra vez">?</button>
+    </div>
+    <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+
+    <div class="deck-wrap">
+      <div class="deck" id="deck"></div>
+    </div>
+
+    <div class="actions">
+      <button class="btn-reject" id="btnReject" title="Solicitar cambios" aria-label="Solicitar cambios">✕</button>
+      <button class="btn-approve" id="btnApprove" title="Aprobar" aria-label="Aprobar">♥</button>
+    </div>
+    <div class="hint">Deslizá la tarjeta o usá los botones — ← rechazar · aprobar →</div>
+
+    <div class="summary" id="summary"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h2>¿Qué hay que cambiar?</h2>
+    <p class="sub">Este comentario se envía directo al equipo, con la pieza adjunta.</p>
+    <textarea id="commentInput" placeholder="Ej: el texto tapa el logo, ¿podemos subirlo un poco?"></textarea>
+    <div class="err" id="commentErr"></div>
+
+    <div class="tag-label">¿Qué hay que corregir? (elegí una o más)</div>
+    <div class="tag-grid" id="tagGrid">
+      <button type="button" class="tag-chip" data-tag="Cambiar el copy">Cambiar el copy</button>
+      <button type="button" class="tag-chip" data-tag="Cambiar la foto/video">Cambiar la foto/video</button>
+      <button type="button" class="tag-chip" data-tag="Corregir logo">Corregir logo</button>
+      <button type="button" class="tag-chip" data-tag="Ortografía">Ortografía</button>
+      <button type="button" class="tag-chip" data-tag="Precio/fecha">Precio/fecha</button>
+      <button type="button" class="tag-chip" data-tag="Hashtags">Hashtags</button>
+      <button type="button" class="tag-chip" data-tag="Otro">Otro</button>
+    </div>
+    <div class="err" id="tagErr"></div>
+
+    <div class="modal-actions">
+      <button class="m-cancel" id="btnCancelReject">Cancelar</button>
+      <button class="m-confirm" id="btnConfirmReject">Confirmar cambios</button>
+    </div>
+  </div>
+</div>
+
+<div class="tour-overlay" id="tourOverlay">
+  <div class="tour-card">
+    <button class="tour-skip" id="tourSkip" type="button">Saltar</button>
+    <div class="tour-dots" id="tourDots"></div>
+
+    <div class="tour-step" data-step="0">
+      <div class="tour-visual">
+        <div class="tour-demo-card">
+          <div class="tour-demo-photo">📷</div>
+          <div class="tour-demo-lines"><span></span><span></span></div>
+          <div class="tour-demo-stamp approve">Aprobado</div>
+          <div class="tour-demo-stamp reject">Cambios</div>
+        </div>
+        <div class="tour-hand">👆</div>
+      </div>
+      <div class="tour-demo-caption">← Cambios &nbsp;&nbsp;&nbsp; Aprobar →</div>
+      <h2>Deslizá para decidir</h2>
+      <p>Cada tarjeta es una pieza de contenido. Deslizá a la derecha si te gusta, a la izquierda si necesita cambios.</p>
+    </div>
+
+    <div class="tour-step" data-step="1">
+      <div class="tour-visual">
+        <div class="tour-mini-actions">
+          <div class="tour-mini-btn reject">✕</div>
+          <div class="tour-mini-btn approve">♥</div>
+        </div>
+      </div>
+      <h2>¿Preferís tocar?</h2>
+      <p>Estos botones hacen exactamente lo mismo que deslizar. Usá lo que te resulte más cómodo.</p>
+    </div>
+
+    <div class="tour-step" data-step="2">
+      <div class="tour-visual">
+        <div class="tour-mini-modal">
+          <div class="tour-mini-line"></div>
+          <div class="tour-mini-line short"></div>
+          <div class="tour-mini-tags"><span>Ortografía</span><span>Precio/fecha</span></div>
+        </div>
+      </div>
+      <h2>Si pedís cambios</h2>
+      <p>Te vamos a pedir un comentario y al menos una etiqueta, para que el equipo sepa exactamente qué corregir.</p>
+    </div>
+
+    <div class="tour-step" data-step="3">
+      <div class="tour-visual">
+        <div class="tour-formats">
+          <span>📷 Feed</span><span>⏳ Historia</span><span>🎥 Reel</span><span>🖼️ Carrusel</span>
+        </div>
+      </div>
+      <h2>Vas a ver de todo un poco</h2>
+      <p>En los carruseles, tocá los costados de la imagen para ver las demás fotos — eso no cuenta como decisión.</p>
+    </div>
+
+    <div class="tour-step" data-step="4">
+      <div class="tour-visual"><div class="tour-final-emoji">🚀</div></div>
+      <h2>¡Listo!</h2>
+      <p id="tourFinalCount">Tenés piezas para revisar.</p>
+    </div>
+
+    <div class="tour-nav">
+      <button class="tour-back" id="tourBack" type="button" hidden>Atrás</button>
+      <button class="tour-next" id="tourNext" type="button">Siguiente</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var API = 'backend/public/review.php';
+  var STREAM_API = 'backend/public/stream_media.php';
+  var TOKEN = new URLSearchParams(location.search).get('t') || '';
+
+  var ITEMS = [];
+  var CLIENT = null;
+  var idx = 0;
+  var decided = [];
+  var pendingRejectItem = null;
+  var selectedTags = [];
+
+  var deckEl, counterEl, progressFill, stageLabel, summaryEl, modalOverlay,
+      commentInput, commentErr, tagGrid, tagErr, actionsBar, hintEl, deckWrap, tourOverlay;
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+    });
+  }
+
+  function showState(name) {
+    document.getElementById('stateLoading').style.display = name === 'loading' ? 'flex' : 'none';
+    document.getElementById('stateError').style.display = name === 'error' ? 'flex' : 'none';
+    document.getElementById('app').style.display = name === 'app' ? 'block' : 'none';
+  }
+
+  function showError(emoji, title, msg) {
+    document.getElementById('stateErrorEmoji').textContent = emoji;
+    document.getElementById('stateErrorTitle').textContent = title;
+    document.getElementById('stateErrorMsg').textContent = msg;
+    showState('error');
+  }
+
+  var ACCENT_MAP = { 'á':'a','é':'e','í':'i','ó':'o','ú':'u','ñ':'n','ü':'u',
+                      'Á':'a','É':'e','Í':'i','Ó':'o','Ú':'u','Ñ':'n','Ü':'u' };
+  function slugHandle(name) {
+    var stripped = String(name || '').replace(/[áéíóúñüÁÉÍÓÚÑÜ]/g, function (c) { return ACCENT_MAP[c] || c; });
+    return stripped.toLowerCase().replace(/[^a-z0-9]/g, '') || 'marca';
+  }
+
+  function initial(name) {
+    return String(name || '?').trim().charAt(0).toUpperCase() || '?';
+  }
+
+  // SVGs inline (sin librería externa) calcados de los íconos reales de
+  // Instagram, en vez de los glifos de texto (♡ 💬 ➤ ▭) que no se parecían.
+  // "1em" para que hereden el tamaño de fuente del span que los envuelve.
+  var ICONS = {
+    heart: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16.792 3.904A4.989 4.989 0 0 1 21.5 9.122c0 3.072-2.652 4.959-5.197 7.222-2.512 2.243-3.865 3.469-4.303 3.752-.438-.283-1.791-1.51-4.303-3.752C5.152 14.081 2.5 12.194 2.5 9.122a4.989 4.989 0 0 1 4.708-5.218 4.21 4.21 0 0 1 3.675 1.941c.84 1.175.98 1.763 1.117 1.763s.276-.588 1.117-1.763a4.21 4.21 0 0 1 3.675-1.941Z"/></svg>',
+    comment: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20.656 17.008a9.993 9.993 0 1 0-3.59 3.615L21 21Z"/></svg>',
+    share: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="3" x2="9.218" y2="10.083"/><polygon points="11.698 20.334 22 3.001 2 3.001 9.218 10.083 11.698 20.334"/></svg>',
+    bookmark: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polygon points="20 21 12 13.44 4 21 4 3 20 3 20 21"/></svg>',
+    dotsHorizontal: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><circle cx="12" cy="12" r="1.5"/><circle cx="6" cy="12" r="1.5"/><circle cx="18" cy="12" r="1.5"/></svg>',
+    dotsVertical: '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor"><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="6" r="1.5"/><circle cx="12" cy="18" r="1.5"/></svg>',
+    verified: '<svg viewBox="0 0 24 24" width="1em" height="1em"><circle cx="12" cy="12" r="10" fill="#3897f0"/><path d="M9.5 12.5l1.8 1.8 3.6-4.1" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  };
+
+  function driveFileId(url) {
+    if (!url) return null;
+    var m = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
+    if (m) return m[1];
+    m = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+    return m ? m[1] : null;
+  }
+
+  function fmtSchedule(iso) {
+    if (!iso) return '';
+    var d = new Date(String(iso).replace(' ', 'T'));
+    if (isNaN(d)) return iso;
+    var datePart = d.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
+    var timePart = d.toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' });
+    return datePart + ', ' + timePart;
+  }
+
+  function fmtNum(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+  function seededInt(seed, min, max) {
+    var x = Math.sin(seed * 999) * 10000;
+    var r = x - Math.floor(x);
+    return Math.floor(r * (max - min + 1)) + min;
+  }
+
+  function typeTag(type) { return { feed: '', story: 'Historia', reel: 'Reel', carousel: 'Carrusel' }[type] || ''; }
+
+  // ── Carga de datos ───────────────────────────────────────────────────────
+  function loadBatch() {
+    if (!TOKEN) { showError('🔗', 'Falta el link', 'Este link no tiene el código de revisión. Pídele al equipo que te lo reenvíe.'); return; }
+    fetch(API + '?t=' + encodeURIComponent(TOKEN))
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (data.status === 'invalid') { showError('🔒', 'Link no válido', 'Este link de revisión no existe. Pídele al equipo uno nuevo.'); return; }
+        if (data.status === 'expired') { showError('⏳', 'Link vencido', 'Este link ya no está disponible. Pídele al equipo que te genere uno nuevo.'); return; }
+        if (data.status === 'completed') { showError('✅', '¡Ya revisaste esta tanda!', 'Gracias — tu respuesta ya quedó registrada. Si necesitas cambiar algo, contacta al equipo.'); return; }
+        if (data.status !== 'ok') { showError('⚠️', 'Algo salió mal', 'No pudimos cargar el contenido. Intenta de nuevo en unos minutos.'); return; }
+
+        CLIENT = data.client || { name: 'tu marca' };
+        ITEMS = (data.items || []).filter(function (it) { return it.status === 'pending'; });
+
+        if (!ITEMS.length) { showError('📭', 'Nada pendiente', 'No hay piezas esperando tu revisión en este momento.'); return; }
+
+        bootApp();
+      })
+      .catch(function () {
+        showError('⚠️', 'No pudimos conectar', 'Revisa tu conexión e intenta de nuevo.');
+      });
+  }
+
+  // ── App (splash + deck + tour) ───────────────────────────────────────────
+  function bootApp() {
+    showState('app');
+    document.title = 'Revisión — ' + CLIENT.name;
+
+    deckEl = document.getElementById('deck');
+    counterEl = document.getElementById('counter');
+    progressFill = document.getElementById('progressFill');
+    stageLabel = document.getElementById('stageLabel');
+    summaryEl = document.getElementById('summary');
+    modalOverlay = document.getElementById('modalOverlay');
+    commentInput = document.getElementById('commentInput');
+    commentErr = document.getElementById('commentErr');
+    tagGrid = document.getElementById('tagGrid');
+    tagErr = document.getElementById('tagErr');
+    actionsBar = document.querySelector('.actions');
+    hintEl = document.querySelector('.hint');
+    deckWrap = document.querySelector('.deck-wrap');
+    tourOverlay = document.getElementById('tourOverlay');
+
+    var handle = slugHandle(CLIENT.name);
+    document.getElementById('brandName').textContent = CLIENT.name;
+    document.getElementById('splashSub').textContent = CLIENT.name + ' · vista previa de Instagram';
+
+    // logo_url es solo identidad de marca (avatar del topbar acá, y las
+    // tarjetas de atencion-cliente.html) — el splash usa el fondo fijo
+    // compartido (img/splash-bg.jpeg), no el logo del cliente.
+    var topAvatar = document.getElementById('topAvatar');
+    if (CLIENT.logo_url) {
+      topAvatar.innerHTML = '<img src="' + esc(CLIENT.logo_url) + '" alt="">';
+    } else {
+      topAvatar.textContent = initial(CLIENT.name);
+    }
+
+    window._revisarHandle = handle;
+
+    tagGrid.addEventListener('click', function (e) {
+      var chip = e.target.closest('.tag-chip');
+      if (!chip) return;
+      var tag = chip.getAttribute('data-tag');
+      var i = selectedTags.indexOf(tag);
+      if (i === -1) { selectedTags.push(tag); chip.classList.add('selected'); }
+      else { selectedTags.splice(i, 1); chip.classList.remove('selected'); }
+      if (selectedTags.length) tagErr.textContent = '';
+    });
+    document.getElementById('btnCancelReject').addEventListener('click', function () {
+      modalOverlay.classList.remove('open');
+      pendingRejectItem = null;
+    });
+    document.getElementById('btnConfirmReject').addEventListener('click', onConfirmReject);
+    document.getElementById('btnApprove').addEventListener('click', function () {
+      var top = deckEl.querySelector('.card');
+      if (top && !top.classList.contains('submitting')) decideFromTop(top, 'approve');
+    });
+    document.getElementById('btnReject').addEventListener('click', function () {
+      var top = deckEl.querySelector('.card');
+      if (top && !top.classList.contains('submitting')) openRejectModal(ITEMS[idx], top);
+    });
+    document.addEventListener('keydown', function (e) {
+      if (modalOverlay.classList.contains('open')) return;
+      if (summaryEl.classList.contains('show')) return;
+      if (tourOverlay.classList.contains('open')) return;
+      if (e.key === 'ArrowRight') document.getElementById('btnApprove').click();
+      if (e.key === 'ArrowLeft') document.getElementById('btnReject').click();
+    });
+    deckEl.addEventListener('click', function (e) {
+      var toggle = e.target.closest('[data-caption-toggle]');
+      if (!toggle) return;
+      e.stopPropagation();
+      var caption = toggle.previousElementSibling;
+      if (!caption || !caption.hasAttribute('data-caption')) return;
+      var expanded = !caption.classList.contains('clamped');
+      caption.classList.toggle('clamped', expanded);
+      toggle.textContent = expanded ? 'Ver más' : 'Ver menos';
+    });
+
+    renderDeck();
+    setupTour();
+    setupSplash();
+  }
+
+  function buildCardShell(item) {
+    var handle = window._revisarHandle;
+    var likes = fmtNum(seededInt(item.id, 180, 3400));
+    var comments = seededInt(item.id + 1, 4, 90);
+    var html = '<div class="stamp approve" data-stamp="approve">Aprobado</div>'
+      + '<div class="stamp reject" data-stamp="reject">Cambios</div>'
+      + '<div class="saving-badge"><div class="saving-spin"></div></div>';
+
+    if (item.type === 'story') {
+      var storyCaption = item.caption
+        ? '<div class="story-sticker"><span>' + esc(item.caption) + '</span></div>'
+        : '';
+      html += '<div class="ig-media" style="flex:1" data-media>'
+        + '  <div class="story-bar-track"><div class="story-bar-fill"></div></div>'
+        + '  <div class="story-head">'
+        + '    <div class="ava" data-ava></div>'
+        + '    <div class="who"><div class="uname">' + esc(handle) + '</div><div class="meta">Se publicará: ' + esc(fmtSchedule(item.scheduled_at)) + '</div></div>'
+        + '  </div>'
+        + storyCaption
+        + '  <div class="story-vignette-bottom"></div>'
+        + '  <div class="story-reply"><div class="box">Enviar mensaje</div><div class="heart">♡</div></div>'
+        + '</div>';
+      return html;
+    }
+
+    if (item.type === 'reel') {
+      var reelCaption = item.caption
+        ? '<b>' + esc(handle) + '</b>' + esc(item.caption)
+        : '<b>' + esc(handle) + '</b>';
+      // Copy largo tapaba el video en los Reels — arranca en 1 línea con
+      // "Ver más" y solo se expande si el usuario lo toca.
+      var reelCaptionToggle = item.caption
+        ? '<button type="button" class="reel-caption-toggle" data-caption-toggle>Ver más</button>'
+        : '';
+      html += '<div class="ig-media" style="flex:1" data-media>'
+        + '  <div class="reel-vignette-bottom"></div>'
+        + '  <div class="reel-actions-rail">'
+        + '    <div class="reel-action"><span class="reel-icon">' + ICONS.heart + '</span><span class="reel-count">' + likes + '</span></div>'
+        + '    <div class="reel-action"><span class="reel-icon">' + ICONS.comment + '</span><span class="reel-count">' + comments + '</span></div>'
+        + '    <div class="reel-action"><span class="reel-icon">' + ICONS.share + '</span></div>'
+        + '    <div class="reel-action"><span class="reel-icon">' + ICONS.dotsVertical + '</span></div>'
+        + '    <div class="reel-disc" data-ava></div>'
+        + '  </div>'
+        + '  <div class="reel-bottom">'
+        + '    <div class="reel-caption clamped" data-caption>' + reelCaption + '</div>'
+        + reelCaptionToggle
+        + '    <div class="reel-audio">🎵 Audio original</div>'
+        + '    <div class="reel-schedule">Se publicará: ' + esc(fmtSchedule(item.scheduled_at)) + '</div>'
+        + '  </div>'
+        + '</div>';
+      return html;
+    }
+
+    html += '<div class="ig-head">'
+      + '  <div class="ava" data-ava></div>'
+      + '  <div class="who"><div class="uname">' + esc(handle) + ' <span class="badge">' + ICONS.verified + '</span></div>'
+      + '    <div class="meta">' + (typeTag(item.type) ? esc(typeTag(item.type)) + ' · ' + esc(CLIENT.name) : esc(CLIENT.name)) + '</div>'
+      + '  </div><div class="dots">' + ICONS.dotsHorizontal + '</div>'
+      + '</div>'
+      + '<div class="ig-media" data-media></div>'
+      + '<div class="carousel-dots-row" data-carousel-dots></div>'
+      + '<div class="ig-foot">'
+      + '  <div class="ig-icons"><span>' + ICONS.heart + '</span><span>' + ICONS.comment + '</span><span>' + ICONS.share + '</span><span class="push">' + ICONS.bookmark + '</span></div>'
+      + '  <div class="ig-likes">' + likes + ' me gusta</div>'
+      // Copy largo ocupaba mucho espacio en feed/carrusel — mismo patrón que
+      // en Reels: arranca en 1 línea con "Ver más" y se expande al tocarlo.
+      + (item.caption ? '  <div class="ig-caption clamped" data-caption><b>' + esc(handle) + '</b>' + esc(item.caption) + '</div>'
+        + '<button type="button" class="ig-caption-toggle" data-caption-toggle>Ver más</button>'
+        + '<div class="ig-viewcomments">Ver los ' + comments + ' comentarios</div>' : '')
+      + '  <div class="ig-schedule">Se publicará: ' + esc(fmtSchedule(item.scheduled_at)) + '</div>'
+      + '</div>';
+    return html;
+  }
+
+  function mountAvatar(card) {
+    var el = card.querySelector('[data-ava]');
+    if (!el) return;
+    if (CLIENT.logo_url) el.innerHTML = '<img src="' + esc(CLIENT.logo_url) + '" alt="">';
+    else el.textContent = initial(CLIENT.name);
+  }
+
+  function isVideoMedia(m) {
+    if (m.mimeType) return /^video\//.test(m.mimeType);
+    return /\.(mp4|mov|webm|m4v)(\?|$)/i.test(m.url || '');
+  }
+
+  // Pill "↗ Ver" + ícono de descarga sutil al lado — el cliente puede bajar
+  // el archivo original sin salir del portal.
+  function buildMediaActions(viewUrl, downloadUrl) {
+    var wrap = document.createElement('div');
+    wrap.className = 'media-actions';
+    var open = document.createElement('a');
+    open.className = 'media-open-link';
+    open.href = viewUrl; open.target = '_blank'; open.rel = 'noopener';
+    open.textContent = '↗ Ver';
+    wrap.appendChild(open);
+
+    var dl = document.createElement('a');
+    dl.className = 'media-download-link';
+    dl.href = downloadUrl;
+    dl.setAttribute('download', '');
+    dl.rel = 'noopener';
+    dl.title = 'Descargar';
+    dl.setAttribute('aria-label', 'Descargar');
+    dl.textContent = '⬇';
+    wrap.appendChild(dl);
+    return wrap;
+  }
+
+  // Videos: <video> nativo transmitido por nuestro backend (stream_media.php)
+  // en vez del iframe de Drive — así sí podemos forzar autoplay con audio
+  // real, cosa que un iframe de Google (caja negra) nunca permite controlar.
+  // onReady(w, h): opcional, avisa el tamaño natural del archivo apenas se
+  // conoce, para que la tarjeta (feed/carrusel) ajuste su proporción a 1:1 o
+  // 4:5 en vez de quedar forzada al 9:16 de reels/historias.
+  function mediaSlideEl(m, itemId, itemType, onReady) {
+    var wrap = document.createElement('div');
+    wrap.style.position = 'absolute'; wrap.style.inset = '0';
+    var url = m.url;
+
+    if (isVideoMedia(m) && itemId != null && m.idx != null) {
+      var video = document.createElement('video');
+      video.className = 'media-frame';
+      video.autoplay = true;
+      video.loop = true;
+      video.muted = false;
+      video.volume = 1.0;
+      video.playsInline = true;
+      video.setAttribute('playsinline', '');
+      video.preload = 'auto';
+      video.src = STREAM_API + '?t=' + encodeURIComponent(TOKEN) + '&item_id=' + itemId + '&i=' + m.idx;
+      video.addEventListener('loadedmetadata', function () {
+        onReady && onReady(video.videoWidth, video.videoHeight);
+      });
+      video.addEventListener('canplay', function () {
+        var p = video.play();
+        if (p && p.catch) {
+          p.catch(function () {
+            // El navegador bloqueó el audio por falta de interacción todavía
+            // (pasa en la primera tarjeta, antes de tocar el splash) — se
+            // reintenta silenciado para que al menos reproduzca, y
+            // dismiss() del splash vuelve a intentarlo con audio apenas
+            // el usuario interactúa.
+            video.muted = true;
+            video.play().catch(function () {});
+          });
+        }
+      });
+      var videoDownloadUrl = STREAM_API + '?t=' + encodeURIComponent(TOKEN) + '&item_id=' + itemId + '&i=' + m.idx + '&dl=1';
+      wrap.appendChild(video);
+      wrap.appendChild(buildMediaActions(url, videoDownloadUrl));
+
+      if (itemType === 'reel') {
+        wrap.appendChild(buildVideoSeekBar(video));
+      }
+      return wrap;
+    }
+
+    var fid = driveFileId(url);
+    if (fid) {
+      var img = document.createElement('img');
+      img.className = 'media-frame';
+      img.loading = 'lazy';
+      img.draggable = false;
+      // Imagen real servida por nuestro backend (mismo mecanismo que el
+      // video) en vez del iframe /preview de Drive — ese iframe trae encima
+      // sus propios controles (zoom, etc.) que acá no hacen falta y no se
+      // pueden ocultar por ser contenido de otro origen.
+      if (itemId != null && m.idx != null) {
+        img.src = STREAM_API + '?t=' + encodeURIComponent(TOKEN) + '&item_id=' + itemId + '&i=' + m.idx;
+      } else {
+        img.src = url;
+      }
+      img.addEventListener('load', function () {
+        onReady && onReady(img.naturalWidth, img.naturalHeight);
+      });
+      img.addEventListener('error', function () {
+        var fb = document.createElement('a');
+        fb.className = 'media-fallback';
+        fb.href = url; fb.target = '_blank'; fb.rel = 'noopener';
+        fb.textContent = '📎 Ver archivo';
+        wrap.innerHTML = '';
+        wrap.appendChild(fb);
+      });
+      wrap.appendChild(img);
+      wrap.appendChild(buildMediaActions(
+        'https://drive.google.com/file/d/' + fid + '/view',
+        'https://drive.google.com/uc?export=download&id=' + fid
+      ));
+      return wrap;
+    }
+    var plainImg = document.createElement('img');
+    plainImg.className = 'media-frame';
+    plainImg.loading = 'lazy';
+    plainImg.draggable = false;
+    plainImg.src = url;
+    plainImg.addEventListener('load', function () {
+      onReady && onReady(plainImg.naturalWidth, plainImg.naturalHeight);
+    });
+    plainImg.addEventListener('error', function () {
+      var fb = document.createElement('a');
+      fb.className = 'media-fallback';
+      fb.href = url; fb.target = '_blank'; fb.rel = 'noopener';
+      fb.textContent = '📎 Ver archivo';
+      wrap.innerHTML = '';
+      wrap.appendChild(fb);
+    });
+    wrap.appendChild(plainImg);
+    return wrap;
+  }
+
+  // Barra de progreso del Reel (como la línea fina de IG bajo el video), pero
+  // interactiva: arrastrarla o tocarla mueve el playback a ese punto (video
+  // nativo, no el iframe de Drive, así que sí podemos leer/setear currentTime).
+  function buildVideoSeekBar(video) {
+    var seek = document.createElement('div');
+    seek.className = 'video-seek';
+    var track = document.createElement('div');
+    track.className = 'video-seek-track';
+    var fill = document.createElement('div');
+    fill.className = 'video-seek-fill';
+    track.appendChild(fill);
+    seek.appendChild(track);
+
+    function ratioFromEvent(e) {
+      var rect = track.getBoundingClientRect();
+      var x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+      return Math.min(1, Math.max(0, rect.width ? x / rect.width : 0));
+    }
+    function paint() {
+      if (!video.duration) return;
+      fill.style.width = (video.currentTime / video.duration * 100) + '%';
+    }
+    video.addEventListener('timeupdate', paint);
+
+    var seeking = false;
+    seek.addEventListener('pointerdown', function (e) {
+      seeking = true;
+      e.stopPropagation();
+      if (video.duration) { video.currentTime = ratioFromEvent(e) * video.duration; paint(); }
+    });
+    seek.addEventListener('pointermove', function (e) {
+      if (!seeking) return;
+      e.stopPropagation();
+      if (video.duration) { video.currentTime = ratioFromEvent(e) * video.duration; paint(); }
+    });
+    seek.addEventListener('pointerup', function (e) { seeking = false; e.stopPropagation(); });
+    seek.addEventListener('pointercancel', function (e) { seeking = false; e.stopPropagation(); });
+    return seek;
+  }
+
+  function mountMedia(card, item, onAspectReady) {
+    var media = card.querySelector('[data-media]');
+    if (!media) return;
+    mountAvatar(card);
+    // idx conserva la posición original en item.media (antes de ordenar por
+    // "order"), porque stream_media.php indexa contra el arreglo tal como
+    // está guardado en la BD.
+    var mediaList = (item.media || []).map(function (m, i) {
+      return { url: m.url, mimeType: m.mimeType, order: m.order || 0, idx: i };
+    }).sort(function (a, b) { return a.order - b.order; });
+    if (!mediaList.length) return;
+
+    if (item.type === 'carousel' && mediaList.length > 1) {
+      var current = 0;
+      // Los bullets viven fuera de la imagen (data-carousel-dots, entre
+      // .ig-media y .ig-foot) — no tapan el contenido como el overlay viejo.
+      var dotsContainer = card.querySelector('[data-carousel-dots]');
+      if (dotsContainer) {
+        dotsContainer.innerHTML = mediaList.map(function (_, i) {
+          return '<span class="dot' + (i === 0 ? ' on' : '') + '"></span>';
+        }).join('');
+      }
+      var countEl = document.createElement('div');
+      countEl.className = 'carousel-count';
+      countEl.textContent = '1/' + mediaList.length;
+      var slideHolder = document.createElement('div');
+      slideHolder.style.position = 'absolute'; slideHolder.style.inset = '0';
+      slideHolder.appendChild(mediaSlideEl(mediaList[0], item.id, item.type, onAspectReady));
+
+      var left = document.createElement('div'); left.className = 'tapzone left';
+      var right = document.createElement('div'); right.className = 'tapzone right';
+      function paint() {
+        slideHolder.innerHTML = '';
+        slideHolder.appendChild(mediaSlideEl(mediaList[current], item.id, item.type, onAspectReady));
+        countEl.textContent = (current + 1) + '/' + mediaList.length;
+        if (dotsContainer) {
+          Array.prototype.forEach.call(dotsContainer.children, function (d, i) { d.classList.toggle('on', i === current); });
+        }
+      }
+      left.addEventListener('click', function (e) { e.stopPropagation(); current = Math.max(0, current - 1); paint(); });
+      right.addEventListener('click', function (e) { e.stopPropagation(); current = Math.min(mediaList.length - 1, current + 1); paint(); });
+
+      media.appendChild(slideHolder);
+      media.appendChild(countEl);
+      media.appendChild(left);
+      media.appendChild(right);
+      return;
+    }
+
+    media.appendChild(mediaSlideEl(mediaList[0], item.id, item.type, onAspectReady));
+  }
+
+  // Instagram solo acepta 1:1 (cuadrado) o 4:5 (vertical) en feed/carrusel —
+  // reels/historias siempre son 9:16.
+  var deckMode = 'reel'; // 'reel' (toda la tarjeta es el medio) | 'feed' (header + imagen + pie)
+  var deckRatio = 9 / 16;
+  var currentTopCard = null;
+  function deckMaxHeight() {
+    var vh = window.innerHeight;
+    var isMobile = window.matchMedia('(max-width: 480px)').matches;
+    return isMobile ? Math.min(vh * 0.82, 760) : Math.min(vh * 0.72, 640);
+  }
+  function deckMaxWidth() {
+    var stageEl = document.querySelector('.stage');
+    return stageEl ? stageEl.clientWidth : Math.min(window.innerWidth, 420);
+  }
+
+  // Reels/historias: toda la tarjeta ES el medio (sin header/pie aparte),
+  // así que ancho/alto se resuelven directo contra la proporción 9:16.
+  function setDeckRatio(ratio) {
+    deckMode = 'reel';
+    deckRatio = ratio;
+    var maxH = deckMaxHeight();
+    var maxW = deckMaxWidth();
+    var h = maxH;
+    var w = h * ratio;
+    if (w > maxW) { w = maxW; h = w / ratio; }
+    deckWrap.style.width = w + 'px';
+    deckWrap.style.height = h + 'px';
+  }
+
+  // Feed/Carrusel: la tarjeta tiene header + imagen + pie (con el copy, que
+  // puede ser largo). Aplicarle la proporción 1:1/4:5 a TODA la tarjeta (como
+  // se hacía antes) hace que el copy le coma alto a la imagen y esta termine
+  // viéndose achatada/horizontal aunque el archivo real sea vertical. Acá se
+  // mide el alto real del header + bullets + pie ya renderizados, y la
+  // proporción se aplica solo a la imagen — el resto se suma aparte.
+  function sizeFeedCard(card, ratio) {
+    var mediaEl = card.querySelector('[data-media]');
+    if (!mediaEl) return;
+    deckMode = 'feed';
+    deckRatio = ratio;
+    currentTopCard = card;
+
+    var headEl = card.querySelector('.ig-head');
+    var dotsEl = card.querySelector('.carousel-dots-row');
+    var footEl = card.querySelector('.ig-foot');
+    var chromeH = (headEl ? headEl.getBoundingClientRect().height : 0)
+      + (dotsEl ? dotsEl.getBoundingClientRect().height : 0)
+      + (footEl ? footEl.getBoundingClientRect().height : 0);
+
+    var maxH = deckMaxHeight();
+    var maxW = deckMaxWidth();
+    var width = maxW;
+    var imageH = width / ratio;
+    if (chromeH + imageH > maxH) {
+      imageH = Math.max(80, maxH - chromeH);
+      width = imageH * ratio;
+    }
+    mediaEl.style.flex = '0 0 ' + imageH + 'px';
+    deckWrap.style.width = width + 'px';
+    deckWrap.style.height = (chromeH + imageH) + 'px';
+  }
+
+  window.addEventListener('resize', function () {
+    if (!deckWrap) return;
+    if (deckMode === 'feed' && currentTopCard) sizeFeedCard(currentTopCard, deckRatio);
+    else if (deckMode === 'reel') setDeckRatio(deckRatio);
+  });
+
+  // Arranca en el default de cada formato (evita el salto de layout) y se
+  // afina a 1:1 apenas se conoce el tamaño real del archivo, si resulta más
+  // cuadrado que 4:5.
+  function applyDeckAspect(card, type, w, h) {
+    if (type === 'reel' || type === 'story') return;
+    if (!w || !h) return;
+    var ratio = w / h;
+    var closerToSquare = Math.abs(ratio - 1) <= Math.abs(ratio - 0.8);
+    sizeFeedCard(card, closerToSquare ? 1 : 4 / 5);
+  }
+
+  function renderDeck() {
+    deckEl.innerHTML = '';
+    var visible = ITEMS.slice(idx, idx + 3);
+    visible.forEach(function (item, i) {
+      var card = document.createElement('div');
+      card.className = 'card settled';
+      card.style.zIndex = String(10 - i);
+      card.style.transform = 'translateY(' + (i * 10) + 'px) scale(' + (1 - i * 0.035) + ')';
+      card.style.opacity = i > 2 ? '0' : String(1 - i * 0.12);
+      card.innerHTML = buildCardShell(item);
+      deckEl.appendChild(card);
+      mountMedia(card, item, i === 0 ? function (w, h) { applyDeckAspect(card, item.type, w, h); } : null);
+      if (i === 0) {
+        setupDrag(card, item);
+        if (item.type === 'reel' || item.type === 'story') setDeckRatio(9 / 16);
+        else sizeFeedCard(card, 4 / 5);
+      }
+    });
+    updateHeader();
+  }
+
+  function updateHeader() {
+    var total = ITEMS.length;
+    counterEl.textContent = Math.min(idx + 1, total) + ' / ' + total;
+    progressFill.style.width = (Math.min(idx, total) / total * 100) + '%';
+  }
+
+  var THRESHOLD = 110;
+
+  function setupDrag(card, item) {
+    var startX = 0, startY = 0, dx = 0, dy = 0, dragging = false, moved = false;
+
+    function pointerDown(e) {
+      if (card.classList.contains('submitting')) return;
+      if (e.target.closest('.tapzone') || e.target.closest('.media-open-link') || e.target.closest('[data-caption-toggle]')) return;
+      // Con el copy retraído el pie puede arrastrarse igual que el resto de
+      // la tarjeta; solo se cede el gesto al scroll cuando está expandido
+      // (ahí sí puede haber texto para recorrer).
+      var footTarget = e.target.closest('.ig-foot');
+      if (footTarget) {
+        var caption = footTarget.querySelector('[data-caption]');
+        if (caption && !caption.classList.contains('clamped')) return;
+      }
+      dragging = true; moved = false;
+      card.classList.remove('settled');
+      startX = (e.touches ? e.touches[0].clientX : e.clientX);
+      startY = (e.touches ? e.touches[0].clientY : e.clientY);
+      card.setPointerCapture && e.pointerId != null && card.setPointerCapture(e.pointerId);
+    }
+    function pointerMove(e) {
+      if (!dragging) return;
+      var x = (e.touches ? e.touches[0].clientX : e.clientX);
+      var y = (e.touches ? e.touches[0].clientY : e.clientY);
+      dx = x - startX; dy = y - startY;
+      if (Math.abs(dx) > 4) moved = true;
+      var rot = dx / 18;
+      card.style.transform = 'translate(' + dx + 'px,' + dy + 'px) rotate(' + rot + 'deg)';
+      var approveStamp = card.querySelector('[data-stamp="approve"]');
+      var rejectStamp = card.querySelector('[data-stamp="reject"]');
+      var p = Math.min(1, Math.abs(dx) / THRESHOLD);
+      if (dx > 0) { approveStamp.style.opacity = p; rejectStamp.style.opacity = 0; }
+      else { rejectStamp.style.opacity = p; approveStamp.style.opacity = 0; }
+    }
+    function pointerUp() {
+      if (!dragging) return;
+      dragging = false;
+      if (!moved) { resetCard(card); toggleCardVideo(card); return; }
+      if (dx > THRESHOLD) { decideFromTop(card, 'approve'); }
+      else if (dx < -THRESHOLD) { resetCard(card); openRejectModal(item, card); }
+      else { resetCard(card); }
+    }
+    function resetCard(c) {
+      c.classList.add('settled');
+      c.style.transform = 'translateY(0px) scale(1) rotate(0)';
+      var s1 = c.querySelector('[data-stamp="approve"]'); if (s1) s1.style.opacity = 0;
+      var s2 = c.querySelector('[data-stamp="reject"]'); if (s2) s2.style.opacity = 0;
+    }
+
+    card.addEventListener('pointerdown', pointerDown);
+    window.addEventListener('pointermove', pointerMove);
+    window.addEventListener('pointerup', pointerUp);
+    card._cleanup = function () {
+      window.removeEventListener('pointermove', pointerMove);
+      window.removeEventListener('pointerup', pointerUp);
+    };
+    card._resetCard = resetCard;
+  }
+
+  function flyOut(card, decision) {
+    card.classList.add('settled');
+    var dir = decision === 'approve' ? 1 : -1;
+    card.style.transform = 'translate(' + (dir * 700) + 'px, -40px) rotate(' + (dir * 26) + 'deg)';
+    card.style.transition = 'transform .38s ease-in';
+    card._cleanup && card._cleanup();
+  }
+
+  // ── Envío al backend ─────────────────────────────────────────────────────
+  function submitDecision(item, decision, comment, tags) {
+    return fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        t: TOKEN, item_id: item.id, decision: decision,
+        comment: comment || undefined, reason_tags: tags || undefined,
+      }),
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (data) {
+        if (!res.ok) throw new Error(data.error || 'No se pudo enviar tu decisión');
+        return data;
+      });
+    });
+  }
+
+  // El siguiente video ya existe en el DOM (deckEl precarga 3 tarjetas), así
+  // que hay que desmutearlo YA, dentro de este mismo gesto (tap/click) —
+  // para cuando termine el fetch de submitDecision() y renderDeck() lo
+  // reemplace, el navegador ya no lo cuenta como interacción del usuario y
+  // el audio vuelve a bloquearse (por eso antes solo sonaba si lo tocabas).
+  function unmuteUpcomingVideo() {
+    var cards = deckEl.querySelectorAll('.card');
+    var nextCard = cards[1];
+    if (!nextCard) return;
+    var vid = nextCard.querySelector('video');
+    if (!vid) return;
+    vid.muted = false;
+    if (vid.paused) vid.play().catch(function () {});
+  }
+
+  function decideFromTop(card, kind) {
+    var item = ITEMS[idx];
+    unmuteUpcomingVideo();
+    card.classList.add('submitting');
+    submitDecision(item, 'approved', null, null).then(function () {
+      decided.push({ item: item, decision: 'approve', comment: null, tags: [] });
+      flyOut(card, 'approve');
+      setTimeout(advance, 260);
+    }).catch(function (err) {
+      card.classList.remove('submitting');
+      card._resetCard && card._resetCard(card);
+      alert(err.message || 'No se pudo enviar tu decisión. Intenta de nuevo.');
+    });
+  }
+
+  function advance() {
+    idx++;
+    if (idx >= ITEMS.length) { showSummary(); return; }
+    renderDeck();
+  }
+
+  function openRejectModal(item, card) {
+    pendingRejectItem = { item: item, card: card };
+    commentInput.value = '';
+    commentErr.textContent = '';
+    tagErr.textContent = '';
+    selectedTags = [];
+    tagGrid.querySelectorAll('.tag-chip').forEach(function (c) { c.classList.remove('selected'); });
+    modalOverlay.classList.add('open');
+    setTimeout(function () { commentInput.focus(); }, 30);
+  }
+
+  function onConfirmReject() {
+    var text = commentInput.value.trim();
+    var valid = true;
+    if (!text) { commentErr.textContent = 'Contanos qué hay que cambiar antes de confirmar.'; valid = false; }
+    if (!selectedTags.length) { tagErr.textContent = 'Elegí al menos una etiqueta.'; valid = false; }
+    if (!valid) { if (!text) commentInput.focus(); return; }
+
+    var target = pendingRejectItem;
+    if (!target) return;
+    unmuteUpcomingVideo();
+    var tags = selectedTags.slice();
+    var confirmBtn = document.getElementById('btnConfirmReject');
+    var cancelBtn = document.getElementById('btnCancelReject');
+    confirmBtn.disabled = true; cancelBtn.disabled = true;
+    confirmBtn.textContent = 'Enviando…';
+
+    submitDecision(target.item, 'changes_requested', text, tags).then(function () {
+      confirmBtn.disabled = false; cancelBtn.disabled = false;
+      confirmBtn.textContent = 'Confirmar cambios';
+      modalOverlay.classList.remove('open');
+      pendingRejectItem = null;
+      decided.push({ item: target.item, decision: 'changes_requested', comment: text, tags: tags });
+      if (target.card) flyOut(target.card, 'reject');
+      setTimeout(advance, target.card ? 260 : 0);
+    }).catch(function (err) {
+      confirmBtn.disabled = false; cancelBtn.disabled = false;
+      confirmBtn.textContent = 'Confirmar cambios';
+      commentErr.textContent = err.message || 'No se pudo enviar. Intenta de nuevo.';
+    });
+  }
+
+  function showSummary() {
+    deckWrap.style.display = 'none';
+    actionsBar.style.display = 'none';
+    hintEl.style.display = 'none';
+    stageLabel.textContent = 'Revisión completada';
+    var approved = decided.filter(function (d) { return d.decision === 'approve'; }).length;
+    var rejected = decided.filter(function (d) { return d.decision === 'changes_requested'; });
+    var html = '<div class="big">🎉</div>'
+      + '<h2>Tanda revisada</h2>'
+      + '<div class="tally"><b class="ok">' + approved + ' aprobadas</b> · <b class="no">' + rejected.length + ' con cambios</b></div>';
+    if (rejected.length) {
+      html += '<div class="rejlist">' + rejected.map(function (r) {
+        var pills = (r.tags || []).map(function (t) { return '<span class="rejpill">' + esc(t) + '</span>'; }).join('');
+        return '<div class="rejitem"><div class="t">' + esc(typeTag(r.item.type) || 'Feed') + '</div>'
+          + (pills ? '<div class="rejtags">' + pills + '</div>' : '')
+          + '<div class="c">' + esc(r.comment) + '</div></div>';
+      }).join('') + '</div>';
+    }
+    html += '<p style="font-size:12px;color:var(--ink-faint);margin-top:4px">Ya no hace falta que hagas nada más — el equipo recibió tu respuesta.</p>';
+    summaryEl.innerHTML = html;
+    summaryEl.classList.add('show');
+  }
+
+  // ── Tour de bienvenida ───────────────────────────────────────────────────
+  function setupTour() {
+    var TOUR_KEY = 'ideaz_review_tour_v1';
+    var tourSteps = Array.prototype.slice.call(document.querySelectorAll('.tour-step'));
+    var tourDotsWrap = document.getElementById('tourDots');
+    var tourBack = document.getElementById('tourBack');
+    var tourNext = document.getElementById('tourNext');
+    var tourSkip = document.getElementById('tourSkip');
+    var helpFab = document.getElementById('helpFab');
+    var tourStep = 0;
+
+    tourDotsWrap.innerHTML = tourSteps.map(function () { return '<span></span>'; }).join('');
+    var tourDots = Array.prototype.slice.call(tourDotsWrap.children);
+    document.getElementById('tourFinalCount').textContent =
+      'Tenés ' + ITEMS.length + ' pieza' + (ITEMS.length !== 1 ? 's' : '') + ' para revisar. Podés volver a ver esta ayuda tocando el ? de arriba.';
+
+    function paintTour() {
+      tourSteps.forEach(function (s, i) { s.classList.toggle('current', i === tourStep); });
+      tourDots.forEach(function (d, i) { d.classList.toggle('on', i === tourStep); });
+      tourBack.hidden = tourStep === 0;
+      tourNext.textContent = tourStep === tourSteps.length - 1 ? 'Empezar revisión' : 'Siguiente';
+    }
+    // Primera vez que entra a este link (por dispositivo, vía localStorage):
+    // se muestra la guía sin botón "Saltar" — solo se puede cerrar llegando
+    // al final ("Empezar revisión"). Reabrirla luego con el ? sí deja saltar.
+    function openTour(forced) {
+      tourStep = 0; paintTour();
+      tourSkip.style.display = forced ? 'none' : '';
+      pauseAllVideos();
+      tourOverlay.classList.add('open');
+    }
+    function closeTour() {
+      tourOverlay.classList.remove('open');
+      try { localStorage.setItem(TOUR_KEY, '1'); } catch (e) {}
+      resumeTopVideo();
+    }
+    window._maybeAutoStartTour = function () {
+      var seen = false;
+      try { seen = localStorage.getItem(TOUR_KEY) === '1'; } catch (e) {}
+      if (!seen) openTour(true);
+    };
+
+    tourNext.addEventListener('click', function () {
+      if (tourStep === tourSteps.length - 1) { closeTour(); return; }
+      tourStep++; paintTour();
+    });
+    tourBack.addEventListener('click', function () { if (tourStep > 0) { tourStep--; paintTour(); } });
+    tourSkip.addEventListener('click', closeTour);
+    helpFab.addEventListener('click', function () { openTour(false); });
+  }
+
+  // Tocar el video (cualquier formato) pausa/reproduce. Si todavía está
+  // silenciado por el bloqueo de autoplay del navegador (típico en celular,
+  // donde cada video nuevo del deck vuelve a arrancar muteado), el primer
+  // toque además le da sonido — es un gesto real del usuario sobre ese
+  // elemento puntual, que es justo lo que móvil exige para permitir audio.
+  function toggleCardVideo(card) {
+    var vid = card.querySelector('video');
+    if (!vid) return;
+    if (vid.muted) {
+      vid.muted = false;
+      if (vid.paused) vid.play().catch(function () {});
+      return;
+    }
+    if (vid.paused) vid.play().catch(function () {});
+    else vid.pause();
+  }
+
+  // Mientras la guía de uso está abierta no debe sonar ni reproducirse nada
+  // de fondo (leer y escuchar audio a la vez genera confusión) — se retoma
+  // al cerrarla.
+  function pauseAllVideos() {
+    var vids = deckEl ? deckEl.querySelectorAll('video') : [];
+    Array.prototype.forEach.call(vids, function (v) { v.pause(); });
+  }
+  function resumeTopVideo() {
+    var vid = deckEl && deckEl.querySelector('.card video');
+    if (vid) vid.play().catch(function () {});
+  }
+
+  // ── Splash ───────────────────────────────────────────────────────────────
+  // Reintenta reproducir con audio el video de la tarjeta actual — se llama
+  // directo desde el click/keydown del splash (no desde el timeout), porque
+  // solo un gesto real del usuario destraba el autoplay con sonido en el navegador.
+  function retryTopVideoWithAudio() {
+    var vid = deckEl && deckEl.querySelector('.card video');
+    if (vid) { vid.muted = false; vid.play().catch(function () {}); }
+  }
+
+  function setupSplash() {
+    var splash = document.getElementById('splash');
+    var splashBar = document.getElementById('splashBar');
+    var dismissed = false;
+    function dismiss() {
+      if (dismissed) return;
+      dismissed = true;
+      splash.classList.add('hide');
+      setTimeout(function () { splash.remove(); window._maybeAutoStartTour && window._maybeAutoStartTour(); }, 500);
+    }
+    requestAnimationFrame(function () { splashBar.style.width = '100%'; });
+    var timer = setTimeout(dismiss, 1700);
+    splash.addEventListener('click', function () { clearTimeout(timer); retryTopVideoWithAudio(); dismiss(); });
+    splash.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); clearTimeout(timer); retryTopVideoWithAudio(); dismiss(); }
+    });
+  }
+
+  loadBatch();
+})();
+</script>
+</body>
+</html>

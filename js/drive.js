@@ -128,6 +128,21 @@ const DriveAPI = (() => {
     return nums.some(n => parseInt(n) === targetNum);
   }
 
+  // Orden de un archivo dentro del carrusel: el primer número que aparezca en
+  // el nombre ("1.jpg", "slide 2.png", "Foto-03.png" → 1, 2, 3). Sin número,
+  // se manda al final y desempata por nombre — la API de Drive no garantiza
+  // ningún orden propio al listar archivos de una carpeta.
+  function _slideOrderNum(name) {
+    const m = (name || '').match(/\d+/);
+    return m ? parseInt(m[0], 10) : Infinity;
+  }
+  function _sortBySlideOrder(files) {
+    return files.slice().sort((a, b) => {
+      const diff = _slideOrderNum(a.name) - _slideOrderNum(b.name);
+      return diff !== 0 ? diff : a.name.localeCompare(b.name);
+    });
+  }
+
   // ── Main search: artes → year → month → post ──────────────────────────────────
   async function findPostFolder(rootFolderId, cardName, dueDate) {
     const year  = dueDate.getFullYear().toString();
@@ -238,11 +253,42 @@ const DriveAPI = (() => {
     return results;
   }
 
+  // ── Carpeta "Para aprobación" (módulo aprobaciones) ─────────────────────────
+  // Carpeta externa por marca (clients.drive_approval_folder_id), separada de
+  // la carpeta ARTES del proyecto — el diseñador sube ahí el contenido listo
+  // para revisión, nombrando el archivo o subcarpeta con el identificador del
+  // post (columna A del cronograma, ej. "POST #3" — mismo criterio que
+  // _matchPost ya usa arriba). approvalFolderId ES esa carpeta directamente,
+  // no una carpeta raíz donde buscarla.
+  //
+  // Devuelve { folder, files } — folder es la subcarpeta del post si existe
+  // (y ahí se listan los files), o directamente approvalFolderId si el
+  // diseñador subió el archivo suelto ahí con el nombre del post.
+  async function findApprovalMedia(approvalFolderId, postNumber) {
+    const subfolders = await _listSubfolders(approvalFolderId);
+    const matchingFolders = subfolders.filter(f => _matchPost(f.name, postNumber));
+    // Dos (o más) subcarpetas para el mismo # de post en "Para aprobación" es
+    // ambiguo — no adivinamos cuál usar (podría subirse el contenido
+    // equivocado), se avisa para que el equipo lo resuelva a mano.
+    if (matchingFolders.length > 1) {
+      return { folder: null, files: [], duplicateFolders: matchingFolders };
+    }
+    const postFolder = matchingFolders[0];
+    if (postFolder) {
+      const files = await _listFiles(postFolder.id);
+      return { folder: postFolder, files: _sortBySlideOrder(files) };
+    }
+
+    const looseFiles = await _listFiles(approvalFolderId);
+    const matched = looseFiles.filter(f => _matchPost(f.name, postNumber));
+    return { folder: matched.length ? { id: approvalFolderId } : null, files: _sortBySlideOrder(matched) };
+  }
+
   return {
     getClientId, saveClientId,
     isConnected, connect, handleCallback, clearToken,
     getFolderForBoard, saveFolderForBoard,
-    findPostFolder, createStructure
+    findPostFolder, createStructure, findApprovalMedia
   };
 })();
 

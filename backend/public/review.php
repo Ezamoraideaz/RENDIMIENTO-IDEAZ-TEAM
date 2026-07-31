@@ -1,0 +1,201 @@
+<?php
+require_once __DIR__ . '/../bootstrap.php';
+require_once __DIR__ . '/../includes/trello_sync.php';
+require_once __DIR__ . '/../includes/drive_approval_sync.php';
+require_once __DIR__ . '/../includes/content_batch_lookup.php';
+require_once __DIR__ . '/../includes/google_drive.php';
+
+// Portal público de revisión del cliente (revisar.html?t=<token>). Sin sesión,
+// sin CSRF — el cliente no es un operator, se autentica solo con el token del
+// link (igual que password_resets). Ver PRD §8.
+
+const CONTENT_REVIEW_REASON_TAGS = [
+    'Cambiar el copy',
+    'Cambiar la foto/video',
+    'Corregir logo',
+    'Ortografía',
+    'Precio/fecha',
+    'Hashtags',
+    'Otro',
+];
+
+$method = $_SERVER['REQUEST_METHOD'];
+$pdo = db();
+
+switch ($method) {
+    case 'GET':
+        $rawToken = trim($_GET['t'] ?? '');
+        if ($rawToken === '') {
+            json_error('t requerido', 400);
+        }
+
+        $batch = content_review_find_batch($pdo, $rawToken);
+        if (!$batch) {
+            json_response(['status' => 'invalid']);
+            break;
+        }
+        if ($batch['completed_at'] !== null) {
+            json_response(['status' => 'completed']);
+            break;
+        }
+        $now = (new DateTime('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s');
+        if ($batch['expires_at'] < $now) {
+            json_response(['status' => 'expired']);
+            break;
+        }
+
+        if ($batch['opened_at'] === null) {
+            $pdo->prepare('UPDATE content_batches SET opened_at = NOW() WHERE id = ?')->execute([$batch['id']]);
+        }
+
+        $itemsStmt = $pdo->prepare('
+            SELECT id, type, caption, scheduled_at, media, position, status
+            FROM content_items
+            WHERE batch_id = ?
+            ORDER BY position ASC, id ASC
+        ');
+        $itemsStmt->execute([$batch['id']]);
+        $items = $itemsStmt->fetchAll();
+        foreach ($items as &$item) {
+            $item['media'] = json_decode($item['media'], true) ?? [];
+
+            // Contenido creado antes de que el frontend guardara mimeType: el
+            // webViewLink de Drive no trae el nombre/extensión del archivo, así
+            // que sin esto el portal no puede saber si es un video y cae al
+            // iframe de Drive — que Google ahora bloquea embeber (CSP
+            // frame-ancestors). Se resuelve una sola vez y se guarda en la BD.
+            $mediaChanged = false;
+            foreach ($item['media'] as &$m) {
+                if (!empty($m['mimeType']) || empty($m['url'])) {
+                    continue;
+                }
+                $fileId = google_drive_extract_file_id((string)$m['url']);
+                if (!$fileId) {
+                    continue;
+                }
+                $mime = google_drive_get_mime_type($fileId);
+                if ($mime) {
+                    $m['mimeType'] = $mime;
+                    $mediaChanged = true;
+                }
+            }
+            unset($m);
+            if ($mediaChanged) {
+                $pdo->prepare('UPDATE content_items SET media = ? WHERE id = ?')
+                    ->execute([json_encode(array_values($item['media'])), $item['id']]);
+            }
+        }
+        unset($item);
+
+        json_response([
+            'status' => 'ok',
+            'client' => [
+                'name'     => $batch['client_name'],
+                'logo_url' => $batch['client_logo_url'],
+                'timezone' => $batch['client_timezone'],
+            ],
+            'items' => $items,
+        ]);
+        break;
+
+    case 'POST':
+        $input = json_body();
+        $rawToken = trim($input['t'] ?? '');
+        $itemId = (int)($input['item_id'] ?? 0);
+        $decision = $input['decision'] ?? '';
+
+        if ($rawToken === '' || $itemId <= 0) {
+            json_error('t e item_id son requeridos', 400);
+        }
+        if (!in_array($decision, ['approved', 'changes_requested'], true)) {
+            json_error('decision debe ser approved o changes_requested', 400);
+        }
+
+        $batch = content_review_find_batch($pdo, $rawToken);
+        if (!$batch) {
+            json_error('Link inválido', 404);
+        }
+        if ($batch['completed_at'] !== null) {
+            json_error('Esta tanda ya fue completada', 410);
+        }
+        $now = (new DateTime('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s');
+        if ($batch['expires_at'] < $now) {
+            json_error('Este link ya no es válido, pide uno nuevo', 410);
+        }
+
+        $comment = isset($input['comment']) ? trim((string)$input['comment']) : null;
+        $reasonTags = $input['reason_tags'] ?? [];
+        if ($decision === 'changes_requested') {
+            if ($comment === null || $comment === '') {
+                json_error('Se requiere un comentario para pedir cambios', 400);
+            }
+            if (!is_array($reasonTags) || $reasonTags === []) {
+                json_error('Se requiere al menos una etiqueta de motivo', 400);
+            }
+            foreach ($reasonTags as $tag) {
+                if (!in_array($tag, CONTENT_REVIEW_REASON_TAGS, true)) {
+                    json_error("Etiqueta de motivo no válida: {$tag}", 400);
+                }
+            }
+        } else {
+            $reasonTags = [];
+        }
+
+        $stmt = $pdo->prepare('SELECT id, trello_card_id, status FROM content_items WHERE id = ? AND batch_id = ?');
+        $stmt->execute([$itemId, $batch['id']]);
+        $item = $stmt->fetch();
+        if (!$item) {
+            json_error('Pieza no encontrada en esta tanda', 404);
+        }
+        if ($item['status'] !== 'pending') {
+            json_error('Ya se registró una decisión para esta pieza', 409);
+        }
+
+        $pdo->beginTransaction();
+        try {
+            $pdo->prepare('
+                INSERT INTO content_reviews (content_item_id, decision, comment, reason_tags, reviewer_ip)
+                VALUES (?, ?, ?, ?, ?)
+            ')->execute([
+                $itemId,
+                $decision,
+                $comment,
+                $reasonTags ? json_encode($reasonTags) : null,
+                $_SERVER['REMOTE_ADDR'] ?? null,
+            ]);
+            $pdo->prepare('UPDATE content_items SET status = ?, decided_at = NOW() WHERE id = ?')
+                ->execute([$decision, $itemId]);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+            throw $e;
+        }
+
+        trello_sync_decision($pdo, $item['trello_card_id'], $decision, $comment, $reasonTags);
+
+        if ($decision === 'approved') {
+            $driveResult = drive_approval_sync($pdo, $itemId, (int)$batch['client_id']);
+            // Solo se avisa en Trello y se mueve a la lista de "subida a Drive"
+            // si el archivo quedó efectivamente movido a la carpeta correcta
+            // (verificado por drive_approval_sync) — si falló o se saltó, la
+            // tarjeta se queda en "Aprobado" para que el equipo lo revise a mano.
+            if (($driveResult['status'] ?? null) === 'moved') {
+                trello_sync_mark_drive_uploaded($pdo, $item['trello_card_id'], $driveResult['post_label'] ?? null);
+            }
+        }
+
+        $pendingStmt = $pdo->prepare("SELECT COUNT(*) FROM content_items WHERE batch_id = ? AND status = 'pending'");
+        $pendingStmt->execute([$batch['id']]);
+        $pendingLeft = (int)$pendingStmt->fetchColumn();
+        $batchCompleted = false;
+        if ($pendingLeft === 0) {
+            $pdo->prepare('UPDATE content_batches SET completed_at = NOW() WHERE id = ?')->execute([$batch['id']]);
+            $batchCompleted = true;
+        }
+
+        json_response(['ok' => true, 'batch_completed' => $batchCompleted]);
+        break;
+
+    default:
+        json_error('Método no permitido', 405);
+}

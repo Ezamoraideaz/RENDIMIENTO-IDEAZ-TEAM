@@ -98,6 +98,14 @@ const AtencionCliente = (() => {
     renderClientCards();
   }
 
+  function _clientAvatar(c, size = 36) {
+    const st = `width:${size}px;height:${size}px;border-radius:50%;flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;background:linear-gradient(135deg,#caa06a,#7a5230)`;
+    if (c.logo_url) {
+      return `<div style="${st}"><img src="${_esc(c.logo_url)}" alt="" style="width:100%;height:100%;object-fit:cover"></div>`;
+    }
+    return `<div style="${st}">${_esc((c.name || '?').trim().charAt(0).toUpperCase() || '?')}</div>`;
+  }
+
   function renderClientCards() {
     const wrap = document.getElementById('client-cards');
     if (!clients.length) {
@@ -106,9 +114,14 @@ const AtencionCliente = (() => {
     }
     wrap.innerHTML = clients.map((c) => `
       <div class="bg-slate-900 border border-slate-700 rounded-xl p-4 hover:border-indigo-500 transition-colors cursor-pointer" onclick="AtencionCliente.openClient(${c.id})">
-        <div class="flex items-center justify-between mb-2">
-          <h3 class="font-bold text-slate-100 truncate">${_esc(c.name)}</h3>
-          <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full ${c.status === 'active' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-slate-700 text-slate-400'}">${_esc(c.status)}</span>
+        <div class="flex items-center gap-3 mb-2">
+          ${_clientAvatar(c)}
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center justify-between gap-2">
+              <h3 class="font-bold text-slate-100 truncate">${_esc(c.name)}</h3>
+              <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${c.status === 'active' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-slate-700 text-slate-400'}">${_esc(c.status)}</span>
+            </div>
+          </div>
         </div>
         <p class="text-xs text-slate-500">${c.connected_accounts} cuenta${c.connected_accounts !== 1 ? 's' : ''} conectada${c.connected_accounts !== 1 ? 's' : ''}</p>
       </div>`).join('');
@@ -152,7 +165,10 @@ const AtencionCliente = (() => {
       <div id="client-modal-overlay" onclick="AtencionCliente._overlayClose(event)" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
         <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
           <div class="px-6 py-4 border-b border-slate-700 flex items-center justify-between gap-4 flex-shrink-0">
-            <h2 class="font-bold text-slate-100 text-lg truncate">${_esc(activeClient.name)}</h2>
+            <div class="flex items-center gap-3 min-w-0">
+              <button onclick="AtencionCliente.editClientLogo()" title="Cambiar logo" id="client-modal-logo" class="p-0 border-0 bg-transparent cursor-pointer flex-shrink-0 hover:opacity-80 transition-opacity">${_clientAvatar(activeClient, 40)}</button>
+              <h2 class="font-bold text-slate-100 text-lg truncate">${_esc(activeClient.name)}</h2>
+            </div>
             <button onclick="AtencionCliente.closeClientModal()" class="text-slate-400 hover:text-slate-100 text-2xl leading-none">&times;</button>
           </div>
           <div class="px-3 border-b border-slate-700 flex-shrink-0 overflow-x-auto"><div class="flex">${tabBtns}</div></div>
@@ -186,6 +202,28 @@ const AtencionCliente = (() => {
 
   function closeClientModal() {
     document.getElementById('client-modal-overlay')?.remove();
+  }
+
+  // Logo de la marca: se muestra como avatar en la tarjeta del cliente y como
+  // fondo del splash del portal de revisión (revisar.html) — hasta ahora la
+  // columna logo_url existía en la BD/API pero no había forma de cargarla
+  // desde ningún lado de la interfaz.
+  async function editClientLogo() {
+    const current = activeClient.logo_url || '';
+    const url = prompt('URL del logo del cliente (imagen pública, ej. link directo de Drive/Imgur):', current);
+    if (url === null) return;
+    const logo_url = url.trim();
+    try {
+      await api('api/clients.php', { method: 'PUT', body: JSON.stringify({ id: activeClient.id, logo_url }) });
+      activeClient.logo_url = logo_url;
+      const inClients = clients.find((c) => c.id === activeClient.id);
+      if (inClients) inClients.logo_url = logo_url;
+      document.getElementById('client-modal-logo').innerHTML = _clientAvatar(activeClient, 40);
+      renderClientCards();
+      Utils.showToast('Logo actualizado', 'success');
+    } catch (e) {
+      Utils.showToast(e.message, 'danger');
+    }
   }
 
   async function loadAccountsTab() {
@@ -714,7 +752,7 @@ const AtencionCliente = (() => {
   }
 
   return {
-    init, openNewClientPrompt, openClient, closeClientModal, _switchTab, _overlayClose,
+    init, openNewClientPrompt, openClient, closeClientModal, editClientLogo, _switchTab, _overlayClose,
     createFlow, duplicateFlow, toggleFlowStatus, openBuilder, closeBuilder,
     openConversationThread, resolveFollowup, _closeThread,
     _selectPendingPage,
