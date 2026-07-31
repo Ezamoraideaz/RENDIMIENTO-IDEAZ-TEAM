@@ -353,3 +353,14 @@ CREATE TABLE IF NOT EXISTS pauta_leads (
     PRIMARY KEY (client_id, month_key),
     CONSTRAINT fk_pauta_leads_client FOREIGN KEY (client_id) REFERENCES pauta_clients(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Alarma manual: un admin/superadmin dispara un aviso a todos los usuarios
+-- logueados en ese momento (además del recordatorio automático de las 5pm
+-- que ya corre solo, por reloj, en el navegador de cada quien). Cada fila es
+-- un disparo; el frontend (js/alarm.js) hace polling contra el último id.
+CREATE TABLE IF NOT EXISTS alarm_broadcasts (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    created_by INT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_alarm_broadcasts_operator FOREIGN KEY (created_by) REFERENCES operators(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

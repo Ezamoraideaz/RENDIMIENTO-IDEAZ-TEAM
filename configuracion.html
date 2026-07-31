@@ -43,6 +43,18 @@
 
     <h1 class="text-2xl font-black text-slate-100 mb-6">⚙️ Configuración</h1>
 
+    <!-- ALARMA MANUAL (solo admin/superadmin) -->
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4" id="section-alarm" style="display:none">
+      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">🔔 Alarma del equipo</h2>
+      <p class="text-sm text-slate-400 mb-4">
+        Envía el mismo aviso sonoro del recordatorio de las 5pm a todos los que estén logueados ahora mismo, en el momento que quieras (no reemplaza el recordatorio automático diario, se suma a este).
+      </p>
+      <button id="btn-send-alarm" onclick="sendTeamAlarm()"
+        class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors">
+        🔔 Enviar alarma a todo el equipo
+      </button>
+    </div>
+
     <!-- TRELLO CREDENTIALS -->
     <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4" id="section-trello">
       <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">🔑 Credenciales de Trello</h2>
@@ -368,6 +380,11 @@
     }
     _cmMode = _access.role === 'cm';
     _isSuperAdmin = Auth.isSuperAdmin();
+
+    // La alarma manual es para admin/superadmin (los PM), no para cm ni agenda
+    if (_access.role === 'admin' || _isSuperAdmin) {
+      document.getElementById('section-alarm').style.display = 'block';
+    }
 
     if (_cmMode) {
       ['section-trello', 'section-team', 'section-cache', 'section-danger'].forEach(id => {
@@ -786,6 +803,23 @@
       });
     }
     Utils.showToast('Datos guardados ✓', 'success');
+  }
+
+  async function sendTeamAlarm() {
+    const btn = document.getElementById('btn-send-alarm');
+    if (!confirm('¿Enviar la alarma sonora a todos los que estén logueados ahora mismo?')) return;
+    btn.disabled = true;
+    const original = btn.textContent;
+    btn.textContent = 'Enviando…';
+    try {
+      await Alarm.sendBroadcast();
+      Utils.showToast('Alarma enviada ✓ — sonará en los navegadores conectados en los próximos segundos', 'success');
+    } catch (e) {
+      Utils.showToast(e.message || 'No se pudo enviar la alarma', 'danger');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = original;
+    }
   }
 
   function updateCategoryPreview(boardId) {

@@ -8,6 +8,9 @@ const Alarm = (() => {
   const TARGET_MINUTE = 0;
   const LS_KEY = 'alarm_last_shown';
   const LS_LAST_AUDIO = 'alarm_last_audio';
+  // Último id de alarma manual (botón de admin) ya mostrado en este
+  // navegador — independiente del recordatorio diario de las 5pm.
+  const LS_BROADCAST_ID = 'alarm_broadcast_seen_id';
 
   let audioEl = null;
 
@@ -50,7 +53,7 @@ const Alarm = (() => {
     btn.classList.add('bg-indigo-600', 'hover:bg-indigo-700', 'text-white', 'cursor-pointer');
   }
 
-  function _buildPopup() {
+  function _buildPopup(title, message) {
     if (document.getElementById('alarm-popup')) return;
     const wrap = document.createElement('div');
     wrap.id = 'alarm-popup';
@@ -58,8 +61,8 @@ const Alarm = (() => {
     wrap.innerHTML = `
       <div class="bg-slate-900 border border-indigo-600 rounded-xl w-full max-w-md shadow-2xl p-6 text-center">
         <div class="text-4xl mb-3">⏰</div>
-        <h3 class="text-lg font-bold text-slate-100 mb-2">¡Son las 5:00 PM!</h3>
-        <p class="text-sm text-slate-400 mb-5">Revisa el estado de las tareas en curso antes de terminar el día.</p>
+        <h3 class="text-lg font-bold text-slate-100 mb-2">${title}</h3>
+        <p class="text-sm text-slate-400 mb-5">${message}</p>
         <p id="alarm-autoplay-msg" class="text-xs text-amber-400 mb-3" style="display:none">
           El navegador bloqueó la reproducción automática. Presiona reproducir para continuar.
         </p>
@@ -116,11 +119,18 @@ const Alarm = (() => {
     document.getElementById('alarm-popup')?.remove();
   }
 
-  function trigger() {
-    _buildPopup();
+  // opts.daily marca el recordatorio automático de las 5pm (solo ese usa el
+  // localStorage de "ya sonó hoy"); la alarma manual del admin no lo toca,
+  // así puede sonar varias veces el mismo día sin quedar bloqueada.
+  function trigger(opts) {
+    opts = opts || {};
+    _buildPopup(
+      opts.title || '¡Son las 5:00 PM!',
+      opts.message || 'Revisa el estado de las tareas en curso antes de terminar el día.'
+    );
     document.getElementById('alarm-close-btn').addEventListener('click', _closePopup);
     _startPlayback();
-    _markShownToday();
+    if (opts.daily) _markShownToday();
   }
 
   function _check() {
@@ -129,15 +139,58 @@ const Alarm = (() => {
     if (_alreadyShownToday()) return;
     const target = new Date();
     target.setHours(TARGET_HOUR, TARGET_MINUTE, 0, 0);
-    if (now >= target) trigger();
+    if (now >= target) trigger({ daily: true });
+  }
+
+  // Además del recordatorio diario por reloj, un admin puede disparar una
+  // alarma manual (botón en configuracion.html) para todo el que esté
+  // logueado ahora mismo — se detecta con polling contra el último id
+  // guardado en la BD (backend/api/alarm_broadcast.php), no hay websockets
+  // en este hosting compartido.
+  async function _checkBroadcast() {
+    if (!window.Session || typeof Session.apiFetch !== 'function') return;
+    let data;
+    try {
+      data = await Session.apiFetch('api/alarm_broadcast.php');
+    } catch (e) {
+      return; // sin sesión lista todavía, o backend no disponible — se reintenta en el próximo tick
+    }
+    const latest = data && data.latest;
+    if (!latest) return;
+    const stored = localStorage.getItem(LS_BROADCAST_ID);
+    if (stored === null) {
+      // Primera consulta de este navegador: toma el id actual como línea
+      // base sin sonar, para no "revivir" una alarma vieja a quien recién entra.
+      localStorage.setItem(LS_BROADCAST_ID, String(latest.id));
+      return;
+    }
+    if (latest.id > Number(stored)) {
+      localStorage.setItem(LS_BROADCAST_ID, String(latest.id));
+      trigger({
+        title: '🔔 ¡Atención!',
+        message: 'Un administrador envió una alarma para todo el equipo.',
+      });
+    }
+  }
+
+  // Botón de admin (configuracion.html) — dispara la alarma para todos los
+  // que estén logueados en este momento (los que no lo estén no la reciben
+  // retroactivamente al entrar después, solo lo que pase de acá en más).
+  async function sendBroadcast() {
+    const res = await Session.apiFetch('api/alarm_broadcast.php', { method: 'POST' });
+    // Evita que el propio admin se dispare la alarma a sí mismo en el
+    // próximo polling — ya sabe que la mandó, no hace falta que le suene.
+    if (res && res.id) localStorage.setItem(LS_BROADCAST_ID, String(res.id));
+    return res;
   }
 
   function init() {
     _check(); // por si la pestaña se abre después de las 5pm
-    setInterval(_check, 30000);
+    _checkBroadcast();
+    setInterval(() => { _check(); _checkBroadcast(); }, 30000);
   }
 
-  return { init };
+  return { init, sendBroadcast };
 })();
 
 window.Alarm = Alarm;
