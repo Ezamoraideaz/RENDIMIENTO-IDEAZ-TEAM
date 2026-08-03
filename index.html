@@ -238,11 +238,13 @@
           <table class="w-full text-sm">
             <thead>
               <tr class="border-b border-slate-700 bg-slate-800/50">
-                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Marca</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Ciclos Enviado→Cambios</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Prom. Enviado→Cambios</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Ciclos Enviado→Aprobado</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Prom. Enviado→Aprobado</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider cursor-pointer select-none hover:text-slate-200" onclick="sortApprovalTiming('name')">Marca <span id="sort-arrow-name"></span></th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider cursor-pointer select-none hover:text-slate-200" onclick="sortApprovalTiming('cyclesToChanges')">Ciclos Enviado→Cambios <span id="sort-arrow-cyclesToChanges"></span></th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider cursor-pointer select-none hover:text-slate-200" onclick="sortApprovalTiming('avgToChanges')">Prom. Enviado→Cambios <span id="sort-arrow-avgToChanges"></span></th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider cursor-pointer select-none hover:text-slate-200" onclick="sortApprovalTiming('cyclesToApproved')">Ciclos Enviado→Aprobado <span id="sort-arrow-cyclesToApproved"></span></th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider cursor-pointer select-none hover:text-slate-200" onclick="sortApprovalTiming('avgToApproved')">Prom. Enviado→Aprobado <span id="sort-arrow-avgToApproved"></span></th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider cursor-pointer select-none hover:text-slate-200" onclick="sortApprovalTiming('pendingCount')">En Enviado (esperando) <span id="sort-arrow-pendingCount"></span></th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider cursor-pointer select-none hover:text-slate-200" onclick="sortApprovalTiming('avgPendingWait')">Espera actual prom. <span id="sort-arrow-avgPendingWait"></span></th>
               </tr>
             </thead>
             <tbody id="approval-timing-table-body" class="divide-y divide-slate-700/50"></tbody>
@@ -1031,10 +1033,12 @@
   // ciclo por separado (una tarjeta reenviada dos veces aporta dos ciclos).
   function computeApprovalTiming(projects, days) {
     const cutoff = days > 0 ? new Date(Date.now() - days * 24 * 60 * 60 * 1000) : null;
+    const now = new Date();
 
     return projects.map(p => {
       const toChanges = [];
       const toApproved = [];
+      const pending = []; // tarjetas que siguen en "Enviado", esperando decisión del cliente
 
       for (const timeline of Object.values(p.timelines || {})) {
         const movements = timeline.movements || [];
@@ -1044,7 +1048,10 @@
           if (cutoff && move.date < cutoff) continue;
 
           const next = movements[i + 1];
-          if (!next) continue; // sigue en "Enviado", ciclo aún no se resuelve
+          if (!next) {
+            pending.push(TimeCalc.calcWorkingHours(move.date, now));
+            continue;
+          }
 
           const hours = TimeCalc.calcWorkingHours(move.date, next.date);
           if (next.toStage === 'clientRevision') {
@@ -1062,20 +1069,48 @@
         cyclesToChanges:  toChanges.length,
         avgToChanges:     avg(toChanges),
         cyclesToApproved: toApproved.length,
-        avgToApproved:    avg(toApproved)
+        avgToApproved:    avg(toApproved),
+        pendingCount:     pending.length,
+        avgPendingWait:   avg(pending)
       };
-    }).filter(r => r.cyclesToChanges > 0 || r.cyclesToApproved > 0);
+    }).filter(r => r.cyclesToChanges > 0 || r.cyclesToApproved > 0 || r.pendingCount > 0);
+  }
+
+  let _approvalTimingSort = { key: 'avgToApproved', dir: 'desc' };
+  const APPROVAL_TIMING_SORT_KEYS = ['name', 'cyclesToChanges', 'avgToChanges', 'cyclesToApproved', 'avgToApproved', 'pendingCount', 'avgPendingWait'];
+
+  function sortApprovalTiming(key) {
+    if (_approvalTimingSort.key === key) {
+      _approvalTimingSort.dir = _approvalTimingSort.dir === 'asc' ? 'desc' : 'asc';
+    } else {
+      _approvalTimingSort = { key, dir: key === 'name' ? 'asc' : 'desc' };
+    }
+    renderApprovalTimingTable(_currentFilteredProjects, _approvalTimingDays);
+  }
+
+  function updateApprovalTimingSortArrows() {
+    for (const key of APPROVAL_TIMING_SORT_KEYS) {
+      const el = document.getElementById('sort-arrow-' + key);
+      if (!el) continue;
+      el.textContent = key === _approvalTimingSort.key ? (_approvalTimingSort.dir === 'asc' ? '▲' : '▼') : '';
+    }
   }
 
   function renderApprovalTimingTable(projects, days) {
     const tbody = document.getElementById('approval-timing-table-body');
     if (!tbody) return;
     const rows = computeApprovalTiming(projects, days);
+    updateApprovalTimingSortArrows();
     if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="5" class="text-slate-400 text-center py-8">Sin ciclos Enviado→Cambios/Aprobado en este período.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="text-slate-400 text-center py-8">Sin ciclos Enviado→Cambios/Aprobado en este período.</td></tr>';
       return;
     }
-    rows.sort((a, b) => b.avgToApproved - a.avgToApproved);
+    const { key, dir } = _approvalTimingSort;
+    rows.sort((a, b) => {
+      const av = a[key], bv = b[key];
+      const cmp = typeof av === 'string' ? av.localeCompare(bv) : av - bv;
+      return dir === 'asc' ? cmp : -cmp;
+    });
     tbody.innerHTML = rows.map(r => `
       <tr class="hover:bg-slate-800/30 transition-colors">
         <td class="px-4 py-3 font-medium text-slate-200">${r.name}</td>
@@ -1083,6 +1118,8 @@
         <td class="px-4 py-3 text-slate-300">${TimeCalc.formatDuration(r.avgToChanges)}</td>
         <td class="px-4 py-3 text-slate-300">${r.cyclesToApproved}</td>
         <td class="px-4 py-3 text-slate-300">${TimeCalc.formatDuration(r.avgToApproved)}</td>
+        <td class="px-4 py-3 text-slate-300">${r.pendingCount}</td>
+        <td class="px-4 py-3 text-slate-300">${TimeCalc.formatDuration(r.avgPendingWait)}</td>
       </tr>
     `).join('');
   }
