@@ -221,6 +221,35 @@
         </div>
       </div>
 
+      <!-- APPROVAL TIMING BY BRAND -->
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4" id="section-approval-timing">
+        <div class="flex justify-between items-center mb-3 flex-wrap gap-2">
+          <div>
+            <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-0">Tiempos de Aprobación por Marca</h2>
+            <div class="text-xs text-slate-400 mt-1">Desde que la tarjeta entra a "Enviado" hasta que pasa a Cambios o a Aprobado — cada ciclo cuenta por separado</div>
+          </div>
+          <select id="approval-timing-period" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500" onchange="onApprovalTimingPeriodChange(this)">
+            <option value="30">Últimos 30 días</option>
+            <option value="90">Últimos 90 días</option>
+            <option value="0">Todo el historial</option>
+          </select>
+        </div>
+        <div class="overflow-x-auto rounded-xl border border-slate-700">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b border-slate-700 bg-slate-800/50">
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Marca</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Ciclos Enviado→Cambios</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Prom. Enviado→Cambios</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Ciclos Enviado→Aprobado</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Prom. Enviado→Aprobado</th>
+              </tr>
+            </thead>
+            <tbody id="approval-timing-table-body" class="divide-y divide-slate-700/50"></tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- TEAM PERFORMANCE -->
       <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4" id="section-team-performance">
         <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Rendimiento del Equipo</h2>
@@ -266,6 +295,7 @@
 <script>
   let dashboardData = null;
   let _cmDashboardMode = false;
+  let _approvalTimingDays = 30;
   let chartProgress, chartFinancial, chartROI, chartCards;
   let _currentFilteredProjects = [];
   let _memberModalCharts = {};
@@ -889,6 +919,7 @@
     renderKPIFinancial(filtered);
     renderCharts(filtered);
     renderProjectsTable(filtered);
+    renderApprovalTimingTable(filtered, _approvalTimingDays);
     renderTeamTable(members);
     renderProjectCards(filtered, per);
 
@@ -993,6 +1024,72 @@
       const text = row.textContent.toLowerCase();
       row.style.display = text.includes(q.toLowerCase()) ? '' : 'none';
     });
+  }
+
+  // Para cada tarjeta: cada vez que entra a "Enviado", mira el siguiente movimiento.
+  // Si ese siguiente movimiento es "Cambios" o "Aprobado/Drive/Publicado", cuenta el
+  // ciclo por separado (una tarjeta reenviada dos veces aporta dos ciclos).
+  function computeApprovalTiming(projects, days) {
+    const cutoff = days > 0 ? new Date(Date.now() - days * 24 * 60 * 60 * 1000) : null;
+
+    return projects.map(p => {
+      const toChanges = [];
+      const toApproved = [];
+
+      for (const timeline of Object.values(p.timelines || {})) {
+        const movements = timeline.movements || [];
+        for (let i = 0; i < movements.length; i++) {
+          const move = movements[i];
+          if (move.toStage !== 'sentToClient') continue;
+          if (cutoff && move.date < cutoff) continue;
+
+          const next = movements[i + 1];
+          if (!next) continue; // sigue en "Enviado", ciclo aún no se resuelve
+
+          const hours = TimeCalc.calcWorkingHours(move.date, next.date);
+          if (next.toStage === 'clientRevision') {
+            toChanges.push(hours);
+          } else if (['approved', 'drive', 'published'].includes(next.toStage)) {
+            toApproved.push(hours);
+          }
+        }
+      }
+
+      const avg = arr => arr.length > 0 ? arr.reduce((s, h) => s + h, 0) / arr.length : 0;
+
+      return {
+        name: p.displayName,
+        cyclesToChanges:  toChanges.length,
+        avgToChanges:     avg(toChanges),
+        cyclesToApproved: toApproved.length,
+        avgToApproved:    avg(toApproved)
+      };
+    }).filter(r => r.cyclesToChanges > 0 || r.cyclesToApproved > 0);
+  }
+
+  function renderApprovalTimingTable(projects, days) {
+    const tbody = document.getElementById('approval-timing-table-body');
+    if (!tbody) return;
+    const rows = computeApprovalTiming(projects, days);
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="text-slate-400 text-center py-8">Sin ciclos Enviado→Cambios/Aprobado en este período.</td></tr>';
+      return;
+    }
+    rows.sort((a, b) => b.avgToApproved - a.avgToApproved);
+    tbody.innerHTML = rows.map(r => `
+      <tr class="hover:bg-slate-800/30 transition-colors">
+        <td class="px-4 py-3 font-medium text-slate-200">${r.name}</td>
+        <td class="px-4 py-3 text-slate-300">${r.cyclesToChanges}</td>
+        <td class="px-4 py-3 text-slate-300">${TimeCalc.formatDuration(r.avgToChanges)}</td>
+        <td class="px-4 py-3 text-slate-300">${r.cyclesToApproved}</td>
+        <td class="px-4 py-3 text-slate-300">${TimeCalc.formatDuration(r.avgToApproved)}</td>
+      </tr>
+    `).join('');
+  }
+
+  function onApprovalTimingPeriodChange(select) {
+    _approvalTimingDays = parseInt(select.value, 10) || 0;
+    renderApprovalTimingTable(_currentFilteredProjects, _approvalTimingDays);
   }
 
   function renderTeamTable(members) {
@@ -1538,7 +1635,7 @@
     if (_cmDashboardMode) {
       // El rol CM solo ve el Resumen Global — el resto del dashboard queda oculto.
       ['section-financial', 'section-charts-1', 'section-charts-2', 'trend-section',
-       'section-projects-table', 'section-team-performance', 'section-project-cards'].forEach(id => {
+       'section-projects-table', 'section-approval-timing', 'section-team-performance', 'section-project-cards'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.style.display = 'none';
       });
