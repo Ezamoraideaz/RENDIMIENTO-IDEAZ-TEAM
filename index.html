@@ -1144,6 +1144,18 @@
         <div>${TimeCalc.formatDuration(medianH)}</div>
         <div class="text-xs text-slate-500">prom. ${TimeCalc.formatDuration(avgH)}</div>
       </td>`;
+    // Semáforo de la espera acumulada: verde hasta 3 días, amarillo de 3 a 4 días, rojo pasado ese punto
+    const pendingWaitColor = hours => {
+      const days = hours / 24;
+      if (days <= 3) return '#10b981';
+      if (days <= 4) return '#f59e0b';
+      return '#ef4444';
+    };
+    const pendingWaitCell = (medianH, avgH) => `
+      <td class="px-4 py-3 text-slate-300">
+        <div style="color:${pendingWaitColor(medianH)}" class="font-semibold">${TimeCalc.formatDuration(medianH)}</div>
+        <div class="text-xs text-slate-500">prom. ${TimeCalc.formatDuration(avgH)}</div>
+      </td>`;
     tbody.innerHTML = rows.map(r => `
       <tr class="hover:bg-slate-800/30 transition-colors">
         <td class="px-4 py-3 font-medium text-slate-200">${r.name}</td>
@@ -1152,7 +1164,7 @@
         <td class="px-4 py-3 text-slate-300">${r.cyclesToApproved}</td>
         ${durationCell(r.medianToApproved, r.avgToApproved)}
         <td class="px-4 py-3 text-slate-300">${r.pendingCount}</td>
-        ${durationCell(r.medianPendingWait, r.avgPendingWait)}
+        ${pendingWaitCell(r.medianPendingWait, r.avgPendingWait)}
       </tr>
     `).join('');
   }
