@@ -226,7 +226,7 @@
         <div class="flex justify-between items-center mb-3 flex-wrap gap-2">
           <div>
             <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-0">Tiempos de Aprobación por Marca</h2>
-            <div class="text-xs text-slate-400 mt-1">Desde que la tarjeta entra a "Enviado" hasta que pasa a Cambios o a Aprobado — cada ciclo cuenta por separado. Se ordena por la mediana (el "caso típico"); el promedio se muestra de referencia porque unos pocos casos muy lentos pueden inflarlo. "En Enviado (esperando)" y "Espera acumulada" siempre muestran el estado actual de todas las tarjetas, sin importar el rango de fechas elegido — la espera suma TODOS los tramos que la tarjeta pasó en "Enviado", incluidos los que volvieron desde "Cambios"</div>
+            <div class="text-xs text-slate-400 mt-1">Desde que la tarjeta entra a "Enviado" hasta que pasa a Cambios o a Aprobado — cada ciclo cuenta por separado. Se ordena por la mediana (el "caso típico"); el promedio se muestra de referencia porque unos pocos casos muy lentos pueden inflarlo. "En Enviado (esperando)" cuenta las tarjetas que siguen ahí ahora mismo, sin importar el rango de fechas. "Espera acumulada" suma el tiempo TOTAL que cada tarjeta pasó en "Enviado" a lo largo de toda su vida (todos los tramos, incluso si volvió desde "Cambios"), de TODAS las tarjetas que alguna vez pasaron por ahí — ya estén pendientes, aprobadas o con cambios pedidos</div>
           </div>
           <select id="approval-timing-period" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500" onchange="onApprovalTimingPeriodChange(this)">
             <option value="15">Últimos 15 días</option>
@@ -1039,24 +1039,28 @@
     return projects.map(p => {
       const toChanges = [];
       const toApproved = [];
-      const pending = []; // tarjetas que siguen en "Enviado", esperando decisión del cliente
+      // Tiempo TOTAL que cada tarjeta pasó en "Enviado" a lo largo de toda su vida,
+      // sumando todos los tramos (incluso si volvió de "Cambios" varias veces) — de
+      // TODAS las tarjetas que alguna vez pasaron por ahí, ya estén pendientes,
+      // aprobadas o con cambios pedidos. No se filtra por el rango de fechas elegido.
+      const allSentHours = [];
+      let pendingCount = 0;
 
       for (const timeline of Object.values(p.timelines || {})) {
         const movements = timeline.movements || [];
-        // Suma el tiempo en "Enviado" de TODOS los tramos de esta tarjeta (los ya
-        // cerrados, aunque hayan pasado por "Cambios" y vuelto, más el tramo actual
-        // si sigue ahí) — se acumula sin importar el rango de fechas elegido.
         let totalSentHours = 0;
-        let isPending = false;
+        let hasSentToClient = false;
+        let isCurrentlyPending = false;
 
         for (let i = 0; i < movements.length; i++) {
           const move = movements[i];
           if (move.toStage !== 'sentToClient') continue;
+          hasSentToClient = true;
 
           const next = movements[i + 1];
           if (!next) {
             totalSentHours += TimeCalc.calcWorkingHours(move.date, now);
-            isPending = true;
+            isCurrentlyPending = true;
             continue;
           }
 
@@ -1072,7 +1076,8 @@
           }
         }
 
-        if (isPending) pending.push(totalSentHours);
+        if (hasSentToClient) allSentHours.push(totalSentHours);
+        if (isCurrentlyPending) pendingCount++;
       }
 
       const avg = arr => arr.length > 0 ? arr.reduce((s, h) => s + h, 0) / arr.length : 0;
@@ -1091,11 +1096,12 @@
         cyclesToApproved: toApproved.length,
         avgToApproved:    avg(toApproved),
         medianToApproved: median(toApproved),
-        pendingCount:     pending.length,
-        avgPendingWait:   avg(pending),
-        medianPendingWait: median(pending)
+        pendingCount:      pendingCount,
+        avgPendingWait:    avg(allSentHours),
+        medianPendingWait: median(allSentHours),
+        _sentCardCount:    allSentHours.length
       };
-    }).filter(r => r.cyclesToChanges > 0 || r.cyclesToApproved > 0 || r.pendingCount > 0);
+    }).filter(r => r.cyclesToChanges > 0 || r.cyclesToApproved > 0 || r.pendingCount > 0 || r._sentCardCount > 0);
   }
 
   let _approvalTimingSort = { key: 'medianToApproved', dir: 'desc' };
