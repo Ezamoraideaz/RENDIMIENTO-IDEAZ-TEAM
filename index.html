@@ -226,7 +226,7 @@
         <div class="flex justify-between items-center mb-3 flex-wrap gap-2">
           <div>
             <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-0">Tiempos de Aprobación por Marca</h2>
-            <div class="text-xs text-slate-400 mt-1">Desde que la tarjeta entra a "Enviado" hasta que pasa a Cambios o a Aprobado — cada ciclo cuenta por separado. Se ordena por la mediana (el "caso típico"); el promedio se muestra de referencia porque unos pocos casos muy lentos pueden inflarlo</div>
+            <div class="text-xs text-slate-400 mt-1">Desde que la tarjeta entra a "Enviado" hasta que pasa a Cambios o a Aprobado — cada ciclo cuenta por separado. Se ordena por la mediana (el "caso típico"); el promedio se muestra de referencia porque unos pocos casos muy lentos pueden inflarlo. "En Enviado (esperando)" siempre muestra el estado actual de todas las tarjetas, sin importar el rango de fechas elegido</div>
           </div>
           <select id="approval-timing-period" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500" onchange="onApprovalTimingPeriodChange(this)">
             <option value="15">Últimos 15 días</option>
@@ -1046,13 +1046,17 @@
         for (let i = 0; i < movements.length; i++) {
           const move = movements[i];
           if (move.toStage !== 'sentToClient') continue;
-          if (cutoff && move.date < cutoff) continue;
 
           const next = movements[i + 1];
           if (!next) {
+            // Tarjeta actualmente en "Enviado": cuenta siempre, sin importar el rango de
+            // fechas elegido ni si antes pasó por "Cambios" y volvió — lo único que importa
+            // es que ahora mismo sigue esperando decisión del cliente.
             pending.push(TimeCalc.calcWorkingHours(move.date, now));
             continue;
           }
+
+          if (cutoff && move.date < cutoff) continue;
 
           const hours = TimeCalc.calcWorkingHours(move.date, next.date);
           if (next.toStage === 'clientRevision') {
