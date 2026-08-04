@@ -1717,7 +1717,7 @@
     if (_cmDashboardMode) {
       // El rol CM solo ve el Resumen Global — el resto del dashboard queda oculto.
       ['section-financial', 'section-charts-1', 'section-charts-2', 'trend-section',
-       'section-projects-table', 'section-approval-timing', 'section-team-performance', 'section-project-cards'].forEach(id => {
+       'section-projects-table', 'section-team-performance', 'section-project-cards'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.style.display = 'none';
       });
