@@ -205,7 +205,11 @@
   .video-notes-toggle .n { font-variant-numeric: tabular-nums; }
 
   .video-notes-tray {
-    position: absolute; left: 0; right: 0; bottom: 22px; z-index: 7; max-height: 78%;
+    position: absolute; left: 0; right: 0; bottom: 22px; z-index: 7;
+    /* Paso 1 (notas) va compacto para dejar ver el video de fondo; el paso 2
+       (comentario + etiquetas + confirmar) ya no necesita el video visible,
+       así que puede crecer más. */
+    max-height: 48%;
     background: color-mix(in srgb, var(--surface-2) 96%, transparent); backdrop-filter: blur(6px);
     border-top: 1px solid var(--line); border-radius: 16px 16px 0 0;
     padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
@@ -213,13 +217,17 @@
        tapar la barra de progreso), tiene que bajar su propio alto MÁS esos
        22px para salir completamente de la vista, sin importar cuántas notas
        tenga cargadas (su alto es variable). */
-    transform: translateY(calc(100% + 30px)); transition: transform .22s ease; touch-action: pan-y;
+    transform: translateY(calc(100% + 30px)); transition: transform .22s ease, max-height .18s ease; touch-action: pan-y;
     display: flex; flex-direction: column; overflow: hidden;
   }
   .video-notes-tray.is-open { transform: translateY(0); }
-  .video-notes-tray-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; flex-shrink: 0; }
+  .video-notes-tray[data-step="2"] { max-height: 78%; }
+  .video-notes-tray-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; flex-shrink: 0; }
   .video-notes-tray-head h3 { margin: 0; font-size: 12.5px; font-weight: 800; color: var(--ink); }
-  .video-notes-close { background: none; border: none; color: var(--ink-faint); font-size: 17px; line-height: 1; padding: 2px 4px; }
+  .video-notes-close { background: none; border: none; color: var(--ink-faint); font-size: 17px; line-height: 1; padding: 2px 4px; flex-shrink: 0; }
+  .video-notes-back { background: none; border: none; color: var(--ink-dim); font-size: 12px; font-weight: 700; padding: 2px 4px; flex-shrink: 0; touch-action: manipulation; }
+
+  .video-notes-step { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
   /* Todo lo que puede crecer (lista de notas, comentario general, etiquetas)
      scrollea acá adentro; la cabecera y la fila de Confirmar/Cancelar quedan
@@ -1113,43 +1121,64 @@
     toggle.className = 'video-notes-toggle';
     toggle.innerHTML = ICONS.comment + '<span class="n">0</span>';
 
-    // Una sola bandeja para toda la decisión de "hay que cambiar algo": notas
-    // ancladas al video (lo principal), un comentario general opcional para
-    // lo que no es de un segundo puntual, las etiquetas de siempre y el
-    // confirmar/cancelar — ya no hay un modal aparte pidiendo lo mismo de
-    // nuevo. Se abre tocando "Notas" mientras mira el video, o directo al
-    // deslizar/tocar ✕ (ver openRejectModal).
+    // Una sola bandeja para toda la decisión de "hay que cambiar algo", pero
+    // en dos pasos — no todo junto, porque entre notas + comentario + 7
+    // etiquetas no entraba sin taparle el video al cliente:
+    //  1) Notas ancladas al video (chica, deja ver el video de fondo).
+    //  2) Comentario general opcional + etiquetas + confirmar (acá ya no
+    //     hace falta ver el video, así que puede ocupar más pantalla).
+    // Se abre tocando "Notas" mientras mira el video, o directo al
+    // deslizar/tocar ✕ (ver openRejectModal) — en ambos casos arranca en el
+    // paso 1.
     var tray = document.createElement('div');
     tray.className = 'video-notes-tray';
     tray.innerHTML =
-      '<div class="video-notes-tray-head"><h3>Notas del video</h3><button type="button" class="video-notes-close">×</button></div>' +
-      '<div class="video-notes-scroll">' +
-      '  <div class="video-notes-list"></div>' +
-      '  <button type="button" class="video-note-add-btn">+ Agregar nota en <span class="ts">0:00</span></button>' +
-      '  <div class="video-note-compose" style="display:none;">' +
-      '    <textarea placeholder="¿Qué hay que corregir en ese momento?" maxlength="500"></textarea>' +
-      '    <div class="video-note-compose-actions">' +
-      '      <button type="button" class="video-note-btn ghost" data-act="cancel">Cancelar</button>' +
-      '      <button type="button" class="video-note-btn save" data-act="save">Guardar nota</button>' +
+      '<div class="video-notes-tray-head">' +
+      '  <button type="button" class="video-notes-back" style="display:none;">← Atrás</button>' +
+      '  <h3>Notas del video</h3>' +
+      '  <button type="button" class="video-notes-close">×</button>' +
+      '</div>' +
+      '<div class="video-notes-step" data-step="1">' +
+      '  <div class="video-notes-scroll">' +
+      '    <div class="video-notes-list"></div>' +
+      '    <button type="button" class="video-note-add-btn">+ Agregar nota en <span class="ts">0:00</span></button>' +
+      '    <div class="video-note-compose" style="display:none;">' +
+      '      <textarea placeholder="¿Qué hay que corregir en ese momento?" maxlength="500"></textarea>' +
+      '      <div class="video-note-compose-actions">' +
+      '        <button type="button" class="video-note-btn ghost" data-act="cancel">Cancelar</button>' +
+      '        <button type="button" class="video-note-btn save" data-act="save">Guardar nota</button>' +
+      '      </div>' +
       '    </div>' +
       '  </div>' +
-      '  <div class="video-note-general">' +
-      '    <div class="tag-label" style="margin:14px 0 6px;">Algo más en general (opcional)</div>' +
-      '    <textarea placeholder="Ej: el tono en general no me convence" maxlength="1000"></textarea>' +
+      '  <div class="video-note-decide">' +
+      '    <button type="button" class="cancel" data-act="close-tray">Cerrar</button>' +
+      '    <button type="button" class="confirm" data-act="go-step2">Continuar</button>' +
       '  </div>' +
-      '  <div class="video-note-err" data-err="general"></div>' +
-      '  <div class="tag-label">¿Qué hay que corregir? (elegí una o más)</div>' +
-      '  <div class="tag-grid video-note-tags">' + REASON_TAGS.map(function (t) {
+      '</div>' +
+      '<div class="video-notes-step" data-step="2" style="display:none;">' +
+      '  <div class="video-notes-scroll">' +
+      '    <div class="video-note-general">' +
+      '      <div class="tag-label" style="margin:0 0 6px;">Algo más en general (opcional)</div>' +
+      '      <textarea placeholder="Ej: el tono en general no me convence" maxlength="1000"></textarea>' +
+      '    </div>' +
+      '    <div class="video-note-err" data-err="general"></div>' +
+      '    <div class="tag-label">¿Qué hay que corregir? (elegí una o más)</div>' +
+      '    <div class="tag-grid video-note-tags">' + REASON_TAGS.map(function (t) {
              return '<button type="button" class="tag-chip" data-tag="' + esc(t) + '">' + esc(t) + '</button>';
            }).join('') +
+      '    </div>' +
+      '    <div class="video-note-err" data-err="tags"></div>' +
       '  </div>' +
-      '  <div class="video-note-err" data-err="tags"></div>' +
-      '</div>' +
-      '<div class="video-note-decide">' +
-      '  <button type="button" class="cancel" data-act="cancel-decision">Cancelar</button>' +
-      '  <button type="button" class="confirm" data-act="confirm-decision">Confirmar cambios</button>' +
+      '  <div class="video-note-decide">' +
+      '    <button type="button" class="cancel" data-act="cancel-decision">Cancelar</button>' +
+      '    <button type="button" class="confirm" data-act="confirm-decision">Confirmar cambios</button>' +
+      '  </div>' +
       '</div>';
 
+    var trayTitle = tray.querySelector('.video-notes-tray-head h3');
+    var backBtn = tray.querySelector('.video-notes-back');
+    var step1El = tray.querySelector('[data-step="1"]');
+    var step2El = tray.querySelector('[data-step="2"]');
     var listEl = tray.querySelector('.video-notes-list');
     var addBtn = tray.querySelector('.video-note-add-btn');
     var addBtnTs = addBtn.querySelector('.ts');
@@ -1162,6 +1191,14 @@
     var decideConfirmBtn = tray.querySelector('[data-act="confirm-decision"]');
     var decideCancelBtn = tray.querySelector('[data-act="cancel-decision"]');
     var capturedT = 0;
+
+    function showStep(n) {
+      tray.dataset.step = String(n);
+      step1El.style.display = n === 1 ? '' : 'none';
+      step2El.style.display = n === 2 ? '' : 'none';
+      backBtn.style.display = n === 2 ? '' : 'none';
+      trayTitle.textContent = n === 2 ? '¿Qué hay que corregir?' : 'Notas del video';
+    }
 
     function renderTicks() {
       if (!seekTrackEl || !video.duration) return;
@@ -1215,8 +1252,9 @@
     toggle.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
     toggle.addEventListener('click', function (e) {
       e.stopPropagation();
-      if (tray.classList.contains('is-open')) closeTray();
-      else tray.classList.add('is-open');
+      if (tray.classList.contains('is-open')) { closeTray(); return; }
+      showStep(1);
+      tray.classList.add('is-open');
     });
 
     tray.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
@@ -1224,6 +1262,9 @@
       e.stopPropagation();
       closeTray();
     });
+    backBtn.addEventListener('click', function (e) { e.stopPropagation(); showStep(1); });
+    tray.querySelector('[data-act="close-tray"]').addEventListener('click', function (e) { e.stopPropagation(); closeTray(); });
+    tray.querySelector('[data-act="go-step2"]').addEventListener('click', function (e) { e.stopPropagation(); showStep(2); });
     addBtn.addEventListener('click', function (e) { e.stopPropagation(); openCompose(); });
     composeEl.addEventListener('click', function (e) {
       e.stopPropagation();
@@ -1297,10 +1338,8 @@
     // es la misma acción de "hay que cambiar algo", solo que el cliente
     // puede llegar a ella mientras mira el video o al decidir.
     tray.openForDecision = function () {
+      showStep(1);
       tray.classList.add('is-open');
-      if (!videoNotes[itemId].length && !generalTextarea.value.trim()) {
-        setTimeout(function () { generalTextarea.focus(); }, 200);
-      }
     };
 
     var frag = document.createDocumentFragment();
