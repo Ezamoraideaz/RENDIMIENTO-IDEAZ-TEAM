@@ -16,6 +16,8 @@
     --accent: #6f7bf7;
     --accent-ink: #ffffff;
     --reject: #fb5279;
+    --note: #ffb64d;
+    --note-ink: #3d2400;
     --line: rgba(231,233,245,0.09);
     --surface: #171b30;
     --surface-2: #1e2340;
@@ -180,11 +182,68 @@
   }
   @media (prefers-reduced-motion: reduce) { .reel-disc { animation: none; } }
   .video-seek {
-    position: absolute; left: 0; right: 0; bottom: 0; height: 22px; z-index: 3;
+    position: absolute; left: 0; right: 0; bottom: 0; height: 22px; z-index: 8;
     display: flex; align-items: center; padding: 0 10px; touch-action: none; cursor: pointer;
   }
   .video-seek-track { position: relative; flex: 1; height: 3px; border-radius: 999px; background: rgba(255,255,255,.32); }
   .video-seek-fill { position: absolute; inset: 0; width: 0%; background: #fff; border-radius: 999px; pointer-events: none; }
+  .video-seek-tick {
+    position: absolute; top: 50%; width: 3px; height: 11px; transform: translate(-50%, -50%);
+    background: var(--note); border-radius: 1px; pointer-events: none; box-shadow: 0 0 0 1px rgba(0,0,0,.35);
+  }
+
+  /* ---------- Notas ancladas a un momento del video (solo Reels) ---------- */
+  /* Entre .media-actions (bottom:10, ~34px de alto) y .reel-actions-rail
+     (arranca en bottom:92) hay un hueco libre en el borde derecho — ahí vive
+     el botón, sin taparle el copy a .reel-bottom (que ocupa el lado izquierdo). */
+  .video-notes-toggle {
+    position: absolute; right: 10px; bottom: 42px; z-index: 8; display: flex; align-items: center; gap: 5px;
+    background: rgba(12,16,32,.62); backdrop-filter: blur(2px); color: #fff; border: 1px solid rgba(255,255,255,.16);
+    border-radius: 999px; padding: 6px 11px 6px 9px; font-size: 11.5px; font-weight: 700; touch-action: manipulation;
+  }
+  .video-notes-toggle svg { width: 14px; height: 14px; flex-shrink: 0; }
+  .video-notes-toggle .n { font-variant-numeric: tabular-nums; }
+
+  .video-notes-tray {
+    position: absolute; left: 0; right: 0; bottom: 22px; z-index: 7; max-height: 64%;
+    background: color-mix(in srgb, var(--surface-2) 96%, transparent); backdrop-filter: blur(6px);
+    border-top: 1px solid var(--line); border-radius: 16px 16px 0 0;
+    padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
+    transform: translateY(105%); transition: transform .22s ease; touch-action: pan-y;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .video-notes-tray.is-open { transform: translateY(0); }
+  .video-notes-tray-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; flex-shrink: 0; }
+  .video-notes-tray-head h3 { margin: 0; font-size: 12.5px; font-weight: 800; color: var(--ink); }
+  .video-notes-close { background: none; border: none; color: var(--ink-faint); font-size: 17px; line-height: 1; padding: 2px 4px; }
+
+  .video-notes-list { overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; margin: 0 0 8px; flex-shrink: 1; min-height: 0; }
+  .video-note-row { display: flex; gap: 9px; align-items: flex-start; padding: 7px 0; border-top: 1px solid var(--line); }
+  .video-note-row:first-child { border-top: none; }
+  .video-note-ts {
+    flex-shrink: 0; background: color-mix(in srgb, var(--note) 24%, transparent); color: var(--note);
+    border: none; border-radius: 6px; padding: 2px 6px; font-size: 11px; font-weight: 700;
+    font-variant-numeric: tabular-nums; touch-action: manipulation;
+  }
+  .video-note-row p { margin: 0; font-size: 12.5px; line-height: 1.5; flex: 1; color: var(--ink); }
+  .video-note-del { background: none; border: none; color: var(--ink-faint); font-size: 15px; line-height: 1; padding: 2px; flex-shrink: 0; touch-action: manipulation; }
+
+  .video-note-add-btn {
+    flex-shrink: 0; width: 100%; border: 1px dashed color-mix(in srgb, var(--note) 55%, var(--line)); background: transparent;
+    color: var(--note); border-radius: 10px; padding: 9px; font-size: 12px; font-weight: 700; font-family: inherit;
+    touch-action: manipulation;
+  }
+  .video-note-add-btn .ts { font-variant-numeric: tabular-nums; }
+  .video-note-compose { flex-shrink: 0; }
+  .video-note-compose textarea {
+    width: 100%; min-height: 56px; resize: none; background: var(--canvas-2); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 9px; padding: 8px 9px; font-size: 12.5px; line-height: 1.45;
+    font-family: inherit;
+  }
+  .video-note-compose-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 7px; }
+  .video-note-btn { border: none; border-radius: 7px; padding: 6px 12px; font-size: 12px; font-weight: 700; font-family: inherit; touch-action: manipulation; }
+  .video-note-btn.save { background: var(--note); color: var(--note-ink); }
+  .video-note-btn.ghost { background: transparent; color: var(--ink-faint); }
 
   .story-bar-track { position: absolute; top: 9px; left: 10px; right: 10px; z-index: 5; height: 2.5px; background: rgba(255,255,255,.35); border-radius: 2px; overflow: hidden; }
   .story-bar-fill { height: 100%; width: 100%; background: #fff; border-radius: 2px; }
@@ -269,6 +328,7 @@
   @keyframes sheetUp { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
   .modal h2 { margin: 0 0 4px; font-size: 16.5px; font-weight: 800; }
   .modal p.sub { margin: 0 0 14px; font-size: 12.5px; color: var(--ink-dim); }
+  .modal p.sub#timeNotesHint { color: var(--note); font-weight: 700; }
   .modal textarea {
     width: 100%; min-height: 90px; resize: vertical; background: var(--surface-2); border: 1px solid var(--line);
     border-radius: 12px; color: var(--ink); font: inherit; font-size: 13.5px; padding: 12px;
@@ -294,8 +354,14 @@
   .summary .rejtags { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 7px; }
   .summary .rejpill { font-size: 10.5px; font-weight: 700; color: var(--reject); background: color-mix(in srgb, var(--reject) 14%, transparent); padding: 3px 8px; border-radius: 999px; }
   .summary .rejitem .c { font-size: 13px; line-height: 1.4; }
+  .summary .rejnotes { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+  .summary .rejnote { font-size: 12px; line-height: 1.4; }
+  .summary .rejnote-ts {
+    font-variant-numeric: tabular-nums; font-weight: 700; color: var(--note); background: color-mix(in srgb, var(--note) 18%, transparent);
+    border-radius: 5px; padding: 1px 5px; margin-right: 5px;
+  }
 
-  @media (prefers-reduced-motion: reduce) { .card.settled, .modal, .summary.show { transition: none !important; animation: none !important; } }
+  @media (prefers-reduced-motion: reduce) { .card.settled, .modal, .summary.show, .video-notes-tray { transition: none !important; animation: none !important; } }
 
   .splash {
     position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center;
@@ -453,6 +519,7 @@
   <div class="modal">
     <h2>¿Qué hay que cambiar?</h2>
     <p class="sub">Este comentario se envía directo al equipo, con la pieza adjunta.</p>
+    <p class="sub" id="timeNotesHint" style="display:none;"></p>
     <textarea id="commentInput" placeholder="Ej: el texto tapa el logo, ¿podemos subirlo un poco?"></textarea>
     <div class="err" id="commentErr"></div>
 
@@ -555,6 +622,17 @@
   var decided = [];
   var pendingRejectItem = null;
   var selectedTags = [];
+  // { [itemId]: [{ t: segundos, text: '...' }, ...] } — notas ancladas a un
+  // momento del video (solo Reels), acumuladas mientras el cliente mira la
+  // pieza y se mandan junto con la decisión (approve o changes_requested).
+  var videoNotes = {};
+  var videoNoteIdSeq = 1;
+
+  function fmtVideoTime(seconds) {
+    seconds = Math.max(0, Math.round(seconds || 0));
+    var m = Math.floor(seconds / 60), s = seconds % 60;
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
 
   var deckEl, counterEl, progressFill, stageLabel, summaryEl, modalOverlay,
       commentInput, commentErr, tagGrid, tagErr, actionsBar, hintEl, deckWrap, tourOverlay;
@@ -893,7 +971,9 @@
       wrap.appendChild(buildMediaActions(url, videoDownloadUrl));
 
       if (itemType === 'reel') {
-        wrap.appendChild(buildVideoSeekBar(video));
+        var seekBarEl = buildVideoSeekBar(video);
+        wrap.appendChild(seekBarEl);
+        wrap.appendChild(buildVideoNotesUI(video, itemId, seekBarEl.querySelector('.video-seek-track')));
       }
       return wrap;
     }
@@ -995,6 +1075,131 @@
     seek.addEventListener('pointerup', function (e) { seeking = false; e.stopPropagation(); });
     seek.addEventListener('pointercancel', function (e) { seeking = false; e.stopPropagation(); });
     return seek;
+  }
+
+  // Notas ancladas a un segundo del video: el botón "Notas" abre una bandeja
+  // que NO tapa la barra de progreso de arriba (buildVideoSeekBar) — el
+  // cliente puede seguir arrastrándola para moverse por el video exactamente
+  // igual que el controlador nativo, y "Agregar nota" toma ese mismo
+  // video.currentTime como el segundo exacto de la nota.
+  function buildVideoNotesUI(video, itemId, seekTrackEl) {
+    if (!videoNotes[itemId]) videoNotes[itemId] = [];
+
+    var toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'video-notes-toggle';
+    toggle.innerHTML = ICONS.comment + '<span class="n">0</span>';
+
+    var tray = document.createElement('div');
+    tray.className = 'video-notes-tray';
+    tray.innerHTML =
+      '<div class="video-notes-tray-head"><h3>Notas del video</h3><button type="button" class="video-notes-close">×</button></div>' +
+      '<div class="video-notes-list"></div>' +
+      '<button type="button" class="video-note-add-btn">+ Agregar nota en <span class="ts">0:00</span></button>' +
+      '<div class="video-note-compose" style="display:none;">' +
+      '  <textarea placeholder="¿Qué hay que corregir en ese momento?" maxlength="500"></textarea>' +
+      '  <div class="video-note-compose-actions">' +
+      '    <button type="button" class="video-note-btn ghost" data-act="cancel">Cancelar</button>' +
+      '    <button type="button" class="video-note-btn save" data-act="save">Guardar nota</button>' +
+      '  </div>' +
+      '</div>';
+
+    var listEl = tray.querySelector('.video-notes-list');
+    var addBtn = tray.querySelector('.video-note-add-btn');
+    var addBtnTs = addBtn.querySelector('.ts');
+    var composeEl = tray.querySelector('.video-note-compose');
+    var composeTextarea = composeEl.querySelector('textarea');
+    var capturedT = 0;
+
+    function renderTicks() {
+      if (!seekTrackEl || !video.duration) return;
+      Array.prototype.forEach.call(seekTrackEl.querySelectorAll('.video-seek-tick'), function (t) { t.remove(); });
+      videoNotes[itemId].forEach(function (n) {
+        var tick = document.createElement('div');
+        tick.className = 'video-seek-tick';
+        tick.style.left = Math.min(100, Math.max(0, (n.t / video.duration) * 100)) + '%';
+        seekTrackEl.appendChild(tick);
+      });
+    }
+    if (video.duration) renderTicks();
+    video.addEventListener('loadedmetadata', renderTicks);
+
+    function renderList() {
+      var notes = videoNotes[itemId].slice().sort(function (a, b) { return a.t - b.t; });
+      toggle.querySelector('.n').textContent = String(notes.length);
+      listEl.innerHTML = notes.map(function (n) {
+        return '<div class="video-note-row">'
+          + '<button type="button" class="video-note-ts" data-id="' + n.id + '" data-t="' + n.t + '">' + fmtVideoTime(n.t) + '</button>'
+          + '<p>' + esc(n.text) + '</p>'
+          + '<button type="button" class="video-note-del" data-id="' + n.id + '" aria-label="Eliminar nota">×</button>'
+          + '</div>';
+      }).join('');
+      renderTicks();
+    }
+
+    function openCompose() {
+      capturedT = video.currentTime;
+      video.pause();
+      addBtn.style.display = 'none';
+      composeEl.style.display = '';
+      composeTextarea.value = '';
+      setTimeout(function () { composeTextarea.focus(); }, 30);
+    }
+    function closeCompose(resume) {
+      composeEl.style.display = 'none';
+      addBtn.style.display = '';
+      if (resume) video.play().catch(function () {});
+    }
+
+    function updateAddBtnLabel() { addBtnTs.textContent = fmtVideoTime(video.currentTime); }
+    video.addEventListener('timeupdate', updateAddBtnLabel);
+    updateAddBtnLabel();
+
+    toggle.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+    toggle.addEventListener('click', function (e) {
+      e.stopPropagation();
+      tray.classList.toggle('is-open');
+      if (!tray.classList.contains('is-open')) closeCompose(false);
+    });
+
+    tray.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+    tray.querySelector('.video-notes-close').addEventListener('click', function (e) {
+      e.stopPropagation();
+      tray.classList.remove('is-open');
+      closeCompose(false);
+    });
+    addBtn.addEventListener('click', function (e) { e.stopPropagation(); openCompose(); });
+    composeEl.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var act = e.target.closest('[data-act]');
+      if (!act) return;
+      if (act.dataset.act === 'cancel') { closeCompose(true); return; }
+      var text = composeTextarea.value.trim();
+      if (!text) { composeTextarea.focus(); return; }
+      videoNotes[itemId].push({ id: videoNoteIdSeq++, t: Math.round(capturedT), text: text });
+      renderList();
+      closeCompose(true);
+    });
+    listEl.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var delBtn = e.target.closest('.video-note-del');
+      if (delBtn) {
+        var idDel = Number(delBtn.dataset.id);
+        var i = videoNotes[itemId].findIndex(function (n) { return n.id === idDel; });
+        if (i !== -1) videoNotes[itemId].splice(i, 1);
+        renderList();
+        return;
+      }
+      var tsBtn = e.target.closest('.video-note-ts');
+      if (tsBtn) { video.currentTime = Number(tsBtn.dataset.t); }
+    });
+
+    renderList();
+
+    var frag = document.createDocumentFragment();
+    frag.appendChild(toggle);
+    frag.appendChild(tray);
+    return frag;
   }
 
   function mountMedia(card, item, onAspectReady, isFront, isNext) {
@@ -1240,13 +1445,15 @@
   }
 
   // ── Envío al backend ─────────────────────────────────────────────────────
-  function submitDecision(item, decision, comment, tags) {
+  function submitDecision(item, decision, comment, tags, timeNotes) {
+    var notesPayload = (timeNotes || []).map(function (n) { return { t: n.t, text: n.text }; });
     return fetch(API, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         t: TOKEN, item_id: item.id, decision: decision,
         comment: comment || undefined, reason_tags: tags || undefined,
+        time_notes: notesPayload.length ? notesPayload : undefined,
       }),
     }).then(function (res) {
       return res.json().catch(function () { return {}; }).then(function (data) {
@@ -1259,7 +1466,7 @@
   function decideFromTop(card, kind) {
     var item = ITEMS[idx];
     card.classList.add('submitting');
-    submitDecision(item, 'approved', null, null).then(function () {
+    submitDecision(item, 'approved', null, null, videoNotes[item.id]).then(function () {
       decided.push({ item: item, decision: 'approve', comment: null, tags: [] });
       flyOut(card, 'approve');
       setTimeout(advance, 260);
@@ -1283,18 +1490,29 @@
     tagErr.textContent = '';
     selectedTags = [];
     tagGrid.querySelectorAll('.tag-chip').forEach(function (c) { c.classList.remove('selected'); });
+
+    var notesCount = (videoNotes[item.id] || []).length;
+    var timeNotesHint = document.getElementById('timeNotesHint');
+    if (notesCount) {
+      timeNotesHint.textContent = '📍 Se van a mandar también tus ' + notesCount + (notesCount === 1 ? ' nota anclada' : ' notas ancladas') + ' al video.';
+      timeNotesHint.style.display = '';
+    } else {
+      timeNotesHint.style.display = 'none';
+    }
+
     modalOverlay.classList.add('open');
     setTimeout(function () { commentInput.focus(); }, 30);
   }
 
   function onConfirmReject() {
+    var target = pendingRejectItem;
+    var hasTimeNotes = !!(target && (videoNotes[target.item.id] || []).length);
     var text = commentInput.value.trim();
     var valid = true;
-    if (!text) { commentErr.textContent = 'Contanos qué hay que cambiar antes de confirmar.'; valid = false; }
+    if (!text && !hasTimeNotes) { commentErr.textContent = 'Contanos qué hay que cambiar (o dejá una nota anclada al video) antes de confirmar.'; valid = false; }
     if (!selectedTags.length) { tagErr.textContent = 'Elegí al menos una etiqueta.'; valid = false; }
-    if (!valid) { if (!text) commentInput.focus(); return; }
+    if (!valid) { if (!text && !hasTimeNotes) commentInput.focus(); return; }
 
-    var target = pendingRejectItem;
     if (!target) return;
     var tags = selectedTags.slice();
     var confirmBtn = document.getElementById('btnConfirmReject');
@@ -1302,7 +1520,7 @@
     confirmBtn.disabled = true; cancelBtn.disabled = true;
     confirmBtn.textContent = 'Enviando…';
 
-    submitDecision(target.item, 'changes_requested', text, tags).then(function () {
+    submitDecision(target.item, 'changes_requested', text, tags, videoNotes[target.item.id]).then(function () {
       confirmBtn.disabled = false; cancelBtn.disabled = false;
       confirmBtn.textContent = 'Confirmar cambios';
       modalOverlay.classList.remove('open');
@@ -1330,9 +1548,14 @@
     if (rejected.length) {
       html += '<div class="rejlist">' + rejected.map(function (r) {
         var pills = (r.tags || []).map(function (t) { return '<span class="rejpill">' + esc(t) + '</span>'; }).join('');
+        var notes = (videoNotes[r.item.id] || []).slice().sort(function (a, b) { return a.t - b.t; });
+        var notesHtml = notes.length ? '<div class="rejnotes">' + notes.map(function (n) {
+          return '<div class="rejnote"><span class="rejnote-ts">' + fmtVideoTime(n.t) + '</span>' + esc(n.text) + '</div>';
+        }).join('') + '</div>' : '';
         return '<div class="rejitem"><div class="t">' + esc(typeTag(r.item.type) || 'Feed') + '</div>'
           + (pills ? '<div class="rejtags">' + pills + '</div>' : '')
-          + '<div class="c">' + esc(r.comment) + '</div></div>';
+          + (r.comment ? '<div class="c">' + esc(r.comment) + '</div>' : '')
+          + notesHtml + '</div>';
       }).join('') + '</div>';
     }
     html += '<p style="font-size:12px;color:var(--ink-faint);margin-top:4px">Ya no hace falta que hagas nada más — el equipo recibió tu respuesta.</p>';

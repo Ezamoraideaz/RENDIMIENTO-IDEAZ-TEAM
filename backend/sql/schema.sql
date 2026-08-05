@@ -129,6 +129,7 @@ CREATE TABLE IF NOT EXISTS content_reviews (
     decision ENUM('approved','changes_requested') NOT NULL,
     comment TEXT NULL,
     reason_tags JSON NULL,        -- ["Cambiar el copy", "Ortografía", ...] — solo si decision = changes_requested
+    time_notes JSON NULL,         -- [{"t": 4, "text": "..."}, ...] — notas ancladas a un segundo del video
     reviewed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     reviewer_ip VARCHAR(45) NULL,
     KEY idx_content_reviews_item (content_item_id),

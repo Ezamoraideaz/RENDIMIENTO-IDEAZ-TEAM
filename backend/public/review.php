@@ -125,9 +125,25 @@ switch ($method) {
 
         $comment = isset($input['comment']) ? trim((string)$input['comment']) : null;
         $reasonTags = $input['reason_tags'] ?? [];
+
+        // Notas ancladas a un segundo del video (solo tiene sentido en piezas
+        // de video — igual se valida acá por si el cliente manda basura) —
+        // reemplazan al comentario general cuando el cliente prefirió señalar
+        // momentos puntuales en vez de escribir un texto único.
+        $timeNotes = [];
+        if (isset($input['time_notes']) && is_array($input['time_notes'])) {
+            foreach ($input['time_notes'] as $note) {
+                if (!is_array($note)) continue;
+                $t = $note['t'] ?? null;
+                $noteText = isset($note['text']) ? trim((string)$note['text']) : '';
+                if (!is_numeric($t) || $t < 0 || $noteText === '') continue;
+                $timeNotes[] = ['t' => (int)round((float)$t), 'text' => mb_substr($noteText, 0, 500)];
+            }
+        }
+
         if ($decision === 'changes_requested') {
-            if ($comment === null || $comment === '') {
-                json_error('Se requiere un comentario para pedir cambios', 400);
+            if (($comment === null || $comment === '') && !$timeNotes) {
+                json_error('Se requiere un comentario o al menos una nota en el video para pedir cambios', 400);
             }
             if (!is_array($reasonTags) || $reasonTags === []) {
                 json_error('Se requiere al menos una etiqueta de motivo', 400);
@@ -154,13 +170,14 @@ switch ($method) {
         $pdo->beginTransaction();
         try {
             $pdo->prepare('
-                INSERT INTO content_reviews (content_item_id, decision, comment, reason_tags, reviewer_ip)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO content_reviews (content_item_id, decision, comment, reason_tags, time_notes, reviewer_ip)
+                VALUES (?, ?, ?, ?, ?, ?)
             ')->execute([
                 $itemId,
                 $decision,
                 $comment,
                 $reasonTags ? json_encode($reasonTags) : null,
+                $timeNotes ? json_encode($timeNotes) : null,
                 $_SERVER['REMOTE_ADDR'] ?? null,
             ]);
             $pdo->prepare('UPDATE content_items SET status = ?, decided_at = NOW() WHERE id = ?')
@@ -171,7 +188,7 @@ switch ($method) {
             throw $e;
         }
 
-        trello_sync_decision($pdo, $item['trello_card_id'], $decision, $comment, $reasonTags);
+        trello_sync_decision($pdo, $item['trello_card_id'], $decision, $comment, $reasonTags, $timeNotes);
 
         if ($decision === 'approved') {
             $driveResult = drive_approval_sync($pdo, $itemId, (int)$batch['client_id']);

@@ -77,7 +77,7 @@ function trello_sync_request(string $method, string $path, array $creds, array $
 // comenta mencionando a los miembros ya asignados. No lanza excepciones — cualquier
 // falla (credenciales ausentes, tarjeta borrada, lista sin ese nombre, Trello caído)
 // se registra en error_log y se ignora, para no perder la decisión ya guardada.
-function trello_sync_decision(PDO $pdo, ?string $cardId, string $decision, ?string $comment, array $reasonTags = []): void
+function trello_sync_decision(PDO $pdo, ?string $cardId, string $decision, ?string $comment, array $reasonTags = [], array $timeNotes = []): void
 {
     if (!$cardId) {
         return;
@@ -119,7 +119,7 @@ function trello_sync_decision(PDO $pdo, ?string $cardId, string $decision, ?stri
             }
         }
 
-        $text = trello_sync_comment_text($decision, $comment, $reasonTags, $mentions);
+        $text = trello_sync_comment_text($decision, $comment, $reasonTags, $mentions, $timeNotes);
         trello_sync_request('POST', "/cards/{$cardId}/actions/comments", $creds, [], ['text' => $text]);
     } catch (Throwable $e) {
         error_log('[trello_sync] ' . $e->getMessage());
@@ -171,15 +171,39 @@ function trello_sync_mark_drive_uploaded(PDO $pdo, ?string $cardId, ?string $pos
     }
 }
 
-function trello_sync_comment_text(string $decision, ?string $comment, array $reasonTags, array $mentions): string
+function trello_sync_format_seconds(int $seconds): string
+{
+    $m = intdiv($seconds, 60);
+    $s = $seconds % 60;
+    return sprintf('%d:%02d', $m, $s);
+}
+
+// $timeNotes: [{"t": 4, "text": "..."}, ...] — notas que el cliente dejó
+// ancladas a un segundo puntual del video (portal de revisión), en vez de
+// (o además de) el comentario general.
+function trello_sync_time_notes_block(array $timeNotes): string
+{
+    if (!$timeNotes) {
+        return '';
+    }
+    usort($timeNotes, static fn($a, $b) => ($a['t'] ?? 0) <=> ($b['t'] ?? 0));
+    $lines = array_map(
+        static fn($n) => trello_sync_format_seconds((int)($n['t'] ?? 0)) . ' — ' . ($n['text'] ?? ''),
+        $timeNotes
+    );
+    return "\nNotas por momento del video:\n" . implode("\n", $lines);
+}
+
+function trello_sync_comment_text(string $decision, ?string $comment, array $reasonTags, array $mentions, array $timeNotes = []): string
 {
     $mentionLine = $mentions ? implode(' ', $mentions) . "\n\n" : '';
 
     if ($decision === 'approved') {
-        return $mentionLine . '✅ Aprobado por el cliente vía portal de revisión.';
+        $text = $mentionLine . '✅ Aprobado por el cliente vía portal de revisión.';
+        return $text . trello_sync_time_notes_block($timeNotes);
     }
 
     $tagsLine = $reasonTags ? implode(', ', $reasonTags) . "\n" : '';
     $commentLine = $comment ? '"' . $comment . '"' : '';
-    return $mentionLine . "🔁 El cliente solicitó cambios.\n" . $tagsLine . $commentLine;
+    return $mentionLine . "🔁 El cliente solicitó cambios.\n" . $tagsLine . $commentLine . trello_sync_time_notes_block($timeNotes);
 }
