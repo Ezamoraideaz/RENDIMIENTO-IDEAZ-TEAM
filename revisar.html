@@ -199,7 +199,7 @@
   .video-controls-wrap.notes-open .video-seek-track { height: 5px; background: rgba(255,255,255,.22); }
   .video-controls-wrap.notes-open .video-seek-fill { background: var(--accent); }
 
-  /* ---------- Notas ancladas a un momento del video (solo Reels) ---------- */
+  /* ---------- Notas ancladas a un momento del video (Reels e Historias en video) ---------- */
   /* Entre .media-actions (bottom:10, ~34px de alto) y .reel-actions-rail
      (arranca en bottom:92) hay un hueco libre en el borde derecho — ahí vive
      el botón, sin taparle el copy a .reel-bottom (que ocupa el lado izquierdo). */
@@ -1126,6 +1126,12 @@
       var storyCaption = item.caption
         ? '<div class="story-sticker"><span>' + esc(item.caption) + '</span></div>'
         : '';
+      // Historias en video reusan la barra de progreso + bandeja de notas de
+      // los Reels (ver mediaSlideEl) — ese control interactivo vive en la
+      // misma franja inferior que el "Enviar mensaje" decorativo, así que
+      // en video se omite el reply para no taparlo (igual que en Reels, que
+      // tampoco lo tienen).
+      var storyIsVideo = (item.media || []).some(isVideoMedia);
       html += '<div class="ig-media" style="flex:1" data-media>'
         + '  <div class="story-bar-track"><div class="story-bar-fill"></div></div>'
         + '  <div class="story-head">'
@@ -1134,7 +1140,7 @@
         + '  </div>'
         + storyCaption
         + '  <div class="story-vignette-bottom"></div>'
-        + '  <div class="story-reply"><div class="box">Enviar mensaje</div><div class="heart">♡</div></div>'
+        + (storyIsVideo ? '' : '  <div class="story-reply"><div class="box">Enviar mensaje</div><div class="heart">♡</div></div>')
         + '</div>';
       return html;
     }
@@ -1274,12 +1280,14 @@
       wrap.appendChild(video);
       wrap.appendChild(buildMediaActions(url, videoDownloadUrl));
 
-      if (itemType === 'reel') {
+      if (itemType === 'reel' || itemType === 'story') {
         // Wrapper sin position propio (los hijos siguen siendo position:absolute
         // contra "wrap") — solo existe para poder aplicarle una clase cuando la
         // bandeja de notas está abierta y así darle más contraste a la barra de
         // progreso, que en ese momento queda pegada al fondo de la bandeja en
-        // vez de dejar una franja de video suelta abajo.
+        // vez de dejar una franja de video suelta abajo. Historias en video
+        // usan la misma bandeja que los Reels (ver buildCardShell, que les
+        // quita el "Enviar mensaje" decorativo para dejarle el lugar).
         var controlsWrap = document.createElement('div');
         controlsWrap.className = 'video-controls-wrap';
         var seekBarEl = buildVideoSeekBar(video);
@@ -1969,11 +1977,12 @@
   }
 
   function openRejectModal(item, card) {
-    // En Reels con video, "pedir cambios" y "dejar notas en el timeline" son
-    // la misma acción — deslizar/tocar ✕ abre esa misma bandeja (con lo que
-    // ya haya cargado) en vez de un modal genérico aparte pidiendo de nuevo
-    // lo mismo. Para el resto de formatos (foto, historia, carrusel) sigue
-    // el modal de siempre, porque ahí no existe un timeline.
+    // En Reels e Historias con video, "pedir cambios" y "dejar notas en el
+    // timeline" son la misma acción — deslizar/tocar ✕ abre esa misma
+    // bandeja (con lo que ya haya cargado) en vez de un modal genérico
+    // aparte pidiendo de nuevo lo mismo. Para el resto de formatos (foto,
+    // historia sin video, carrusel) sigue el modal de siempre, porque ahí no
+    // existe un timeline.
     var tray = card && card.querySelector('.video-notes-tray');
     if (tray && tray.openForDecision) {
       tray.openForDecision();
