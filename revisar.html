@@ -408,23 +408,25 @@
   @media (prefers-reduced-motion: reduce) { .card.settled, .modal, .summary.show, .video-notes-tray { transition: none !important; animation: none !important; } }
 
   .splash {
-    position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center;
+    position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
     background: radial-gradient(85% 60% at 50% 8%, color-mix(in srgb, var(--accent) 38%, transparent), transparent 65%), linear-gradient(160deg, #120e1f, #0c1020 55%, #090b16);
-    padding: 24px; cursor: pointer; transition: opacity .45s ease; overflow: hidden;
+    padding: 24px 24px 9vh; cursor: pointer; transition: opacity .45s ease; overflow: hidden;
   }
   .splash.hide { opacity: 0; pointer-events: none; }
-  /* Fondo fijo compartido por todas las marcas (img/splash-bg.jpeg) — si el
-     archivo no existe aún, el onerror en el <img> lo oculta y queda el
-     degradé de arriba. El scrim oscuro garantiza que el texto blanco sea
-     legible sobre la imagen. */
+  /* Fondo fijo compartido por todas las marcas (img/splash-bg.jpeg): el logo
+     iMatch queda centrado sobre blanco, con un tercio de la imagen vacío
+     abajo — el texto de este bloque vive ahí (justify-content: flex-end),
+     sin scrim y con tinta oscura, porque en esa franja el fondo real es
+     blanco, no el degradé oscuro de respaldo de arriba (ese solo se ve si
+     splash-bg.jpeg llegara a faltar en el deploy; si el fondo cambia por uno
+     oscuro hay que volver a poner el texto claro). */
   .splash-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
-  .splash-scrim { position: absolute; inset: 0; z-index: 1; background: linear-gradient(180deg, rgba(6,7,16,.35), rgba(6,7,16,.6) 55%, rgba(6,7,16,.9)); }
   .splash-inner { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 14px; max-width: 300px; text-align: center; }
-  .splash-title { color: #fff; font-size: 21px; font-weight: 800; letter-spacing: -.01em; }
-  .splash-sub { color: rgba(231,233,245,.75); font-size: 13px; }
-  .splash-bar-track { width: 130px; height: 3px; border-radius: 999px; background: rgba(255,255,255,.2); overflow: hidden; margin-top: 8px; }
+  .splash-title { color: #1a1a1a; font-size: 21px; font-weight: 800; letter-spacing: -.01em; }
+  .splash-sub { color: #6b6b76; font-size: 13px; }
+  .splash-bar-track { width: 130px; height: 3px; border-radius: 999px; background: rgba(0,0,0,.12); overflow: hidden; margin-top: 8px; }
   .splash-bar-fill { height: 100%; width: 0%; background: var(--accent); border-radius: 999px; transition: width 1.3s cubic-bezier(.3,.6,.4,1); }
-  .splash-hint { color: rgba(231,233,245,.55); font-size: 11px; letter-spacing: .04em; }
+  .splash-hint { color: #8a8a94; font-size: 11px; letter-spacing: .04em; }
   @media (prefers-reduced-motion: reduce) { .splash { transition: none; } .splash-bar-fill { transition: none; } }
 
   .help-fab {
@@ -590,10 +592,9 @@
   <div class="splash" id="splash" role="button" tabindex="0" aria-label="Toca para comenzar la revisión">
     <!-- Fondo fijo, igual para todas las marcas (no es el logo del cliente,
          ese solo se usa para el avatar/identidad de marca en las tarjetas).
-         Reemplazar img/splash-bg.jpeg por el archivo real para activarlo — si
-         no existe todavía, el onerror lo oculta y queda el degradé. -->
+         Si img/splash-bg.jpeg llegara a faltar en el deploy, el onerror lo
+         oculta y queda el degradé oscuro de .splash como respaldo. -->
     <img class="splash-bg" id="splashBg" src="img/splash-bg.jpeg" alt="" onerror="this.style.display='none'">
-    <div class="splash-scrim"></div>
     <div class="splash-inner">
       <div class="splash-title">Revisión de contenido</div>
       <div class="splash-sub" id="splashSub">vista previa de Instagram</div>
