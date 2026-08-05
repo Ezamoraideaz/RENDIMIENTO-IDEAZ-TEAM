@@ -205,11 +205,15 @@
   .video-notes-toggle .n { font-variant-numeric: tabular-nums; }
 
   .video-notes-tray {
-    position: absolute; left: 0; right: 0; bottom: 22px; z-index: 7; max-height: 64%;
+    position: absolute; left: 0; right: 0; bottom: 22px; z-index: 7; max-height: 78%;
     background: color-mix(in srgb, var(--surface-2) 96%, transparent); backdrop-filter: blur(6px);
     border-top: 1px solid var(--line); border-radius: 16px 16px 0 0;
     padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
-    transform: translateY(105%); transition: transform .22s ease; touch-action: pan-y;
+    /* No alcanza con un % fijo: como además está anclada bottom:22px (para no
+       tapar la barra de progreso), tiene que bajar su propio alto MÁS esos
+       22px para salir completamente de la vista, sin importar cuántas notas
+       tenga cargadas (su alto es variable). */
+    transform: translateY(calc(100% + 30px)); transition: transform .22s ease; touch-action: pan-y;
     display: flex; flex-direction: column; overflow: hidden;
   }
   .video-notes-tray.is-open { transform: translateY(0); }
@@ -217,7 +221,12 @@
   .video-notes-tray-head h3 { margin: 0; font-size: 12.5px; font-weight: 800; color: var(--ink); }
   .video-notes-close { background: none; border: none; color: var(--ink-faint); font-size: 17px; line-height: 1; padding: 2px 4px; }
 
-  .video-notes-list { overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; margin: 0 0 8px; flex-shrink: 1; min-height: 0; }
+  /* Todo lo que puede crecer (lista de notas, comentario general, etiquetas)
+     scrollea acá adentro; la cabecera y la fila de Confirmar/Cancelar quedan
+     siempre a la vista arriba/abajo — es una sola bandeja para toda la
+     decisión, no un modal aparte. */
+  .video-notes-scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
+  .video-notes-list { margin: 0 0 8px; }
   .video-note-row { display: flex; gap: 9px; align-items: flex-start; padding: 7px 0; border-top: 1px solid var(--line); }
   .video-note-row:first-child { border-top: none; }
   .video-note-ts {
@@ -229,13 +238,12 @@
   .video-note-del { background: none; border: none; color: var(--ink-faint); font-size: 15px; line-height: 1; padding: 2px; flex-shrink: 0; touch-action: manipulation; }
 
   .video-note-add-btn {
-    flex-shrink: 0; width: 100%; border: 1px dashed color-mix(in srgb, var(--note) 55%, var(--line)); background: transparent;
+    width: 100%; border: 1px dashed color-mix(in srgb, var(--note) 55%, var(--line)); background: transparent;
     color: var(--note); border-radius: 10px; padding: 9px; font-size: 12px; font-weight: 700; font-family: inherit;
     touch-action: manipulation;
   }
   .video-note-add-btn .ts { font-variant-numeric: tabular-nums; }
-  .video-note-compose { flex-shrink: 0; }
-  .video-note-compose textarea {
+  .video-note-compose textarea, .video-note-general textarea {
     width: 100%; min-height: 56px; resize: none; background: var(--canvas-2); color: var(--ink);
     border: 1px solid var(--line); border-radius: 9px; padding: 8px 9px; font-size: 12.5px; line-height: 1.45;
     font-family: inherit;
@@ -244,6 +252,18 @@
   .video-note-btn { border: none; border-radius: 7px; padding: 6px 12px; font-size: 12px; font-weight: 700; font-family: inherit; touch-action: manipulation; }
   .video-note-btn.save { background: var(--note); color: var(--note-ink); }
   .video-note-btn.ghost { background: transparent; color: var(--ink-faint); }
+
+  .video-note-general { margin-top: 6px; }
+  .video-note-err { font-size: 11.5px; color: var(--reject); min-height: 15px; margin-top: 4px; }
+
+  .video-note-decide { display: flex; gap: 10px; margin-top: 10px; flex-shrink: 0; }
+  .video-note-decide button {
+    flex: 1; padding: 11px; border-radius: 12px; border: none; cursor: pointer;
+    font-weight: 700; font-size: 13.5px; font-family: inherit; touch-action: manipulation;
+  }
+  .video-note-decide button:disabled { opacity: .6; cursor: default; }
+  .video-note-decide .cancel { background: var(--surface-2); color: var(--ink-dim); }
+  .video-note-decide .confirm { background: var(--reject); color: #fff; }
 
   .story-bar-track { position: absolute; top: 9px; left: 10px; right: 10px; z-index: 5; height: 2.5px; background: rgba(255,255,255,.35); border-radius: 2px; overflow: hidden; }
   .story-bar-fill { height: 100%; width: 100%; background: #fff; border-radius: 2px; }
@@ -328,7 +348,6 @@
   @keyframes sheetUp { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
   .modal h2 { margin: 0 0 4px; font-size: 16.5px; font-weight: 800; }
   .modal p.sub { margin: 0 0 14px; font-size: 12.5px; color: var(--ink-dim); }
-  .modal p.sub#timeNotesHint { color: var(--note); font-weight: 700; }
   .modal textarea {
     width: 100%; min-height: 90px; resize: vertical; background: var(--surface-2); border: 1px solid var(--line);
     border-radius: 12px; color: var(--ink); font: inherit; font-size: 13.5px; padding: 12px;
@@ -519,7 +538,6 @@
   <div class="modal">
     <h2>¿Qué hay que cambiar?</h2>
     <p class="sub">Este comentario se envía directo al equipo, con la pieza adjunta.</p>
-    <p class="sub" id="timeNotesHint" style="display:none;"></p>
     <textarea id="commentInput" placeholder="Ej: el texto tapa el logo, ¿podemos subirlo un poco?"></textarea>
     <div class="err" id="commentErr"></div>
 
@@ -668,6 +686,10 @@
   }
 
   // SVGs inline (sin librería externa) calcados de los íconos reales de
+  // Mismas 7 opciones que #tagGrid (el modal genérico de foto/carrusel) —
+  // la bandeja de notas del video las arma dinámicamente con esta lista.
+  var REASON_TAGS = ['Cambiar el copy', 'Cambiar la foto/video', 'Corregir logo', 'Ortografía', 'Precio/fecha', 'Hashtags', 'Otro'];
+
   // Instagram, en vez de los glifos de texto (♡ 💬 ➤ ▭) que no se parecían.
   // "1em" para que hereden el tamaño de fuente del span que los envuelve.
   var ICONS = {
@@ -925,7 +947,7 @@
   // onReady(w, h): opcional, avisa el tamaño natural del archivo apenas se
   // conoce, para que la tarjeta (feed/carrusel) ajuste su proporción a 1:1 o
   // 4:5 en vez de quedar forzada al 9:16 de reels/historias.
-  function mediaSlideEl(m, itemId, itemType, onReady, isFront, isNext) {
+  function mediaSlideEl(m, itemId, itemType, onReady, isFront, isNext, item, card) {
     var wrap = document.createElement('div');
     wrap.style.position = 'absolute'; wrap.style.inset = '0';
     var url = m.url;
@@ -973,7 +995,7 @@
       if (itemType === 'reel') {
         var seekBarEl = buildVideoSeekBar(video);
         wrap.appendChild(seekBarEl);
-        wrap.appendChild(buildVideoNotesUI(video, itemId, seekBarEl.querySelector('.video-seek-track')));
+        wrap.appendChild(buildVideoNotesUI(video, item, seekBarEl.querySelector('.video-seek-track'), card));
       }
       return wrap;
     }
@@ -1082,7 +1104,8 @@
   // cliente puede seguir arrastrándola para moverse por el video exactamente
   // igual que el controlador nativo, y "Agregar nota" toma ese mismo
   // video.currentTime como el segundo exacto de la nota.
-  function buildVideoNotesUI(video, itemId, seekTrackEl) {
+  function buildVideoNotesUI(video, item, seekTrackEl, card) {
+    var itemId = item.id;
     if (!videoNotes[itemId]) videoNotes[itemId] = [];
 
     var toggle = document.createElement('button');
@@ -1090,18 +1113,41 @@
     toggle.className = 'video-notes-toggle';
     toggle.innerHTML = ICONS.comment + '<span class="n">0</span>';
 
+    // Una sola bandeja para toda la decisión de "hay que cambiar algo": notas
+    // ancladas al video (lo principal), un comentario general opcional para
+    // lo que no es de un segundo puntual, las etiquetas de siempre y el
+    // confirmar/cancelar — ya no hay un modal aparte pidiendo lo mismo de
+    // nuevo. Se abre tocando "Notas" mientras mira el video, o directo al
+    // deslizar/tocar ✕ (ver openRejectModal).
     var tray = document.createElement('div');
     tray.className = 'video-notes-tray';
     tray.innerHTML =
       '<div class="video-notes-tray-head"><h3>Notas del video</h3><button type="button" class="video-notes-close">×</button></div>' +
-      '<div class="video-notes-list"></div>' +
-      '<button type="button" class="video-note-add-btn">+ Agregar nota en <span class="ts">0:00</span></button>' +
-      '<div class="video-note-compose" style="display:none;">' +
-      '  <textarea placeholder="¿Qué hay que corregir en ese momento?" maxlength="500"></textarea>' +
-      '  <div class="video-note-compose-actions">' +
-      '    <button type="button" class="video-note-btn ghost" data-act="cancel">Cancelar</button>' +
-      '    <button type="button" class="video-note-btn save" data-act="save">Guardar nota</button>' +
+      '<div class="video-notes-scroll">' +
+      '  <div class="video-notes-list"></div>' +
+      '  <button type="button" class="video-note-add-btn">+ Agregar nota en <span class="ts">0:00</span></button>' +
+      '  <div class="video-note-compose" style="display:none;">' +
+      '    <textarea placeholder="¿Qué hay que corregir en ese momento?" maxlength="500"></textarea>' +
+      '    <div class="video-note-compose-actions">' +
+      '      <button type="button" class="video-note-btn ghost" data-act="cancel">Cancelar</button>' +
+      '      <button type="button" class="video-note-btn save" data-act="save">Guardar nota</button>' +
+      '    </div>' +
       '  </div>' +
+      '  <div class="video-note-general">' +
+      '    <div class="tag-label" style="margin:14px 0 6px;">Algo más en general (opcional)</div>' +
+      '    <textarea placeholder="Ej: el tono en general no me convence" maxlength="1000"></textarea>' +
+      '  </div>' +
+      '  <div class="video-note-err" data-err="general"></div>' +
+      '  <div class="tag-label">¿Qué hay que corregir? (elegí una o más)</div>' +
+      '  <div class="tag-grid video-note-tags">' + REASON_TAGS.map(function (t) {
+             return '<button type="button" class="tag-chip" data-tag="' + esc(t) + '">' + esc(t) + '</button>';
+           }).join('') +
+      '  </div>' +
+      '  <div class="video-note-err" data-err="tags"></div>' +
+      '</div>' +
+      '<div class="video-note-decide">' +
+      '  <button type="button" class="cancel" data-act="cancel-decision">Cancelar</button>' +
+      '  <button type="button" class="confirm" data-act="confirm-decision">Confirmar cambios</button>' +
       '</div>';
 
     var listEl = tray.querySelector('.video-notes-list');
@@ -1109,6 +1155,12 @@
     var addBtnTs = addBtn.querySelector('.ts');
     var composeEl = tray.querySelector('.video-note-compose');
     var composeTextarea = composeEl.querySelector('textarea');
+    var generalTextarea = tray.querySelector('.video-note-general textarea');
+    var tagsGridEl = tray.querySelector('.video-note-tags');
+    var generalErrEl = tray.querySelector('[data-err="general"]');
+    var tagsErrEl = tray.querySelector('[data-err="tags"]');
+    var decideConfirmBtn = tray.querySelector('[data-act="confirm-decision"]');
+    var decideCancelBtn = tray.querySelector('[data-act="cancel-decision"]');
     var capturedT = 0;
 
     function renderTicks() {
@@ -1155,18 +1207,22 @@
     video.addEventListener('timeupdate', updateAddBtnLabel);
     updateAddBtnLabel();
 
+    function closeTray() {
+      tray.classList.remove('is-open');
+      closeCompose(false);
+    }
+
     toggle.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
     toggle.addEventListener('click', function (e) {
       e.stopPropagation();
-      tray.classList.toggle('is-open');
-      if (!tray.classList.contains('is-open')) closeCompose(false);
+      if (tray.classList.contains('is-open')) closeTray();
+      else tray.classList.add('is-open');
     });
 
     tray.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
     tray.querySelector('.video-notes-close').addEventListener('click', function (e) {
       e.stopPropagation();
-      tray.classList.remove('is-open');
-      closeCompose(false);
+      closeTray();
     });
     addBtn.addEventListener('click', function (e) { e.stopPropagation(); openCompose(); });
     composeEl.addEventListener('click', function (e) {
@@ -1194,7 +1250,58 @@
       if (tsBtn) { video.currentTime = Number(tsBtn.dataset.t); }
     });
 
+    tagsGridEl.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var chip = e.target.closest('.tag-chip');
+      if (!chip) return;
+      chip.classList.toggle('selected');
+      if (tagsGridEl.querySelector('.tag-chip.selected')) tagsErrEl.textContent = '';
+    });
+
+    decideCancelBtn.addEventListener('click', function (e) { e.stopPropagation(); closeTray(); });
+    decideConfirmBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (decideConfirmBtn.disabled) return;
+
+      var generalText = generalTextarea.value.trim();
+      var chosenTags = Array.prototype.map.call(tagsGridEl.querySelectorAll('.tag-chip.selected'), function (c) { return c.dataset.tag; });
+      var valid = true;
+      generalErrEl.textContent = '';
+      tagsErrEl.textContent = '';
+      if (!generalText && !videoNotes[itemId].length) {
+        generalErrEl.textContent = 'Dejá una nota anclada al video o un comentario general antes de confirmar.';
+        valid = false;
+      }
+      if (!chosenTags.length) { tagsErrEl.textContent = 'Elegí al menos una etiqueta.'; valid = false; }
+      if (!valid) return;
+
+      decideConfirmBtn.disabled = true; decideCancelBtn.disabled = true;
+      decideConfirmBtn.textContent = 'Enviando…';
+
+      submitDecision(item, 'changes_requested', generalText, chosenTags, videoNotes[itemId]).then(function () {
+        tray.classList.remove('is-open');
+        decided.push({ item: item, decision: 'changes_requested', comment: generalText, tags: chosenTags });
+        if (card) flyOut(card, 'reject');
+        setTimeout(advance, card ? 260 : 0);
+      }).catch(function (err) {
+        decideConfirmBtn.disabled = false; decideCancelBtn.disabled = false;
+        decideConfirmBtn.textContent = 'Confirmar cambios';
+        generalErrEl.textContent = err.message || 'No se pudo enviar. Intenta de nuevo.';
+      });
+    });
+
     renderList();
+
+    // Punto de entrada único al deslizar/tocar ✕ sobre este item (ver
+    // openRejectModal): abre esta misma bandeja en vez de un modal aparte —
+    // es la misma acción de "hay que cambiar algo", solo que el cliente
+    // puede llegar a ella mientras mira el video o al decidir.
+    tray.openForDecision = function () {
+      tray.classList.add('is-open');
+      if (!videoNotes[itemId].length && !generalTextarea.value.trim()) {
+        setTimeout(function () { generalTextarea.focus(); }, 200);
+      }
+    };
 
     var frag = document.createDocumentFragment();
     frag.appendChild(toggle);
@@ -1266,7 +1373,7 @@
       return;
     }
 
-    media.appendChild(mediaSlideEl(mediaList[0], item.id, item.type, onAspectReady, isFront, isNext));
+    media.appendChild(mediaSlideEl(mediaList[0], item.id, item.type, onAspectReady, isFront, isNext, item, card));
   }
 
   // Instagram solo acepta 1:1 (cuadrado) o 4:5 (vertical) en feed/carrusel —
@@ -1484,34 +1591,34 @@
   }
 
   function openRejectModal(item, card) {
+    // En Reels con video, "pedir cambios" y "dejar notas en el timeline" son
+    // la misma acción — deslizar/tocar ✕ abre esa misma bandeja (con lo que
+    // ya haya cargado) en vez de un modal genérico aparte pidiendo de nuevo
+    // lo mismo. Para el resto de formatos (foto, historia, carrusel) sigue
+    // el modal de siempre, porque ahí no existe un timeline.
+    var tray = card && card.querySelector('.video-notes-tray');
+    if (tray && tray.openForDecision) {
+      tray.openForDecision();
+      return;
+    }
+
     pendingRejectItem = { item: item, card: card };
     commentInput.value = '';
     commentErr.textContent = '';
     tagErr.textContent = '';
     selectedTags = [];
     tagGrid.querySelectorAll('.tag-chip').forEach(function (c) { c.classList.remove('selected'); });
-
-    var notesCount = (videoNotes[item.id] || []).length;
-    var timeNotesHint = document.getElementById('timeNotesHint');
-    if (notesCount) {
-      timeNotesHint.textContent = '📍 Se van a mandar también tus ' + notesCount + (notesCount === 1 ? ' nota anclada' : ' notas ancladas') + ' al video.';
-      timeNotesHint.style.display = '';
-    } else {
-      timeNotesHint.style.display = 'none';
-    }
-
     modalOverlay.classList.add('open');
     setTimeout(function () { commentInput.focus(); }, 30);
   }
 
   function onConfirmReject() {
     var target = pendingRejectItem;
-    var hasTimeNotes = !!(target && (videoNotes[target.item.id] || []).length);
     var text = commentInput.value.trim();
     var valid = true;
-    if (!text && !hasTimeNotes) { commentErr.textContent = 'Contanos qué hay que cambiar (o dejá una nota anclada al video) antes de confirmar.'; valid = false; }
+    if (!text) { commentErr.textContent = 'Contanos qué hay que cambiar antes de confirmar.'; valid = false; }
     if (!selectedTags.length) { tagErr.textContent = 'Elegí al menos una etiqueta.'; valid = false; }
-    if (!valid) { if (!text && !hasTimeNotes) commentInput.focus(); return; }
+    if (!valid) { if (!text) commentInput.focus(); return; }
 
     if (!target) return;
     var tags = selectedTags.slice();
