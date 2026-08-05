@@ -132,8 +132,33 @@ CREATE TABLE IF NOT EXISTS content_reviews (
     time_notes JSON NULL,         -- [{"t": 4, "text": "..."}, ...] — notas ancladas a un segundo del video
     reviewed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     reviewer_ip VARCHAR(45) NULL,
+    reviewer_name VARCHAR(190) NULL,      -- autodeclarado una sola vez por dispositivo en revisar.html (sin login)
+    reviewer_role VARCHAR(190) NULL,      -- opcional
+    reviewer_device_id VARCHAR(64) NULL,  -- persistido en localStorage del cliente, correlaciona con content_review_activity
+    user_agent VARCHAR(400) NULL,
     KEY idx_content_reviews_item (content_item_id),
     CONSTRAINT fk_content_reviews_item FOREIGN KEY (content_item_id) REFERENCES content_items(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Bitácora de actividad del portal de revisión (revisar.html) — material
+-- probatorio de quién accedió y qué hizo, independiente de content_reviews
+-- (que solo registra decisiones finales). Append-only, nunca se edita ni se
+-- borra salvo por CASCADE al borrar la tanda completa.
+CREATE TABLE IF NOT EXISTS content_review_activity (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    batch_id INT UNSIGNED NOT NULL,
+    content_item_id INT UNSIGNED NULL,
+    event_type ENUM('opened','identified','decision') NOT NULL,
+    reviewer_name VARCHAR(190) NULL,
+    reviewer_role VARCHAR(190) NULL,
+    reviewer_device_id VARCHAR(64) NULL,
+    ip VARCHAR(45) NULL,
+    user_agent VARCHAR(400) NULL,
+    metadata JSON NULL,           -- ej. { "decision": "changes_requested", "comment_excerpt": "..." }
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_content_review_activity_batch (batch_id, created_at),
+    CONSTRAINT fk_content_review_activity_batch FOREIGN KEY (batch_id) REFERENCES content_batches(id) ON DELETE CASCADE,
+    CONSTRAINT fk_content_review_activity_item FOREIGN KEY (content_item_id) REFERENCES content_items(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS social_accounts (

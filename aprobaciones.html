@@ -116,6 +116,15 @@
     </div>
     <div id="ap-items-list" class="space-y-2 mb-5"></div>
 
+    <!-- Actividad: bitácora de quién abrió el link y qué decidió (material probatorio) -->
+    <details class="bg-slate-800/40 border border-slate-700 rounded-lg mb-5" id="ap-activity-details">
+      <summary class="px-4 py-3 text-sm font-semibold text-slate-300 cursor-pointer select-none flex items-center justify-between">
+        <span>🕓 Actividad</span>
+        <span id="ap-activity-count" class="text-xs font-normal text-slate-500"></span>
+      </summary>
+      <div id="ap-activity-list" class="p-4 pt-0 space-y-2 max-h-72 overflow-y-auto"></div>
+    </details>
+
     <!-- Agregar pieza -->
     <details class="bg-slate-800/40 border border-slate-700 rounded-lg" id="ap-add-item-details">
       <summary class="px-4 py-3 text-sm font-semibold text-slate-300 cursor-pointer select-none">+ Agregar pieza</summary>

@@ -185,12 +185,19 @@
     position: absolute; left: 0; right: 0; bottom: 0; height: 22px; z-index: 8;
     display: flex; align-items: center; padding: 0 10px; touch-action: none; cursor: pointer;
   }
-  .video-seek-track { position: relative; flex: 1; height: 3px; border-radius: 999px; background: rgba(255,255,255,.32); }
-  .video-seek-fill { position: absolute; inset: 0; width: 0%; background: #fff; border-radius: 999px; pointer-events: none; }
+  .video-seek-track { position: relative; flex: 1; height: 3px; border-radius: 999px; background: rgba(255,255,255,.32); transition: height .15s ease, background .15s ease; }
+  .video-seek-fill { position: absolute; inset: 0; width: 0%; background: #fff; border-radius: 999px; pointer-events: none; transition: background .15s ease; }
   .video-seek-tick {
     position: absolute; top: 50%; width: 3px; height: 11px; transform: translate(-50%, -50%);
     background: var(--note); border-radius: 1px; pointer-events: none; box-shadow: 0 0 0 1px rgba(0,0,0,.35);
   }
+  /* Con la bandeja de notas abierta, la barra queda pegada al fondo de la
+     bandeja (ver .video-notes-tray, bottom:0) en vez de sobre el video puro
+     — el blanco sutil de siempre se pierde contra el panel oscuro, así que
+     ahí se resalta con el acento y una pista más gruesa, para que el
+     cliente la siga viendo clarísima y pueda arrastrarla sin buscarla. */
+  .video-controls-wrap.notes-open .video-seek-track { height: 5px; background: rgba(255,255,255,.22); }
+  .video-controls-wrap.notes-open .video-seek-fill { background: var(--accent); }
 
   /* ---------- Notas ancladas a un momento del video (solo Reels) ---------- */
   /* Entre .media-actions (bottom:10, ~34px de alto) y .reel-actions-rail
@@ -205,19 +212,21 @@
   .video-notes-toggle .n { font-variant-numeric: tabular-nums; }
 
   .video-notes-tray {
-    position: absolute; left: 0; right: 0; bottom: 22px; z-index: 7;
+    /* bottom:0 (no 22px) a propósito: la barra de progreso (.video-seek,
+       z-index:8, por encima de este z-index:7) queda flotando EN FRENTE del
+       propio panel de la bandeja en vez de sobre una franja de video suelta
+       debajo — se ve como una sola pieza, sin el hueco de antes. El padding
+       de abajo deja los botones de Confirmar/Cancelar por encima de esos
+       22px para que la barra no los tape. */
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 7;
     /* Paso 1 (notas) va compacto para dejar ver el video de fondo; el paso 2
        (comentario + etiquetas + confirmar) ya no necesita el video visible,
        así que puede crecer más. */
     max-height: 48%;
     background: color-mix(in srgb, var(--surface-2) 96%, transparent); backdrop-filter: blur(6px);
     border-top: 1px solid var(--line); border-radius: 16px 16px 0 0;
-    padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
-    /* No alcanza con un % fijo: como además está anclada bottom:22px (para no
-       tapar la barra de progreso), tiene que bajar su propio alto MÁS esos
-       22px para salir completamente de la vista, sin importar cuántas notas
-       tenga cargadas (su alto es variable). */
-    transform: translateY(calc(100% + 30px)); transition: transform .22s ease, max-height .18s ease; touch-action: pan-y;
+    padding: 12px 14px calc(30px + env(safe-area-inset-bottom));
+    transform: translateY(calc(100% + 8px)); transition: transform .22s ease, max-height .18s ease; touch-action: pan-y;
     display: flex; flex-direction: column; overflow: hidden;
   }
   .video-notes-tray.is-open { transform: translateY(0); }
@@ -417,6 +426,45 @@
   }
   .help-fab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+  /* ---------- Identificación sin login (nombre + cargo, una vez por dispositivo) ---------- */
+  .identify-overlay {
+    position: fixed; inset: 0; z-index: 110; display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(85% 60% at 50% 8%, color-mix(in srgb, var(--accent) 30%, transparent), transparent 65%), var(--canvas);
+    padding: 24px;
+  }
+  .identify-card {
+    width: 100%; max-width: 340px; background: var(--surface); border: 1px solid var(--line); border-radius: 20px;
+    padding: 24px 22px; box-shadow: 0 20px 45px -12px var(--shadow);
+  }
+  .identify-title { font-size: 18px; font-weight: 800; color: var(--ink); margin-bottom: 4px; }
+  .identify-sub { font-size: 12.5px; color: var(--ink-dim); margin: 0 0 18px; line-height: 1.5; }
+  .identify-label {
+    display: block; font-size: 11px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
+    color: var(--ink-dim); margin: 0 0 6px;
+  }
+  .identify-overlay input {
+    width: 100%; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; color: var(--ink);
+    font: inherit; font-size: 14px; padding: 12px 13px; margin-bottom: 14px;
+  }
+  .identify-overlay input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .identify-err { font-size: 11.5px; color: var(--reject); min-height: 15px; margin: -6px 0 8px; }
+  .identify-btn {
+    width: 100%; padding: 13px; border-radius: 12px; border: none; background: var(--accent); color: var(--accent-ink);
+    font-weight: 700; font-size: 14px; font-family: inherit; cursor: pointer;
+  }
+  .identify-btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+  .reviewer-strip {
+    display: flex; align-items: center; gap: 5px; font-size: 10.5px; color: var(--ink-faint);
+    padding: 2px 2px 7px;
+  }
+  .reviewer-strip b { color: var(--ink-dim); font-weight: 700; }
+  .reviewer-strip button {
+    background: none; border: none; color: var(--accent); font-size: 10.5px; font-weight: 700;
+    font-family: inherit; padding: 0; cursor: pointer;
+  }
+  .reviewer-strip button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
   .tour-overlay { position: fixed; inset: 0; z-index: 90; background: rgba(6,7,16,.72); backdrop-filter: blur(3px); display: none; align-items: flex-end; justify-content: center; }
   .tour-overlay.open { display: flex; }
   @media (min-width: 480px) { .tour-overlay { align-items: center; } }
@@ -500,6 +548,21 @@
   <p id="stateErrorMsg">Este link de revisión no existe o ya no está disponible.</p>
 </div>
 
+<div id="identifyOverlay" class="identify-overlay" style="display:none">
+  <div class="identify-card">
+    <div class="identify-title">¿Quién va a revisar?</div>
+    <p class="identify-sub">Se guarda en este dispositivo — no te lo vamos a volver a preguntar.</p>
+    <form id="identifyForm">
+      <label class="identify-label" for="identifyName">Tu nombre</label>
+      <input id="identifyName" type="text" autocomplete="name" placeholder="Ej: María Gómez" maxlength="190" required>
+      <label class="identify-label" for="identifyRole">Cargo (opcional)</label>
+      <input id="identifyRole" type="text" autocomplete="organization-title" placeholder="Ej: Gerente de Mercadeo" maxlength="190">
+      <div class="identify-err" id="identifyErr"></div>
+      <button type="submit" class="identify-btn">Continuar</button>
+    </form>
+  </div>
+</div>
+
 <div id="app" style="display:none">
   <div class="splash" id="splash" role="button" tabindex="0" aria-label="Toca para comenzar la revisión">
     <!-- Fondo fijo, igual para todas las marcas (no es el logo del cliente,
@@ -525,6 +588,10 @@
       </div>
       <div class="counter" id="counter">1 / 1</div>
       <button class="help-fab" id="helpFab" type="button" aria-label="Ver la ayuda otra vez">?</button>
+    </div>
+    <div class="reviewer-strip" id="reviewerStrip" style="display:none">
+      Revisando como <b id="reviewerStripName"></b>
+      <button type="button" id="reviewerStripChange">cambiar</button>
     </div>
     <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
 
@@ -642,6 +709,35 @@
   var STREAM_API = 'backend/public/stream_media.php';
   var TOKEN = new URLSearchParams(location.search).get('t') || '';
 
+  // Identificación sin login (nombre obligatorio, cargo opcional) declarada
+  // una sola vez por dispositivo — no es prueba criptográfica, pero sumada a
+  // IP + user-agent + hora en content_review_activity (ver review.php) es
+  // suficiente rastro para sostener un reclamo contractual de "quién aprobó
+  // esto". DEVICE_ID persiste aunque cambie el nombre (por si el dispositivo
+  // se comparte entre 2-3 personas del cliente).
+  var REVIEWER_KEY = 'ideaz_reviewer_identity_v1';
+  var DEVICE_KEY = 'ideaz_reviewer_device_id';
+  function getDeviceId() {
+    var id = null;
+    try { id = localStorage.getItem(DEVICE_KEY); } catch (e) {}
+    if (!id) {
+      id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+        : (Date.now().toString(36) + Math.random().toString(36).slice(2));
+      try { localStorage.setItem(DEVICE_KEY, id); } catch (e) {}
+    }
+    return id;
+  }
+  function getReviewerIdentity() {
+    try { return JSON.parse(localStorage.getItem(REVIEWER_KEY) || 'null'); } catch (e) { return null; }
+  }
+  function setReviewerIdentity(name, role) {
+    var identity = { name: name, role: role || '' };
+    try { localStorage.setItem(REVIEWER_KEY, JSON.stringify(identity)); } catch (e) {}
+    return identity;
+  }
+  var DEVICE_ID = getDeviceId();
+  var REVIEWER = getReviewerIdentity();
+
   var ITEMS = [];
   var CLIENT = null;
   var idx = 0;
@@ -739,7 +835,11 @@
   // ── Carga de datos ───────────────────────────────────────────────────────
   function loadBatch() {
     if (!TOKEN) { showError('🔗', 'Falta el link', 'Este link no tiene el código de revisión. Pídele al equipo que te lo reenvíe.'); return; }
-    fetch(API + '?t=' + encodeURIComponent(TOKEN))
+    var qs = '?t=' + encodeURIComponent(TOKEN) + '&device_id=' + encodeURIComponent(DEVICE_ID);
+    if (REVIEWER) {
+      qs += '&reviewer_name=' + encodeURIComponent(REVIEWER.name) + '&reviewer_role=' + encodeURIComponent(REVIEWER.role || '');
+    }
+    fetch(API + qs)
       .then(function (res) { return res.json(); })
       .then(function (data) {
         if (data.status === 'invalid') { showError('🔒', 'Link no válido', 'Este link de revisión no existe. Pídele al equipo uno nuevo.'); return; }
@@ -752,11 +852,55 @@
 
         if (!ITEMS.length) { showError('📭', 'Nada pendiente', 'No hay piezas esperando tu revisión en este momento.'); return; }
 
-        bootApp();
+        // El link ya se validó — recién acá vale la pena pedir identidad (no
+        // tiene sentido pedírsela a alguien con un link vencido/inválido).
+        if (REVIEWER) bootApp();
+        else showIdentifyGate(bootApp);
       })
       .catch(function () {
         showError('⚠️', 'No pudimos conectar', 'Revisa tu conexión e intenta de nuevo.');
       });
+  }
+
+  // Ping best-effort — solo deja constancia en la bitácora, no bloquea nada
+  // si falla (la identidad ya quedó guardada en localStorage igual).
+  function pingIdentify() {
+    fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        t: TOKEN, event: 'identified', device_id: DEVICE_ID,
+        reviewer_name: REVIEWER.name, reviewer_role: REVIEWER.role || '',
+      }),
+    }).catch(function () {});
+  }
+
+  // Bloquea con nombre (obligatorio) + cargo (opcional) declarado una sola
+  // vez por dispositivo — se reusa también desde el "cambiar" del topbar.
+  function showIdentifyGate(onDone) {
+    document.getElementById('stateLoading').style.display = 'none';
+    var overlay = document.getElementById('identifyOverlay');
+    var form = document.getElementById('identifyForm');
+    var nameInput = document.getElementById('identifyName');
+    var roleInput = document.getElementById('identifyRole');
+    var err = document.getElementById('identifyErr');
+    nameInput.value = (REVIEWER && REVIEWER.name) || '';
+    roleInput.value = (REVIEWER && REVIEWER.role) || '';
+    err.textContent = '';
+    overlay.style.display = 'flex';
+    setTimeout(function () { nameInput.focus(); }, 200);
+
+    function onSubmit(e) {
+      e.preventDefault();
+      var name = nameInput.value.trim();
+      if (!name) { err.textContent = 'Contanos tu nombre para continuar.'; nameInput.focus(); return; }
+      form.removeEventListener('submit', onSubmit);
+      REVIEWER = setReviewerIdentity(name, roleInput.value.trim());
+      overlay.style.display = 'none';
+      pingIdentify();
+      onDone();
+    }
+    form.addEventListener('submit', onSubmit);
   }
 
   // ── App (splash + deck + tour) ───────────────────────────────────────────
@@ -794,6 +938,18 @@
     }
 
     window._revisarHandle = handle;
+
+    var reviewerStrip = document.getElementById('reviewerStrip');
+    var reviewerStripName = document.getElementById('reviewerStripName');
+    function updateReviewerStrip() {
+      if (!REVIEWER) { reviewerStrip.style.display = 'none'; return; }
+      reviewerStripName.textContent = REVIEWER.name + (REVIEWER.role ? ' · ' + REVIEWER.role : '');
+      reviewerStrip.style.display = 'flex';
+    }
+    updateReviewerStrip();
+    document.getElementById('reviewerStripChange').addEventListener('click', function () {
+      showIdentifyGate(updateReviewerStrip);
+    });
 
     tagGrid.addEventListener('click', function (e) {
       var chip = e.target.closest('.tag-chip');
@@ -1001,9 +1157,17 @@
       wrap.appendChild(buildMediaActions(url, videoDownloadUrl));
 
       if (itemType === 'reel') {
+        // Wrapper sin position propio (los hijos siguen siendo position:absolute
+        // contra "wrap") — solo existe para poder aplicarle una clase cuando la
+        // bandeja de notas está abierta y así darle más contraste a la barra de
+        // progreso, que en ese momento queda pegada al fondo de la bandeja en
+        // vez de dejar una franja de video suelta abajo.
+        var controlsWrap = document.createElement('div');
+        controlsWrap.className = 'video-controls-wrap';
         var seekBarEl = buildVideoSeekBar(video);
-        wrap.appendChild(seekBarEl);
-        wrap.appendChild(buildVideoNotesUI(video, item, seekBarEl.querySelector('.video-seek-track'), card));
+        controlsWrap.appendChild(seekBarEl);
+        controlsWrap.appendChild(buildVideoNotesUI(video, item, seekBarEl.querySelector('.video-seek-track'), card, controlsWrap));
+        wrap.appendChild(controlsWrap);
       }
       return wrap;
     }
@@ -1112,7 +1276,7 @@
   // cliente puede seguir arrastrándola para moverse por el video exactamente
   // igual que el controlador nativo, y "Agregar nota" toma ese mismo
   // video.currentTime como el segundo exacto de la nota.
-  function buildVideoNotesUI(video, item, seekTrackEl, card) {
+  function buildVideoNotesUI(video, item, seekTrackEl, card, controlsWrap) {
     var itemId = item.id;
     if (!videoNotes[itemId]) videoNotes[itemId] = [];
 
@@ -1244,8 +1408,13 @@
     video.addEventListener('timeupdate', updateAddBtnLabel);
     updateAddBtnLabel();
 
+    function openTray() {
+      tray.classList.add('is-open');
+      controlsWrap.classList.add('notes-open');
+    }
     function closeTray() {
       tray.classList.remove('is-open');
+      controlsWrap.classList.remove('notes-open');
       closeCompose(false);
     }
 
@@ -1254,7 +1423,7 @@
       e.stopPropagation();
       if (tray.classList.contains('is-open')) { closeTray(); return; }
       showStep(1);
-      tray.classList.add('is-open');
+      openTray();
     });
 
     tray.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
@@ -1320,7 +1489,7 @@
       decideConfirmBtn.textContent = 'Enviando…';
 
       submitDecision(item, 'changes_requested', generalText, chosenTags, videoNotes[itemId]).then(function () {
-        tray.classList.remove('is-open');
+        closeTray();
         decided.push({ item: item, decision: 'changes_requested', comment: generalText, tags: chosenTags });
         if (card) flyOut(card, 'reject');
         setTimeout(advance, card ? 260 : 0);
@@ -1339,7 +1508,7 @@
     // puede llegar a ella mientras mira el video o al decidir.
     tray.openForDecision = function () {
       showStep(1);
-      tray.classList.add('is-open');
+      openTray();
     };
 
     var frag = document.createDocumentFragment();
@@ -1600,6 +1769,9 @@
         t: TOKEN, item_id: item.id, decision: decision,
         comment: comment || undefined, reason_tags: tags || undefined,
         time_notes: notesPayload.length ? notesPayload : undefined,
+        device_id: DEVICE_ID,
+        reviewer_name: REVIEWER && REVIEWER.name,
+        reviewer_role: REVIEWER && REVIEWER.role,
       }),
     }).then(function (res) {
       return res.json().catch(function () { return {}; }).then(function (data) {

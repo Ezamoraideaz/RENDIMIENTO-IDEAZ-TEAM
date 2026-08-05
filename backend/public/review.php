@@ -19,6 +19,41 @@ const CONTENT_REVIEW_REASON_TAGS = [
     'Otro',
 ];
 
+// Bitácora de actividad (content_review_activity) — material probatorio de
+// quién accedió al portal y qué hizo, aparte de content_reviews (que solo
+// guarda decisiones finales). "Mejor esfuerzo": si falla, se registra en
+// error_log y se ignora, nunca debe tirar abajo la request del cliente.
+function content_review_log_activity(
+    PDO $pdo,
+    int $batchId,
+    ?int $itemId,
+    string $eventType,
+    ?string $reviewerName,
+    ?string $reviewerRole,
+    ?string $deviceId,
+    ?array $metadata = null
+): void {
+    try {
+        $pdo->prepare('
+            INSERT INTO content_review_activity
+                (batch_id, content_item_id, event_type, reviewer_name, reviewer_role, reviewer_device_id, ip, user_agent, metadata)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ')->execute([
+            $batchId,
+            $itemId,
+            $eventType,
+            $reviewerName !== '' ? $reviewerName : null,
+            $reviewerRole !== '' ? $reviewerRole : null,
+            $deviceId !== '' ? $deviceId : null,
+            $_SERVER['REMOTE_ADDR'] ?? null,
+            mb_substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 400) ?: null,
+            $metadata ? json_encode($metadata) : null,
+        ]);
+    } catch (Throwable $e) {
+        error_log('[content_review_activity] ' . $e->getMessage());
+    }
+}
+
 $method = $_SERVER['REQUEST_METHOD'];
 $pdo = db();
 
@@ -47,6 +82,20 @@ switch ($method) {
         if ($batch['opened_at'] === null) {
             $pdo->prepare('UPDATE content_batches SET opened_at = NOW() WHERE id = ?')->execute([$batch['id']]);
         }
+
+        // Cada apertura queda registrada (con o sin identidad todavía — la
+        // primerísima carga de un dispositivo nuevo pasa por acá antes de que
+        // revisar.html le pida el nombre) para que quede rastro de acceso aún
+        // si esa persona nunca llega a decidir nada.
+        content_review_log_activity(
+            $pdo,
+            (int)$batch['id'],
+            null,
+            'opened',
+            trim((string)($_GET['reviewer_name'] ?? '')),
+            trim((string)($_GET['reviewer_role'] ?? '')),
+            trim((string)($_GET['device_id'] ?? ''))
+        );
 
         $itemsStmt = $pdo->prepare('
             SELECT id, type, caption, scheduled_at, media, position, status
@@ -101,14 +150,8 @@ switch ($method) {
     case 'POST':
         $input = json_body();
         $rawToken = trim($input['t'] ?? '');
-        $itemId = (int)($input['item_id'] ?? 0);
-        $decision = $input['decision'] ?? '';
-
-        if ($rawToken === '' || $itemId <= 0) {
-            json_error('t e item_id son requeridos', 400);
-        }
-        if (!in_array($decision, ['approved', 'changes_requested'], true)) {
-            json_error('decision debe ser approved o changes_requested', 400);
+        if ($rawToken === '') {
+            json_error('t requerido', 400);
         }
 
         $batch = content_review_find_batch($pdo, $rawToken);
@@ -122,6 +165,40 @@ switch ($method) {
         if ($batch['expires_at'] < $now) {
             json_error('Este link ya no es válido, pide uno nuevo', 410);
         }
+
+        // Ping de identificación (nombre + cargo declarado una sola vez por
+        // dispositivo, sin login) — no decide nada, solo deja constancia en la
+        // bitácora de quién dijo ser desde ese dispositivo a partir de ahora.
+        if (($input['event'] ?? '') === 'identified') {
+            $reviewerName = trim((string)($input['reviewer_name'] ?? ''));
+            if ($reviewerName === '') {
+                json_error('reviewer_name requerido', 400);
+            }
+            content_review_log_activity(
+                $pdo,
+                (int)$batch['id'],
+                null,
+                'identified',
+                $reviewerName,
+                trim((string)($input['reviewer_role'] ?? '')),
+                trim((string)($input['device_id'] ?? ''))
+            );
+            json_response(['ok' => true]);
+            break;
+        }
+
+        $itemId = (int)($input['item_id'] ?? 0);
+        $decision = $input['decision'] ?? '';
+        if ($itemId <= 0) {
+            json_error('item_id requerido', 400);
+        }
+        if (!in_array($decision, ['approved', 'changes_requested'], true)) {
+            json_error('decision debe ser approved o changes_requested', 400);
+        }
+
+        $reviewerName = trim((string)($input['reviewer_name'] ?? '')) ?: null;
+        $reviewerRole = trim((string)($input['reviewer_role'] ?? '')) ?: null;
+        $deviceId = trim((string)($input['device_id'] ?? '')) ?: null;
 
         $comment = isset($input['comment']) ? trim((string)$input['comment']) : null;
         $reasonTags = $input['reason_tags'] ?? [];
@@ -170,8 +247,9 @@ switch ($method) {
         $pdo->beginTransaction();
         try {
             $pdo->prepare('
-                INSERT INTO content_reviews (content_item_id, decision, comment, reason_tags, time_notes, reviewer_ip)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO content_reviews
+                    (content_item_id, decision, comment, reason_tags, time_notes, reviewer_ip, reviewer_name, reviewer_role, reviewer_device_id, user_agent)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ')->execute([
                 $itemId,
                 $decision,
@@ -179,6 +257,10 @@ switch ($method) {
                 $reasonTags ? json_encode($reasonTags) : null,
                 $timeNotes ? json_encode($timeNotes) : null,
                 $_SERVER['REMOTE_ADDR'] ?? null,
+                $reviewerName,
+                $reviewerRole,
+                $deviceId,
+                mb_substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 400) ?: null,
             ]);
             $pdo->prepare('UPDATE content_items SET status = ?, decided_at = NOW() WHERE id = ?')
                 ->execute([$decision, $itemId]);
@@ -187,6 +269,17 @@ switch ($method) {
             $pdo->rollBack();
             throw $e;
         }
+
+        content_review_log_activity(
+            $pdo,
+            (int)$batch['id'],
+            $itemId,
+            'decision',
+            $reviewerName,
+            $reviewerRole,
+            $deviceId,
+            ['decision' => $decision, 'comment_excerpt' => $comment ? mb_substr($comment, 0, 140) : null]
+        );
 
         trello_sync_decision($pdo, $item['trello_card_id'], $decision, $comment, $reasonTags, $timeNotes);
 

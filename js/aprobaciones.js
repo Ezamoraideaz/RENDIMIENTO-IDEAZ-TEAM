@@ -254,6 +254,51 @@ const Aprobaciones = (() => {
     }
     renderBatchModal();
     document.getElementById('ap-modal-batch').style.display = 'flex';
+    loadBatchActivity(id);
+  }
+
+  // Aparte del fetch principal de la tanda — la bitácora es material
+  // probatorio (quién abrió el link, qué decidió, desde qué IP), no hace
+  // falta que bloquee el resto del modal si tarda o falla.
+  async function loadBatchActivity(id) {
+    const listEl = document.getElementById('ap-activity-list');
+    const countEl = document.getElementById('ap-activity-count');
+    listEl.innerHTML = '<p class="text-xs text-slate-500">Cargando...</p>';
+    try {
+      const data = await Session.apiFetch(`api/content_batch_activity.php?batch_id=${id}`);
+      if (activeBatch?.id !== id) return; // el usuario ya cerró/cambió de tanda
+      renderActivityList(data.activity || []);
+    } catch (e) {
+      listEl.innerHTML = `<p class="text-xs text-rose-400">No se pudo cargar: ${esc(e.message)}</p>`;
+    }
+
+    function renderActivityList(rows) {
+      countEl.textContent = rows.length ? `${rows.length} evento(s)` : '';
+      if (!rows.length) {
+        listEl.innerHTML = '<p class="text-xs text-slate-500">Todavía no hay actividad registrada.</p>';
+        return;
+      }
+      const EVENT_LABEL = { opened: '🔗 Abrió el link', identified: '🪪 Se identificó', decision: '✅ Decidió' };
+      listEl.innerHTML = rows.map((r) => {
+        const who = r.reviewer_name ? esc(r.reviewer_name) + (r.reviewer_role ? ` · ${esc(r.reviewer_role)}` : '') : 'Sin identificar';
+        let detail = '';
+        if (r.event_type === 'decision' && r.metadata) {
+          const label = r.metadata.decision === 'approved' ? 'Aprobó' : 'Pidió cambios';
+          const itemLabel = r.item_type ? (TYPE_LABEL[r.item_type] || r.item_type) : 'pieza';
+          detail = `<p class="text-xs text-slate-400 mt-0.5">${label} — ${esc(itemLabel)}${r.metadata.comment_excerpt ? `: "${esc(r.metadata.comment_excerpt)}"` : ''}</p>`;
+        }
+        return `
+          <div class="bg-slate-800/60 border border-slate-700/60 rounded-lg p-2.5">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-xs font-semibold text-slate-200">${EVENT_LABEL[r.event_type] || r.event_type}</span>
+              <span class="text-[10px] text-slate-500 whitespace-nowrap">${fmtDateTime(r.created_at)}</span>
+            </div>
+            <p class="text-xs text-slate-300 mt-0.5">${who}</p>
+            ${detail}
+            <p class="text-[10px] text-slate-600 mt-1">IP ${esc(r.ip || '—')}${r.user_agent ? ` · ${esc(r.user_agent)}` : ''}</p>
+          </div>`;
+      }).join('');
+    }
   }
 
   function closeBatchModal() {
