@@ -338,6 +338,14 @@
   .actions .btn-reject { color: var(--reject); }
   .actions .btn-approve { color: var(--accent); font-size: 26px; }
   .actions .btn-approve, .actions .btn-reject { width: 64px; height: 64px; }
+  /* Pasar de tarjeta sin decidir nada — a propósito bien discretos al lado
+     de aprobar/pedir cambios, para no competirles protagonismo. */
+  .actions .btn-skip {
+    width: 38px; height: 38px; font-size: 16px; color: var(--ink-faint);
+    background: transparent; box-shadow: none; border: 1px solid var(--line);
+  }
+  .actions .btn-skip:hover { color: var(--ink-dim); transform: none; }
+  .actions .btn-skip:disabled { opacity: .3; }
   .hint { text-align: center; font-size: 11.5px; color: var(--ink-faint); letter-spacing: .02em; }
 
   .tag-label { font-size: 11.5px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--ink-dim); margin: 14px 0 8px; }
@@ -465,6 +473,19 @@
   }
   .reviewer-strip button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+  /* Avisa cuando otra persona del cliente decidió algo mientras se miraba
+     otra tarjeta — revisión colaborativa en vivo (ver polling en el script). */
+  .live-toast {
+    position: fixed; left: 50%; top: calc(14px + env(safe-area-inset-top)); z-index: 120;
+    transform: translate(-50%, -12px); opacity: 0; pointer-events: none;
+    max-width: min(92vw, 380px); background: var(--ink); color: var(--canvas);
+    font-size: 12.5px; font-weight: 700; text-align: center; line-height: 1.4;
+    padding: 10px 16px; border-radius: 999px; box-shadow: 0 12px 28px -10px rgba(0,0,0,.5);
+    transition: opacity .25s ease, transform .25s ease;
+  }
+  .live-toast.is-shown { opacity: 1; transform: translate(-50%, 0); }
+  @media (prefers-reduced-motion: reduce) { .live-toast { transition: none; } }
+
   .tour-overlay { position: fixed; inset: 0; z-index: 90; background: rgba(6,7,16,.72); backdrop-filter: blur(3px); display: none; align-items: flex-end; justify-content: center; }
   .tour-overlay.open { display: flex; }
   @media (min-width: 480px) { .tour-overlay { align-items: center; } }
@@ -563,6 +584,8 @@
   </div>
 </div>
 
+<div id="liveToast" class="live-toast"></div>
+
 <div id="app" style="display:none">
   <div class="splash" id="splash" role="button" tabindex="0" aria-label="Toca para comenzar la revisión">
     <!-- Fondo fijo, igual para todas las marcas (no es el logo del cliente,
@@ -600,8 +623,10 @@
     </div>
 
     <div class="actions">
+      <button class="btn-skip" id="btnSkipBack" title="Volver a la anterior" aria-label="Volver a la anterior">‹</button>
       <button class="btn-reject" id="btnReject" title="Solicitar cambios" aria-label="Solicitar cambios">✕</button>
       <button class="btn-approve" id="btnApprove" title="Aprobar" aria-label="Aprobar">♥</button>
+      <button class="btn-skip" id="btnSkipForward" title="Ver la siguiente sin decidir" aria-label="Ver la siguiente sin decidir">›</button>
     </div>
     <div class="hint">Deslizá la tarjeta o usá los botones — ← rechazar · aprobar →</div>
 
@@ -750,6 +775,14 @@
   var videoNotes = {};
   var videoNoteIdSeq = 1;
 
+  // Revisión colaborativa en vivo: 2-3 personas del cliente pueden tener el
+  // link abierto a la vez — se hace polling liviano (sin websockets, esto
+  // corre en hosting compartido) cada pocos segundos para enterarse de lo
+  // que ya decidieron las otras sin recargar la página.
+  var lastPollSince = null;
+  var pendingExternalUpdates = [];
+  var pollTimerId = null;
+
   function fmtVideoTime(seconds) {
     seconds = Math.max(0, Math.round(seconds || 0));
     var m = Math.floor(seconds / 60), s = seconds % 60;
@@ -849,6 +882,7 @@
 
         CLIENT = data.client || { name: 'tu marca' };
         ITEMS = (data.items || []).filter(function (it) { return it.status === 'pending'; });
+        lastPollSince = data.server_time || null;
 
         if (!ITEMS.length) { showError('📭', 'Nada pendiente', 'No hay piezas esperando tu revisión en este momento.'); return; }
 
@@ -902,6 +936,78 @@
     }
     form.addEventListener('submit', onSubmit);
   }
+
+  var ARTICLE_BY_TYPE = { feed: 'una pieza de feed', story: 'una historia', reel: 'un reel', carousel: 'un carrusel' };
+
+  function showLiveToast(msg) {
+    var el = document.getElementById('liveToast');
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.add('is-shown');
+    clearTimeout(el._hideTimer);
+    el._hideTimer = setTimeout(function () { el.classList.remove('is-shown'); }, 3800);
+  }
+
+  // No aplicar una actualización externa mientras el cliente está a mitad de
+  // un gesto (arrastrando la tarjeta del frente) o con un modal/bandeja de
+  // decisión abierta sobre ella — volver a armar el deck en ese momento le
+  // sacaría la tarjeta de abajo del dedo. Se reintenta solo (próximo tick de
+  // polling, o justo al soltar/cerrar).
+  function isDeckBusy() {
+    if (modalOverlay && modalOverlay.classList.contains('open')) return true;
+    if (!deckEl) return false;
+    var frontCard = deckEl.querySelector('.card');
+    if (frontCard && !frontCard.classList.contains('settled')) return true;
+    if (deckEl.querySelector('.video-notes-tray.is-open')) return true;
+    return false;
+  }
+
+  function drainPendingUpdates() {
+    if (!pendingExternalUpdates.length || isDeckBusy()) return;
+    var updates = pendingExternalUpdates;
+    pendingExternalUpdates = [];
+    var applied = false;
+    updates.forEach(function (u) {
+      var pos = ITEMS.findIndex(function (it) { return it.id === u.item_id; });
+      if (pos === -1) return; // ya no está en la cola (por ej. lo decidimos nosotros mismos)
+      applied = true;
+      var who = u.reviewer_name || 'Alguien';
+      var what = ARTICLE_BY_TYPE[ITEMS[pos].type] || 'una pieza';
+      var verb = u.decision === 'changes_requested' ? 'pidió cambios en' : 'aprobó';
+      showLiveToast(who + ' ' + verb + ' ' + what + '.');
+      ITEMS.splice(pos, 1);
+      if (pos < idx) idx--;
+    });
+    if (!applied) return;
+    if (idx >= ITEMS.length) { stopPolling(); showSummary(); return; }
+    renderDeck();
+  }
+
+  function pollForUpdates() {
+    if (document.hidden) return;
+    var qs = '?t=' + encodeURIComponent(TOKEN) + '&poll=1&since=' + encodeURIComponent(lastPollSince || '');
+    fetch(API + qs)
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (data.status === 'expired' || data.status === 'invalid' || data.status === 'completed') { stopPolling(); return; }
+        if (data.status !== 'ok') return;
+        if (data.server_time) lastPollSince = data.server_time;
+        (data.updates || []).forEach(function (u) { pendingExternalUpdates.push(u); });
+        drainPendingUpdates();
+      })
+      .catch(function () {}); // silencioso — se reintenta solo en el próximo tick
+  }
+
+  function startPolling() {
+    stopPolling();
+    pollTimerId = setInterval(pollForUpdates, 6000);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+  }
+  function stopPolling() {
+    if (pollTimerId) { clearInterval(pollTimerId); pollTimerId = null; }
+    document.removeEventListener('visibilitychange', onVisibilityChange);
+  }
+  function onVisibilityChange() { if (!document.hidden) pollForUpdates(); }
 
   // ── App (splash + deck + tour) ───────────────────────────────────────────
   function bootApp() {
@@ -963,6 +1069,7 @@
     document.getElementById('btnCancelReject').addEventListener('click', function () {
       modalOverlay.classList.remove('open');
       pendingRejectItem = null;
+      drainPendingUpdates();
     });
     document.getElementById('btnConfirmReject').addEventListener('click', onConfirmReject);
     document.getElementById('btnApprove').addEventListener('click', function () {
@@ -972,6 +1079,16 @@
     document.getElementById('btnReject').addEventListener('click', function () {
       var top = deckEl.querySelector('.card');
       if (top && !top.classList.contains('submitting')) openRejectModal(ITEMS[idx], top);
+    });
+    // Pasar de tarjeta sin aprobar ni pedir cambios — la pieza se queda
+    // pendiente igual, solo cambia cuál se está mirando.
+    document.getElementById('btnSkipBack').addEventListener('click', function () {
+      var top = deckEl.querySelector('.card');
+      if (top && !top.classList.contains('submitting') && idx > 0) { idx--; renderDeck(); }
+    });
+    document.getElementById('btnSkipForward').addEventListener('click', function () {
+      var top = deckEl.querySelector('.card');
+      if (top && !top.classList.contains('submitting') && idx < ITEMS.length - 1) { idx++; renderDeck(); }
     });
     document.addEventListener('keydown', function (e) {
       if (modalOverlay.classList.contains('open')) return;
@@ -994,6 +1111,7 @@
     renderDeck();
     setupTour();
     setupSplash();
+    startPolling();
   }
 
   function buildCardShell(item) {
@@ -1412,10 +1530,14 @@
       tray.classList.add('is-open');
       controlsWrap.classList.add('notes-open');
     }
-    function closeTray() {
+    // drainNow=false en el camino de "confirmar cambios" exitoso: ahí sigue
+    // un flyOut()+advance() propio — dispararle un renderDeck() encima en ese
+    // instante le cortaría la animación de salida de la tarjeta.
+    function closeTray(drainNow) {
       tray.classList.remove('is-open');
       controlsWrap.classList.remove('notes-open');
       closeCompose(false);
+      if (drainNow !== false) drainPendingUpdates();
     }
 
     toggle.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
@@ -1489,13 +1611,20 @@
       decideConfirmBtn.textContent = 'Enviando…';
 
       submitDecision(item, 'changes_requested', generalText, chosenTags, videoNotes[itemId]).then(function () {
-        closeTray();
+        closeTray(false);
         decided.push({ item: item, decision: 'changes_requested', comment: generalText, tags: chosenTags });
         if (card) flyOut(card, 'reject');
         setTimeout(advance, card ? 260 : 0);
       }).catch(function (err) {
         decideConfirmBtn.disabled = false; decideCancelBtn.disabled = false;
         decideConfirmBtn.textContent = 'Confirmar cambios';
+        if (isAlreadyDecidedError(err)) {
+          closeTray(false);
+          showLiveToast('Alguien más ya decidió esto justo ahora — pasando a la siguiente.');
+          var pos = ITEMS.findIndex(function (n) { return n.id === itemId; });
+          if (pos !== -1) removeFromQueue(pos);
+          return;
+        }
         generalErrEl.textContent = err.message || 'No se pudo enviar. Intenta de nuevo.';
       });
     });
@@ -1682,12 +1811,20 @@
       }
     });
     updateHeader();
+    updateSkipButtons();
   }
 
   function updateHeader() {
     var total = ITEMS.length;
     counterEl.textContent = Math.min(idx + 1, total) + ' / ' + total;
     progressFill.style.width = (Math.min(idx, total) / total * 100) + '%';
+  }
+
+  function updateSkipButtons() {
+    var backBtn = document.getElementById('btnSkipBack');
+    var fwdBtn = document.getElementById('btnSkipForward');
+    if (backBtn) backBtn.disabled = idx <= 0;
+    if (fwdBtn) fwdBtn.disabled = idx >= ITEMS.length - 1;
   }
 
   var THRESHOLD = 110;
@@ -1729,10 +1866,14 @@
     function pointerUp() {
       if (!dragging) return;
       dragging = false;
-      if (!moved) { resetCard(card); toggleCardVideo(card); return; }
+      // En las dos ramas que NO abren un modal/bandeja ni disparan una
+      // decisión, el deck queda libre de nuevo — buen momento para aplicar
+      // ya mismo lo que haya llegado por polling en vez de esperar el
+      // próximo tick (hasta 6s).
+      if (!moved) { resetCard(card); toggleCardVideo(card); drainPendingUpdates(); return; }
       if (dx > THRESHOLD) { decideFromTop(card, 'approve'); }
       else if (dx < -THRESHOLD) { resetCard(card); openRejectModal(item, card); }
-      else { resetCard(card); }
+      else { resetCard(card); drainPendingUpdates(); }
     }
     function resetCard(c) {
       c.classList.add('settled');
@@ -1781,6 +1922,15 @@
     });
   }
 
+  // En revisión colaborativa, otra persona pudo haber decidido la MISMA
+  // tarjeta un instante antes (el polling normalmente lo evita, pero en el
+  // margen exacto de unos pocos segundos puede pasar) — el backend lo
+  // rechaza con este mensaje. En vez de un alert() genérico, se resuelve
+  // igual que una actualización externa: aviso + siguiente tarjeta.
+  function isAlreadyDecidedError(err) {
+    return /Ya se registr/i.test((err && err.message) || '');
+  }
+
   function decideFromTop(card, kind) {
     var item = ITEMS[idx];
     card.classList.add('submitting');
@@ -1790,15 +1940,32 @@
       setTimeout(advance, 260);
     }).catch(function (err) {
       card.classList.remove('submitting');
+      if (isAlreadyDecidedError(err)) {
+        showLiveToast('Alguien más ya decidió esto justo ahora — pasando a la siguiente.');
+        removeFromQueue(idx);
+        return;
+      }
       card._resetCard && card._resetCard(card);
       alert(err.message || 'No se pudo enviar tu decisión. Intenta de nuevo.');
     });
   }
 
-  function advance() {
-    idx++;
-    if (idx >= ITEMS.length) { showSummary(); return; }
+  // Saca una pieza de la cola (ya decidida por este dispositivo, por otra
+  // persona vía polling, o perdida en una carrera de decisión simultánea) y
+  // sigue — ajusta idx si la pieza sacada estaba antes de la que se está
+  // mirando, para no saltarse ni repetir ninguna.
+  function removeFromQueue(pos) {
+    ITEMS.splice(pos, 1);
+    if (pos < idx) idx--;
+    if (idx >= ITEMS.length) { stopPolling(); showSummary(); return; }
     renderDeck();
+  }
+
+  // Se llama justo después de que ESTE dispositivo decidió la tarjeta del
+  // frente (ITEMS[idx]) — con el flyOut() ya animado, así que no hace falta
+  // volver a chequear su posición.
+  function advance() {
+    removeFromQueue(idx);
   }
 
   function openRejectModal(item, card) {
@@ -1849,11 +2016,20 @@
     }).catch(function (err) {
       confirmBtn.disabled = false; cancelBtn.disabled = false;
       confirmBtn.textContent = 'Confirmar cambios';
+      if (isAlreadyDecidedError(err)) {
+        modalOverlay.classList.remove('open');
+        pendingRejectItem = null;
+        showLiveToast('Alguien más ya decidió esto justo ahora — pasando a la siguiente.');
+        var pos = ITEMS.findIndex(function (n) { return n.id === target.item.id; });
+        if (pos !== -1) removeFromQueue(pos);
+        return;
+      }
       commentErr.textContent = err.message || 'No se pudo enviar. Intenta de nuevo.';
     });
   }
 
   function showSummary() {
+    stopPolling();
     deckWrap.style.display = 'none';
     actionsBar.style.display = 'none';
     hintEl.style.display = 'none';

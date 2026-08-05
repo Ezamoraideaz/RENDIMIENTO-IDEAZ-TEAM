@@ -79,6 +79,37 @@ switch ($method) {
             break;
         }
 
+        // Sondeo en vivo (revisar.html hace polling cada pocos segundos): la
+        // revisión es colaborativa, 2-3 personas del cliente pueden tener el
+        // link abierto a la vez, así que cada una necesita enterarse de lo que
+        // ya decidieron las otras sin recargar. Devuelve solo lo decidido
+        // después de "since" — no cuenta como apertura ni ensucia la bitácora
+        // con un evento por cada tick.
+        if (($_GET['poll'] ?? '') === '1') {
+            $since = trim((string)($_GET['since'] ?? ''));
+            if ($since === '') {
+                $since = '1970-01-01 00:00:00';
+            }
+            $updStmt = $pdo->prepare('
+                SELECT i.id AS item_id, i.status AS decision, i.decided_at,
+                       r.reviewer_name, r.reviewer_device_id
+                FROM content_items i
+                LEFT JOIN content_reviews r ON r.id = (
+                    SELECT r2.id FROM content_reviews r2 WHERE r2.content_item_id = i.id ORDER BY r2.reviewed_at DESC LIMIT 1
+                )
+                WHERE i.batch_id = ? AND i.decided_at IS NOT NULL AND i.decided_at > ?
+                ORDER BY i.decided_at ASC
+            ');
+            $updStmt->execute([$batch['id'], $since]);
+            // server_time sale del mismo reloj que decided_at (NOW() de MySQL)
+            // — si se usara la hora de PHP para el próximo "since" y el server
+            // web y el de BD no tuvieran el reloj perfectamente sincronizado,
+            // se podrían perder o repetir actualizaciones.
+            $serverTime = $pdo->query('SELECT NOW()')->fetchColumn();
+            json_response(['status' => 'ok', 'updates' => $updStmt->fetchAll(), 'server_time' => $serverTime]);
+            break;
+        }
+
         if ($batch['opened_at'] === null) {
             $pdo->prepare('UPDATE content_batches SET opened_at = NOW() WHERE id = ?')->execute([$batch['id']]);
         }
@@ -144,6 +175,10 @@ switch ($method) {
                 'timezone' => $batch['client_timezone'],
             ],
             'items' => $items,
+            // Arranca el cursor del polling en vivo desde este mismo reloj
+            // (NOW() de MySQL) para no perderse nada decidido justo después
+            // de cargar, ni repetir algo que ya vino en "items".
+            'server_time' => $pdo->query('SELECT NOW()')->fetchColumn(),
         ]);
         break;
 
