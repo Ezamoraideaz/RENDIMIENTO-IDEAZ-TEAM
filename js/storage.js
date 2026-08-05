@@ -7,7 +7,7 @@
 // Las horas por tarjeta (ideaz_time / ideaz_overrides) siguen en localStorage.
 const Storage = {
   // ── Caché en memoria (poblado por preload) ────────────────────────────────
-  _settings: {},   // { trello_key, trello_token, drive_client_id }
+  _settings: {},   // { trello_key, trello_token }
   _projects: {},   // { boardId: { budget, revenue, currency, hoursEstimated, alias, category, period, type, driveFolderId } }
   _members: {},    // { memberId: { name, role, rate } }
   _loaded: false,

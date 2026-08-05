@@ -141,44 +141,15 @@
     <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4" id="section-drive" style="display:none">
       <div class="flex justify-between items-center mb-3">
         <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-0">📁 Google Drive</h2>
-        <div id="drive-status-badge"></div>
+        <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">✓ Conectado (cuenta de servicio)</span>
       </div>
 
       <div class="flex gap-3 p-4 rounded-xl bg-slate-800/50 border border-slate-700 text-slate-400 text-xs mb-4 leading-relaxed">
-        <div>
-          <strong class="text-slate-300">Setup (una sola vez):</strong>
-          Crea un proyecto en <strong class="text-slate-300">console.cloud.google.com</strong> →
-          habilita <strong class="text-slate-300">Google Drive API</strong> →
-          crea credenciales <strong class="text-slate-300">OAuth 2.0 (Web app)</strong> →
-          agrega como redirect URI:
-          <code class="bg-slate-700 px-1.5 py-0.5 rounded text-slate-200" id="drive-redirect-uri">cargando…</code>
-        </div>
-      </div>
-
-      <div class="flex gap-3 items-end mb-4 flex-wrap">
-        <div class="flex-1 min-w-0" style="max-width:480px">
-          <label class="block text-xs text-slate-400 font-medium mb-1">Client ID de Google Cloud</label>
-          <input id="drive-client-id-input" type="text"
-            class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 w-full"
-            placeholder="xxxxxx.apps.googleusercontent.com"
-            autocomplete="off">
-        </div>
-        <button onclick="saveDriveClientId()"
-          class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-2 rounded-lg text-sm transition-colors whitespace-nowrap">
-          Guardar Client ID
-        </button>
-        <button id="btn-drive-connect" onclick="connectDrive()"
-          class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors whitespace-nowrap">
-          Conectar Google Drive
-        </button>
-        <button id="btn-drive-disconnect" onclick="disconnectDrive()" style="display:none"
-          class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-2 rounded-lg text-sm transition-colors whitespace-nowrap">
-          Desconectar
-        </button>
+        La conexión con Drive la maneja el servidor con una cuenta de servicio compartida — nadie necesita conectar su cuenta de Google ni reconectarla. Para que una carpeta funcione acá, compártela con el email de esa cuenta de servicio (ver <code class="bg-slate-700 px-1.5 py-0.5 rounded text-slate-200">CLAUDE.md</code>, sección Puesta en marcha).
       </div>
 
       <!-- CREAR CARPETAS -->
-      <div id="section-drive-creator" style="display:none" class="mt-4 pt-4 border-t border-slate-700">
+      <div id="section-drive-creator" class="mt-4 pt-4 border-t border-slate-700">
         <h3 class="text-sm font-semibold text-slate-300 mb-1">📂 Crear estructura de carpetas</h3>
         <p class="text-xs text-slate-500 mb-4">Crea año / mes / POST #1…N sin errores de escritura. Solo se crean las carpetas que no existen.</p>
         <div class="grid grid-cols-4 gap-3 mb-4">
@@ -404,23 +375,7 @@
     Sidebar.init('configuracion', _cmMode ? { allowedKeys: Session.allowedNavKeys() } : {});
     Alarm.init();
 
-    // Handle Google Drive OAuth callback
-    let connected = false;
-    try {
-      connected = DriveAPI.handleCallback();
-    } catch (e) {
-      const msg = e.message === 'access_denied'
-        ? 'Acceso denegado — agrega esta cuenta como usuario de prueba en Google Cloud Console'
-        : 'Error Drive: ' + e.message;
-      Utils.showToast(msg, 'error');
-    }
-    if (connected) Utils.showToast('Google Drive conectado ✓', 'success');
-    _updateDriveUI();
     document.getElementById('section-drive').style.display = 'block';
-    const el = document.getElementById('drive-redirect-uri');
-    if (el) el.textContent = location.origin + location.pathname;
-    const inp = document.getElementById('drive-client-id-input');
-    if (inp) inp.value = DriveAPI.getClientId();
 
     // Default year/month for folder creator
     const now = new Date();
@@ -431,42 +386,6 @@
 
     initCredentialsUI();
   });
-
-  function _updateDriveUI() {
-    const connected = DriveAPI.isConnected();
-    const badge   = document.getElementById('drive-status-badge');
-    const btnC    = document.getElementById('btn-drive-connect');
-    const btnD    = document.getElementById('btn-drive-disconnect');
-    const creator = document.getElementById('section-drive-creator');
-    if (badge) badge.innerHTML = connected
-      ? `<span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">✓ Conectado</span>`
-      : `<span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-700 text-slate-400">Sin conectar</span>`;
-    if (btnC)    btnC.style.display    = connected ? 'none' : '';
-    if (btnD)    btnD.style.display    = connected ? '' : 'none';
-    if (creator) creator.style.display = connected ? 'block' : 'none';
-  }
-
-  async function saveDriveClientId() {
-    const val = document.getElementById('drive-client-id-input')?.value.trim();
-    if (!val) return;
-    try {
-      await DriveAPI.saveClientId(val); // guarda en la BD (solo superadmin)
-      Utils.showToast('Client ID guardado ✓', 'success');
-    } catch (e) {
-      Utils.showToast(e.message, 'error');
-    }
-  }
-
-  function connectDrive() {
-    try { DriveAPI.connect(); }
-    catch (e) { Utils.showToast(e.message, 'error'); }
-  }
-
-  function disconnectDrive() {
-    DriveAPI.clearToken();
-    _updateDriveUI();
-    Utils.showToast('Google Drive desconectado', 'success');
-  }
 
   let allBoards = [];
   let allMembers = {};
