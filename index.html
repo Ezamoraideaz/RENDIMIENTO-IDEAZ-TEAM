@@ -266,8 +266,8 @@
                 <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">% Completado</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Horas Lab. (Trello)</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Revisiones</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Sueldo mensual</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Costo total</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider" id="th-team-salary">Sueldo mensual</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider" id="th-team-cost">Costo total</th>
               </tr>
             </thead>
             <tbody id="team-table-body" class="divide-y divide-slate-700/50"></tbody>
@@ -1176,8 +1176,12 @@
 
   function renderTeamTable(members) {
     const tbody = document.getElementById('team-table-body');
+    const thSalary = document.getElementById('th-team-salary');
+    const thCost = document.getElementById('th-team-cost');
+    if (thSalary) thSalary.style.display = _cmDashboardMode ? 'none' : '';
+    if (thCost) thCost.style.display = _cmDashboardMode ? 'none' : '';
     if (!members.length) {
-      tbody.innerHTML = '<tr><td colspan="8" class="text-slate-400 text-center py-8">No hay miembros.</td></tr>';
+      tbody.innerHTML = `<tr><td colspan="${_cmDashboardMode ? 6 : 8}" class="text-slate-400 text-center py-8">No hay miembros.</td></tr>`;
       return;
     }
     const sorted = [...members].sort((a, b) => b.assigned - a.assigned);
@@ -1186,6 +1190,9 @@
       const salary = Storage.getMemberRate(m.id);
       const cost = m.hours * (salary / Utils.MONTHLY_HOURS);
       const progressBarColor = Utils.progressColor(pct) === 'green' ? 'bg-emerald-500' : Utils.progressColor(pct) === 'yellow' ? 'bg-amber-500' : 'bg-red-500';
+      const salaryCostCells = _cmDashboardMode ? '' : `
+          <td class="px-4 py-3 text-sm text-slate-300">${salary > 0 ? Utils.fmtMoney(salary, 'COP') + '/mes' : '<span class="text-slate-500">—</span>'}</td>
+          <td class="px-4 py-3 text-sm font-semibold text-slate-100">${cost > 0 ? Utils.fmtMoney(cost, 'COP') : '<span class="text-slate-500">—</span>'}</td>`;
       return `
         <tr class="hover:bg-slate-800/30 transition-colors cursor-pointer" data-member-id="${m.id}" onclick="openMemberModal('${m.id}')" title="Ver detalle de ${m.name}">
           <td class="px-4 py-3">
@@ -1208,9 +1215,7 @@
             </div>
           </td>
           <td class="px-4 py-3 text-sm text-slate-300">${m.hours > 0 ? Utils.fmtHours(m.hours) : '<span class="text-slate-500">—</span>'}</td>
-          <td class="px-4 py-3 text-sm">${m.revisions > 0 ? `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30">🔄 ${m.revisions}</span>` : '<span class="text-slate-500">0</span>'}</td>
-          <td class="px-4 py-3 text-sm text-slate-300">${salary > 0 ? Utils.fmtMoney(salary, 'COP') + '/mes' : '<span class="text-slate-500">—</span>'}</td>
-          <td class="px-4 py-3 text-sm font-semibold text-slate-100">${cost > 0 ? Utils.fmtMoney(cost, 'COP') : '<span class="text-slate-500">—</span>'}</td>
+          <td class="px-4 py-3 text-sm">${m.revisions > 0 ? `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30">🔄 ${m.revisions}</span>` : '<span class="text-slate-500">0</span>'}</td>${salaryCostCells}
         </tr>`;
     }).join('');
     Utils.makeSortable(tbody.closest('table'));
@@ -1715,9 +1720,10 @@
     _cmDashboardMode = _access.role === 'cm';
 
     if (_cmDashboardMode) {
-      // El rol CM solo ve el Resumen Global — el resto del dashboard queda oculto.
+      // El rol CM ve el Resumen Global, Rendimiento del Equipo (sin sueldo/costo)
+      // y Vista Rápida de Proyectos — el resto del dashboard queda oculto.
       ['section-financial', 'section-charts-1', 'section-charts-2', 'trend-section',
-       'section-projects-table', 'section-team-performance', 'section-project-cards'].forEach(id => {
+       'section-projects-table'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.style.display = 'none';
       });
