@@ -754,6 +754,24 @@ const AtencionCliente = (() => {
   }
 
   // ── Leads Orgánicos (base propia por cliente, importada desde Excel/CSV) ──
+  // Importar / Notificar / Link público van en <details> colapsables (cerrados
+  // por defecto) para no mostrar las 3 áreas de administración a la vez — la
+  // tabla de leads es lo único que queda siempre visible. Cada acción (agregar
+  // correo, generar link, borrar un lead) actualiza solo su propio bloque en
+  // vez de recargar toda la pestaña, así los <details> abiertos no se cierran solos.
+
+  const ORGANIC_LEADS_HELP_HTML = `
+    <div class="space-y-2">
+      <p><strong class="text-slate-300">Formatos:</strong> .xlsx o .csv, máx. 5 MB. La primera fila debe ser encabezados, y de un .xlsx solo se lee la primera hoja.</p>
+      <p><strong class="text-slate-300">Encabezados que reconoce</strong> (sin importar mayúsculas/tildes):</p>
+      <ul class="list-disc list-inside space-y-0.5">
+        <li><strong class="text-slate-300">Nombre:</strong> nombre, nombre completo, name, full name, cliente, contacto</li>
+        <li><strong class="text-slate-300">Correo:</strong> correo, correo electronico, email, e-mail, mail</li>
+        <li><strong class="text-slate-300">Teléfono:</strong> telefono, celular, whatsapp, phone, phone number, numero</li>
+      </ul>
+      <p>El resto de columnas se guarda igual (sale en el CSV exportado) aunque no se muestre en esta tabla.</p>
+      <p>Reimportar el mismo archivo duplica los leads — no hay detección automática de duplicados.</p>
+    </div>`;
 
   async function loadOrganicLeadsTab() {
     const panel = document.getElementById('ac-panel-organicos');
@@ -772,13 +790,55 @@ const AtencionCliente = (() => {
   }
 
   function renderOrganicLeadsPanel(leadsData, notifyData, shareData) {
-    const notifyHtml = (notifyData.emails || []).map((e) => `
+    const emails = notifyData.emails || [];
+    return `
+      <details class="bg-slate-900 border border-slate-700 rounded-lg mb-3 overflow-hidden">
+        <summary class="px-4 py-3 cursor-pointer select-none text-sm font-semibold text-slate-200 hover:bg-slate-800/60">📥 Importar leads</summary>
+        <div class="px-4 pb-4 pt-1">
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <p class="text-xs text-slate-500">Sube un Excel (.xlsx) o CSV para sumar leads a este cliente.</p>
+            <button type="button" id="organic-leads-help-btn" class="text-slate-400 hover:text-slate-200 text-xs font-semibold flex-shrink-0">❓ Ayuda con el formato</button>
+          </div>
+          <div id="organic-leads-help" style="display:none" class="mb-3 bg-slate-800/60 border border-slate-700/60 rounded-lg p-3 text-xs text-slate-400">${ORGANIC_LEADS_HELP_HTML}</div>
+          <form id="organic-leads-import-form" class="flex flex-wrap items-center gap-2">
+            <input type="file" id="organic-leads-file" accept=".xlsx,.csv" required
+              class="text-xs text-slate-400 file:mr-2 file:bg-slate-800 file:border file:border-slate-700 file:text-slate-200 file:rounded-lg file:px-3 file:py-1.5 file:text-xs file:font-semibold file:cursor-pointer">
+            <button type="submit" id="organic-leads-import-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">Importar</button>
+          </form>
+        </div>
+      </details>
+
+      <details class="bg-slate-900 border border-slate-700 rounded-lg mb-3 overflow-hidden">
+        <summary class="px-4 py-3 cursor-pointer select-none text-sm font-semibold text-slate-200 hover:bg-slate-800/60">✉️ Notificar por correo <span id="organic-leads-notify-count" class="text-slate-500 font-normal">(${emails.length})</span></summary>
+        <div class="px-4 pb-4 pt-1">
+          <div id="organic-leads-notify-list" class="flex flex-col gap-1.5 mb-2">${renderOrganicLeadsNotifyList(emails)}</div>
+          <form id="organic-leads-notify-form" class="flex gap-2">
+            <input id="organic-leads-notify-email" type="email" required placeholder="correo@ejemplo.com" class="bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs flex-1">
+            <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-xs font-semibold">+ Agregar</button>
+          </form>
+        </div>
+      </details>
+
+      <details class="bg-slate-900 border border-slate-700 rounded-lg mb-4 overflow-hidden">
+        <summary class="px-4 py-3 cursor-pointer select-none text-sm font-semibold text-slate-200 hover:bg-slate-800/60">🔗 Link público de solo lectura <span id="organic-leads-share-status" class="text-slate-500 font-normal">${shareData.link_generated ? '· activo' : ''}</span></summary>
+        <div class="px-4 pb-4 pt-1">
+          <div id="organic-leads-share-box">${renderOrganicLeadsShareBox(shareData.link_generated)}</div>
+        </div>
+      </details>
+
+      <div id="organic-leads-table-section">${renderOrganicLeadsTableSection(leadsData)}</div>`;
+  }
+
+  function renderOrganicLeadsNotifyList(emails) {
+    return emails.map((e) => `
       <div class="flex items-center justify-between bg-slate-800/60 border border-slate-700/60 rounded-lg px-3 py-1.5 text-xs">
         <span class="text-slate-300">✉️ ${_esc(e.email)}</span>
         <button onclick="AtencionCliente.removeOrganicLeadNotifyEmail(${e.id})" class="text-red-400 hover:text-red-300">✕</button>
       </div>`).join('') || '<p class="text-xs text-slate-600">Sin correos todavía — el import se guarda igual, solo sin avisar a nadie.</p>';
+  }
 
-    const shareHtml = shareData.link_generated
+  function renderOrganicLeadsShareBox(linkGenerated) {
+    return linkGenerated
       ? `<p class="text-xs text-slate-400 mb-2">Ya hay un link activo para este cliente. Si lo perdiste, regenera uno nuevo (el anterior deja de funcionar).</p>
          <div class="flex gap-2">
            <button onclick="AtencionCliente.generateOrganicLeadShareLink()" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">Regenerar</button>
@@ -786,7 +846,24 @@ const AtencionCliente = (() => {
          </div>`
       : `<p class="text-xs text-slate-500 mb-2">Todavía no hay link generado para este cliente.</p>
          <button onclick="AtencionCliente.generateOrganicLeadShareLink()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">Generar link</button>`;
+  }
 
+  // Se muestra una sola vez, justo al generar/regenerar — el backend nunca
+  // vuelve a devolver el token crudo (solo guarda su hash).
+  function renderOrganicLeadsShareReveal(url) {
+    return `
+      <div class="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3">
+        <p class="text-xs text-slate-400 mb-2">Cópialo ahora y compártelo con el equipo comercial — no se puede volver a ver:</p>
+        <div class="flex gap-2">
+          <input type="text" id="organic-leads-share-url" readonly value="${_esc(url)}" onclick="this.select()"
+            class="flex-1 min-w-0 bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-300">
+          <button type="button" id="organic-leads-copy-link-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-xs font-semibold flex-shrink-0">📋 Copiar</button>
+        </div>
+      </div>
+      ${renderOrganicLeadsShareBox(true)}`;
+  }
+
+  function renderOrganicLeadsTableSection(leadsData) {
     const leads = leadsData.leads || [];
     const tableHtml = leads.length ? `
       <div class="max-h-96 overflow-y-auto border border-slate-800 rounded-lg">
@@ -810,27 +887,6 @@ const AtencionCliente = (() => {
       </div>` : `<p class="text-slate-500 text-sm">Todavía no hay leads importados.</p>`;
 
     return `
-      <p class="text-sm text-slate-400 mb-4">Base propia de leads orgánicos de este cliente. Importa un Excel (.xlsx) o CSV para sumarlos — nunca se borran solos.</p>
-      <form id="organic-leads-import-form" class="flex flex-wrap items-center gap-2 mb-5">
-        <input type="file" id="organic-leads-file" accept=".xlsx,.csv" required
-          class="text-xs text-slate-400 file:mr-2 file:bg-slate-800 file:border file:border-slate-700 file:text-slate-200 file:rounded-lg file:px-3 file:py-1.5 file:text-xs file:font-semibold file:cursor-pointer">
-        <button type="submit" id="organic-leads-import-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">Importar</button>
-      </form>
-
-      <div class="bg-slate-900 border border-slate-700 rounded-lg p-3 mb-4">
-        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Notificar por correo a cada importación</p>
-        <div class="flex flex-col gap-1.5 mb-2">${notifyHtml}</div>
-        <form id="organic-leads-notify-form" class="flex gap-2">
-          <input id="organic-leads-notify-email" type="email" required placeholder="correo@ejemplo.com" class="bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs flex-1">
-          <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-xs font-semibold">+ Agregar</button>
-        </form>
-      </div>
-
-      <div class="bg-slate-900 border border-slate-700 rounded-lg p-3 mb-4">
-        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Link público de solo lectura</p>
-        <div id="organic-leads-share-box">${shareHtml}</div>
-      </div>
-
       <div class="flex items-center justify-between mb-2">
         <p class="text-sm font-semibold text-slate-200">${leads.length} de ${leadsData.total ?? leads.length} lead(s)</p>
         <a href="${API}/api/organic_leads.php?client_id=${activeClient.id}&export=csv" class="text-xs font-semibold text-indigo-400 hover:text-indigo-300">⬇️ Exportar CSV</a>
@@ -838,11 +894,38 @@ const AtencionCliente = (() => {
       ${tableHtml}`;
   }
 
+  async function refreshOrganicLeadsTable() {
+    const section = document.getElementById('organic-leads-table-section');
+    if (!section) return;
+    const data = await api(`api/organic_leads.php?client_id=${activeClient.id}`);
+    section.innerHTML = renderOrganicLeadsTableSection(data);
+  }
+
   function bindOrganicLeadsPanel() {
     const importForm = document.getElementById('organic-leads-import-form');
     if (importForm) importForm.addEventListener('submit', importOrganicLeadsFile);
     const notifyForm = document.getElementById('organic-leads-notify-form');
     if (notifyForm) notifyForm.addEventListener('submit', addOrganicLeadNotifyEmail);
+    const helpBtn = document.getElementById('organic-leads-help-btn');
+    if (helpBtn) helpBtn.addEventListener('click', () => {
+      const box = document.getElementById('organic-leads-help');
+      box.style.display = box.style.display === 'none' ? '' : 'none';
+    });
+  }
+
+  function bindOrganicLeadsCopyButton() {
+    const btn = document.getElementById('organic-leads-copy-link-btn');
+    const input = document.getElementById('organic-leads-share-url');
+    if (!btn || !input) return;
+    btn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(input.value);
+        Utils.showToast('Link copiado ✓', 'success');
+      } catch (_) {
+        input.select();
+        Utils.showToast('No se pudo copiar solo — selecciónalo y usa Ctrl+C', 'warning');
+      }
+    });
   }
 
   // Multipart: no puede pasar por api() (fuerza Content-Type: application/json),
@@ -868,9 +951,11 @@ const AtencionCliente = (() => {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
       Utils.showToast(`${data.row_count} lead(s) importado(s) ✓`, 'success');
-      await loadOrganicLeadsTab();
+      fileInput.value = '';
+      await refreshOrganicLeadsTable();
     } catch (err) {
       Utils.showToast(err.message, 'danger');
+    } finally {
       btn.disabled = false;
       btn.textContent = 'Importar';
     }
@@ -880,7 +965,7 @@ const AtencionCliente = (() => {
     if (!confirm('¿Eliminar este lead?')) return;
     try {
       await api(`api/organic_leads.php?id=${id}`, { method: 'DELETE' });
-      await loadOrganicLeadsTab();
+      await refreshOrganicLeadsTable();
     } catch (e) {
       Utils.showToast(e.message, 'danger');
     }
@@ -896,7 +981,10 @@ const AtencionCliente = (() => {
         method: 'POST',
         body: JSON.stringify({ client_id: activeClient.id, email }),
       });
-      await loadOrganicLeadsTab();
+      input.value = '';
+      const data = await api(`api/organic_lead_notify_emails.php?client_id=${activeClient.id}`);
+      document.getElementById('organic-leads-notify-list').innerHTML = renderOrganicLeadsNotifyList(data.emails || []);
+      document.getElementById('organic-leads-notify-count').textContent = `(${(data.emails || []).length})`;
     } catch (err) {
       Utils.showToast(err.message, 'danger');
     }
@@ -905,7 +993,9 @@ const AtencionCliente = (() => {
   async function removeOrganicLeadNotifyEmail(id) {
     try {
       await api(`api/organic_lead_notify_emails.php?id=${id}`, { method: 'DELETE' });
-      await loadOrganicLeadsTab();
+      const data = await api(`api/organic_lead_notify_emails.php?client_id=${activeClient.id}`);
+      document.getElementById('organic-leads-notify-list').innerHTML = renderOrganicLeadsNotifyList(data.emails || []);
+      document.getElementById('organic-leads-notify-count').textContent = `(${(data.emails || []).length})`;
     } catch (e) {
       Utils.showToast(e.message, 'danger');
     }
@@ -919,8 +1009,9 @@ const AtencionCliente = (() => {
       });
       const base = location.origin + location.pathname.replace(/[^/]*$/, '');
       const url = `${base}leads-cliente.html?t=${data.token}`;
-      await loadOrganicLeadsTab();
-      prompt('Cópialo ahora y compártelo con el equipo comercial — no se puede volver a ver:', url);
+      document.getElementById('organic-leads-share-box').innerHTML = renderOrganicLeadsShareReveal(url);
+      document.getElementById('organic-leads-share-status').textContent = '· activo';
+      bindOrganicLeadsCopyButton();
     } catch (e) {
       Utils.showToast(e.message, 'danger');
     }
@@ -934,7 +1025,8 @@ const AtencionCliente = (() => {
         body: JSON.stringify({ client_id: activeClient.id, action: 'revoke_link' }),
       });
       Utils.showToast('Link revocado', 'success');
-      await loadOrganicLeadsTab();
+      document.getElementById('organic-leads-share-box').innerHTML = renderOrganicLeadsShareBox(false);
+      document.getElementById('organic-leads-share-status').textContent = '';
     } catch (e) {
       Utils.showToast(e.message, 'danger');
     }
