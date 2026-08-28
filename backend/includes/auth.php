@@ -50,10 +50,11 @@ function require_role(array $roles): array
     return $operator;
 }
 
-// Acceso al módulo Atención al Cliente (los roles de agenda/cm no entran aquí)
+// Acceso al módulo Atención al Cliente (los roles de agenda no entran aquí;
+// cm sí, para poder delegar la gestión del módulo)
 function require_atencion_access(): array
 {
-    return require_role(['superadmin', 'admin', 'agent']);
+    return require_role(['superadmin', 'admin', 'agent', 'cm']);
 }
 
 function csrf_token(): string

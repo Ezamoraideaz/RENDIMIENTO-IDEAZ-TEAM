@@ -29,7 +29,7 @@ const Session = (() => {
     agent:         ['atencion-cliente', 'protocolo'],
     agenda_full:   ['agenda', 'protocolo'],
     agenda_member: ['agenda', 'monitor', 'protocolo'],
-    cm:            ['dashboard', 'agenda', 'configuracion', 'monitor', 'protocolo', 'aprobaciones'],
+    cm:            ['dashboard', 'agenda', 'configuracion', 'monitor', 'protocolo', 'aprobaciones', 'atencion-cliente'],
   };
 
   // Claves de navegación del sidebar (subconjunto de páginas)
