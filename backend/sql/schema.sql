@@ -390,3 +390,51 @@ CREATE TABLE IF NOT EXISTS alarm_broadcasts (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_alarm_broadcasts_operator FOREIGN KEY (created_by) REFERENCES operators(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Leads orgánicos (pestaña "Leads Orgánicos" en Atención al Cliente) — ver
+-- migration_015_organic_leads.sql para el detalle de cada tabla.
+CREATE TABLE IF NOT EXISTS organic_lead_imports (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    client_id INT UNSIGNED NOT NULL,
+    filename VARCHAR(255) NOT NULL,
+    row_count INT UNSIGNED NOT NULL DEFAULT 0,
+    imported_by INT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_organic_lead_imports_client (client_id, created_at),
+    CONSTRAINT fk_organic_lead_imports_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
+    CONSTRAINT fk_organic_lead_imports_operator FOREIGN KEY (imported_by) REFERENCES operators(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS organic_leads (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    client_id INT UNSIGNED NOT NULL,
+    import_id INT UNSIGNED NOT NULL,
+    name VARCHAR(190) NULL,
+    email VARCHAR(190) NULL,
+    phone VARCHAR(64) NULL,
+    extra JSON NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_organic_leads_client (client_id, created_at),
+    KEY idx_organic_leads_import (import_id),
+    CONSTRAINT fk_organic_leads_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
+    CONSTRAINT fk_organic_leads_import FOREIGN KEY (import_id) REFERENCES organic_lead_imports(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS organic_lead_notify_emails (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    client_id INT UNSIGNED NOT NULL,
+    email VARCHAR(190) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_organic_lead_notify (client_id, email),
+    CONSTRAINT fk_organic_lead_notify_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS organic_lead_share_links (
+    client_id INT UNSIGNED NOT NULL PRIMARY KEY,
+    token_hash CHAR(64) NOT NULL,
+    created_by INT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_organic_lead_share_token (token_hash),
+    CONSTRAINT fk_organic_lead_share_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
+    CONSTRAINT fk_organic_lead_share_operator FOREIGN KEY (created_by) REFERENCES operators(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
