@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Leads — IDEAZ</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen">
+
+  <!-- Portal público de solo lectura (sin login) — el token vive en la URL
+       (?t=...) y se manda tal cual al backend, que lo valida por su hash.
+       A propósito NO incluye js/session.js ni el resto de JS del dashboard,
+       igual que revisar.html. -->
+
+  <div id="state-loading" class="min-h-screen flex items-center justify-center">
+    <div class="w-10 h-10 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+  </div>
+
+  <div id="state-error" style="display:none" class="min-h-screen flex items-center justify-center p-6">
+    <div class="text-center max-w-sm">
+      <p class="text-4xl mb-3">🔒</p>
+      <h1 class="text-lg font-bold mb-1">Este link ya no está disponible</h1>
+      <p class="text-slate-400 text-sm">Puede haber sido revocado o el link estar incompleto. Pide uno nuevo a quien administra la cuenta.</p>
+    </div>
+  </div>
+
+  <div id="state-content" style="display:none" class="max-w-5xl mx-auto p-6">
+    <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+      <div class="flex items-center gap-3 min-w-0">
+        <img id="client-logo" style="display:none" class="w-10 h-10 rounded-full object-cover flex-shrink-0" alt="">
+        <div class="min-w-0">
+          <h1 id="client-name" class="text-xl font-bold truncate"></h1>
+          <p class="text-slate-400 text-sm">Leads orgánicos — solo lectura</p>
+        </div>
+      </div>
+      <a id="export-link" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex-shrink-0">⬇️ Exportar CSV</a>
+    </div>
+
+    <div class="flex items-center justify-between mb-3">
+      <p id="lead-count" class="text-sm text-slate-400"></p>
+      <input id="search-input" type="text" placeholder="Buscar por nombre, correo o teléfono…"
+        class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm w-full max-w-xs focus:outline-none focus:border-indigo-500">
+    </div>
+
+    <div class="border border-slate-800 rounded-lg overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-900">
+          <tr class="text-left text-slate-500 border-b border-slate-800">
+            <th class="py-2.5 px-4">Nombre</th>
+            <th class="py-2.5 px-4">Correo</th>
+            <th class="py-2.5 px-4">Teléfono</th>
+            <th class="py-2.5 px-4">Fecha</th>
+          </tr>
+        </thead>
+        <tbody id="leads-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const API = 'backend/public/organic_leads_public.php';
+
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+    }
+    function setState(name) {
+      ['loading', 'error', 'content'].forEach((s) => {
+        document.getElementById('state-' + s).style.display = (name === s) ? '' : 'none';
+      });
+    }
+
+    let allLeads = [];
+
+    function renderLeads(leads) {
+      const tbody = document.getElementById('leads-tbody');
+      if (!leads.length) {
+        tbody.innerHTML = `<tr><td colspan="4" class="py-6 px-4 text-center text-slate-500">Sin resultados.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = leads.map((l) => `
+        <tr class="border-b border-slate-800/60">
+          <td class="py-2 px-4">${esc(l.name || '—')}</td>
+          <td class="py-2 px-4">${esc(l.email || '—')}</td>
+          <td class="py-2 px-4">${esc(l.phone || '—')}</td>
+          <td class="py-2 px-4 text-slate-500">${new Date(l.created_at).toLocaleDateString('es-MX')}</td>
+        </tr>`).join('');
+    }
+
+    async function init() {
+      const token = new URLSearchParams(location.search).get('t') || '';
+      if (!token) { setState('error'); return; }
+
+      try {
+        const res = await fetch(`${API}?t=${encodeURIComponent(token)}`);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Error');
+
+        allLeads = data.leads || [];
+        document.getElementById('client-name').textContent = data.client.name;
+        if (data.client.logo_url) {
+          const img = document.getElementById('client-logo');
+          img.src = data.client.logo_url;
+          img.style.display = '';
+        }
+        document.getElementById('lead-count').textContent = `${allLeads.length} lead(s)`;
+        document.getElementById('export-link').href = `${API}?t=${encodeURIComponent(token)}&format=csv`;
+        renderLeads(allLeads);
+        setState('content');
+
+        document.getElementById('search-input').addEventListener('input', (e) => {
+          const q = e.target.value.trim().toLowerCase();
+          const filtered = !q ? allLeads : allLeads.filter((l) =>
+            (l.name || '').toLowerCase().includes(q) ||
+            (l.email || '').toLowerCase().includes(q) ||
+            (l.phone || '').toLowerCase().includes(q));
+          renderLeads(filtered);
+        });
+      } catch (e) {
+        setState('error');
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

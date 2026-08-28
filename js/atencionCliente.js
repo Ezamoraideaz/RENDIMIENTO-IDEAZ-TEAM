@@ -145,7 +145,7 @@ const AtencionCliente = (() => {
     activeClient = clients.find((c) => c.id === clientId);
     if (!activeClient) return;
     renderClientModal();
-    await Promise.all([loadAccountsTab(), loadFlowsTab(), loadConversationsTab(), loadAdLeadFormsTab(), loadContextoTab()]);
+    await Promise.all([loadAccountsTab(), loadFlowsTab(), loadConversationsTab(), loadAdLeadFormsTab(), loadOrganicLeadsTab(), loadContextoTab()]);
   }
 
   function renderClientModal() {
@@ -154,6 +154,7 @@ const AtencionCliente = (() => {
       { key: 'flujos', label: 'Flujos' },
       { key: 'conversaciones', label: 'Conversaciones' },
       { key: 'leads', label: '🧾 Leads de Ads' },
+      { key: 'organicos', label: '📋 Leads Orgánicos' },
       { key: 'contexto', label: '🧠 Contexto IA' },
     ];
     const tabBtns = tabs.map((t, i) => `
@@ -177,6 +178,7 @@ const AtencionCliente = (() => {
             <div id="ac-panel-flujos" class="ac-panel" style="display:none"></div>
             <div id="ac-panel-conversaciones" class="ac-panel" style="display:none"></div>
             <div id="ac-panel-leads" class="ac-panel" style="display:none"></div>
+            <div id="ac-panel-organicos" class="ac-panel" style="display:none"></div>
             <div id="ac-panel-contexto" class="ac-panel" style="display:none"></div>
           </div>
         </div>
@@ -751,12 +753,201 @@ const AtencionCliente = (() => {
     if (listEl) listEl.style.display = '';
   }
 
+  // ── Leads Orgánicos (base propia por cliente, importada desde Excel/CSV) ──
+
+  async function loadOrganicLeadsTab() {
+    const panel = document.getElementById('ac-panel-organicos');
+    panel.innerHTML = `<p class="text-slate-500 text-sm">Cargando…</p>`;
+    try {
+      const [leadsData, notifyData, shareData] = await Promise.all([
+        api(`api/organic_leads.php?client_id=${activeClient.id}`),
+        api(`api/organic_lead_notify_emails.php?client_id=${activeClient.id}`),
+        api(`api/organic_lead_share.php?client_id=${activeClient.id}`),
+      ]);
+      panel.innerHTML = renderOrganicLeadsPanel(leadsData, notifyData, shareData);
+      bindOrganicLeadsPanel();
+    } catch (e) {
+      panel.innerHTML = `<p class="text-red-400 text-sm">${_esc(e.message)}</p>`;
+    }
+  }
+
+  function renderOrganicLeadsPanel(leadsData, notifyData, shareData) {
+    const notifyHtml = (notifyData.emails || []).map((e) => `
+      <div class="flex items-center justify-between bg-slate-800/60 border border-slate-700/60 rounded-lg px-3 py-1.5 text-xs">
+        <span class="text-slate-300">✉️ ${_esc(e.email)}</span>
+        <button onclick="AtencionCliente.removeOrganicLeadNotifyEmail(${e.id})" class="text-red-400 hover:text-red-300">✕</button>
+      </div>`).join('') || '<p class="text-xs text-slate-600">Sin correos todavía — el import se guarda igual, solo sin avisar a nadie.</p>';
+
+    const shareHtml = shareData.link_generated
+      ? `<p class="text-xs text-slate-400 mb-2">Ya hay un link activo para este cliente. Si lo perdiste, regenera uno nuevo (el anterior deja de funcionar).</p>
+         <div class="flex gap-2">
+           <button onclick="AtencionCliente.generateOrganicLeadShareLink()" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">Regenerar</button>
+           <button onclick="AtencionCliente.revokeOrganicLeadShareLink()" class="bg-slate-800 hover:bg-red-900/40 border border-red-700/50 text-red-400 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">Revocar</button>
+         </div>`
+      : `<p class="text-xs text-slate-500 mb-2">Todavía no hay link generado para este cliente.</p>
+         <button onclick="AtencionCliente.generateOrganicLeadShareLink()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">Generar link</button>`;
+
+    const leads = leadsData.leads || [];
+    const tableHtml = leads.length ? `
+      <div class="max-h-96 overflow-y-auto border border-slate-800 rounded-lg">
+        <table class="w-full text-xs">
+          <thead class="sticky top-0 bg-slate-900">
+            <tr class="text-left text-slate-500 border-b border-slate-700">
+              <th class="py-2 px-3">Nombre</th><th class="py-2 px-3">Correo</th><th class="py-2 px-3">Teléfono</th><th class="py-2 px-3">Importado</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${leads.map((l) => `
+              <tr class="border-b border-slate-800/60">
+                <td class="py-1.5 px-3">${_esc(l.name || '—')}</td>
+                <td class="py-1.5 px-3">${_esc(l.email || '—')}</td>
+                <td class="py-1.5 px-3">${_esc(l.phone || '—')}</td>
+                <td class="py-1.5 px-3 text-slate-500">${new Date(l.created_at).toLocaleDateString('es-MX')}</td>
+                <td class="py-1.5 px-3 text-right"><button onclick="AtencionCliente.deleteOrganicLead(${l.id})" class="text-red-400 hover:text-red-300">✕</button></td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>` : `<p class="text-slate-500 text-sm">Todavía no hay leads importados.</p>`;
+
+    return `
+      <p class="text-sm text-slate-400 mb-4">Base propia de leads orgánicos de este cliente. Importa un Excel (.xlsx) o CSV para sumarlos — nunca se borran solos.</p>
+      <form id="organic-leads-import-form" class="flex flex-wrap items-center gap-2 mb-5">
+        <input type="file" id="organic-leads-file" accept=".xlsx,.csv" required
+          class="text-xs text-slate-400 file:mr-2 file:bg-slate-800 file:border file:border-slate-700 file:text-slate-200 file:rounded-lg file:px-3 file:py-1.5 file:text-xs file:font-semibold file:cursor-pointer">
+        <button type="submit" id="organic-leads-import-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">Importar</button>
+      </form>
+
+      <div class="bg-slate-900 border border-slate-700 rounded-lg p-3 mb-4">
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Notificar por correo a cada importación</p>
+        <div class="flex flex-col gap-1.5 mb-2">${notifyHtml}</div>
+        <form id="organic-leads-notify-form" class="flex gap-2">
+          <input id="organic-leads-notify-email" type="email" required placeholder="correo@ejemplo.com" class="bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs flex-1">
+          <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-xs font-semibold">+ Agregar</button>
+        </form>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-700 rounded-lg p-3 mb-4">
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Link público de solo lectura</p>
+        <div id="organic-leads-share-box">${shareHtml}</div>
+      </div>
+
+      <div class="flex items-center justify-between mb-2">
+        <p class="text-sm font-semibold text-slate-200">${leads.length} de ${leadsData.total ?? leads.length} lead(s)</p>
+        <a href="${API}/api/organic_leads.php?client_id=${activeClient.id}&export=csv" class="text-xs font-semibold text-indigo-400 hover:text-indigo-300">⬇️ Exportar CSV</a>
+      </div>
+      ${tableHtml}`;
+  }
+
+  function bindOrganicLeadsPanel() {
+    const importForm = document.getElementById('organic-leads-import-form');
+    if (importForm) importForm.addEventListener('submit', importOrganicLeadsFile);
+    const notifyForm = document.getElementById('organic-leads-notify-form');
+    if (notifyForm) notifyForm.addEventListener('submit', addOrganicLeadNotifyEmail);
+  }
+
+  // Multipart: no puede pasar por api() (fuerza Content-Type: application/json),
+  // así que arma su propio fetch — pero igual manda X-CSRF-Token a mano.
+  async function importOrganicLeadsFile(e) {
+    e.preventDefault();
+    const fileInput = document.getElementById('organic-leads-file');
+    const file = fileInput.files[0];
+    if (!file) return;
+    const btn = document.getElementById('organic-leads-import-btn');
+    btn.disabled = true;
+    btn.textContent = 'Importando…';
+    try {
+      const formData = new FormData();
+      formData.append('client_id', activeClient.id);
+      formData.append('file', file);
+      const res = await fetch(`${API}/api/organic_lead_import.php`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: csrfToken ? { 'X-CSRF-Token': csrfToken } : {},
+        body: formData,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+      Utils.showToast(`${data.row_count} lead(s) importado(s) ✓`, 'success');
+      await loadOrganicLeadsTab();
+    } catch (err) {
+      Utils.showToast(err.message, 'danger');
+      btn.disabled = false;
+      btn.textContent = 'Importar';
+    }
+  }
+
+  async function deleteOrganicLead(id) {
+    if (!confirm('¿Eliminar este lead?')) return;
+    try {
+      await api(`api/organic_leads.php?id=${id}`, { method: 'DELETE' });
+      await loadOrganicLeadsTab();
+    } catch (e) {
+      Utils.showToast(e.message, 'danger');
+    }
+  }
+
+  async function addOrganicLeadNotifyEmail(e) {
+    e.preventDefault();
+    const input = document.getElementById('organic-leads-notify-email');
+    const email = input.value.trim();
+    if (!email) return;
+    try {
+      await api('api/organic_lead_notify_emails.php', {
+        method: 'POST',
+        body: JSON.stringify({ client_id: activeClient.id, email }),
+      });
+      await loadOrganicLeadsTab();
+    } catch (err) {
+      Utils.showToast(err.message, 'danger');
+    }
+  }
+
+  async function removeOrganicLeadNotifyEmail(id) {
+    try {
+      await api(`api/organic_lead_notify_emails.php?id=${id}`, { method: 'DELETE' });
+      await loadOrganicLeadsTab();
+    } catch (e) {
+      Utils.showToast(e.message, 'danger');
+    }
+  }
+
+  async function generateOrganicLeadShareLink() {
+    try {
+      const data = await api('api/organic_lead_share.php', {
+        method: 'POST',
+        body: JSON.stringify({ client_id: activeClient.id, action: 'generate_link' }),
+      });
+      const base = location.origin + location.pathname.replace(/[^/]*$/, '');
+      const url = `${base}leads-cliente.html?t=${data.token}`;
+      await loadOrganicLeadsTab();
+      prompt('Cópialo ahora y compártelo con el equipo comercial — no se puede volver a ver:', url);
+    } catch (e) {
+      Utils.showToast(e.message, 'danger');
+    }
+  }
+
+  async function revokeOrganicLeadShareLink() {
+    if (!confirm('¿Revocar el link público? El equipo comercial dejará de poder acceder a los registros.')) return;
+    try {
+      await api('api/organic_lead_share.php', {
+        method: 'POST',
+        body: JSON.stringify({ client_id: activeClient.id, action: 'revoke_link' }),
+      });
+      Utils.showToast('Link revocado', 'success');
+      await loadOrganicLeadsTab();
+    } catch (e) {
+      Utils.showToast(e.message, 'danger');
+    }
+  }
+
   return {
     init, openNewClientPrompt, openClient, closeClientModal, editClientLogo, _switchTab, _overlayClose,
     createFlow, duplicateFlow, toggleFlowStatus, openBuilder, closeBuilder,
     openConversationThread, resolveFollowup, _closeThread,
     _selectPendingPage,
     loadAdLeadFormsTab, openAdLeadForm, _closeAdLeadForm, deleteAdLeadRule,
+    loadOrganicLeadsTab, deleteOrganicLead, addOrganicLeadNotifyEmail, removeOrganicLeadNotifyEmail,
+    generateOrganicLeadShareLink, revokeOrganicLeadShareLink,
   };
 })();
 
