@@ -777,11 +777,15 @@ const AtencionCliente = (() => {
     </div>`;
 
   let _organicLeadManualRowSeq = 0;
+  let _organicLeadsDateFrom = '';
+  let _organicLeadsDateTo = '';
 
   async function loadOrganicLeadsTab() {
     const panel = document.getElementById('ac-panel-organicos');
     panel.innerHTML = `<p class="text-slate-500 text-sm">Cargando…</p>`;
     _organicLeadManualRowSeq = 0;
+    _organicLeadsDateFrom = '';
+    _organicLeadsDateTo = '';
     try {
       const [leadsData, notifyData, shareData] = await Promise.all([
         api(`api/organic_leads.php?client_id=${activeClient.id}`),
@@ -881,8 +885,28 @@ const AtencionCliente = (() => {
       ${renderOrganicLeadsShareBox(true)}`;
   }
 
+  function _organicLeadsFilterQS() {
+    let qs = '';
+    if (_organicLeadsDateFrom) qs += `&date_from=${_organicLeadsDateFrom}`;
+    if (_organicLeadsDateTo) qs += `&date_to=${_organicLeadsDateTo}`;
+    return qs;
+  }
+
   function renderOrganicLeadsTableSection(leadsData) {
     const leads = leadsData.leads || [];
+    const filterHtml = `
+      <div class="flex flex-wrap items-center gap-2 mb-2">
+        <label class="text-xs text-slate-500 flex items-center gap-1">Desde
+          <input type="date" id="organic-leads-filter-from" value="${_organicLeadsDateFrom}" class="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs">
+        </label>
+        <label class="text-xs text-slate-500 flex items-center gap-1">Hasta
+          <input type="date" id="organic-leads-filter-to" value="${_organicLeadsDateTo}" class="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs">
+        </label>
+        ${(_organicLeadsDateFrom || _organicLeadsDateTo)
+          ? `<button type="button" id="organic-leads-filter-clear" class="text-xs text-slate-400 hover:text-slate-200">✕ Limpiar filtro</button>`
+          : ''}
+      </div>`;
+
     const tableHtml = leads.length ? `
       <div class="max-h-96 overflow-y-auto border border-slate-800 rounded-lg">
         <table class="w-full text-xs">
@@ -908,9 +932,10 @@ const AtencionCliente = (() => {
       </div>` : `<p class="text-slate-500 text-sm">Todavía no hay leads importados.</p>`;
 
     return `
+      ${filterHtml}
       <div class="flex items-center justify-between mb-2">
         <p class="text-sm font-semibold text-slate-200">${leads.length} de ${leadsData.total ?? leads.length} lead(s)</p>
-        <a href="${API}/api/organic_leads.php?client_id=${activeClient.id}&export=csv" class="text-xs font-semibold text-indigo-400 hover:text-indigo-300">⬇️ Exportar CSV</a>
+        <a href="${API}/api/organic_leads.php?client_id=${activeClient.id}&export=csv${_organicLeadsFilterQS()}" class="text-xs font-semibold text-indigo-400 hover:text-indigo-300">⬇️ Exportar CSV</a>
       </div>
       ${tableHtml}`;
   }
@@ -918,8 +943,28 @@ const AtencionCliente = (() => {
   async function refreshOrganicLeadsTable() {
     const section = document.getElementById('organic-leads-table-section');
     if (!section) return;
-    const data = await api(`api/organic_leads.php?client_id=${activeClient.id}`);
+    const data = await api(`api/organic_leads.php?client_id=${activeClient.id}${_organicLeadsFilterQS()}`);
     section.innerHTML = renderOrganicLeadsTableSection(data);
+    bindOrganicLeadsFilterInputs();
+  }
+
+  function bindOrganicLeadsFilterInputs() {
+    const fromInput = document.getElementById('organic-leads-filter-from');
+    const toInput = document.getElementById('organic-leads-filter-to');
+    const clearBtn = document.getElementById('organic-leads-filter-clear');
+    if (fromInput) fromInput.addEventListener('change', () => {
+      _organicLeadsDateFrom = fromInput.value;
+      refreshOrganicLeadsTable();
+    });
+    if (toInput) toInput.addEventListener('change', () => {
+      _organicLeadsDateTo = toInput.value;
+      refreshOrganicLeadsTable();
+    });
+    if (clearBtn) clearBtn.addEventListener('click', () => {
+      _organicLeadsDateFrom = '';
+      _organicLeadsDateTo = '';
+      refreshOrganicLeadsTable();
+    });
   }
 
   // Una fila = un lead a mano. Cada una tiene su propio data-row-id para poder
@@ -994,6 +1039,7 @@ const AtencionCliente = (() => {
     if (manualAddBtn) manualAddBtn.addEventListener('click', addOrganicLeadManualRow);
     const manualSaveBtn = document.getElementById('organic-leads-manual-save');
     if (manualSaveBtn) manualSaveBtn.addEventListener('click', saveOrganicLeadManualRows);
+    bindOrganicLeadsFilterInputs();
   }
 
   function bindOrganicLeadsCopyButton() {

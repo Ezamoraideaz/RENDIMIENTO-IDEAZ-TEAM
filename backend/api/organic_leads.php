@@ -18,13 +18,26 @@ switch ($_SERVER['REQUEST_METHOD']) {
             json_error('client_id requerido', 400);
         }
         $q = trim($_GET['q'] ?? '');
+        $dateFrom = $_GET['date_from'] ?? '';
+        $dateTo = $_GET['date_to'] ?? '';
 
+        // Where/params compartidos por el listado, el export CSV y el conteo,
+        // para que los 3 respeten siempre el mismo filtro (fecha inclusive en
+        // ambos extremos; un lead sin fecha reconocida no entra si hay filtro).
         $where = 'WHERE client_id = ?';
         $params = [$clientId];
         if ($q !== '') {
-            $where .= ' AND (name LIKE ? OR email LIKE ? OR phone LIKE ?)';
+            $where .= ' AND (name LIKE ? OR email LIKE ? OR phone LIKE ? OR reason LIKE ?)';
             $like = '%' . $q . '%';
-            array_push($params, $like, $like, $like);
+            array_push($params, $like, $like, $like, $like);
+        }
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom)) {
+            $where .= ' AND lead_date >= ?';
+            $params[] = $dateFrom;
+        }
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo)) {
+            $where .= ' AND lead_date <= ?';
+            $params[] = $dateTo;
         }
 
         if (($_GET['export'] ?? '') === 'csv') {
@@ -38,8 +51,8 @@ switch ($_SERVER['REQUEST_METHOD']) {
         // Tope de 2000 para la tabla en pantalla; el export CSV de arriba no lo tiene.
         $stmt = $pdo->prepare("SELECT * FROM organic_leads {$where} ORDER BY created_at DESC LIMIT 2000");
         $stmt->execute($params);
-        $countStmt = $pdo->prepare('SELECT COUNT(*) FROM organic_leads WHERE client_id = ?');
-        $countStmt->execute([$clientId]);
+        $countStmt = $pdo->prepare("SELECT COUNT(*) FROM organic_leads {$where}");
+        $countStmt->execute($params);
         json_response(['leads' => $stmt->fetchAll(), 'total' => (int)$countStmt->fetchColumn()]);
         break;
 

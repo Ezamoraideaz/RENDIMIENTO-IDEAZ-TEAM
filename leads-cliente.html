@@ -39,10 +39,18 @@
       <a id="export-link" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex-shrink-0">⬇️ Exportar CSV</a>
     </div>
 
-    <div class="flex items-center justify-between mb-3">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
       <p id="lead-count" class="text-sm text-slate-400"></p>
-      <input id="search-input" type="text" placeholder="Buscar por nombre, correo o teléfono…"
-        class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm w-full max-w-xs focus:outline-none focus:border-indigo-500">
+      <div class="flex flex-wrap items-center gap-2">
+        <label class="text-xs text-slate-500 flex items-center gap-1">Desde
+          <input type="date" id="filter-date-from" class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-indigo-500">
+        </label>
+        <label class="text-xs text-slate-500 flex items-center gap-1">Hasta
+          <input type="date" id="filter-date-to" class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-indigo-500">
+        </label>
+        <input id="search-input" type="text" placeholder="Buscar por nombre, correo, teléfono o motivo…"
+          class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm w-full max-w-xs focus:outline-none focus:border-indigo-500">
+      </div>
     </div>
 
     <div class="border border-slate-800 rounded-lg overflow-x-auto">
@@ -74,6 +82,7 @@
     }
 
     let allLeads = [];
+    let leadToken = '';
 
     function renderLeads(leads) {
       const tbody = document.getElementById('leads-tbody');
@@ -93,12 +102,38 @@
         </tr>`).join('');
     }
 
+    // Filtro por fecha + búsqueda combinados en el cliente (ya tenemos todos
+    // los leads cargados); el link de exportar CSV se mantiene sincronizado
+    // con el rango de fechas activo, para que el archivo baje lo mismo que se ve.
+    function applyFilters() {
+      const dateFrom = document.getElementById('filter-date-from').value;
+      const dateTo = document.getElementById('filter-date-to').value;
+      const q = document.getElementById('search-input').value.trim().toLowerCase();
+
+      const filtered = allLeads.filter((l) => {
+        if (dateFrom && (!l.lead_date || l.lead_date < dateFrom)) return false;
+        if (dateTo && (!l.lead_date || l.lead_date > dateTo)) return false;
+        if (!q) return true;
+        return (l.name || '').toLowerCase().includes(q) ||
+          (l.email || '').toLowerCase().includes(q) ||
+          (l.phone || '').toLowerCase().includes(q) ||
+          (l.reason || '').toLowerCase().includes(q);
+      });
+      document.getElementById('lead-count').textContent = `${filtered.length} de ${allLeads.length} lead(s)`;
+      renderLeads(filtered);
+
+      let href = `${API}?t=${encodeURIComponent(leadToken)}&format=csv`;
+      if (dateFrom) href += `&date_from=${dateFrom}`;
+      if (dateTo) href += `&date_to=${dateTo}`;
+      document.getElementById('export-link').href = href;
+    }
+
     async function init() {
-      const token = new URLSearchParams(location.search).get('t') || '';
-      if (!token) { setState('error'); return; }
+      leadToken = new URLSearchParams(location.search).get('t') || '';
+      if (!leadToken) { setState('error'); return; }
 
       try {
-        const res = await fetch(`${API}?t=${encodeURIComponent(token)}`);
+        const res = await fetch(`${API}?t=${encodeURIComponent(leadToken)}`);
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || 'Error');
 
@@ -109,19 +144,11 @@
           img.src = data.client.logo_url;
           img.style.display = '';
         }
-        document.getElementById('lead-count').textContent = `${allLeads.length} lead(s)`;
-        document.getElementById('export-link').href = `${API}?t=${encodeURIComponent(token)}&format=csv`;
-        renderLeads(allLeads);
+        applyFilters();
         setState('content');
 
-        document.getElementById('search-input').addEventListener('input', (e) => {
-          const q = e.target.value.trim().toLowerCase();
-          const filtered = !q ? allLeads : allLeads.filter((l) =>
-            (l.name || '').toLowerCase().includes(q) ||
-            (l.email || '').toLowerCase().includes(q) ||
-            (l.phone || '').toLowerCase().includes(q) ||
-            (l.reason || '').toLowerCase().includes(q));
-          renderLeads(filtered);
+        ['filter-date-from', 'filter-date-to', 'search-input'].forEach((id) => {
+          document.getElementById(id).addEventListener('input', applyFilters);
         });
       } catch (e) {
         setState('error');
