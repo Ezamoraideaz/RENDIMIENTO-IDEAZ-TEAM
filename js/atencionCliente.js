@@ -765,11 +765,14 @@ const AtencionCliente = (() => {
       <p><strong class="text-slate-300">Formatos:</strong> .xlsx o .csv, máx. 5 MB. La primera fila debe ser encabezados, y de un .xlsx solo se lee la primera hoja.</p>
       <p><strong class="text-slate-300">Encabezados que reconoce</strong> (sin importar mayúsculas/tildes):</p>
       <ul class="list-disc list-inside space-y-0.5">
+        <li><strong class="text-slate-300">Fecha:</strong> fecha, fecha de contacto, fecha del lead, fecha de registro, date</li>
         <li><strong class="text-slate-300">Nombre:</strong> nombre, nombre completo, name, full name, cliente, contacto</li>
         <li><strong class="text-slate-300">Correo:</strong> correo, correo electronico, email, e-mail, mail</li>
         <li><strong class="text-slate-300">Teléfono:</strong> telefono, celular, whatsapp, phone, phone number, numero</li>
+        <li><strong class="text-slate-300">Motivo:</strong> motivo, servicio, producto, interes, mensaje, comentarios, observaciones, detalle, notas</li>
       </ul>
-      <p>El resto de columnas se guarda igual (sale en el CSV exportado) aunque no se muestre en esta tabla.</p>
+      <p>La fecha acepta formatos como 31/12/2025, 2025-12-31 o la fecha nativa de Excel; si no se reconoce, el lead se guarda igual pero sin fecha.</p>
+      <p>El resto de columnas (no reconocidas) se guarda igual — sale en el CSV exportado aunque no se muestre en esta tabla.</p>
       <p>Reimportar el mismo archivo duplica los leads — no hay detección automática de duplicados.</p>
     </div>`;
 
@@ -870,16 +873,19 @@ const AtencionCliente = (() => {
         <table class="w-full text-xs">
           <thead class="sticky top-0 bg-slate-900">
             <tr class="text-left text-slate-500 border-b border-slate-700">
-              <th class="py-2 px-3">Nombre</th><th class="py-2 px-3">Correo</th><th class="py-2 px-3">Teléfono</th><th class="py-2 px-3">Importado</th><th></th>
+              <th class="py-2 px-3">Fecha</th><th class="py-2 px-3">Nombre</th><th class="py-2 px-3">Correo</th><th class="py-2 px-3">Teléfono</th><th class="py-2 px-3">Motivo</th><th></th>
             </tr>
           </thead>
           <tbody>
             ${leads.map((l) => `
               <tr class="border-b border-slate-800/60">
+                <td class="py-1.5 px-3 text-slate-500 whitespace-nowrap">${l.lead_date ? new Date(l.lead_date + 'T00:00:00').toLocaleDateString('es-MX') : '—'}</td>
                 <td class="py-1.5 px-3">${_esc(l.name || '—')}</td>
                 <td class="py-1.5 px-3">${_esc(l.email || '—')}</td>
                 <td class="py-1.5 px-3">${_esc(l.phone || '—')}</td>
-                <td class="py-1.5 px-3 text-slate-500">${new Date(l.created_at).toLocaleDateString('es-MX')}</td>
+                <td class="py-1.5 px-3 max-w-[240px]">${l.reason
+                  ? `<span class="line-clamp-2 cursor-pointer hover:text-slate-100" title="Click para expandir/contraer" onclick="this.classList.toggle('line-clamp-2')">${_esc(l.reason)}</span>`
+                  : '—'}</td>
                 <td class="py-1.5 px-3 text-right"><button onclick="AtencionCliente.deleteOrganicLead(${l.id})" class="text-red-400 hover:text-red-300">✕</button></td>
               </tr>`).join('')}
           </tbody>

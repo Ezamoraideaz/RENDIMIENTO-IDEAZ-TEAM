@@ -151,16 +151,19 @@ function xlsx_col_index(string $cellRef): int
     return $index - 1;
 }
 
-// Detecta qué columna del encabezado es nombre/correo/teléfono por sinónimos
-// comunes (mismo criterio que flatten_ad_lead_fields() en includes/ad_leads.php).
+// Detecta qué columna del encabezado es nombre/correo/teléfono/fecha/motivo
+// por sinónimos comunes (mismo criterio que flatten_ad_lead_fields() en
+// includes/ad_leads.php).
 function map_lead_columns(array $headers): array
 {
     $normalized = array_map('organic_lead_normalize_header', $headers);
-    $map = ['name' => null, 'email' => null, 'phone' => null];
+    $map = ['name' => null, 'email' => null, 'phone' => null, 'date' => null, 'reason' => null];
     $synonyms = [
-        'name'  => ['nombre', 'nombre completo', 'name', 'full name', 'cliente', 'contacto'],
-        'email' => ['correo', 'correo electronico', 'email', 'e-mail', 'mail'],
-        'phone' => ['telefono', 'celular', 'whatsapp', 'phone', 'phone number', 'numero', 'numero de telefono'],
+        'name'   => ['nombre', 'nombre completo', 'name', 'full name', 'cliente', 'contacto'],
+        'email'  => ['correo', 'correo electronico', 'email', 'e-mail', 'mail'],
+        'phone'  => ['telefono', 'celular', 'whatsapp', 'phone', 'phone number', 'numero', 'numero de telefono'],
+        'date'   => ['fecha', 'fecha de contacto', 'fecha del lead', 'fecha de interes', 'fecha de registro', 'fecha de solicitud', 'date'],
+        'reason' => ['motivo', 'motivo del lead', 'servicio', 'servicio de interes', 'producto', 'producto de interes', 'interes', 'mensaje', 'comentario', 'comentarios', 'observaciones', 'detalle', 'detalles', 'nota', 'notas', 'reason'],
     ];
     foreach ($synonyms as $field => $candidates) {
         foreach ($normalized as $i => $h) {
@@ -177,4 +180,36 @@ function organic_lead_normalize_header(string $s): string
 {
     $s = mb_strtolower(trim($s));
     return strtr($s, ['á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u', 'ñ' => 'n', 'ü' => 'u']);
+}
+
+// Normaliza un valor de fecha (texto de CSV o número serial de Excel) a
+// 'Y-m-d'. Si no se puede interpretar, devuelve null — el lead se guarda
+// igual, solo sin fecha, en vez de rechazar la fila entera.
+function parse_lead_date(string $raw): ?string
+{
+    $raw = trim($raw);
+    if ($raw === '') {
+        return null;
+    }
+
+    // Excel guarda las fechas como número de días desde 1899-12-30. Rango
+    // acotado (~1900 a ~2119) para no confundir un número de serie con un
+    // id/teléfono que llegue en esa misma columna.
+    if (preg_match('/^\d+(\.\d+)?$/', $raw)) {
+        $serial = (float)$raw;
+        if ($serial > 0 && $serial < 80000) {
+            return gmdate('Y-m-d', ((int)$serial - 25569) * 86400);
+        }
+        return null;
+    }
+
+    foreach (['Y-m-d', 'd/m/Y', 'm/d/Y', 'd-m-Y', 'Y/m/d', 'd.m.Y'] as $format) {
+        $date = DateTime::createFromFormat($format, $raw);
+        if ($date && $date->format($format) === $raw) {
+            return $date->format('Y-m-d');
+        }
+    }
+
+    $ts = strtotime($raw);
+    return $ts !== false ? date('Y-m-d', $ts) : null;
 }

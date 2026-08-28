@@ -25,10 +25,10 @@ function organic_leads_stream_csv(array $leads, string $clientName): void
 
     $out = fopen('php://output', 'w');
     fwrite($out, "\xEF\xBB\xBF");
-    fputcsv($out, array_merge(['Nombre', 'Correo', 'Teléfono', 'Importado'], $extraKeys));
+    fputcsv($out, array_merge(['Fecha', 'Nombre', 'Correo', 'Teléfono', 'Motivo', 'Importado'], $extraKeys));
     foreach ($leads as $lead) {
         $extra = json_decode($lead['extra'] ?? '', true) ?: [];
-        $row = [$lead['name'], $lead['email'], $lead['phone'], $lead['created_at']];
+        $row = [$lead['lead_date'] ?? '', $lead['name'], $lead['email'], $lead['phone'], $lead['reason'] ?? '', $lead['created_at']];
         foreach ($extraKeys as $k) {
             $row[] = $extra[$k] ?? '';
         }

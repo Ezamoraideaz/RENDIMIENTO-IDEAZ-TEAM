@@ -65,19 +65,22 @@ try {
     $importStmt->execute([$clientId, $file['name'], $operator['id']]);
     $importId = (int)$pdo->lastInsertId();
 
-    $leadStmt = $pdo->prepare('INSERT INTO organic_leads (client_id, import_id, name, email, phone, extra) VALUES (?, ?, ?, ?, ?, ?)');
+    $leadStmt = $pdo->prepare('INSERT INTO organic_leads (client_id, import_id, name, email, phone, lead_date, extra, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    $mappedCols = [$colMap['name'], $colMap['email'], $colMap['phone'], $colMap['date'], $colMap['reason']];
     $inserted = 0;
     foreach ($rows as $row) {
         if (!array_filter($row, static fn($v) => trim((string)$v) !== '')) {
             continue; // fila completamente vacía
         }
-        $name  = $colMap['name']  !== null ? ($row[$colMap['name']]  ?? '') : '';
-        $email = $colMap['email'] !== null ? ($row[$colMap['email']] ?? '') : '';
-        $phone = $colMap['phone'] !== null ? ($row[$colMap['phone']] ?? '') : '';
+        $name   = $colMap['name']   !== null ? ($row[$colMap['name']]   ?? '') : '';
+        $email  = $colMap['email']  !== null ? ($row[$colMap['email']]  ?? '') : '';
+        $phone  = $colMap['phone']  !== null ? ($row[$colMap['phone']]  ?? '') : '';
+        $reason = $colMap['reason'] !== null ? trim((string)($row[$colMap['reason']] ?? '')) : '';
+        $leadDate = $colMap['date'] !== null ? parse_lead_date((string)($row[$colMap['date']] ?? '')) : null;
 
         $extra = [];
         foreach ($headers as $i => $header) {
-            if ($i === $colMap['name'] || $i === $colMap['email'] || $i === $colMap['phone']) {
+            if (in_array($i, $mappedCols, true)) {
                 continue;
             }
             $header = trim((string)$header);
@@ -93,7 +96,9 @@ try {
             $name !== '' ? $name : null,
             $email !== '' ? $email : null,
             $phone !== '' ? $phone : null,
+            $leadDate,
             $extra ? json_encode($extra, JSON_UNESCAPED_UNICODE) : null,
+            $reason !== '' ? $reason : null,
         ]);
         $inserted++;
     }
