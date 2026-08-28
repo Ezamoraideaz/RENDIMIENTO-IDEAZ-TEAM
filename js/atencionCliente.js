@@ -776,9 +776,12 @@ const AtencionCliente = (() => {
       <p>Reimportar el mismo archivo duplica los leads — no hay detección automática de duplicados.</p>
     </div>`;
 
+  let _organicLeadManualRowSeq = 0;
+
   async function loadOrganicLeadsTab() {
     const panel = document.getElementById('ac-panel-organicos');
     panel.innerHTML = `<p class="text-slate-500 text-sm">Cargando…</p>`;
+    _organicLeadManualRowSeq = 0;
     try {
       const [leadsData, notifyData, shareData] = await Promise.all([
         api(`api/organic_leads.php?client_id=${activeClient.id}`),
@@ -808,6 +811,18 @@ const AtencionCliente = (() => {
               class="text-xs text-slate-400 file:mr-2 file:bg-slate-800 file:border file:border-slate-700 file:text-slate-200 file:rounded-lg file:px-3 file:py-1.5 file:text-xs file:font-semibold file:cursor-pointer">
             <button type="submit" id="organic-leads-import-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">Importar</button>
           </form>
+        </div>
+      </details>
+
+      <details class="bg-slate-900 border border-slate-700 rounded-lg mb-3 overflow-hidden">
+        <summary class="px-4 py-3 cursor-pointer select-none text-sm font-semibold text-slate-200 hover:bg-slate-800/60">✍️ Agregar leads a mano</summary>
+        <div class="px-4 pb-4 pt-1">
+          <p class="text-xs text-slate-500 mb-2">Cargá uno o varios leads a mano — usá "+ Fila" para agregar varios de una vez y "Guardar" al terminar.</p>
+          <div id="organic-leads-manual-rows" class="flex flex-col gap-2 mb-3">${[0, 1].map(() => renderOrganicLeadManualRow(_organicLeadManualRowSeq++)).join('')}</div>
+          <div class="flex items-center gap-2">
+            <button type="button" id="organic-leads-manual-add-row" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">+ Fila</button>
+            <button type="button" id="organic-leads-manual-save" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors">Guardar leads</button>
+          </div>
         </div>
       </details>
 
@@ -907,6 +922,64 @@ const AtencionCliente = (() => {
     section.innerHTML = renderOrganicLeadsTableSection(data);
   }
 
+  // Una fila = un lead a mano. Cada una tiene su propio data-row-id para poder
+  // quitarla sin afectar a las demás; el orden de los campos coincide con la
+  // tabla de leads (Fecha primero, Motivo al final).
+  function renderOrganicLeadManualRow(rowId) {
+    return `
+      <div class="grid grid-cols-2 sm:grid-cols-12 gap-2 items-start bg-slate-800/40 border border-slate-700/40 rounded-lg p-2" data-row-id="${rowId}">
+        <input type="date" class="ol-manual-date sm:col-span-2 bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs">
+        <input type="text" placeholder="Nombre" class="ol-manual-name sm:col-span-2 bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs">
+        <input type="email" placeholder="Correo" class="ol-manual-email sm:col-span-3 bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs">
+        <input type="text" placeholder="Teléfono" class="ol-manual-phone sm:col-span-2 bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs">
+        <textarea placeholder="Motivo" rows="1" class="ol-manual-reason sm:col-span-2 bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs resize-y col-span-2"></textarea>
+        <button type="button" onclick="AtencionCliente.removeOrganicLeadManualRow(${rowId})" title="Quitar fila" class="sm:col-span-1 text-red-400 hover:text-red-300 text-xs justify-self-end">✕</button>
+      </div>`;
+  }
+
+  function addOrganicLeadManualRow() {
+    document.getElementById('organic-leads-manual-rows')
+      .insertAdjacentHTML('beforeend', renderOrganicLeadManualRow(_organicLeadManualRowSeq++));
+  }
+
+  function removeOrganicLeadManualRow(rowId) {
+    document.querySelector(`#organic-leads-manual-rows [data-row-id="${rowId}"]`)?.remove();
+  }
+
+  async function saveOrganicLeadManualRows() {
+    const rows = Array.from(document.querySelectorAll('#organic-leads-manual-rows [data-row-id]'));
+    const leads = rows.map((row) => ({
+      lead_date: row.querySelector('.ol-manual-date').value.trim(),
+      name: row.querySelector('.ol-manual-name').value.trim(),
+      email: row.querySelector('.ol-manual-email').value.trim(),
+      phone: row.querySelector('.ol-manual-phone').value.trim(),
+      reason: row.querySelector('.ol-manual-reason').value.trim(),
+    })).filter((l) => l.name || l.email || l.phone || l.reason);
+
+    if (!leads.length) {
+      Utils.showToast('Completa al menos un campo en alguna fila', 'warning');
+      return;
+    }
+
+    const btn = document.getElementById('organic-leads-manual-save');
+    btn.disabled = true;
+    try {
+      const data = await api('api/organic_lead_manual.php', {
+        method: 'POST',
+        body: JSON.stringify({ client_id: activeClient.id, leads }),
+      });
+      Utils.showToast(`${data.row_count} lead(s) agregado(s) ✓`, 'success');
+      _organicLeadManualRowSeq = 0;
+      document.getElementById('organic-leads-manual-rows').innerHTML =
+        [0, 1].map(() => renderOrganicLeadManualRow(_organicLeadManualRowSeq++)).join('');
+      await refreshOrganicLeadsTable();
+    } catch (e) {
+      Utils.showToast(e.message, 'danger');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   function bindOrganicLeadsPanel() {
     const importForm = document.getElementById('organic-leads-import-form');
     if (importForm) importForm.addEventListener('submit', importOrganicLeadsFile);
@@ -917,6 +990,10 @@ const AtencionCliente = (() => {
       const box = document.getElementById('organic-leads-help');
       box.style.display = box.style.display === 'none' ? '' : 'none';
     });
+    const manualAddBtn = document.getElementById('organic-leads-manual-add-row');
+    if (manualAddBtn) manualAddBtn.addEventListener('click', addOrganicLeadManualRow);
+    const manualSaveBtn = document.getElementById('organic-leads-manual-save');
+    if (manualSaveBtn) manualSaveBtn.addEventListener('click', saveOrganicLeadManualRows);
   }
 
   function bindOrganicLeadsCopyButton() {
@@ -1045,7 +1122,7 @@ const AtencionCliente = (() => {
     _selectPendingPage,
     loadAdLeadFormsTab, openAdLeadForm, _closeAdLeadForm, deleteAdLeadRule,
     loadOrganicLeadsTab, deleteOrganicLead, addOrganicLeadNotifyEmail, removeOrganicLeadNotifyEmail,
-    generateOrganicLeadShareLink, revokeOrganicLeadShareLink,
+    generateOrganicLeadShareLink, revokeOrganicLeadShareLink, removeOrganicLeadManualRow,
   };
 })();
 
