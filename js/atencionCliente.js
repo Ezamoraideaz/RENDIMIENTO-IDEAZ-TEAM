@@ -769,6 +769,7 @@ const AtencionCliente = (() => {
         <li><strong class="text-slate-300">Nombre:</strong> nombre, nombre completo, name, full name, cliente, contacto</li>
         <li><strong class="text-slate-300">Correo:</strong> correo, correo electronico, email, e-mail, mail</li>
         <li><strong class="text-slate-300">Teléfono:</strong> telefono, celular, whatsapp, phone, phone number, numero</li>
+        <li><strong class="text-slate-300">Fuente:</strong> fuente, origen, plataforma, canal, medio, como nos conociste, source</li>
         <li><strong class="text-slate-300">Motivo:</strong> motivo, servicio, producto, interes, mensaje, comentarios, observaciones, detalle, notas</li>
       </ul>
       <p>La fecha acepta formatos como 31/12/2025, 2025-12-31 o la fecha nativa de Excel; si no se reconoce, el lead se guarda igual pero sin fecha.</p>
@@ -822,6 +823,7 @@ const AtencionCliente = (() => {
         <summary class="px-4 py-3 cursor-pointer select-none text-sm font-semibold text-slate-200 hover:bg-slate-800/60">✍️ Agregar leads a mano</summary>
         <div class="px-4 pb-4 pt-1">
           <p class="text-xs text-slate-500 mb-2">Cargá uno o varios leads a mano — usá "+ Fila" para agregar varios de una vez y "Guardar" al terminar.</p>
+          <datalist id="organic-leads-source-suggestions">${ORGANIC_LEAD_SOURCE_SUGGESTIONS.map((s) => `<option value="${_esc(s)}">`).join('')}</datalist>
           <div id="organic-leads-manual-rows" class="flex flex-col gap-2 mb-3">${[0, 1].map(() => renderOrganicLeadManualRow(_organicLeadManualRowSeq++)).join('')}</div>
           <div class="flex items-center gap-2">
             <button type="button" id="organic-leads-manual-add-row" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">+ Fila</button>
@@ -912,7 +914,7 @@ const AtencionCliente = (() => {
         <table class="w-full text-xs">
           <thead class="sticky top-0 bg-slate-900">
             <tr class="text-left text-slate-500 border-b border-slate-700">
-              <th class="py-2 px-3">Fecha</th><th class="py-2 px-3">Nombre</th><th class="py-2 px-3">Correo</th><th class="py-2 px-3">Teléfono</th><th class="py-2 px-3">Motivo</th><th></th>
+              <th class="py-2 px-3">Fecha</th><th class="py-2 px-3">Nombre</th><th class="py-2 px-3">Correo</th><th class="py-2 px-3">Teléfono</th><th class="py-2 px-3">Fuente</th><th class="py-2 px-3">Motivo</th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -922,6 +924,7 @@ const AtencionCliente = (() => {
                 <td class="py-1.5 px-3">${_esc(l.name || '—')}</td>
                 <td class="py-1.5 px-3">${_esc(l.email || '—')}</td>
                 <td class="py-1.5 px-3">${_esc(l.phone || '—')}</td>
+                <td class="py-1.5 px-3 text-slate-400 whitespace-nowrap">${_esc(l.source || '—')}</td>
                 <td class="py-1.5 px-3 max-w-[240px]">${l.reason
                   ? `<span class="line-clamp-2 cursor-pointer hover:text-slate-100" title="Click para expandir/contraer" onclick="this.classList.toggle('line-clamp-2')">${_esc(l.reason)}</span>`
                   : '—'}</td>
@@ -967,9 +970,11 @@ const AtencionCliente = (() => {
     });
   }
 
+  const ORGANIC_LEAD_SOURCE_SUGGESTIONS = ['Facebook', 'Instagram', 'WhatsApp', 'Referido', 'Sitio web', 'Google', 'TikTok', 'Llamada', 'Otro'];
+
   // Una fila = un lead a mano. Cada una tiene su propio data-row-id para poder
-  // quitarla sin afectar a las demás; el orden de los campos coincide con la
-  // tabla de leads (Fecha primero, Motivo al final).
+  // quitarla sin afectar a las demás; los primeros 5 campos van en una fila
+  // (12 columnas), Motivo se envuelve solo a la siguiente por ser más largo.
   function renderOrganicLeadManualRow(rowId) {
     return `
       <div class="grid grid-cols-2 sm:grid-cols-12 gap-2 items-start bg-slate-800/40 border border-slate-700/40 rounded-lg p-2" data-row-id="${rowId}">
@@ -977,7 +982,8 @@ const AtencionCliente = (() => {
         <input type="text" placeholder="Nombre" class="ol-manual-name sm:col-span-2 bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs">
         <input type="email" placeholder="Correo" class="ol-manual-email sm:col-span-3 bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs">
         <input type="text" placeholder="Teléfono" class="ol-manual-phone sm:col-span-2 bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs">
-        <textarea placeholder="Motivo" rows="1" class="ol-manual-reason sm:col-span-2 bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs resize-y col-span-2"></textarea>
+        <input type="text" placeholder="Fuente" list="organic-leads-source-suggestions" class="ol-manual-source sm:col-span-3 bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs">
+        <textarea placeholder="Motivo" rows="1" class="ol-manual-reason col-span-2 sm:col-span-11 bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs resize-y"></textarea>
         <button type="button" onclick="AtencionCliente.removeOrganicLeadManualRow(${rowId})" title="Quitar fila" class="sm:col-span-1 text-red-400 hover:text-red-300 text-xs justify-self-end">✕</button>
       </div>`;
   }
@@ -998,8 +1004,9 @@ const AtencionCliente = (() => {
       name: row.querySelector('.ol-manual-name').value.trim(),
       email: row.querySelector('.ol-manual-email').value.trim(),
       phone: row.querySelector('.ol-manual-phone').value.trim(),
+      source: row.querySelector('.ol-manual-source').value.trim(),
       reason: row.querySelector('.ol-manual-reason').value.trim(),
-    })).filter((l) => l.name || l.email || l.phone || l.reason);
+    })).filter((l) => l.name || l.email || l.phone || l.source || l.reason);
 
     if (!leads.length) {
       Utils.showToast('Completa al menos un campo en alguna fila', 'warning');

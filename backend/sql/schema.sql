@@ -412,6 +412,7 @@ CREATE TABLE IF NOT EXISTS organic_leads (
     name VARCHAR(190) NULL,
     email VARCHAR(190) NULL,
     phone VARCHAR(64) NULL,
+    source VARCHAR(100) NULL,
     lead_date DATE NULL,
     extra JSON NULL,
     reason TEXT NULL,

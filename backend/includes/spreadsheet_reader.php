@@ -157,12 +157,13 @@ function xlsx_col_index(string $cellRef): int
 function map_lead_columns(array $headers): array
 {
     $normalized = array_map('organic_lead_normalize_header', $headers);
-    $map = ['name' => null, 'email' => null, 'phone' => null, 'date' => null, 'reason' => null];
+    $map = ['name' => null, 'email' => null, 'phone' => null, 'date' => null, 'source' => null, 'reason' => null];
     $synonyms = [
         'name'   => ['nombre', 'nombre completo', 'name', 'full name', 'cliente', 'contacto'],
         'email'  => ['correo', 'correo electronico', 'email', 'e-mail', 'mail'],
         'phone'  => ['telefono', 'celular', 'whatsapp', 'phone', 'phone number', 'numero', 'numero de telefono'],
         'date'   => ['fecha', 'fecha de contacto', 'fecha del lead', 'fecha de interes', 'fecha de registro', 'fecha de solicitud', 'date'],
+        'source' => ['fuente', 'origen', 'plataforma', 'canal', 'medio', 'como nos conociste', 'como te enteraste', 'source', 'channel', 'platform'],
         'reason' => ['motivo', 'motivo del lead', 'servicio', 'servicio de interes', 'producto', 'producto de interes', 'interes', 'mensaje', 'comentario', 'comentarios', 'observaciones', 'detalle', 'detalles', 'nota', 'notas', 'reason'],
     ];
     foreach ($synonyms as $field => $candidates) {

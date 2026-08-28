@@ -65,8 +65,8 @@ try {
     $importStmt->execute([$clientId, $file['name'], $operator['id']]);
     $importId = (int)$pdo->lastInsertId();
 
-    $leadStmt = $pdo->prepare('INSERT INTO organic_leads (client_id, import_id, name, email, phone, lead_date, extra, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-    $mappedCols = [$colMap['name'], $colMap['email'], $colMap['phone'], $colMap['date'], $colMap['reason']];
+    $leadStmt = $pdo->prepare('INSERT INTO organic_leads (client_id, import_id, name, email, phone, source, lead_date, extra, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    $mappedCols = [$colMap['name'], $colMap['email'], $colMap['phone'], $colMap['date'], $colMap['source'], $colMap['reason']];
     $inserted = 0;
     foreach ($rows as $row) {
         if (!array_filter($row, static fn($v) => trim((string)$v) !== '')) {
@@ -75,6 +75,7 @@ try {
         $name   = $colMap['name']   !== null ? ($row[$colMap['name']]   ?? '') : '';
         $email  = $colMap['email']  !== null ? ($row[$colMap['email']]  ?? '') : '';
         $phone  = $colMap['phone']  !== null ? ($row[$colMap['phone']]  ?? '') : '';
+        $source = $colMap['source'] !== null ? trim((string)($row[$colMap['source']] ?? '')) : '';
         $reason = $colMap['reason'] !== null ? trim((string)($row[$colMap['reason']] ?? '')) : '';
         $leadDate = $colMap['date'] !== null ? parse_lead_date((string)($row[$colMap['date']] ?? '')) : null;
 
@@ -96,6 +97,7 @@ try {
             $name !== '' ? $name : null,
             $email !== '' ? $email : null,
             $phone !== '' ? $phone : null,
+            $source !== '' ? $source : null,
             $leadDate,
             $extra ? json_encode($extra, JSON_UNESCAPED_UNICODE) : null,
             $reason !== '' ? $reason : null,

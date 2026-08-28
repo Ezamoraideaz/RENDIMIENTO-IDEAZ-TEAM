@@ -27,9 +27,9 @@ switch ($_SERVER['REQUEST_METHOD']) {
         $where = 'WHERE client_id = ?';
         $params = [$clientId];
         if ($q !== '') {
-            $where .= ' AND (name LIKE ? OR email LIKE ? OR phone LIKE ? OR reason LIKE ?)';
+            $where .= ' AND (name LIKE ? OR email LIKE ? OR phone LIKE ? OR source LIKE ? OR reason LIKE ?)';
             $like = '%' . $q . '%';
-            array_push($params, $like, $like, $like, $like);
+            array_push($params, $like, $like, $like, $like, $like);
         }
         if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom)) {
             $where .= ' AND lead_date >= ?';

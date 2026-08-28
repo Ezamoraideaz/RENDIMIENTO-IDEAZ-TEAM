@@ -42,7 +42,7 @@ try {
     $importStmt->execute([$clientId, 'Entrada manual', $operator['id']]);
     $importId = (int)$pdo->lastInsertId();
 
-    $leadStmt = $pdo->prepare('INSERT INTO organic_leads (client_id, import_id, name, email, phone, lead_date, reason) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    $leadStmt = $pdo->prepare('INSERT INTO organic_leads (client_id, import_id, name, email, phone, source, lead_date, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
     $inserted = 0;
     foreach ($leadsInput as $row) {
         if (!is_array($row)) {
@@ -51,8 +51,9 @@ try {
         $name  = trim((string)($row['name'] ?? ''));
         $email = trim((string)($row['email'] ?? ''));
         $phone = trim((string)($row['phone'] ?? ''));
+        $source = trim((string)($row['source'] ?? ''));
         $reason = trim((string)($row['reason'] ?? ''));
-        if ($name === '' && $email === '' && $phone === '' && $reason === '') {
+        if ($name === '' && $email === '' && $phone === '' && $source === '' && $reason === '') {
             continue; // fila vacía
         }
         // El input viene de <input type="date">, así que ya llega en Y-m-d — se
@@ -67,6 +68,7 @@ try {
             $name !== '' ? $name : null,
             $email !== '' ? $email : null,
             $phone !== '' ? $phone : null,
+            $source !== '' ? $source : null,
             $leadDate,
             $reason !== '' ? $reason : null,
         ]);

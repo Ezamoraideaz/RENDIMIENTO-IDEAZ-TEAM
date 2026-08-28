@@ -48,7 +48,7 @@
         <label class="text-xs text-slate-500 flex items-center gap-1">Hasta
           <input type="date" id="filter-date-to" class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-indigo-500">
         </label>
-        <input id="search-input" type="text" placeholder="Buscar por nombre, correo, teléfono o motivo…"
+        <input id="search-input" type="text" placeholder="Buscar por nombre, correo, teléfono, fuente o motivo…"
           class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm w-full max-w-xs focus:outline-none focus:border-indigo-500">
       </div>
     </div>
@@ -61,6 +61,7 @@
             <th class="py-2.5 px-4">Nombre</th>
             <th class="py-2.5 px-4">Correo</th>
             <th class="py-2.5 px-4">Teléfono</th>
+            <th class="py-2.5 px-4">Fuente</th>
             <th class="py-2.5 px-4">Motivo</th>
           </tr>
         </thead>
@@ -87,7 +88,7 @@
     function renderLeads(leads) {
       const tbody = document.getElementById('leads-tbody');
       if (!leads.length) {
-        tbody.innerHTML = `<tr><td colspan="5" class="py-6 px-4 text-center text-slate-500">Sin resultados.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="py-6 px-4 text-center text-slate-500">Sin resultados.</td></tr>`;
         return;
       }
       tbody.innerHTML = leads.map((l) => `
@@ -96,6 +97,7 @@
           <td class="py-2 px-4">${esc(l.name || '—')}</td>
           <td class="py-2 px-4">${esc(l.email || '—')}</td>
           <td class="py-2 px-4">${esc(l.phone || '—')}</td>
+          <td class="py-2 px-4 text-slate-400 whitespace-nowrap">${esc(l.source || '—')}</td>
           <td class="py-2 px-4 max-w-[280px]">${l.reason
             ? `<span class="line-clamp-2 cursor-pointer hover:text-slate-100" title="Click para expandir/contraer" onclick="this.classList.toggle('line-clamp-2')">${esc(l.reason)}</span>`
             : '—'}</td>
@@ -117,6 +119,7 @@
         return (l.name || '').toLowerCase().includes(q) ||
           (l.email || '').toLowerCase().includes(q) ||
           (l.phone || '').toLowerCase().includes(q) ||
+          (l.source || '').toLowerCase().includes(q) ||
           (l.reason || '').toLowerCase().includes(q);
       });
       document.getElementById('lead-count').textContent = `${filtered.length} de ${allLeads.length} lead(s)`;
