@@ -80,3 +80,10 @@ function require_state_changing_request(): array
     verify_csrf();
     return $operator;
 }
+
+// Acceso al módulo Egresos (gastos y préstamos del equipo) — "PM" en
+// CLAUDE.md es el rol agenda_full (el módulo Agenda ya se hizo "para PM y CM").
+function require_expenses_access(): array
+{
+    return require_role(['superadmin', 'admin', 'agenda_full']);
+}

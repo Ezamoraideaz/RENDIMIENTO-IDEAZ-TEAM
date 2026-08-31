@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>if(localStorage.getItem('ideaz_theme')==='light')document.documentElement.classList.add('light');</script>
+  <title>Egresos – IDEAZ Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          colors: { brand: { DEFAULT: '#6366f1', light: '#818cf8', dark: '#4f46e5' } }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans">
+
+<!-- SIDEBAR -->
+<aside id="app-sidebar" class="fixed left-0 top-0 h-screen w-64 bg-slate-900 border-r border-slate-700 flex flex-col z-50 overflow-y-auto"></aside>
+
+<!-- MAIN -->
+<main class="ml-64 min-h-screen">
+  <div class="p-6 max-w-7xl mx-auto">
+
+    <!-- Header -->
+    <div class="flex items-start justify-between mb-6 flex-wrap gap-4">
+      <div>
+        <h1 class="text-2xl font-black text-slate-100">💸 Egresos</h1>
+        <p class="text-slate-400 text-sm mt-1">Gastos y préstamos del equipo — lo que sale de las cuentas de la agencia</p>
+      </div>
+      <button onclick="Egresos.openForm()"
+        class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors whitespace-nowrap">
+        + Registrar egreso
+      </button>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+      <div class="bg-slate-900 border border-slate-700 rounded-xl p-4">
+        <p class="text-xs text-slate-500 mb-1">Gastos este mes</p>
+        <p id="stat-gastos-mes" class="text-2xl font-black text-slate-100">—</p>
+      </div>
+      <div class="bg-slate-900 border border-slate-700 rounded-xl p-4">
+        <p class="text-xs text-slate-500 mb-1">Préstamos pendientes de reembolsar</p>
+        <p id="stat-prestamos-pendientes" class="text-2xl font-black text-amber-400">—</p>
+      </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="flex flex-wrap items-center gap-2 mb-4">
+      <input type="date" id="f-date-from" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+      <span class="text-slate-500 text-sm">→</span>
+      <input type="date" id="f-date-to" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+      <select id="f-type" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+        <option value="">Todos los tipos</option>
+        <option value="gasto">Gasto</option>
+        <option value="prestamo">Préstamo</option>
+      </select>
+      <select id="f-reimbursement" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+        <option value="">Cualquier estado</option>
+        <option value="pendiente">Pendiente de reembolso</option>
+        <option value="reembolsado">Reembolsado</option>
+      </select>
+      <input type="text" id="f-category" placeholder="Categoría..." list="egresos-category-suggestions"
+        class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 w-40 focus:outline-none focus:border-indigo-500">
+      <datalist id="egresos-category-suggestions"></datalist>
+      <button id="f-clear" class="text-xs text-slate-400 hover:text-slate-200">✕ Limpiar filtros</button>
+      <span id="egresos-count" class="ml-auto text-xs text-slate-500"></span>
+    </div>
+
+    <!-- Tabla -->
+    <div id="egresos-table-wrap" class="border border-slate-800 rounded-lg overflow-x-auto">
+      <p class="text-slate-500 text-sm p-4">Cargando…</p>
+    </div>
+
+  </div>
+</main>
+
+<script src="js/session.js"></script>
+<script src="js/storage.js?v=20260831"></script>
+<script src="js/sidebar.js?v=20260831"></script>
+<script src="js/utils.js?v=20260831"></script>
+<script src="js/egresos.js?v=20260831"></script>
+<script src="js/alarm.js?v=20260831"></script>
+<script>
+  Session.ready.then(() => {
+    Sidebar.init('egresos');
+    Egresos.init();
+    Alarm.init();
+  });
+</script>
+</body>
+</html>
