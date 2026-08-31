@@ -8,6 +8,7 @@ const Egresos = (() => {
   const API = 'backend';
   let expenses = [];
   let pendingFiles = []; // File[] elegidos en el formulario de creación, antes de subir
+  let ocrRan = false; // evita releer el comprobante más de una vez por formulario
   const categorySuggestions = new Set(['Software/Suscripciones', 'Insumos de oficina', 'Viáticos/Transporte', 'Servicios', 'Marketing interno', 'Otro']);
   const ACCOUNTS = ['Nu Bank', 'Bancolombia', 'PayPal'];
   const TYPE_LABEL = { gasto: 'Gasto', prestamo: 'Préstamo' };
@@ -199,6 +200,7 @@ const Egresos = (() => {
   function openForm(editId = null) {
     const editing = editId ? expenses.find((e) => e.id === editId) : null;
     pendingFiles = [];
+    ocrRan = false;
 
     document.body.insertAdjacentHTML('beforeend', `
       <div id="expense-form-overlay" onclick="Egresos._overlayClose(event, 'expense-form-overlay')" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
@@ -258,9 +260,10 @@ const Egresos = (() => {
             </label>
             ${editing ? '' : `
             <div>
-              <p class="text-xs text-slate-400 mb-1.5">Fotos del recibo/factura (opcional, varias)</p>
+              <p class="text-xs text-slate-400 mb-1.5">Fotos del recibo/factura (opcional, varias) — si es una transferencia de Bancolombia o Nequi, intentamos completar el monto y la fecha solos</p>
               <input type="file" id="ef-files" accept="image/png,image/jpeg,image/webp" multiple
                 class="text-xs text-slate-400 file:mr-2 file:bg-slate-800 file:border file:border-slate-700 file:text-slate-200 file:rounded-lg file:px-3 file:py-1.5 file:text-xs file:font-semibold file:cursor-pointer">
+              <p id="ef-ocr-status" style="display:none" class="text-xs mt-1.5"></p>
               <div id="ef-file-previews" class="flex flex-wrap gap-2 mt-2"></div>
             </div>`}
             <p id="expense-form-error" style="display:none" class="text-sm text-red-400 bg-red-950/40 border border-red-800/50 rounded-lg px-3 py-2"></p>
@@ -296,6 +299,64 @@ const Egresos = (() => {
       pendingFiles.push(file);
     });
     _renderFilePreviews();
+    // Solo se intenta leer la primera foto adjuntada al formulario — evita
+    // gastar llamadas a Vision API en cada archivo si suben varias fotos del
+    // mismo comprobante o material adicional.
+    if (!ocrRan && pendingFiles.length) {
+      ocrRan = true;
+      _runReceiptOCR(pendingFiles[0]);
+    }
+  }
+
+  async function _runReceiptOCR(file) {
+    const statusEl = document.getElementById('ef-ocr-status');
+    if (!statusEl) return;
+    statusEl.style.display = '';
+    statusEl.className = 'text-xs mt-1.5 text-indigo-400';
+    statusEl.textContent = '🔍 Leyendo datos del comprobante…';
+    try {
+      const formData = new FormData();
+      formData.append('file', file, file.name);
+      const data = await apiMultipart('api/expense_ocr.php', formData);
+      const f = data.fields || {};
+      let filled = false;
+
+      const amountEl = document.getElementById('ef-amount');
+      if (f.amount && amountEl && !amountEl.value) {
+        amountEl.value = Math.round(f.amount);
+        filled = true;
+      }
+      // La fecha siempre arranca en "hoy" (default del campo, no algo que el
+      // usuario haya tipeado) — si el comprobante trae una fecha real, la
+      // prioriza sobre ese default.
+      const dateEl = document.getElementById('ef-date');
+      if (f.expense_date && dateEl) {
+        dateEl.value = f.expense_date;
+        filled = true;
+      }
+      const conceptEl = document.getElementById('ef-concept');
+      if (f.concept && conceptEl && !conceptEl.value) {
+        conceptEl.value = f.concept;
+        filled = true;
+      }
+      const accountEl = document.getElementById('ef-account');
+      if (f.account && accountEl && !accountEl.value) {
+        accountEl.value = f.account;
+        filled = true;
+      }
+      const notesEl = document.getElementById('ef-notes');
+      if (f.notes && notesEl && !notesEl.value) {
+        notesEl.value = f.notes;
+      }
+
+      statusEl.className = 'text-xs mt-1.5 ' + (filled ? 'text-emerald-400' : 'text-slate-500');
+      statusEl.textContent = filled
+        ? '✓ Completamos algunos campos desde la imagen — revísalos antes de guardar.'
+        : 'No pudimos leer datos automáticamente de esta imagen — complétalos a mano.';
+    } catch (err) {
+      statusEl.className = 'text-xs mt-1.5 text-slate-500';
+      statusEl.textContent = 'No se pudo leer la imagen automáticamente — completa los campos a mano.';
+    }
   }
 
   function _renderFilePreviews() {
