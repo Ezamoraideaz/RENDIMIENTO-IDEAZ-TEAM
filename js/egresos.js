@@ -9,7 +9,7 @@ const Egresos = (() => {
   let expenses = [];
   let pendingFiles = []; // File[] elegidos en el formulario de creación, antes de subir
   const categorySuggestions = new Set(['Software/Suscripciones', 'Insumos de oficina', 'Viáticos/Transporte', 'Servicios', 'Marketing interno', 'Otro']);
-  const accountSuggestions = new Set(['Caja menor', 'Cuenta principal']);
+  const ACCOUNTS = ['Nu Bank', 'Bancolombia', 'PayPal'];
   const TYPE_LABEL = { gasto: 'Gasto', prestamo: 'Préstamo' };
 
   function _esc(s) {
@@ -79,7 +79,6 @@ const Egresos = (() => {
       expenses = data.expenses || [];
       expenses.forEach((e) => {
         if (e.category) categorySuggestions.add(e.category);
-        if (e.account) accountSuggestions.add(e.account);
       });
       _renderCategorySuggestions();
       renderTable();
@@ -210,9 +209,10 @@ const Egresos = (() => {
                   class="mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm">
               </label>
               <label class="text-xs text-slate-400">Cuenta
-                <input type="text" id="ef-account" list="egresos-account-suggestions" value="${_esc(editing ? editing.account : '')}"
-                  class="mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm">
-                <datalist id="egresos-account-suggestions">${Array.from(accountSuggestions).map((a) => `<option value="${_esc(a)}">`).join('')}</datalist>
+                <select id="ef-account" required class="mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm">
+                  <option value="" disabled ${editing && editing.account ? '' : 'selected'}>Selecciona...</option>
+                  ${ACCOUNTS.map((a) => `<option value="${_esc(a)}" ${editing && editing.account === a ? 'selected' : ''}>${_esc(a)}</option>`).join('')}
+                </select>
               </label>
             </div>
             <label class="text-xs text-slate-400 block">Monto (COP)
