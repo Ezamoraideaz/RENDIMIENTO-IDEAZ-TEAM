@@ -5,15 +5,23 @@
 //
 // Cada tipo tiene "sections" (pasos del wizard) → "fields". Tipos de campo
 // soportados: text, textarea, email, tel, date, number, radio-cards
-// (tarjetas grandes, una sola opción), checkbox-group (tarjetas, multi).
-// Una sección puede llevar showIf(answers) para mostrarse solo según una
-// respuesta previa (ej. las preguntas de e-commerce solo si tipo_sitio es
-// "ecommerce").
+// (tarjetas grandes, una sola opción), checkbox-group (tarjetas, multi),
+// file (adjuntos — el wizard los sube junto con el resto del formulario al
+// enviar, ver brief-publico.html/submitForm y brief_public.php).
 //
-// contacto_cargo/contacto_telefono viven dentro de "answers" como cualquier
-// otro campo; el nombre y correo de quien llena NO están en el schema — el
-// wizard los pide en un primer paso fijo y se guardan en las columnas
-// filled_by_name/filled_by_email de client_briefs (ver brief_public.php).
+// Tanto una sección como un campo individual pueden llevar showIf(answers)
+// para mostrarse solo según una respuesta previa — a nivel de sección para
+// ramas completas por tipo de sitio (ej. e-commerce), a nivel de campo para
+// preguntas de seguimiento puntuales (ej. "¿cuál es tu dominio?" solo si
+// contestaron que ya tienen uno) — así nunca se le pregunta a la marca algo
+// que no aplica según lo que ya contestó.
+//
+// El nombre de la marca/empresa NO se pregunta en ningún schema: el link ya
+// es específico de un cliente, así que el equipo ya sabe de quién se trata.
+// contacto_cargo/contacto_telefono sí viven dentro de "answers" como
+// cualquier otro campo; el nombre y correo de quien llena el formulario NO
+// están en el schema — el wizard los pide en un primer paso fijo y se
+// guardan en las columnas filled_by_name/filled_by_email de client_briefs.
 
 const BRIEF_SCHEMAS = {
   sitio_web: {
@@ -21,11 +29,10 @@ const BRIEF_SCHEMAS = {
     sections: [
       {
         id: 'general',
-        title: 'Datos generales del sitio',
+        title: 'Sobre el proyecto',
         fields: [
           { key: 'contacto_cargo', label: 'Tu cargo en la empresa', type: 'text', placeholder: 'Ej. Gerente de marketing' },
           { key: 'contacto_telefono', label: 'Teléfono / WhatsApp', type: 'tel', placeholder: '+52 55 1234 5678' },
-          { key: 'nombre_proyecto', label: 'Nombre del proyecto o marca', type: 'text', required: true },
           {
             key: 'tipo_sitio', label: '¿Qué tipo de sitio necesitas?', type: 'radio-cards', required: true,
             options: [
@@ -35,14 +42,22 @@ const BRIEF_SCHEMAS = {
             ],
           },
           { key: 'objetivo', label: '¿Cuál es el objetivo principal del sitio?', type: 'textarea', required: true, placeholder: 'Ej. Vender el producto X, generar citas, dar información de la empresa...' },
-          { key: 'tiene_dominio', label: '¿Ya tienen dominio propio?', type: 'radio-cards', options: [{ value: 'si', label: 'Sí' }, { value: 'no', label: 'No' }] },
-          { key: 'dominio_detalle', label: 'Si ya tienen dominio, ¿cuál es?', type: 'text', placeholder: 'www.mimarca.com' },
-          { key: 'tiene_hosting', label: '¿Ya tienen hosting contratado?', type: 'radio-cards', options: [{ value: 'si', label: 'Sí' }, { value: 'no', label: 'No' }, { value: 'no_se', label: 'No sé / no aplica' }] },
-          { key: 'referencias', label: 'Sitios web que te gusten como referencia', type: 'textarea', placeholder: 'Pega links o nombres de marcas que te gusten' },
           { key: 'publico_objetivo', label: '¿A quién le habla este sitio?', type: 'textarea', required: true, placeholder: 'Edad, género, ubicación, intereses...' },
-          { key: 'competencia', label: 'Principales competidores', type: 'textarea' },
-          { key: 'tiene_marca', label: '¿Ya tienen logo y manual de marca definidos?', type: 'radio-cards', options: [{ value: 'si', label: 'Sí, ambos' }, { value: 'solo_logo', label: 'Solo logo' }, { value: 'no', label: 'No, ninguno' }] },
-          { key: 'tono', label: '¿Cómo quieren que suene la marca?', type: 'radio-cards', options: [{ value: 'formal', label: 'Formal / corporativo' }, { value: 'cercano', label: 'Cercano / amigable' }, { value: 'divertido', label: 'Divertido / juvenil' }, { value: 'tecnico', label: 'Técnico / especializado' }] },
+          { key: 'competencia', label: 'Principales competidores', type: 'textarea', placeholder: 'Nombres o links de sitios de la competencia' },
+          { key: 'referencias', label: 'Sitios web que te gusten como referencia', type: 'textarea', placeholder: 'Pega links o nombres de marcas que te gusten y por qué' },
+        ],
+      },
+      {
+        id: 'tecnico',
+        title: 'Dominio, hosting y marca',
+        fields: [
+          { key: 'tiene_dominio', label: '¿Ya tienen dominio propio?', type: 'radio-cards', options: [{ value: 'si', label: 'Sí' }, { value: 'no', label: 'No, hay que comprarlo' }] },
+          { key: 'dominio_detalle', label: '¿Cuál es tu dominio?', type: 'text', placeholder: 'www.mimarca.com', showIf: (a) => a.tiene_dominio === 'si' },
+          { key: 'tiene_hosting', label: '¿Ya tienen hosting contratado?', type: 'radio-cards', options: [{ value: 'si', label: 'Sí' }, { value: 'no', label: 'No' }, { value: 'no_se', label: 'No sé / no aplica' }] },
+          { key: 'logo_files', label: 'Adjunta tu logo (si ya tienes uno)', type: 'file', multiple: true, accept: '.png,.jpg,.jpeg,.svg,.pdf,.ai,.eps', help: 'PNG, JPG, SVG, PDF, AI o EPS — mientras más alta la calidad, mejor' },
+          { key: 'manual_marca_files', label: 'Adjunta tu manual de marca (si tienen uno)', type: 'file', multiple: true, accept: '.pdf,.png,.jpg,.jpeg', help: 'La guía con tus colores, tipografías y usos del logo, si la tienen' },
+          { key: 'necesita_diseno_marca', label: 'Si no tienes logo o manual de marca listos, ¿necesitas que te ayudemos a crearlos?', type: 'radio-cards', options: [{ value: 'si', label: 'Sí, necesito ayuda' }, { value: 'no', label: 'No, ya tengo todo' }, { value: 'no_se', label: 'No estoy seguro' }] },
+          { key: 'tono', label: '¿Cómo quieren que suene la marca en el sitio?', type: 'radio-cards', options: [{ value: 'formal', label: 'Formal / corporativo' }, { value: 'cercano', label: 'Cercano / amigable' }, { value: 'divertido', label: 'Divertido / juvenil' }, { value: 'tecnico', label: 'Técnico / especializado' }] },
           { key: 'plazo', label: '¿Para cuándo lo necesitan?', type: 'date' },
         ],
       },
@@ -53,8 +68,11 @@ const BRIEF_SCHEMAS = {
         fields: [
           { key: 'landing_producto', label: 'Producto o servicio a promocionar', type: 'textarea', required: true },
           { key: 'landing_conversion', label: '¿Qué acción debe hacer quien visite la página?', type: 'radio-cards', required: true, options: [{ value: 'formulario', label: 'Llenar un formulario' }, { value: 'whatsapp', label: 'Escribir por WhatsApp' }, { value: 'compra', label: 'Comprar directo' }, { value: 'llamada', label: 'Llamar' }] },
-          { key: 'landing_pauta', label: '¿Va ligada a una campaña de pauta activa o próxima?', type: 'radio-cards', options: [{ value: 'si', label: 'Sí' }, { value: 'no', label: 'No' }] },
+          { key: 'landing_oferta', label: '¿Hay alguna oferta, descuento o urgencia que se deba comunicar?', type: 'textarea', placeholder: 'Ej. 20% de descuento hasta el 30 de septiembre' },
           { key: 'landing_elementos', label: '¿Qué elementos quieres incluir?', type: 'checkbox-group', options: [{ value: 'video', label: 'Video' }, { value: 'testimonios', label: 'Testimonios' }, { value: 'faq', label: 'Preguntas frecuentes' }, { value: 'countdown', label: 'Contador de tiempo/oferta' }, { value: 'formulario', label: 'Formulario de contacto' }] },
+          { key: 'landing_prueba_social_files', label: 'Adjunta testimonios, logos de clientes o certificaciones', type: 'file', multiple: true, accept: '.png,.jpg,.jpeg,.pdf', showIf: (a) => Array.isArray(a.landing_elementos) && a.landing_elementos.includes('testimonios') },
+          { key: 'landing_pauta', label: '¿Va ligada a una campaña de pauta activa o próxima?', type: 'radio-cards', options: [{ value: 'si', label: 'Sí' }, { value: 'no', label: 'No' }] },
+          { key: 'landing_pauta_fechas', label: '¿Para qué fechas está planeada la campaña?', type: 'text', placeholder: 'Ej. Del 1 al 15 de octubre', showIf: (a) => a.landing_pauta === 'si' },
         ],
       },
       {
@@ -63,7 +81,10 @@ const BRIEF_SCHEMAS = {
         showIf: (a) => a.tipo_sitio === 'informativo',
         fields: [
           { key: 'info_secciones', label: '¿Qué secciones necesitas?', type: 'checkbox-group', required: true, options: [{ value: 'inicio', label: 'Inicio' }, { value: 'nosotros', label: 'Nosotros' }, { value: 'servicios', label: 'Servicios/Productos' }, { value: 'blog', label: 'Blog' }, { value: 'contacto', label: 'Contacto' }, { value: 'galeria', label: 'Galería' }, { value: 'testimonios', label: 'Testimonios' }] },
+          { key: 'info_contenido_existente', label: '¿Ya tienen los textos e imágenes de cada sección?', type: 'radio-cards', options: [{ value: 'listos', label: 'Sí, todo listo' }, { value: 'parcial', label: 'Parcialmente' }, { value: 'ayuda', label: 'No, necesitamos ayuda para redactarlos' }] },
+          { key: 'info_fotos_files', label: 'Adjunta fotos que quieras usar en el sitio (opcional)', type: 'file', multiple: true, accept: '.png,.jpg,.jpeg,.webp' },
           { key: 'info_blog', label: '¿Van a publicar contenido de blog seguido?', type: 'radio-cards', options: [{ value: 'si', label: 'Sí' }, { value: 'no', label: 'No' }] },
+          { key: 'info_blog_frecuencia', label: '¿Con qué frecuencia?', type: 'radio-cards', options: [{ value: 'semanal', label: 'Semanal' }, { value: 'quincenal', label: 'Quincenal' }, { value: 'mensual', label: 'Mensual' }], showIf: (a) => a.info_blog === 'si' },
           { key: 'info_idiomas', label: '¿En qué idioma(s)?', type: 'text', placeholder: 'Ej. Español, o Español e Inglés' },
           { key: 'info_correo_contacto', label: '¿A qué correo deben llegar los mensajes del formulario?', type: 'email' },
         ],
@@ -78,7 +99,8 @@ const BRIEF_SCHEMAS = {
           { key: 'ecom_pasarela', label: '¿Qué pasarela de pago prefieres?', type: 'text', placeholder: 'Ej. Wompi, PayU, Mercado Pago, Stripe...' },
           { key: 'ecom_envio', label: '¿Cómo manejan los envíos?', type: 'textarea', placeholder: 'Transportadora, zonas de cobertura, costos...' },
           { key: 'ecom_facturacion', label: '¿Necesitan facturación electrónica integrada?', type: 'radio-cards', options: [{ value: 'si', label: 'Sí' }, { value: 'no', label: 'No' }] },
-          { key: 'ecom_catalogo_listo', label: '¿Ya tienen fotos y descripciones de los productos?', type: 'radio-cards', options: [{ value: 'si', label: 'Sí, todo listo' }, { value: 'parcial', label: 'Parcialmente' }, { value: 'no', label: 'No, necesitamos ayuda' }] },
+          { key: 'ecom_catalogo_listo', label: '¿Ya tienen fotos y descripciones de los productos?', type: 'radio-cards', required: true, options: [{ value: 'si', label: 'Sí, todo listo' }, { value: 'parcial', label: 'Parcialmente' }, { value: 'no', label: 'No, necesitamos ayuda' }] },
+          { key: 'ecom_catalogo_files', label: 'Adjunta tu catálogo (Excel/PDF) o fotos de muestra', type: 'file', multiple: true, accept: '.pdf,.xlsx,.png,.jpg,.jpeg,.zip', showIf: (a) => a.ecom_catalogo_listo === 'si' || a.ecom_catalogo_listo === 'parcial' },
           { key: 'ecom_plataforma', label: '¿Tienen alguna plataforma en mente?', type: 'text', placeholder: 'Ej. Shopify, WooCommerce, o "sin preferencia"' },
         ],
       },

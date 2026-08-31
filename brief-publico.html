@@ -25,6 +25,7 @@
     .brief-card-active { border-color: #6366f1; background: #312e8133; }
     .brief-card-active .brief-check { opacity: 1; }
     .brief-check { opacity: 0; float: right; color: #818cf8; font-weight: 800; }
+    .brief-file-trigger { text-align: center; border-style: dashed; }
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen">
@@ -109,16 +110,35 @@
       { key: 'filled_by_email', label: 'Tu correo', type: 'email', required: true, placeholder: 'correo@marca.com' },
     ];
 
+    const MAX_FILES_PER_FIELD = 6;
+    const MAX_FILE_SIZE_MB = 15;
+
     let token = '';
     let briefType = '';
     let formData = {};
     let currentStepIndex = 0;
 
+    // Mapa key → definición de campo (CONTACT_FIELDS + todas las secciones del
+    // schema), para saber en cualquier punto si un campo es de tipo "file"
+    // (y por lo tanto no se persiste en el draft ni se manda como JSON plano).
+    function allFieldDefs() {
+      const map = {};
+      CONTACT_FIELDS.forEach((f) => { map[f.key] = f; });
+      BRIEF_SCHEMAS[briefType].sections.forEach((s) => s.fields.forEach((f) => { map[f.key] = f; }));
+      return map;
+    }
+
     function draftKey() { return `ideaz_brief_draft_${token}`; }
 
     function saveDraft() {
       try {
-        localStorage.setItem(draftKey(), JSON.stringify({ formData, currentStepIndex }));
+        const fieldDefs = allFieldDefs();
+        const sanitized = {};
+        Object.keys(formData).forEach((key) => {
+          if ((fieldDefs[key] || {}).type === 'file') return; // los archivos no sobreviven a un reload
+          sanitized[key] = formData[key];
+        });
+        localStorage.setItem(draftKey(), JSON.stringify({ formData: sanitized, currentStepIndex }));
       } catch (_) { /* localStorage puede fallar en modo incógnito estricto — no es crítico */ }
     }
 
@@ -148,6 +168,28 @@
       return steps;
     }
 
+    // Campos visibles de un paso *ahora mismo* — filtra tanto los que no
+    // aplican por showIf de campo (ej. "¿cuál es tu dominio?" solo si ya
+    // tienen uno) como los que sí se muestran normalmente.
+    function visibleFields(step) {
+      return step.fields.filter((f) => !f.showIf || f.showIf(formData));
+    }
+
+    function fileSizeLabel(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function renderFileChips(key, files) {
+      if (!files.length) return '';
+      return files.map((file, i) => `
+        <div class="flex items-center justify-between gap-2 bg-slate-800/60 border border-slate-700/60 rounded-lg px-3 py-1.5 text-xs">
+          <span class="truncate">📄 ${esc(file.name)} <span class="text-slate-500">(${fileSizeLabel(file.size)})</span></span>
+          <button type="button" data-remove-file="${key}" data-index="${i}" class="text-red-400 hover:text-red-300 flex-shrink-0">✕</button>
+        </div>`).join('');
+    }
+
     function renderField(field) {
       const value = formData[field.key];
       const req = field.required ? '<span class="text-red-400">*</span>' : '';
@@ -168,12 +210,23 @@
             <span class="brief-check">✓</span>
             <span class="font-semibold">${esc(o.label)}</span>
           </button>`).join('')}</div>`;
+      } else if (field.type === 'file') {
+        const files = Array.isArray(value) ? value : [];
+        control = `<div data-key="${field.key}" data-type="file">
+          <input type="file" id="file-input-${field.key}" data-key="${field.key}" ${field.multiple ? 'multiple' : ''} accept="${esc(field.accept || '')}" style="display:none">
+          <button type="button" class="brief-card brief-file-trigger" onclick="document.getElementById('file-input-${field.key}').click()">
+            <span class="font-semibold">📎 Adjuntar archivo${field.multiple ? 's' : ''}</span>
+          </button>
+          <div class="mt-2 flex flex-col gap-1.5" data-file-list="${field.key}">${renderFileChips(field.key, files)}</div>
+        </div>`;
       } else {
         control = `<input type="${field.type}" data-key="${field.key}" placeholder="${esc(field.placeholder || '')}" value="${esc(value || '')}" class="brief-input">`;
       }
+      const help = field.help ? `<p class="text-xs text-slate-500 mt-1.5">${esc(field.help)}</p>` : '';
       return `<div class="mb-5" data-field-wrap="${field.key}">
         <label class="block text-sm font-semibold text-slate-200 mb-1.5">${esc(field.label)} ${req}</label>
         ${control}
+        ${help}
         <p class="brief-error hidden text-xs text-red-400 mt-1">Este campo es obligatorio</p>
       </div>`;
     }
@@ -194,12 +247,30 @@
 
     function validateStep(step) {
       let valid = true;
-      step.fields.forEach((f) => {
+      visibleFields(step).forEach((f) => {
         const hasError = !!f.required && isEmpty(formData[f.key]);
         markFieldError(f.key, hasError);
         if (hasError) valid = false;
       });
       return valid;
+    }
+
+    function flashFormMessage(msg) {
+      const el = document.getElementById('brief-form-error');
+      el.textContent = msg;
+      el.style.display = '';
+      clearTimeout(flashFormMessage._t);
+      flashFormMessage._t = setTimeout(() => { el.style.display = 'none'; }, 4000);
+    }
+
+    // Re-renderiza solo los campos del paso actual (sin tocar barra de
+    // progreso/título) — se usa cuando un radio-cards/checkbox-group cambia y
+    // eso decide si otro campo del mismo paso debe aparecer o desaparecer
+    // (ej. "¿cuál es tu dominio?" al elegir "Sí" en "¿ya tienen dominio?").
+    function renderCurrentStepFields() {
+      const steps = getSteps();
+      const step = steps[currentStepIndex];
+      document.getElementById('brief-step-fields').innerHTML = visibleFields(step).map(renderField).join('');
     }
 
     function renderStep() {
@@ -213,7 +284,7 @@
       document.getElementById('brief-progress-bar').style.width = `${((currentStepIndex + 1) / steps.length) * 100}%`;
       document.getElementById('brief-step-title').textContent = step.title;
       document.getElementById('brief-form-error').style.display = 'none';
-      document.getElementById('brief-step-fields').innerHTML = step.fields.map(renderField).join('');
+      renderCurrentStepFields();
       document.getElementById('brief-back-btn').style.visibility = currentStepIndex === 0 ? 'hidden' : 'visible';
       document.getElementById('brief-next-btn').textContent = isLast ? 'Enviar brief ✓' : 'Siguiente →';
       document.getElementById('brief-next-btn').disabled = false;
@@ -222,34 +293,73 @@
 
     function bindStepFieldsContainer() {
       const container = document.getElementById('brief-step-fields');
+
       container.addEventListener('input', (e) => {
         const key = e.target.dataset.key;
-        if (!key) return;
+        if (!key || e.target.type === 'file') return;
         formData[key] = e.target.value;
         markFieldError(key, false);
         saveDraft();
       });
+
+      container.addEventListener('change', (e) => {
+        if (e.target.type !== 'file') return;
+        const key = e.target.dataset.key;
+        const field = allFieldDefs()[key];
+        let files = Array.isArray(formData[key]) ? formData[key].slice() : [];
+        const picked = Array.from(e.target.files || []);
+        let rejected = false;
+        picked.forEach((file) => {
+          if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) { rejected = true; return; }
+          if (files.length >= MAX_FILES_PER_FIELD) { rejected = true; return; }
+          files.push(file);
+        });
+        if (!field.multiple) files = files.slice(-1);
+        formData[key] = files;
+        e.target.value = '';
+        if (rejected) flashFormMessage(`Algún archivo no se adjuntó — máximo ${MAX_FILE_SIZE_MB} MB por archivo y ${MAX_FILES_PER_FIELD} archivos por campo.`);
+        markFieldError(key, false);
+        saveDraft();
+        const list = document.querySelector(`[data-file-list="${key}"]`);
+        if (list) list.innerHTML = renderFileChips(key, files);
+      });
+
       container.addEventListener('click', (e) => {
+        const removeBtn = e.target.closest('[data-remove-file]');
+        if (removeBtn) {
+          const key = removeBtn.dataset.removeFile;
+          const idx = parseInt(removeBtn.dataset.index, 10);
+          const files = Array.isArray(formData[key]) ? formData[key].slice() : [];
+          files.splice(idx, 1);
+          formData[key] = files;
+          saveDraft();
+          const list = document.querySelector(`[data-file-list="${key}"]`);
+          if (list) list.innerHTML = renderFileChips(key, files);
+          return;
+        }
+
         const card = e.target.closest('.brief-card');
-        if (!card) return;
+        if (!card || card.classList.contains('brief-file-trigger')) return;
         const wrap = card.closest('[data-type]');
         const key = wrap.dataset.key;
         const type = wrap.dataset.type;
         if (type === 'radio-cards') {
           formData[key] = card.dataset.value;
-          wrap.querySelectorAll('.brief-card').forEach((c) => c.classList.toggle('brief-card-active', c === card));
-        } else {
+        } else if (type === 'checkbox-group') {
           const arr = Array.isArray(formData[key]) ? formData[key].slice() : [];
           const idx = arr.indexOf(card.dataset.value);
           if (idx >= 0) arr.splice(idx, 1); else arr.push(card.dataset.value);
           formData[key] = arr;
-          card.classList.toggle('brief-card-active', arr.includes(card.dataset.value));
+        } else {
+          return;
         }
         markFieldError(key, false);
         saveDraft();
-        // El tipo de sitio decide qué sección específica aparece después —
-        // no hace falta re-renderizar el paso actual, solo invalida el caché
-        // de pasos para cuando se calcule getSteps() en el próximo Siguiente.
+        // Un radio-cards/checkbox-group puede decidir si otro campo del mismo
+        // paso debe aparecer (showIf de campo) — se re-renderiza el paso
+        // completo, que es barato y siempre refleja formData sin perder nada
+        // ya tipeado (los inputs de texto ya están sincronizados con formData).
+        renderCurrentStepFields();
       });
     }
 
@@ -260,18 +370,31 @@
       const errEl = document.getElementById('brief-form-error');
       errEl.style.display = 'none';
 
-      const answers = Object.assign({}, formData);
-      const filledByName = answers.filled_by_name;
-      const filledByEmail = answers.filled_by_email;
-      delete answers.filled_by_name;
-      delete answers.filled_by_email;
+      const fieldDefs = allFieldDefs();
+      // Solo se manda lo que sigue siendo visible con las respuestas actuales
+      // — si algo se llenó y después se ocultó por un showIf, no se envía.
+      const visibleKeys = new Set();
+      getSteps().forEach((step) => visibleFields(step).forEach((f) => visibleKeys.add(f.key)));
+
+      const plainAnswers = {};
+      const fd = new FormData();
+      Object.keys(formData).forEach((key) => {
+        if (key === 'filled_by_name' || key === 'filled_by_email') return;
+        if (!visibleKeys.has(key)) return;
+        const def = fieldDefs[key];
+        if (def && def.type === 'file') {
+          (formData[key] || []).forEach((file) => fd.append(`files[${key}][]`, file, file.name));
+        } else {
+          plainAnswers[key] = formData[key];
+        }
+      });
+      fd.append('t', token);
+      fd.append('filled_by_name', formData.filled_by_name || '');
+      fd.append('filled_by_email', formData.filled_by_email || '');
+      fd.append('answers', JSON.stringify(plainAnswers));
 
       try {
-        const res = await fetch(API, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ t: token, answers, filled_by_name: filledByName, filled_by_email: filledByEmail }),
-        });
+        const res = await fetch(API, { method: 'POST', body: fd });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
         clearDraft();

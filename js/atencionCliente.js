@@ -1322,11 +1322,30 @@ const AtencionCliente = (() => {
     return String(value);
   }
 
+  function _briefFileSize(bytes) {
+    bytes = Number(bytes) || 0;
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
   function renderBriefAnswers(type, brief) {
     const answers = brief.answers || {};
     const rows = Object.keys(answers).map((key) => {
       const field = _briefFieldOf(type, key);
       const label = field ? field.label : key;
+
+      if (field && field.type === 'file') {
+        const files = Array.isArray(answers[key]) ? answers[key] : [];
+        if (!files.length) return '';
+        const links = files.map((f) => `
+          <a href="${API}/api/brief_attachment.php?client_id=${activeClient.id}&brief_type=${type}&file=${encodeURIComponent(f.stored_name)}"
+             class="text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg px-2.5 py-1.5 text-indigo-300 inline-flex items-center gap-1">
+             📎 ${_esc(f.original_name)} <span class="text-slate-500">(${_briefFileSize(f.size)})</span>
+          </a>`).join('');
+        return `<div class="py-2 border-b border-slate-800/60"><p class="text-xs text-slate-500 mb-1.5">${_esc(label)}</p><div class="flex flex-wrap gap-2">${links}</div></div>`;
+      }
+
       return `<div class="py-2 border-b border-slate-800/60"><p class="text-xs text-slate-500 mb-0.5">${_esc(label)}</p><p class="text-sm text-slate-200 whitespace-pre-wrap">${_esc(_briefFormatValue(field, answers[key]))}</p></div>`;
     }).join('');
     return `
