@@ -114,34 +114,55 @@ const Egresos = (() => {
       wrap.innerHTML = `<p class="text-slate-500 text-sm p-4">Sin egresos registrados con estos filtros.</p>`;
       return;
     }
+    // Tabla completa desde sm: hacia arriba; en celular (donde una tabla de 8
+    // columnas obliga a hacer scroll horizontal, incómodo con el pulgar) se
+    // muestra en cambio una lista de tarjetas apiladas con lo esencial.
     wrap.innerHTML = `
-      <table class="w-full text-sm">
-        <thead class="bg-slate-900">
-          <tr class="text-left text-slate-500 border-b border-slate-800">
-            <th class="py-2.5 px-4">Fecha</th>
-            <th class="py-2.5 px-4">Tipo</th>
-            <th class="py-2.5 px-4">Categoría</th>
-            <th class="py-2.5 px-4">Concepto</th>
-            <th class="py-2.5 px-4">Cuenta</th>
-            <th class="py-2.5 px-4 text-right">Monto</th>
-            <th class="py-2.5 px-4">Estado</th>
-            <th class="py-2.5 px-4"></th>
-          </tr>
-        </thead>
-        <tbody>
-          ${expenses.map((e) => `
-            <tr class="border-b border-slate-800/60 hover:bg-slate-900/60 cursor-pointer" onclick="Egresos.openDetail(${e.id})">
-              <td class="py-2 px-4 text-slate-400 whitespace-nowrap">${_fmtDate(e.expense_date)}</td>
-              <td class="py-2 px-4 whitespace-nowrap">${TYPE_LABEL[e.type] || e.type}</td>
-              <td class="py-2 px-4 text-slate-400">${_esc(e.category || '—')}</td>
-              <td class="py-2 px-4 max-w-[280px] truncate">${_esc(e.concept)}</td>
-              <td class="py-2 px-4 text-slate-400">${_esc(e.account || '—')}</td>
-              <td class="py-2 px-4 text-right font-semibold whitespace-nowrap">${_money(e.amount, e.currency)}</td>
-              <td class="py-2 px-4">${_statusBadge(e)}</td>
-              <td class="py-2 px-4 text-right text-slate-500 whitespace-nowrap">${e.attachment_count ? `📎 ${e.attachment_count}` : ''}</td>
-            </tr>`).join('')}
-        </tbody>
-      </table>`;
+      <div class="hidden sm:block overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-900">
+            <tr class="text-left text-slate-500 border-b border-slate-800">
+              <th class="py-2.5 px-4">Fecha</th>
+              <th class="py-2.5 px-4">Tipo</th>
+              <th class="py-2.5 px-4">Categoría</th>
+              <th class="py-2.5 px-4">Concepto</th>
+              <th class="py-2.5 px-4">Cuenta</th>
+              <th class="py-2.5 px-4 text-right">Monto</th>
+              <th class="py-2.5 px-4">Estado</th>
+              <th class="py-2.5 px-4"></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${expenses.map((e) => `
+              <tr class="border-b border-slate-800/60 hover:bg-slate-900/60 cursor-pointer" onclick="Egresos.openDetail(${e.id})">
+                <td class="py-2 px-4 text-slate-400 whitespace-nowrap">${_fmtDate(e.expense_date)}</td>
+                <td class="py-2 px-4 whitespace-nowrap">${TYPE_LABEL[e.type] || e.type}</td>
+                <td class="py-2 px-4 text-slate-400">${_esc(e.category || '—')}</td>
+                <td class="py-2 px-4 max-w-[280px] truncate">${_esc(e.concept)}</td>
+                <td class="py-2 px-4 text-slate-400">${_esc(e.account || '—')}</td>
+                <td class="py-2 px-4 text-right font-semibold whitespace-nowrap">${_money(e.amount, e.currency)}</td>
+                <td class="py-2 px-4">${_statusBadge(e)}</td>
+                <td class="py-2 px-4 text-right text-slate-500 whitespace-nowrap">${e.attachment_count ? `📎 ${e.attachment_count}` : ''}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div class="sm:hidden divide-y divide-slate-800">
+        ${expenses.map((e) => `
+          <div class="p-4 active:bg-slate-900/60 cursor-pointer" onclick="Egresos.openDetail(${e.id})">
+            <div class="flex items-start justify-between gap-3 mb-1">
+              <p class="font-semibold text-slate-100 text-sm leading-snug min-w-0 truncate">${_esc(e.concept)}</p>
+              <p class="font-bold text-slate-100 text-sm whitespace-nowrap flex-shrink-0">${_money(e.amount, e.currency)}</p>
+            </div>
+            <div class="flex items-center justify-between gap-2 text-xs text-slate-500">
+              <span class="truncate">${_fmtDate(e.expense_date)} · ${TYPE_LABEL[e.type] || e.type}${e.category ? ' · ' + _esc(e.category) : ''}${e.account ? ' · ' + _esc(e.account) : ''}</span>
+              <span class="flex-shrink-0 flex items-center gap-2">
+                ${e.attachment_count ? `<span>📎${e.attachment_count}</span>` : ''}
+                ${_statusBadge(e) !== '<span class="text-slate-600">—</span>' ? _statusBadge(e) : ''}
+              </span>
+            </div>
+          </div>`).join('')}
+      </div>`;
   }
 
   function bindFilters() {
@@ -187,7 +208,7 @@ const Egresos = (() => {
             <button onclick="Egresos._closeForm()" class="text-slate-400 hover:text-slate-100 text-2xl leading-none">&times;</button>
           </div>
           <form id="expense-form" class="overflow-y-auto flex-1 px-6 py-4 space-y-3">
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label class="text-xs text-slate-400">Fecha
                 <input type="date" id="ef-date" required value="${_esc(editing ? editing.expense_date : _todayISO())}"
                   class="mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm">
@@ -203,7 +224,7 @@ const Egresos = (() => {
               <input type="text" id="ef-concept" required placeholder="¿Qué se compró/pagó?" value="${_esc(editing ? editing.concept : '')}"
                 class="mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm">
             </label>
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label class="text-xs text-slate-400">Categoría
                 <input type="text" id="ef-category" list="egresos-category-suggestions" value="${_esc(editing ? editing.category : '')}"
                   class="mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm">
@@ -219,7 +240,7 @@ const Egresos = (() => {
               <input type="number" id="ef-amount" required min="1" step="1" value="${editing ? editing.amount : ''}"
                 class="mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm">
             </label>
-            <div id="ef-loan-fields" class="grid grid-cols-2 gap-3" style="display:${editing && editing.type === 'prestamo' ? '' : 'none'}">
+            <div id="ef-loan-fields" class="grid grid-cols-1 sm:grid-cols-2 gap-3" style="display:${editing && editing.type === 'prestamo' ? '' : 'none'}">
               <label class="text-xs text-slate-400">¿Quién puso el dinero?
                 <input type="text" id="ef-paid-by" list="egresos-member-suggestions" value="${_esc(editing ? editing.paid_by_name : '')}"
                   class="mt-1 w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm">
@@ -387,7 +408,7 @@ const Egresos = (() => {
       </div>
       <p class="text-xs text-slate-500 mb-4">${_fmtDate(e.expense_date)} · ${TYPE_LABEL[e.type] || e.type}${e.category ? ' · ' + _esc(e.category) : ''}</p>
 
-      <div class="grid grid-cols-2 gap-3 text-sm mb-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm mb-4">
         <div><p class="text-xs text-slate-500">Monto</p><p class="font-semibold text-slate-100">${_money(e.amount, e.currency)}</p></div>
         <div><p class="text-xs text-slate-500">Cuenta</p><p class="text-slate-200">${_esc(e.account || '—')}</p></div>
         ${e.type === 'prestamo' ? `

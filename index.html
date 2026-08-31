@@ -126,12 +126,12 @@
 
   <!-- MAIN DASHBOARD -->
   <div id="state-dashboard" style="display:none">
-    <div class="p-6 max-w-screen-2xl mx-auto">
+    <div class="p-4 sm:p-6 max-w-screen-2xl mx-auto">
 
       <!-- Header -->
-      <div class="flex justify-between items-center mb-6">
-        <div>
-          <h1 class="text-2xl font-black text-slate-100">📊 Dashboard de Rendimiento</h1>
+      <div class="flex flex-wrap justify-between items-center gap-3 mb-6">
+        <div class="min-w-0">
+          <h1 class="text-xl sm:text-2xl font-black text-slate-100">📊 Dashboard de Rendimiento</h1>
           <div class="text-xs text-slate-400 mt-1" id="user-greeting"></div>
         </div>
         <div class="flex gap-2 items-center">
@@ -142,23 +142,23 @@
 
       <!-- KPI GLOBAL -->
       <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Resumen Global</h2>
-      <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 mb-6" id="kpi-global"></div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 mb-6" id="kpi-global"></div>
 
       <!-- FINANCIAL KPIs -->
       <div id="section-financial">
         <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Financiero</h2>
-        <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 mb-6" id="kpi-financial"></div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 mb-6" id="kpi-financial"></div>
       </div>
 
       <!-- CHARTS ROW 1 -->
       <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4" id="section-charts-1">
-        <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 sm:p-5">
           <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Progreso por Proyecto</h2>
           <div class="chart-container">
             <canvas id="chart-progress"></canvas>
           </div>
         </div>
-        <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 sm:p-5">
           <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Presupuesto vs Ingresos</h2>
           <div class="chart-container">
             <canvas id="chart-financial"></canvas>
@@ -168,13 +168,13 @@
 
       <!-- CHARTS ROW 2 -->
       <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4" id="section-charts-2">
-        <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 sm:p-5">
           <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">ROI por Proyecto (%)</h2>
           <div class="chart-container">
             <canvas id="chart-roi"></canvas>
           </div>
         </div>
-        <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 sm:p-5">
           <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Distribución de Tarjetas</h2>
           <div class="chart-container">
             <canvas id="chart-cards"></canvas>
@@ -183,7 +183,7 @@
       </div>
 
       <!-- TREND SECTION -->
-      <div id="trend-section" style="display:none" class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4">
+      <div id="trend-section" style="display:none" class="bg-slate-900 border border-slate-700 rounded-2xl p-4 sm:p-5 mb-4">
         <div class="flex justify-between items-center mb-3">
           <div>
             <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-0">📈 Evolución mensual — <span id="trend-cat-name" class="text-indigo-300 normal-case"></span></h2>
@@ -194,7 +194,7 @@
       </div>
 
       <!-- PROJECTS TABLE -->
-      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4" id="section-projects-table">
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 sm:p-5 mb-4" id="section-projects-table">
         <div class="flex justify-between items-center mb-3 flex-wrap gap-2">
           <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-0">Proyectos (Tableros de Trello)</h2>
         </div>
@@ -222,7 +222,7 @@
       </div>
 
       <!-- APPROVAL TIMING BY BRAND -->
-      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4" id="section-approval-timing">
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 sm:p-5 mb-4" id="section-approval-timing">
         <div class="flex justify-between items-center mb-3 flex-wrap gap-2">
           <div>
             <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-0">Tiempos de Aprobación por Marca</h2>
@@ -254,7 +254,7 @@
       </div>
 
       <!-- TEAM PERFORMANCE -->
-      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4" id="section-team-performance">
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 sm:p-5 mb-4" id="section-team-performance">
         <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Rendimiento del Equipo</h2>
         <div class="overflow-x-auto rounded-xl border border-slate-700">
           <table class="w-full text-sm">
@@ -518,22 +518,22 @@
     const entregasExtras = Math.max(0, totalDeliveredInMonth - totalApproved);
 
     document.getElementById('kpi-global').innerHTML = `
-      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-violet-500 rounded-2xl p-5">
+      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-violet-500 rounded-2xl p-4 sm:p-5">
         <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">📁 Proyectos Activos</div>
-        <div class="text-3xl font-black text-slate-100">${projects.length}</div>
+        <div class="text-2xl sm:text-3xl font-black text-slate-100">${projects.length}</div>
         <div class="text-xs text-slate-400 mt-1">tableros en Trello</div>
       </div>
-      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-indigo-500 rounded-2xl p-5">
+      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-indigo-500 rounded-2xl p-4 sm:p-5">
         <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">🗂 Tarjetas Totales</div>
-        <div class="text-3xl font-black text-slate-100">${Utils.fmt(totalCards)}</div>
+        <div class="text-2xl sm:text-3xl font-black text-slate-100">${Utils.fmt(totalCards)}</div>
         <div class="text-xs text-slate-400 mt-1">
           ${Utils.fmt(totalWithDue)} con fecha límite
           ${sinDue > 0 ? `<span class="text-slate-600"> · ${sinDue} sin fecha</span>` : ''}
         </div>
       </div>
-      <div class="bg-slate-900 border border-l-4 border-slate-700 ${progressColor} rounded-2xl p-5">
+      <div class="bg-slate-900 border border-l-4 border-slate-700 ${progressColor} rounded-2xl p-4 sm:p-5">
         <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">✅ Progreso Global</div>
-        <div class="text-3xl font-black ${pctColor}">${pctApproved}%</div>
+        <div class="text-2xl sm:text-3xl font-black ${pctColor}">${pctApproved}%</div>
         <div class="text-xs text-slate-400 mt-0.5">${totalApproved} de ${totalWithDue} compromisos del período</div>
         ${totalDeliveredInMonth > 0 ? `
         <div class="text-xs text-slate-500 mt-1">
@@ -564,19 +564,19 @@
           </div>` : ''}
         </div>
       </div>
-      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-cyan-500 rounded-2xl p-5">
+      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-cyan-500 rounded-2xl p-4 sm:p-5">
         <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">👥 Miembros del Equipo</div>
-        <div class="text-3xl font-black text-slate-100">${members.length}</div>
+        <div class="text-2xl sm:text-3xl font-black text-slate-100">${members.length}</div>
         <div class="text-xs text-slate-400 mt-1">en los proyectos filtrados</div>
       </div>
-      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-amber-500 rounded-2xl p-5">
+      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-amber-500 rounded-2xl p-4 sm:p-5">
         <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">⏱ Horas Laborales (Trello)</div>
-        <div class="text-3xl font-black text-slate-100">${Utils.fmt(totalHours, 1)}</div>
+        <div class="text-2xl sm:text-3xl font-black text-slate-100">${Utils.fmt(totalHours, 1)}</div>
         <div class="text-xs text-slate-400 mt-1">calculadas desde actividad real</div>
       </div>
-      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-red-500 rounded-2xl p-5">
+      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-red-500 rounded-2xl p-4 sm:p-5">
         <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">🔄 Total Revisiones</div>
-        <div class="text-3xl font-black text-slate-100">${projects.reduce((s,p)=>s+p.totalRevisions,0)}</div>
+        <div class="text-2xl sm:text-3xl font-black text-slate-100">${projects.reduce((s,p)=>s+p.totalRevisions,0)}</div>
         <div class="text-xs text-slate-400 mt-1">cambios del cliente (proyectos filtrados)</div>
       </div>`;
   }
@@ -587,29 +587,29 @@
     const totalCost    = projects.reduce((s, p) => s + p.totalCost, 0);
     const globalROI    = Utils.calcROI(totalRevenue, totalCost);
     document.getElementById('kpi-financial').innerHTML = `
-      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-indigo-500 rounded-2xl p-5">
+      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-indigo-500 rounded-2xl p-4 sm:p-5">
         <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">💰 Presupuesto Total</div>
-        <div class="text-2xl font-black text-slate-100">${Utils.fmtMoney(totalBudget)}</div>
+        <div class="text-xl sm:text-2xl font-black text-slate-100">${Utils.fmtMoney(totalBudget)}</div>
         <div class="text-xs text-slate-400 mt-1">suma de proyectos filtrados</div>
       </div>
-      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-emerald-500 rounded-2xl p-5">
+      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-emerald-500 rounded-2xl p-4 sm:p-5">
         <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">📈 Ingresos Totales</div>
-        <div class="text-2xl font-black text-slate-100">${Utils.fmtMoney(totalRevenue)}</div>
+        <div class="text-xl sm:text-2xl font-black text-slate-100">${Utils.fmtMoney(totalRevenue)}</div>
         <div class="text-xs text-slate-400 mt-1">suma de proyectos filtrados</div>
       </div>
-      <div class="bg-slate-900 border border-l-4 border-slate-700 ${totalCost > totalBudget ? 'border-l-red-500' : 'border-l-amber-500'} rounded-2xl p-5">
+      <div class="bg-slate-900 border border-l-4 border-slate-700 ${totalCost > totalBudget ? 'border-l-red-500' : 'border-l-amber-500'} rounded-2xl p-4 sm:p-5">
         <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">💸 Costo Total (calculado)</div>
-        <div class="text-2xl font-black text-slate-100">${Utils.fmtMoney(totalCost)}</div>
+        <div class="text-xl sm:text-2xl font-black text-slate-100">${Utils.fmtMoney(totalCost)}</div>
         <div class="text-xs text-slate-400 mt-1">horas × tarifa promedio</div>
       </div>
-      <div class="bg-slate-900 border border-l-4 border-slate-700 ${globalROI !== null && globalROI >= 0 ? 'border-l-emerald-500' : 'border-l-red-500'} rounded-2xl p-5">
+      <div class="bg-slate-900 border border-l-4 border-slate-700 ${globalROI !== null && globalROI >= 0 ? 'border-l-emerald-500' : 'border-l-red-500'} rounded-2xl p-4 sm:p-5">
         <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">📊 ROI Global</div>
-        <div class="text-2xl font-black text-slate-100">${globalROI !== null ? Utils.fmtPercent(globalROI) : '—'}</div>
+        <div class="text-xl sm:text-2xl font-black text-slate-100">${globalROI !== null ? Utils.fmtPercent(globalROI) : '—'}</div>
         <div class="text-xs text-slate-400 mt-1">(Ingresos - Costo) / Costo</div>
       </div>
-      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-violet-500 rounded-2xl p-5">
+      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-violet-500 rounded-2xl p-4 sm:p-5">
         <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">📉 Margen Neto</div>
-        <div class="text-2xl font-black text-slate-100">${Utils.fmtMoney(totalRevenue - totalCost)}</div>
+        <div class="text-xl sm:text-2xl font-black text-slate-100">${Utils.fmtMoney(totalRevenue - totalCost)}</div>
         <div class="text-xs text-slate-400 mt-1">ingresos − costo calculado</div>
       </div>`;
   }
@@ -1237,7 +1237,7 @@
         `<div class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white" style="background:${Utils.avatarColor(m.id)}" title="${m.fullName}">${Utils.initials(m.fullName)}</div>`
       ).join('');
       return `
-        <a href="proyecto.html?id=${p.id}${periodParam}" class="bg-slate-900 border border-slate-700 rounded-2xl p-5 block cursor-pointer transition-all hover:border-indigo-500 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-500/10 text-inherit no-underline" style="text-decoration:none;color:inherit">
+        <a href="proyecto.html?id=${p.id}${periodParam}" class="bg-slate-900 border border-slate-700 rounded-2xl p-4 sm:p-5 block cursor-pointer transition-all hover:border-indigo-500 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-500/10 text-inherit no-underline" style="text-decoration:none;color:inherit">
           <div class="flex justify-between items-center mb-1">
             <div class="font-semibold text-slate-100 truncate max-w-[200px]">${p.displayName}</div>
             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${roiBadge}">ROI ${roiText}</span>

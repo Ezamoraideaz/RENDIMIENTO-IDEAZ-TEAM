@@ -75,8 +75,79 @@ const Sidebar = (() => {
         padding-left: 0.5rem;
         padding-right: 0.5rem;
       }
+
+      /* ── Mobile: el sidebar pasa a ser un panel deslizable a pantalla
+         completa (drawer), no una columna fija que se come la pantalla.
+         Se abre con el botón ☰ de la barra superior fija que se agrega acá
+         mismo — así ninguna página necesita tocar su propio HTML para
+         tener este comportamiento. ── */
+      #sidebar-mobile-topbar { display: none; }
+      @media (max-width: 767px) {
+        body { padding-top: 3.25rem; }
+        #sidebar-mobile-topbar { display: flex; }
+        main[data-sidebar-main] { margin-left: 0 !important; }
+        #app-sidebar {
+          width: 17rem !important;
+          transform: translateX(-100%);
+          transition: transform 0.2s ease;
+        }
+        #app-sidebar.mobile-open { transform: translateX(0); }
+        /* En mobile el drawer siempre muestra todo expandido, sin importar
+           si en escritorio quedó colapsado a solo íconos. */
+        #app-sidebar[data-collapsed] .sidebar-text { display: block !important; }
+        #app-sidebar[data-collapsed] .sidebar-page-content { display: block !important; }
+        #app-sidebar[data-collapsed] #sidebar-filters { display: block !important; }
+        #app-sidebar[data-collapsed] .sidebar-nav-item {
+          justify-content: flex-start;
+          padding-left: 0.75rem;
+          padding-right: 0.75rem;
+        }
+        #sidebar-toggle { display: none; }
+      }
     `;
     document.head.appendChild(s);
+  }
+
+  function _closeMobileMenu() {
+    document.getElementById('app-sidebar')?.classList.remove('mobile-open');
+    const backdrop = document.getElementById('sidebar-mobile-backdrop');
+    if (backdrop) backdrop.style.display = 'none';
+  }
+
+  function _openMobileMenu() {
+    document.getElementById('app-sidebar')?.classList.add('mobile-open');
+    const backdrop = document.getElementById('sidebar-mobile-backdrop');
+    if (backdrop) backdrop.style.display = 'block';
+  }
+
+  function _toggleMobileMenu() {
+    const aside = document.getElementById('app-sidebar');
+    if (aside && aside.classList.contains('mobile-open')) {
+      _closeMobileMenu();
+    } else {
+      _openMobileMenu();
+    }
+  }
+
+  // Barra superior fija (solo visible <768px, ver _injectStyles) con el
+  // botón ☰ que abre el drawer, + fondo semitransparente para cerrarlo al
+  // tocar afuera. Se inyecta una sola vez, fuera de <aside> (el drawer se
+  // superpone, no empuja contenido).
+  function _ensureMobileChrome() {
+    if (document.getElementById('sidebar-mobile-topbar')) return;
+    document.body.insertAdjacentHTML('afterbegin', `
+      <div id="sidebar-mobile-topbar" class="fixed top-0 left-0 right-0 h-[3.25rem] z-[45] bg-slate-900 border-b border-slate-700 items-center px-3 gap-3">
+        <button id="sidebar-mobile-toggle" class="w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-lg hover:bg-slate-800 text-slate-200 text-xl leading-none" aria-label="Abrir menú">☰</button>
+        <div class="flex items-center gap-2 min-w-0">
+          <div class="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center flex-shrink-0">
+            <span class="text-white font-black text-xs">I</span>
+          </div>
+          <span class="font-black text-slate-100 text-sm truncate">Monitor Ideaz</span>
+        </div>
+      </div>
+      <div id="sidebar-mobile-backdrop" class="fixed inset-0 bg-black/60 z-40" style="display:none"></div>`);
+    document.getElementById('sidebar-mobile-toggle').addEventListener('click', _toggleMobileMenu);
+    document.getElementById('sidebar-mobile-backdrop').addEventListener('click', _closeMobileMenu);
   }
 
   // options.allowedKeys — string[] | undefined: filter nav links
@@ -173,6 +244,7 @@ const Sidebar = (() => {
     }
 
     _injectStyles();
+    _ensureMobileChrome();
     _applyTheme(_getTheme());
 
     const collapsed = _isCollapsed();
