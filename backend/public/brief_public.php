@@ -101,10 +101,10 @@ function brief_public_validate(string $briefType, array $answers): ?string
             $required = ['tipo_sitio', 'objetivo', 'publico_objetivo'];
             break;
         case 'marketing_digital':
-            $required = ['marca_nombre', 'objetivo_principal', 'publico_objetivo', 'plataformas', 'productos_a_promocionar'];
+            $required = ['objetivo_principal', 'publico_objetivo', 'plataformas', 'productos_a_promocionar'];
             break;
         case 'branding':
-            $required = ['nombre_marca', 'historia_mision', 'publico_objetivo', 'tiene_logo', 'estilo_visual', 'adjetivos'];
+            $required = ['historia_mision', 'publico_objetivo', 'tiene_logo', 'estilo_visual', 'adjetivos'];
             break;
     }
     foreach ($required as $key) {
