@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Brief — IDEAZ</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .brief-input {
+      width: 100%; background: #1e293b; border: 1px solid #334155; border-radius: 0.75rem;
+      padding: 0.75rem 1rem; font-size: 1rem; color: #f1f5f9; outline: none; transition: border-color .15s;
+    }
+    .brief-input:focus { border-color: #6366f1; }
+    .brief-input-error { border-color: #f87171 !important; }
+    textarea.brief-input { resize: vertical; min-height: 5.5rem; }
+    .brief-card {
+      display: block; width: 100%; text-align: left; background: #1e293b; border: 1.5px solid #334155;
+      border-radius: 0.75rem; padding: 0.85rem 1rem; color: #e2e8f0; cursor: pointer; transition: all .15s;
+      min-height: 3rem;
+    }
+    .brief-card:active { transform: scale(0.98); }
+    .brief-card-active { border-color: #6366f1; background: #312e8133; }
+    .brief-card-active .brief-check { opacity: 1; }
+    .brief-check { opacity: 0; float: right; color: #818cf8; font-weight: 800; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+
+  <!-- Portal público del formulario de brief (sin login) — el token vive en
+       la URL (?t=...) y se manda tal cual al backend, que lo valida por su
+       hash. A propósito NO incluye js/session.js ni el resto de JS del
+       dashboard, igual que revisar.html / leads-cliente.html. -->
+
+  <div id="state-loading" class="min-h-screen flex items-center justify-center">
+    <div class="w-10 h-10 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+  </div>
+
+  <div id="state-error" style="display:none" class="min-h-screen flex items-center justify-center p-6">
+    <div class="text-center max-w-sm">
+      <p class="text-4xl mb-3">🔒</p>
+      <h1 class="text-lg font-bold mb-1">Este link ya no está disponible</h1>
+      <p class="text-slate-400 text-sm">Puede haber sido revocado o el link estar incompleto. Pide uno nuevo a tu contacto en la agencia.</p>
+    </div>
+  </div>
+
+  <div id="state-filled" style="display:none" class="min-h-screen flex items-center justify-center p-6">
+    <div class="text-center max-w-sm">
+      <p class="text-4xl mb-3">✅</p>
+      <h1 class="text-lg font-bold mb-1">Este brief ya fue enviado</h1>
+      <p class="text-slate-400 text-sm">Gracias, ya recibimos esta información. Si necesitas actualizarla, pide un nuevo link a tu contacto en la agencia.</p>
+    </div>
+  </div>
+
+  <div id="state-done" style="display:none" class="min-h-screen flex items-center justify-center p-6">
+    <div class="text-center max-w-sm">
+      <p class="text-4xl mb-3">🎉</p>
+      <h1 class="text-lg font-bold mb-1">¡Gracias!</h1>
+      <p class="text-slate-400 text-sm">Recibimos tu brief. Nuestro equipo lo va a revisar y se pondrá en contacto contigo pronto.</p>
+    </div>
+  </div>
+
+  <div id="state-content" style="display:none" class="min-h-screen flex flex-col max-w-lg mx-auto">
+    <div class="px-5 pt-5 pb-3 flex-shrink-0">
+      <div class="flex items-center gap-3 mb-4">
+        <img id="client-logo" style="display:none" class="w-9 h-9 rounded-full object-cover flex-shrink-0" alt="">
+        <div class="min-w-0">
+          <p id="client-name" class="font-bold truncate"></p>
+          <p id="brief-type-label" class="text-xs text-slate-500"></p>
+        </div>
+      </div>
+      <div class="flex items-center justify-between mb-1.5">
+        <span id="brief-progress-label" class="text-xs font-semibold text-indigo-300"></span>
+      </div>
+      <div class="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+        <div id="brief-progress-bar" class="h-full bg-indigo-500 transition-all" style="width:0%"></div>
+      </div>
+    </div>
+
+    <div class="flex-1 overflow-y-auto px-5 pb-32">
+      <h2 id="brief-step-title" class="text-xl font-bold mb-4 mt-2"></h2>
+      <p id="brief-form-error" style="display:none" class="text-sm text-red-400 bg-red-950/40 border border-red-800/50 rounded-lg px-3 py-2 mb-4"></p>
+      <div id="brief-step-fields"></div>
+    </div>
+
+    <div class="fixed bottom-0 left-0 right-0 max-w-lg mx-auto bg-slate-950/95 backdrop-blur border-t border-slate-800 px-5 py-3 flex items-center gap-3">
+      <button id="brief-back-btn" type="button" class="px-4 py-3 rounded-xl text-sm font-semibold text-slate-300 hover:bg-slate-800 transition-colors">← Atrás</button>
+      <button id="brief-next-btn" type="button" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-3 rounded-xl text-sm font-bold transition-colors">Siguiente →</button>
+    </div>
+  </div>
+
+  <script src="js/briefSchemas.js"></script>
+  <script>
+    const API = 'backend/public/brief_public.php';
+
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+    }
+    function setState(name) {
+      ['loading', 'error', 'filled', 'done', 'content'].forEach((s) => {
+        document.getElementById('state-' + s).style.display = (name === s) ? '' : 'none';
+      });
+    }
+
+    const CONTACT_FIELDS = [
+      { key: 'filled_by_name', label: 'Tu nombre', type: 'text', required: true, placeholder: 'Nombre completo' },
+      { key: 'filled_by_email', label: 'Tu correo', type: 'email', required: true, placeholder: 'correo@marca.com' },
+    ];
+
+    let token = '';
+    let briefType = '';
+    let formData = {};
+    let currentStepIndex = 0;
+
+    function draftKey() { return `ideaz_brief_draft_${token}`; }
+
+    function saveDraft() {
+      try {
+        localStorage.setItem(draftKey(), JSON.stringify({ formData, currentStepIndex }));
+      } catch (_) { /* localStorage puede fallar en modo incógnito estricto — no es crítico */ }
+    }
+
+    function loadDraft() {
+      try {
+        const raw = localStorage.getItem(draftKey());
+        if (!raw) return;
+        const draft = JSON.parse(raw);
+        if (draft && typeof draft === 'object') {
+          formData = draft.formData || {};
+          currentStepIndex = draft.currentStepIndex || 0;
+        }
+      } catch (_) { /* ignorar draft corrupto */ }
+    }
+
+    function clearDraft() {
+      try { localStorage.removeItem(draftKey()); } catch (_) {}
+    }
+
+    function getSteps() {
+      const schema = BRIEF_SCHEMAS[briefType];
+      const steps = [{ id: 'contacto', title: 'Sobre ti', fields: CONTACT_FIELDS }];
+      schema.sections.forEach((s) => {
+        if (s.showIf && !s.showIf(formData)) return;
+        steps.push(s);
+      });
+      return steps;
+    }
+
+    function renderField(field) {
+      const value = formData[field.key];
+      const req = field.required ? '<span class="text-red-400">*</span>' : '';
+      let control = '';
+      if (field.type === 'textarea') {
+        control = `<textarea data-key="${field.key}" rows="3" placeholder="${esc(field.placeholder || '')}" class="brief-input">${esc(value || '')}</textarea>`;
+      } else if (field.type === 'radio-cards') {
+        control = `<div class="grid gap-2" data-key="${field.key}" data-type="radio-cards">${field.options.map((o) => `
+          <button type="button" class="brief-card ${value === o.value ? 'brief-card-active' : ''}" data-value="${esc(o.value)}">
+            <span class="brief-check">✓</span>
+            <span class="font-semibold block">${esc(o.label)}</span>
+            ${o.help ? `<span class="block text-xs text-slate-400 mt-0.5">${esc(o.help)}</span>` : ''}
+          </button>`).join('')}</div>`;
+      } else if (field.type === 'checkbox-group') {
+        const arr = Array.isArray(value) ? value : [];
+        control = `<div class="grid gap-2" data-key="${field.key}" data-type="checkbox-group">${field.options.map((o) => `
+          <button type="button" class="brief-card ${arr.includes(o.value) ? 'brief-card-active' : ''}" data-value="${esc(o.value)}">
+            <span class="brief-check">✓</span>
+            <span class="font-semibold">${esc(o.label)}</span>
+          </button>`).join('')}</div>`;
+      } else {
+        control = `<input type="${field.type}" data-key="${field.key}" placeholder="${esc(field.placeholder || '')}" value="${esc(value || '')}" class="brief-input">`;
+      }
+      return `<div class="mb-5" data-field-wrap="${field.key}">
+        <label class="block text-sm font-semibold text-slate-200 mb-1.5">${esc(field.label)} ${req}</label>
+        ${control}
+        <p class="brief-error hidden text-xs text-red-400 mt-1">Este campo es obligatorio</p>
+      </div>`;
+    }
+
+    function markFieldError(key, hasError) {
+      const wrap = document.querySelector(`[data-field-wrap="${key}"]`);
+      if (!wrap) return;
+      const err = wrap.querySelector('.brief-error');
+      const input = wrap.querySelector('.brief-input');
+      if (err) err.classList.toggle('hidden', !hasError);
+      if (input) input.classList.toggle('brief-input-error', hasError);
+      wrap.querySelectorAll('.brief-card').forEach((c) => c.classList.toggle('brief-input-error', hasError));
+    }
+
+    function isEmpty(v) {
+      return v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0);
+    }
+
+    function validateStep(step) {
+      let valid = true;
+      step.fields.forEach((f) => {
+        const hasError = !!f.required && isEmpty(formData[f.key]);
+        markFieldError(f.key, hasError);
+        if (hasError) valid = false;
+      });
+      return valid;
+    }
+
+    function renderStep() {
+      const steps = getSteps();
+      if (currentStepIndex >= steps.length) currentStepIndex = steps.length - 1;
+      if (currentStepIndex < 0) currentStepIndex = 0;
+      const step = steps[currentStepIndex];
+      const isLast = currentStepIndex === steps.length - 1;
+
+      document.getElementById('brief-progress-label').textContent = `Paso ${currentStepIndex + 1} de ${steps.length}`;
+      document.getElementById('brief-progress-bar').style.width = `${((currentStepIndex + 1) / steps.length) * 100}%`;
+      document.getElementById('brief-step-title').textContent = step.title;
+      document.getElementById('brief-form-error').style.display = 'none';
+      document.getElementById('brief-step-fields').innerHTML = step.fields.map(renderField).join('');
+      document.getElementById('brief-back-btn').style.visibility = currentStepIndex === 0 ? 'hidden' : 'visible';
+      document.getElementById('brief-next-btn').textContent = isLast ? 'Enviar brief ✓' : 'Siguiente →';
+      document.getElementById('brief-next-btn').disabled = false;
+      window.scrollTo(0, 0);
+    }
+
+    function bindStepFieldsContainer() {
+      const container = document.getElementById('brief-step-fields');
+      container.addEventListener('input', (e) => {
+        const key = e.target.dataset.key;
+        if (!key) return;
+        formData[key] = e.target.value;
+        markFieldError(key, false);
+        saveDraft();
+      });
+      container.addEventListener('click', (e) => {
+        const card = e.target.closest('.brief-card');
+        if (!card) return;
+        const wrap = card.closest('[data-type]');
+        const key = wrap.dataset.key;
+        const type = wrap.dataset.type;
+        if (type === 'radio-cards') {
+          formData[key] = card.dataset.value;
+          wrap.querySelectorAll('.brief-card').forEach((c) => c.classList.toggle('brief-card-active', c === card));
+        } else {
+          const arr = Array.isArray(formData[key]) ? formData[key].slice() : [];
+          const idx = arr.indexOf(card.dataset.value);
+          if (idx >= 0) arr.splice(idx, 1); else arr.push(card.dataset.value);
+          formData[key] = arr;
+          card.classList.toggle('brief-card-active', arr.includes(card.dataset.value));
+        }
+        markFieldError(key, false);
+        saveDraft();
+        // El tipo de sitio decide qué sección específica aparece después —
+        // no hace falta re-renderizar el paso actual, solo invalida el caché
+        // de pasos para cuando se calcule getSteps() en el próximo Siguiente.
+      });
+    }
+
+    async function submitForm() {
+      const btn = document.getElementById('brief-next-btn');
+      btn.disabled = true;
+      btn.textContent = 'Enviando…';
+      const errEl = document.getElementById('brief-form-error');
+      errEl.style.display = 'none';
+
+      const answers = Object.assign({}, formData);
+      const filledByName = answers.filled_by_name;
+      const filledByEmail = answers.filled_by_email;
+      delete answers.filled_by_name;
+      delete answers.filled_by_email;
+
+      try {
+        const res = await fetch(API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ t: token, answers, filled_by_name: filledByName, filled_by_email: filledByEmail }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+        clearDraft();
+        setState('done');
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.style.display = '';
+        btn.disabled = false;
+        btn.textContent = 'Enviar brief ✓';
+      }
+    }
+
+    function goNext() {
+      const steps = getSteps();
+      const step = steps[currentStepIndex];
+      if (!validateStep(step)) return;
+      const isLast = currentStepIndex === steps.length - 1;
+      if (isLast) {
+        submitForm();
+        return;
+      }
+      currentStepIndex++;
+      saveDraft();
+      renderStep();
+    }
+
+    function goBack() {
+      if (currentStepIndex === 0) return;
+      currentStepIndex--;
+      saveDraft();
+      renderStep();
+    }
+
+    async function init() {
+      token = new URLSearchParams(location.search).get('t') || '';
+      if (!token) { setState('error'); return; }
+
+      try {
+        const res = await fetch(`${API}?t=${encodeURIComponent(token)}`);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Error');
+
+        if (data.status === 'invalid') { setState('error'); return; }
+        if (data.status === 'filled') { setState('filled'); return; }
+
+        briefType = data.brief_type;
+        document.getElementById('client-name').textContent = data.client.name;
+        document.getElementById('brief-type-label').textContent = `Brief de ${BRIEF_SCHEMAS[briefType].label.toLowerCase()}`;
+        if (data.client.logo_url) {
+          const img = document.getElementById('client-logo');
+          img.src = data.client.logo_url;
+          img.style.display = '';
+        }
+
+        loadDraft();
+        bindStepFieldsContainer();
+        document.getElementById('brief-back-btn').addEventListener('click', goBack);
+        document.getElementById('brief-next-btn').addEventListener('click', goNext);
+        renderStep();
+        setState('content');
+      } catch (e) {
+        setState('error');
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

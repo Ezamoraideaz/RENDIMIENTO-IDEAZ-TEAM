@@ -441,3 +441,24 @@ CREATE TABLE IF NOT EXISTS organic_lead_share_links (
     CONSTRAINT fk_organic_lead_share_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
     CONSTRAINT fk_organic_lead_share_operator FOREIGN KEY (created_by) REFERENCES operators(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Módulo "Briefs" (pestaña dentro de Atención al Cliente) — una fila por
+-- (cliente, tipo de brief). Ver migration_018_client_briefs.sql para el detalle.
+CREATE TABLE IF NOT EXISTS client_briefs (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    client_id INT UNSIGNED NOT NULL,
+    brief_type ENUM('sitio_web','marketing_digital','branding') NOT NULL,
+    token_hash CHAR(64) NULL,
+    status ENUM('pending','filled') NOT NULL DEFAULT 'pending',
+    answers JSON NULL,
+    filled_by_name VARCHAR(190) NULL,
+    filled_by_email VARCHAR(190) NULL,
+    filled_at DATETIME NULL,
+    created_by INT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_client_briefs_token (token_hash),
+    UNIQUE KEY uq_client_briefs_type (client_id, brief_type),
+    CONSTRAINT fk_client_briefs_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
+    CONSTRAINT fk_client_briefs_operator FOREIGN KEY (created_by) REFERENCES operators(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

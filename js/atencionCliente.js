@@ -145,7 +145,7 @@ const AtencionCliente = (() => {
     activeClient = clients.find((c) => c.id === clientId);
     if (!activeClient) return;
     renderClientModal();
-    await Promise.all([loadAccountsTab(), loadFlowsTab(), loadConversationsTab(), loadAdLeadFormsTab(), loadOrganicLeadsTab(), loadContextoTab()]);
+    await Promise.all([loadAccountsTab(), loadFlowsTab(), loadConversationsTab(), loadAdLeadFormsTab(), loadOrganicLeadsTab(), loadBriefsTab(), loadContextoTab()]);
   }
 
   function renderClientModal() {
@@ -155,6 +155,7 @@ const AtencionCliente = (() => {
       { key: 'conversaciones', label: 'Conversaciones' },
       { key: 'leads', label: '🧾 Leads de Ads' },
       { key: 'organicos', label: '📋 Leads Orgánicos' },
+      { key: 'briefs', label: '📝 Briefs' },
       { key: 'contexto', label: '🧠 Contexto IA' },
     ];
     const tabBtns = tabs.map((t, i) => `
@@ -179,6 +180,7 @@ const AtencionCliente = (() => {
             <div id="ac-panel-conversaciones" class="ac-panel" style="display:none"></div>
             <div id="ac-panel-leads" class="ac-panel" style="display:none"></div>
             <div id="ac-panel-organicos" class="ac-panel" style="display:none"></div>
+            <div id="ac-panel-briefs" class="ac-panel" style="display:none"></div>
             <div id="ac-panel-contexto" class="ac-panel" style="display:none"></div>
           </div>
         </div>
@@ -1168,6 +1170,188 @@ const AtencionCliente = (() => {
     }
   }
 
+  // ── Briefs (pestaña dentro del cliente — 3 tipos: sitio web, mercadeo
+  // digital, branding). Cada tipo tiene su propio link público independiente
+  // (client_briefs.php), llenado sin login por la marca en brief-publico.html.
+  // Los campos y etiquetas salen de BRIEF_SCHEMAS (js/briefSchemas.js), la
+  // misma fuente que usa el formulario público — así el visor de respuestas
+  // nunca se desincroniza de lo que realmente se le pregunta a la marca.
+
+  const BRIEF_TYPE_ORDER = ['sitio_web', 'marketing_digital', 'branding'];
+  let _briefsByType = {};
+
+  async function loadBriefsTab() {
+    const panel = document.getElementById('ac-panel-briefs');
+    panel.innerHTML = `<p class="text-slate-500 text-sm">Cargando…</p>`;
+    try {
+      const data = await api(`api/client_briefs.php?client_id=${activeClient.id}`);
+      _briefsByType = {};
+      (data.briefs || []).forEach((b) => { _briefsByType[b.brief_type] = b; });
+      panel.innerHTML = renderBriefsPanel();
+    } catch (e) {
+      panel.innerHTML = `<p class="text-red-400 text-sm">${_esc(e.message)}</p>`;
+    }
+  }
+
+  function _briefOf(type) {
+    return _briefsByType[type] || { brief_type: type, status: 'pending', link_generated: false, has_answers: false };
+  }
+
+  function renderBriefsPanel() {
+    return `
+      <p class="text-xs text-slate-500 mb-4">Genera un link para que la marca llene su brief desde el celular. Cada tipo tiene su propio link independiente.</p>
+      <div class="grid gap-3">${BRIEF_TYPE_ORDER.map(renderBriefCard).join('')}</div>
+      <div id="brief-answers-detail"></div>`;
+  }
+
+  function _briefStatusLabel(brief) {
+    if (brief.status === 'filled') {
+      const date = brief.filled_at ? new Date(brief.filled_at.replace(' ', 'T')).toLocaleDateString('es-MX') : '';
+      return `<span class="text-emerald-400 font-semibold">✅ Completado${date ? ' el ' + date : ''}${brief.filled_by_name ? ' — ' + _esc(brief.filled_by_name) : ''}</span>`;
+    }
+    if (brief.link_generated) {
+      return `<span class="text-amber-400 font-semibold">🔗 Link enviado — pendiente de respuesta</span>`;
+    }
+    return `<span class="text-slate-500">Sin generar</span>`;
+  }
+
+  function renderBriefCard(type) {
+    return `
+      <div class="bg-slate-900 border border-slate-700 rounded-xl p-4" data-brief-card="${type}">
+        <h4 class="font-bold text-slate-100 mb-1">${_esc(BRIEF_SCHEMAS[type].label)}</h4>
+        <p class="text-xs mb-3" data-brief-status="${type}">${_briefStatusLabel(_briefOf(type))}</p>
+        <div data-brief-share="${type}">${renderBriefShareBox(type)}</div>
+      </div>`;
+  }
+
+  function renderBriefShareBox(type) {
+    const brief = _briefOf(type);
+    const btns = [];
+    if (brief.link_generated) {
+      btns.push(`<button onclick="AtencionCliente.generateBriefLink('${type}')" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">Regenerar</button>`);
+      btns.push(`<button onclick="AtencionCliente.revokeBriefLink('${type}')" class="bg-slate-800 hover:bg-red-900/40 border border-red-700/50 text-red-400 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">Revocar</button>`);
+    } else {
+      btns.push(`<button onclick="AtencionCliente.generateBriefLink('${type}')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">Generar link</button>`);
+    }
+    if (brief.has_answers) {
+      btns.push(`<button onclick="AtencionCliente.viewBriefAnswers('${type}')" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">Ver respuestas</button>`);
+    }
+    return `<div class="flex flex-wrap gap-2">${btns.join('')}</div>`;
+  }
+
+  // Se muestra una sola vez, justo al generar/regenerar — el backend nunca
+  // vuelve a devolver el token crudo (solo guarda su hash), mismo criterio
+  // que renderOrganicLeadsShareReveal.
+  function renderBriefShareReveal(type, url) {
+    return `
+      <div class="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3">
+        <p class="text-xs text-slate-400 mb-2">Cópialo ahora y envíalo a la marca — no se puede volver a ver:</p>
+        <div class="flex gap-2">
+          <input type="text" id="brief-share-url-${type}" readonly value="${_esc(url)}" onclick="this.select()"
+            class="flex-1 min-w-0 bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-300">
+          <button type="button" onclick="AtencionCliente._copyBriefLink('${type}')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-xs font-semibold flex-shrink-0">📋 Copiar</button>
+        </div>
+      </div>
+      ${renderBriefShareBox(type)}`;
+  }
+
+  function _refreshBriefCardStatus(type) {
+    const card = document.querySelector(`[data-brief-card="${type}"]`);
+    if (card) card.querySelector(`[data-brief-status="${type}"]`).innerHTML = _briefStatusLabel(_briefOf(type));
+  }
+
+  async function generateBriefLink(type) {
+    try {
+      const data = await api('api/client_briefs.php', {
+        method: 'POST',
+        body: JSON.stringify({ client_id: activeClient.id, brief_type: type, action: 'generate_link' }),
+      });
+      // Regenerar un brief ya lleno lo vuelve a 'pending' en el backend, pero
+      // conserva has_answers/answers hasta que llegue un envío nuevo.
+      _briefsByType[type] = Object.assign({}, _briefOf(type), { status: 'pending', link_generated: true });
+      const base = location.origin + location.pathname.replace(/[^/]*$/, '');
+      const url = `${base}brief-publico.html?t=${data.token}`;
+      document.querySelector(`[data-brief-share="${type}"]`).innerHTML = renderBriefShareReveal(type, url);
+      _refreshBriefCardStatus(type);
+    } catch (e) {
+      Utils.showToast(e.message, 'danger');
+    }
+  }
+
+  async function revokeBriefLink(type) {
+    if (!confirm('¿Revocar este link? La marca ya no podrá usarlo para llenar el brief.')) return;
+    try {
+      await api('api/client_briefs.php', {
+        method: 'POST',
+        body: JSON.stringify({ client_id: activeClient.id, brief_type: type, action: 'revoke_link' }),
+      });
+      _briefsByType[type] = Object.assign({}, _briefOf(type), { link_generated: false });
+      Utils.showToast('Link revocado', 'success');
+      document.querySelector(`[data-brief-share="${type}"]`).innerHTML = renderBriefShareBox(type);
+    } catch (e) {
+      Utils.showToast(e.message, 'danger');
+    }
+  }
+
+  function _copyBriefLink(type) {
+    const input = document.getElementById(`brief-share-url-${type}`);
+    if (!input) return;
+    navigator.clipboard.writeText(input.value)
+      .then(() => Utils.showToast('Link copiado ✓', 'success'))
+      .catch(() => { input.select(); Utils.showToast('No se pudo copiar solo — selecciónalo y usa Ctrl+C', 'warning'); });
+  }
+
+  function _briefFieldOf(type, key) {
+    for (const section of BRIEF_SCHEMAS[type].sections) {
+      const field = section.fields.find((f) => f.key === key);
+      if (field) return field;
+    }
+    return null;
+  }
+
+  function _briefFormatValue(field, value) {
+    if (value === undefined || value === null || value === '') return '—';
+    if (Array.isArray(value)) {
+      if (!value.length) return '—';
+      return value.map((v) => (field && field.options ? (field.options.find((o) => o.value === v) || {}).label || v : v)).join(', ');
+    }
+    if (field && field.options) {
+      const opt = field.options.find((o) => o.value === value);
+      return opt ? opt.label : value;
+    }
+    return String(value);
+  }
+
+  function renderBriefAnswers(type, brief) {
+    const answers = brief.answers || {};
+    const rows = Object.keys(answers).map((key) => {
+      const field = _briefFieldOf(type, key);
+      const label = field ? field.label : key;
+      return `<div class="py-2 border-b border-slate-800/60"><p class="text-xs text-slate-500 mb-0.5">${_esc(label)}</p><p class="text-sm text-slate-200 whitespace-pre-wrap">${_esc(_briefFormatValue(field, answers[key]))}</p></div>`;
+    }).join('');
+    return `
+      <div class="bg-slate-900 border border-slate-700 rounded-xl p-4 mt-2">
+        <div class="flex items-center justify-between mb-3">
+          <h4 class="font-bold text-slate-100">Respuestas — ${_esc(BRIEF_SCHEMAS[type].label)}</h4>
+          <button onclick="document.getElementById('brief-answers-detail').innerHTML=''" class="text-slate-400 hover:text-slate-200 text-lg leading-none">&times;</button>
+        </div>
+        <p class="text-xs text-slate-500 mb-3">Enviado por ${_esc(brief.filled_by_name || '—')}${brief.filled_by_email ? ' · ' + _esc(brief.filled_by_email) : ''}${brief.filled_at ? ' · ' + new Date(brief.filled_at.replace(' ', 'T')).toLocaleString('es-MX') : ''}</p>
+        ${rows || '<p class="text-slate-500 text-sm">Sin respuestas.</p>'}
+      </div>`;
+  }
+
+  async function viewBriefAnswers(type) {
+    const detail = document.getElementById('brief-answers-detail');
+    detail.innerHTML = `<p class="text-slate-500 text-sm mt-2">Cargando respuestas…</p>`;
+    try {
+      const data = await api(`api/client_briefs.php?client_id=${activeClient.id}&brief_type=${type}&detail=1`);
+      detail.innerHTML = renderBriefAnswers(type, data.brief);
+      detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } catch (e) {
+      detail.innerHTML = `<p class="text-red-400 text-sm">${_esc(e.message)}</p>`;
+    }
+  }
+
   return {
     init, openNewClientPrompt, openClient, closeClientModal, editClientLogo, _switchTab, _overlayClose,
     createFlow, duplicateFlow, toggleFlowStatus, openBuilder, closeBuilder,
@@ -1176,6 +1360,7 @@ const AtencionCliente = (() => {
     loadAdLeadFormsTab, openAdLeadForm, _closeAdLeadForm, deleteAdLeadRule,
     loadOrganicLeadsTab, deleteOrganicLead, addOrganicLeadNotifyEmail, removeOrganicLeadNotifyEmail,
     generateOrganicLeadShareLink, revokeOrganicLeadShareLink, removeOrganicLeadManualRow,
+    loadBriefsTab, generateBriefLink, revokeBriefLink, viewBriefAnswers, _copyBriefLink,
   };
 })();
 
