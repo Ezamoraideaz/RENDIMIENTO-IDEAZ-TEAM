@@ -168,7 +168,11 @@ const AtencionCliente = (() => {
         <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
           <div class="px-6 py-4 border-b border-slate-700 flex items-center justify-between gap-4 flex-shrink-0">
             <div class="flex items-center gap-3 min-w-0">
-              <button onclick="AtencionCliente.editClientLogo()" title="Cambiar logo" id="client-modal-logo" class="p-0 border-0 bg-transparent cursor-pointer flex-shrink-0 hover:opacity-80 transition-opacity">${_clientAvatar(activeClient, 40)}</button>
+              <div class="flex items-center gap-1 flex-shrink-0">
+                <button onclick="AtencionCliente.triggerClientLogoUpload()" title="Subir logo desde tu equipo" id="client-modal-logo" class="p-0 border-0 bg-transparent cursor-pointer hover:opacity-80 transition-opacity">${_clientAvatar(activeClient, 40)}</button>
+                <button onclick="AtencionCliente.editClientLogoLink()" title="O pegar un link de imagen" class="text-slate-500 hover:text-slate-300 text-xs leading-none px-0.5">🔗</button>
+              </div>
+              <input type="file" id="client-logo-file-input" accept=".png,.jpg,.jpeg,.webp,.svg" style="display:none">
               <h2 class="font-bold text-slate-100 text-lg truncate">${_esc(activeClient.name)}</h2>
             </div>
             <button onclick="AtencionCliente.closeClientModal()" class="text-slate-400 hover:text-slate-100 text-2xl leading-none">&times;</button>
@@ -185,6 +189,7 @@ const AtencionCliente = (() => {
           </div>
         </div>
       </div>`);
+    document.getElementById('client-logo-file-input').addEventListener('change', onClientLogoFileSelected);
   }
 
   function _switchTab(key) {
@@ -209,21 +214,61 @@ const AtencionCliente = (() => {
   }
 
   // Logo de la marca: se muestra como avatar en la tarjeta del cliente y como
-  // fondo del splash del portal de revisión (revisar.html) — hasta ahora la
-  // columna logo_url existía en la BD/API pero no había forma de cargarla
-  // desde ningún lado de la interfaz.
-  async function editClientLogo() {
+  // fondo del splash de los portales sin login (revisar.html, leads-cliente.html,
+  // brief-publico.html) — por eso el archivo se guarda en backend/public/uploads/
+  // (pública) y no en backend/storage/ (bloqueada). Dos formas de cargarlo:
+  // subiendo un archivo directo (click en el avatar) o pegando un link ya
+  // hosteado en otro lado (el 🔗 de al lado, flujo original vía clients.php PUT).
+
+  function _applyClientLogoUpdate(logoUrl) {
+    activeClient.logo_url = logoUrl;
+    const inClients = clients.find((c) => c.id === activeClient.id);
+    if (inClients) inClients.logo_url = logoUrl;
+    document.getElementById('client-modal-logo').innerHTML = _clientAvatar(activeClient, 40);
+    renderClientCards();
+  }
+
+  function triggerClientLogoUpload() {
+    document.getElementById('client-logo-file-input').click();
+  }
+
+  // Multipart: no puede pasar por api() (fuerza Content-Type: application/json),
+  // mismo criterio que importOrganicLeadsFile.
+  async function onClientLogoFileSelected(e) {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      Utils.showToast('El archivo pesa demasiado (máx. 5 MB)', 'danger');
+      return;
+    }
+    const formData = new FormData();
+    formData.append('client_id', activeClient.id);
+    formData.append('file', file);
+    try {
+      const res = await fetch(`${API}/api/client_logo_upload.php`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: csrfToken ? { 'X-CSRF-Token': csrfToken } : {},
+        body: formData,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+      _applyClientLogoUpdate(data.logo_url);
+      Utils.showToast('Logo actualizado', 'success');
+    } catch (err) {
+      Utils.showToast(err.message, 'danger');
+    }
+  }
+
+  async function editClientLogoLink() {
     const current = activeClient.logo_url || '';
     const url = prompt('URL del logo del cliente (imagen pública, ej. link directo de Drive/Imgur):', current);
     if (url === null) return;
     const logo_url = url.trim();
     try {
       await api('api/clients.php', { method: 'PUT', body: JSON.stringify({ id: activeClient.id, logo_url }) });
-      activeClient.logo_url = logo_url;
-      const inClients = clients.find((c) => c.id === activeClient.id);
-      if (inClients) inClients.logo_url = logo_url;
-      document.getElementById('client-modal-logo').innerHTML = _clientAvatar(activeClient, 40);
-      renderClientCards();
+      _applyClientLogoUpdate(logo_url);
       Utils.showToast('Logo actualizado', 'success');
     } catch (e) {
       Utils.showToast(e.message, 'danger');
@@ -1372,7 +1417,7 @@ const AtencionCliente = (() => {
   }
 
   return {
-    init, openNewClientPrompt, openClient, closeClientModal, editClientLogo, _switchTab, _overlayClose,
+    init, openNewClientPrompt, openClient, closeClientModal, triggerClientLogoUpload, editClientLogoLink, _switchTab, _overlayClose,
     createFlow, duplicateFlow, toggleFlowStatus, openBuilder, closeBuilder,
     openConversationThread, resolveFollowup, _closeThread,
     _selectPendingPage,

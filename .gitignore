@@ -8,4 +8,5 @@ ideaz-chatbot/
 backend/*.zip
 backend/notas/
 backend/storage/
+backend/public/uploads/
 capturas/
