@@ -289,6 +289,34 @@ const RendicionDashboard = (() => {
     }
   }
 
+  // ---- Recordatorios por correo (botón "Probar correo") -------------------
+  // Para quienes no tienen Terminal/SSH en su hosting y no pueden correr
+  // backend/cron/rendicion_reminders.php --test=... por línea de comandos.
+
+  async function sendReminderTest() {
+    const input = document.getElementById('reminder-test-email');
+    const btn = document.getElementById('reminder-test-btn');
+    const email = input.value.trim();
+    if (!email) {
+      Utils.showToast('Escribe un correo primero', 'warning');
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = 'Enviando…';
+    try {
+      const res = await Session.apiFetch('api/rendicion_reminders_test.php', {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+      });
+      Utils.showToast(`2 correos de prueba enviados a ${email} (trimestre ${res.quarter}) ✓`, 'success');
+    } catch (err) {
+      Utils.showToast(err.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Enviar correo de prueba';
+    }
+  }
+
   async function init() {
     const clientsData = await Session.apiFetch('api/clients.php');
     clients = (clientsData.clients || []).filter((c) => c.status === 'active');
@@ -299,6 +327,8 @@ const RendicionDashboard = (() => {
     document.getElementById('survey-client').addEventListener('change', loadSurveyBox);
     document.getElementById('survey-quarter').innerHTML = document.getElementById('f-quarter').innerHTML;
     document.getElementById('survey-quarter').addEventListener('change', loadSurveyBox);
+    document.getElementById('reminder-test-btn').addEventListener('click', sendReminderTest);
+    if (Session.user?.email) document.getElementById('reminder-test-email').value = Session.user.email;
 
     await refresh();
   }

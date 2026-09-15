@@ -38,6 +38,16 @@
       <div id="survey-box"><p class="text-xs text-slate-500">Selecciona cliente y trimestre.</p></div>
     </div>
 
+    <!-- Recordatorios por correo (cron diario) -->
+    <div class="bg-slate-900 border border-slate-700 rounded-xl p-4 mb-6">
+      <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-1">📧 Recordatorios por correo</h2>
+      <p class="text-xs text-slate-500 mb-3">Se envían solos con el Cron Job diario (7 días y 1 día antes de cerrar el trimestre). Prueba acá que el envío funcione en tu hosting antes de agendarlo — no manda nada al equipo, solo a la dirección que pongas.</p>
+      <div class="flex flex-wrap gap-2">
+        <input id="reminder-test-email" type="email" placeholder="tu-correo@dominio.com" class="flex-1 min-w-[220px] bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+        <button id="reminder-test-btn" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 px-4 py-2 rounded-lg text-sm font-semibold transition-colors">Enviar correo de prueba</button>
+      </div>
+    </div>
+
     <!-- Gestión -->
     <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Gestión</h2>
     <div id="dash-management" class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6"></div>
