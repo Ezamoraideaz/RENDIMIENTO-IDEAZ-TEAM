@@ -111,13 +111,18 @@ const RendicionDashboard = (() => {
         operatorFilter = operatorFilter === id ? null : id;
         renderRanking();
         renderAccounts();
+        renderProductionCheck(filteredAccounts());
       });
     });
   }
 
+  function filteredAccounts() {
+    return operatorFilter ? data.accounts.filter((a) => a.operator_id === operatorFilter) : data.accounts;
+  }
+
   function renderAccounts() {
     const wrap = document.getElementById('accounts-wrap');
-    const accounts = operatorFilter ? data.accounts.filter((a) => a.operator_id === operatorFilter) : data.accounts;
+    const accounts = filteredAccounts();
     if (!accounts.length) {
       wrap.innerHTML = `<p class="text-slate-500 text-sm p-4">Sin cuentas para este filtro.</p>`;
       return;
@@ -142,6 +147,49 @@ const RendicionDashboard = (() => {
     });
   }
 
+  // ---- Contraste con Aprobaciones: reportado vs. real ---------------------
+
+  function diffBadge(reportedGenerated, real) {
+    if (!real) return '<span class="text-slate-600 text-xs">Sin datos en Aprobaciones</span>';
+    const diff = Math.abs(reportedGenerated - real.generated);
+    if (diff <= 2) return '<span class="text-emerald-400 text-xs font-semibold">🟢 coincide</span>';
+    if (diff <= 5) return '<span class="text-amber-400 text-xs font-semibold">🟡 revisar</span>';
+    return '<span class="text-red-400 text-xs font-semibold">🔴 diferencia grande</span>';
+  }
+
+  function renderProductionCheck(accounts) {
+    const wrap = document.getElementById('production-check-wrap');
+    if (!accounts.length) {
+      wrap.innerHTML = `<p class="text-slate-500 text-sm p-4">Sin cuentas para este filtro.</p>`;
+      return;
+    }
+    const rows = accounts.map((a) => {
+      const pc = a.production_check;
+      const r = pc.reported;
+      const real = pc.real;
+      const realTxt = real
+        ? `${real.generated} gen. · ${real.approved} aprob. · ${real.changes_requested} c/cambios`
+        : '—';
+      return `
+      <tr class="border-t border-slate-800 hover:bg-slate-800/30 cursor-pointer" data-open-form="${a.form_id}">
+        <td class="px-4 py-3 font-semibold">${esc(a.client_name)}</td>
+        <td class="px-4 py-3 text-slate-400">${esc(a.operator_name)}</td>
+        <td class="px-4 py-3 text-slate-400">${esc(a.quarter)}</td>
+        <td class="px-4 py-3">${r.generated} gen. · ${r.approved} aprob. · ${r.rework} retrab.</td>
+        <td class="px-4 py-3 text-slate-400">${realTxt}</td>
+        <td class="px-4 py-3">${diffBadge(r.generated, real)}</td>
+      </tr>`;
+    }).join('');
+    wrap.innerHTML = `<table class="w-full text-sm">
+      <thead><tr class="text-left text-xs text-slate-500 uppercase">
+        <th class="px-4 py-2">Cliente</th><th class="px-4 py-2">CM</th><th class="px-4 py-2">Trimestre</th>
+        <th class="px-4 py-2">Reportado por la CM</th><th class="px-4 py-2">Real (Aprobaciones)</th><th class="px-4 py-2">Contraste</th>
+      </tr></thead><tbody>${rows}</tbody></table>`;
+    wrap.querySelectorAll('[data-open-form]').forEach((tr) => {
+      tr.addEventListener('click', () => { window.location.href = `rendicion.html?form=${tr.dataset.openForm}`; });
+    });
+  }
+
   async function refresh() {
     operatorFilter = null;
     const filters = currentFilters();
@@ -152,6 +200,7 @@ const RendicionDashboard = (() => {
     renderSummary();
     renderRanking();
     renderAccounts();
+    renderProductionCheck(filteredAccounts());
     loadPipeline(params);
   }
 

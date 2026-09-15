@@ -132,6 +132,23 @@ function rendicion_health_from_score(float $score): string
     return 'rojo';
 }
 
+// Rango de fechas [inicio, fin] de un trimestre "YYYY-Qn" (fin a las 23:59:59
+// para que incluya piezas creadas el último día). Usado para contrastar lo
+// autorreportado en Producción contra content_items reales de Aprobaciones.
+function rendicion_quarter_range(string $quarter): ?array
+{
+    if (!preg_match('/^(\d{4})-Q([1-4])$/', $quarter, $m)) {
+        return null;
+    }
+    $year = (int)$m[1];
+    $q = (int)$m[2];
+    $startMonth = ($q - 1) * 3 + 1;
+    $start = new DateTime("{$year}-{$startMonth}-01");
+    $end = clone $start;
+    $end->modify('+2 months')->modify('last day of this month')->setTime(23, 59, 59);
+    return [$start->format('Y-m-d 00:00:00'), $end->format('Y-m-d H:i:s')];
+}
+
 $quarter = trim($_GET['quarter'] ?? '');
 $clientId = (int)($_GET['client_id'] ?? 0);
 $operatorId = (int)($_GET['operator_id'] ?? 0);
@@ -204,6 +221,42 @@ if ($pairs) {
     }
 }
 
+// Contraste con Aprobaciones: piezas reales (content_items, con fecha) del
+// mismo cliente+trimestre, agrupadas por quarter porque el rango de fechas
+// cambia según el trimestre — casi siempre es uno solo (el que filtró el
+// dashboard), pero se soporta más de uno por si se ve "todos los trimestres".
+$productionRealByKey = [];
+$clientsByQuarter = [];
+foreach ($pairs as [$cid, $q]) {
+    $clientsByQuarter[$q][] = $cid;
+}
+foreach ($clientsByQuarter as $q => $clientIds) {
+    $range = rendicion_quarter_range($q);
+    if (!$range) continue;
+    $clientIds = array_values(array_unique($clientIds));
+    $inPlaceholders = implode(',', array_fill(0, count($clientIds), '?'));
+    $prodStmt = $pdo->prepare("
+        SELECT cb.client_id,
+               COUNT(*) AS generated,
+               SUM(ci.status = 'approved') AS approved,
+               SUM(ci.status = 'changes_requested') AS changes_requested,
+               SUM(ci.status = 'pending') AS pending
+        FROM content_items ci
+        JOIN content_batches cb ON cb.id = ci.batch_id
+        WHERE cb.client_id IN ({$inPlaceholders}) AND ci.created_at BETWEEN ? AND ?
+        GROUP BY cb.client_id
+    ");
+    $prodStmt->execute([...$clientIds, $range[0], $range[1]]);
+    foreach ($prodStmt->fetchAll() as $row) {
+        $productionRealByKey[$row['client_id'] . '|' . $q] = [
+            'generated' => (int)$row['generated'],
+            'approved' => (int)$row['approved'],
+            'changes_requested' => (int)$row['changes_requested'],
+            'pending' => (int)$row['pending'],
+        ];
+    }
+}
+
 $accounts = [];
 $cmAgg = []; // operator_id => ['name'=>, 'scores'=>[]]
 $healthCounts = ['verde' => 0, 'amarillo' => 0, 'rojo' => 0];
@@ -229,6 +282,7 @@ foreach ($forms as $f) {
 
     [$score, $breakdown] = rendicion_compute_score($f, $opps, $survey);
     $health = rendicion_health_from_score($score);
+    $realProduction = $productionRealByKey[$f['client_id'] . '|' . $f['quarter']] ?? null;
 
     $accounts[] = [
         'form_id' => (int)$f['id'],
@@ -245,6 +299,14 @@ foreach ($forms as $f) {
         'has_risk' => (bool)$f['has_risk'],
         'survey_filled' => $survey && $survey['status'] === 'filled',
         'opportunities_count' => count($opps),
+        'production_check' => [
+            'reported' => [
+                'generated' => (int)($f['pieces_generated'] ?? 0),
+                'approved' => (int)($f['pieces_approved'] ?? 0),
+                'rework' => (int)($f['pieces_rework'] ?? 0),
+            ],
+            'real' => $realProduction,
+        ],
     ];
 
     $cmAgg[$f['operator_id']]['name'] = $f['operator_name'];
