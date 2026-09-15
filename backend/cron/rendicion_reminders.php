@@ -16,6 +16,14 @@
 // No hay una tabla de "CM asignado a este cliente" en el proyecto, así que
 // el aviso es general para todo el equipo de gestión — no identifica a quién
 // le falta diligenciar qué cuenta.
+//
+// PROBAR ANTES DE AGENDAR EL CRON (sin esperar a que falten 7 o 1 días, y
+// sin mandarle correo a todo el equipo):
+//   php backend/cron/rendicion_reminders.php --test=tu-correo@dominio.com
+// Manda los dos correos (kickoff + reunión) SOLO a esa dirección, con el
+// trimestre/fecha reales de hoy, y NO toca rendicion_reminders_sent — se
+// puede correr las veces que haga falta sin arriesgar que el envío real
+// (a todo el equipo) se salte por creerse ya enviado.
 
 declare(strict_types=1);
 
@@ -75,15 +83,9 @@ function rendicion_reminders_mark_sent(PDO $pdo, string $quarter, string $type):
     return $stmt->rowCount() > 0;
 }
 
-$pdo = db();
-$today = rendicion_reminders_today();
-[$quarter, $quarterEnd] = rendicion_reminders_current_quarter($today);
-$daysUntilEnd = (int)$today->diff($quarterEnd)->format('%r%a');
-
-$sent = 0;
-
-if ($daysUntilEnd === 7 && rendicion_reminders_mark_sent($pdo, $quarter, 'kickoff')) {
-    rendicion_reminders_send(rendicion_reminders_recipients($pdo),
+function rendicion_reminders_kickoff(string $quarter, DateTime $quarterEnd): array
+{
+    return [
         "Rendición Trimestral {$quarter} — ya puedes empezar",
         [
             'Hola {{nombre}},',
@@ -92,13 +94,13 @@ if ($daysUntilEnd === 7 && rendicion_reminders_mark_sent($pdo, $quarter, 'kickof
             'Ya puedes empezar a diligenciar la Rendición Trimestral de Gestión de cada cuenta que tengas asignada — toma unos 10-15 minutos por cliente.',
             '',
             'Entra acá: ' . APP_BASE_URL . '/rendicion.html',
-        ]
-    );
-    $sent++;
+        ],
+    ];
 }
 
-if ($daysUntilEnd === 1 && rendicion_reminders_mark_sent($pdo, $quarter, 'meeting')) {
-    rendicion_reminders_send(rendicion_reminders_recipients($pdo),
+function rendicion_reminders_meeting(string $quarter, DateTime $quarterEnd): array
+{
+    return [
         "Mañana cierra el trimestre {$quarter} — agenda la socialización",
         [
             'Hola {{nombre}},',
@@ -107,8 +109,49 @@ if ($daysUntilEnd === 1 && rendicion_reminders_mark_sent($pdo, $quarter, 'meetin
             'Si todavía no la tienen agendada, coordinen la reunión de socialización presencial para revisar los resultados en equipo.',
             '',
             'Rendiciones: ' . APP_BASE_URL . '/rendicion.html',
-        ]
-    );
+        ],
+    ];
+}
+
+$pdo = db();
+$today = rendicion_reminders_today();
+[$quarter, $quarterEnd] = rendicion_reminders_current_quarter($today);
+
+// Modo prueba: --test=correo@dominio.com — manda ambos correos solo a esa
+// dirección, sin tocar rendicion_reminders_sent ni al resto del equipo.
+$testEmail = null;
+foreach ($argv ?? [] as $arg) {
+    if (str_starts_with($arg, '--test=')) {
+        $testEmail = trim(substr($arg, 7));
+    }
+}
+
+if ($testEmail !== null) {
+    if (!filter_var($testEmail, FILTER_VALIDATE_EMAIL)) {
+        fwrite(STDERR, "Correo inválido: {$testEmail}\n");
+        exit(1);
+    }
+    $recipients = [['email' => $testEmail, 'name' => 'prueba']];
+    [$subject1, $lines1] = rendicion_reminders_kickoff($quarter, $quarterEnd);
+    rendicion_reminders_send($recipients, '[PRUEBA] ' . $subject1, $lines1);
+    [$subject2, $lines2] = rendicion_reminders_meeting($quarter, $quarterEnd);
+    rendicion_reminders_send($recipients, '[PRUEBA] ' . $subject2, $lines2);
+    echo "Modo prueba: 2 correos enviados a {$testEmail} (trimestre detectado: {$quarter}, cierra " . $quarterEnd->format('d/m/Y') . "). No se marcó nada como enviado.\n";
+    exit(0);
+}
+
+$daysUntilEnd = (int)$today->diff($quarterEnd)->format('%r%a');
+$sent = 0;
+
+if ($daysUntilEnd === 7 && rendicion_reminders_mark_sent($pdo, $quarter, 'kickoff')) {
+    [$subject, $lines] = rendicion_reminders_kickoff($quarter, $quarterEnd);
+    rendicion_reminders_send(rendicion_reminders_recipients($pdo), $subject, $lines);
+    $sent++;
+}
+
+if ($daysUntilEnd === 1 && rendicion_reminders_mark_sent($pdo, $quarter, 'meeting')) {
+    [$subject, $lines] = rendicion_reminders_meeting($quarter, $quarterEnd);
+    rendicion_reminders_send(rendicion_reminders_recipients($pdo), $subject, $lines);
     $sent++;
 }
 
