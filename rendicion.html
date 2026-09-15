@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>if(localStorage.getItem('ideaz_theme')==='light')document.documentElement.classList.add('light');</script>
+  <title>Rendición Trimestral – IDEAZ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans">
+
+<!-- SIDEBAR -->
+<aside id="app-sidebar" class="fixed left-0 top-0 h-screen w-64 bg-slate-900 border-r border-slate-700 flex flex-col z-50 overflow-y-auto"></aside>
+
+<!-- MAIN -->
+<main class="ml-64 min-h-screen">
+  <div class="p-4 sm:p-6 max-w-3xl mx-auto">
+
+    <!-- Vista: lista de rendiciones -->
+    <div id="rendicion-list-view">
+      <div class="flex items-start justify-between mb-6 flex-wrap gap-4">
+        <div class="min-w-0">
+          <h1 class="text-xl sm:text-2xl font-black text-slate-100">📝 Rendición Trimestral</h1>
+          <p class="text-slate-400 text-sm mt-1">Evaluación interna de gestión por cliente — no es el reporte que ve el cliente</p>
+        </div>
+        <button id="rendicion-new-btn"
+          class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors whitespace-nowrap">
+          + Nueva rendición
+        </button>
+      </div>
+      <div id="rendicion-list-wrap" class="border border-slate-800 rounded-lg overflow-hidden overflow-x-auto">
+        <p class="text-slate-500 text-sm p-4">Cargando…</p>
+      </div>
+    </div>
+
+    <!-- Vista: wizard -->
+    <div id="rendicion-wizard-view" style="display:none">
+      <button id="rendicion-back-to-list" class="text-sm text-slate-400 hover:text-slate-200 mb-4">← Volver a mis rendiciones</button>
+
+      <div class="flex items-center justify-between mb-1.5">
+        <span id="rendicion-progress-label" class="text-xs font-semibold text-indigo-400"></span>
+      </div>
+      <div class="h-1.5 bg-slate-800 rounded-full overflow-hidden mb-5">
+        <div id="rendicion-progress-bar" class="h-full bg-indigo-500 transition-all" style="width:0%"></div>
+      </div>
+
+      <h2 id="rendicion-step-title" class="text-lg sm:text-xl font-bold mb-4"></h2>
+      <p id="rendicion-form-error" style="display:none" class="text-sm text-red-400 bg-red-950/40 border border-red-800/50 rounded-lg px-3 py-2 mb-4"></p>
+      <div id="rendicion-step-fields" class="pb-6"></div>
+
+      <div class="sticky bottom-0 bg-slate-950/95 backdrop-blur border-t border-slate-800 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3 flex items-center gap-3">
+        <button id="rendicion-back-btn" type="button" class="px-4 py-3 rounded-xl text-sm font-semibold text-slate-300 hover:bg-slate-800 transition-colors">← Atrás</button>
+        <button id="rendicion-reopen-btn" type="button" style="display:none" class="px-4 py-3 rounded-xl text-sm font-semibold text-amber-400 hover:bg-slate-800 transition-colors">Reabrir para editar</button>
+        <button id="rendicion-next-btn" type="button" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-3 rounded-xl text-sm font-bold transition-colors">Siguiente →</button>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<script src="js/session.js"></script>
+<script src="js/sidebar.js?v=20260915"></script>
+<script src="js/utils.js?v=20260915"></script>
+<script src="js/rendicionSchema.js?v=20260915"></script>
+<script src="js/rendicion.js?v=20260915"></script>
+<script>
+  Session.ready.then(() => {
+    Sidebar.init('rendicion');
+    Rendicion.init();
+  });
+</script>
+</body>
+</html>

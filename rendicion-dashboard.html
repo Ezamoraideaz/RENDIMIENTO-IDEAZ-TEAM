@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>if(localStorage.getItem('ideaz_theme')==='light')document.documentElement.classList.add('light');</script>
+  <title>Dashboard de Rendición – IDEAZ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans">
+
+<aside id="app-sidebar" class="fixed left-0 top-0 h-screen w-64 bg-slate-900 border-r border-slate-700 flex flex-col z-50 overflow-y-auto"></aside>
+
+<main class="ml-64 min-h-screen">
+  <div class="p-4 sm:p-6 max-w-6xl mx-auto">
+
+    <div class="flex items-start justify-between mb-6 flex-wrap gap-4">
+      <div class="min-w-0">
+        <h1 class="text-xl sm:text-2xl font-black text-slate-100">📈 Dashboard de Rendición</h1>
+        <p class="text-slate-400 text-sm mt-1">Gestión, producción, comercial, satisfacción y riesgo — consolidado por trimestre</p>
+      </div>
+      <div class="flex gap-2">
+        <select id="f-quarter" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"></select>
+        <select id="f-client" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"></select>
+      </div>
+    </div>
+
+    <!-- Encuesta al cliente -->
+    <div class="bg-slate-900 border border-slate-700 rounded-xl p-4 mb-6">
+      <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-3">✅ Encuesta de satisfacción al cliente</h2>
+      <div class="flex flex-wrap gap-2 mb-3">
+        <select id="survey-client" class="flex-1 min-w-[180px] bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"></select>
+        <select id="survey-quarter" class="flex-1 min-w-[140px] bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"></select>
+      </div>
+      <div id="survey-box"><p class="text-xs text-slate-500">Selecciona cliente y trimestre.</p></div>
+    </div>
+
+    <!-- Gestión -->
+    <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Gestión</h2>
+    <div id="dash-management" class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6"></div>
+
+    <!-- Producción -->
+    <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Producción</h2>
+    <div id="dash-production" class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6"></div>
+
+    <!-- Comercial -->
+    <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Comercial</h2>
+    <div id="dash-commercial" class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6"></div>
+
+    <!-- Cliente -->
+    <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Cliente</h2>
+    <div id="dash-client" class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6"></div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
+      <div>
+        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Riesgo</h2>
+        <div id="dash-risk" class="grid grid-cols-2 gap-4"></div>
+      </div>
+      <div>
+        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Mejora</h2>
+        <div id="dash-improvement" class="grid grid-cols-1 gap-4"></div>
+      </div>
+    </div>
+
+    <!-- Score / ranking de CMs -->
+    <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Score del Community Manager</h2>
+    <div id="cm-ranking-wrap" class="border border-slate-800 rounded-lg overflow-hidden overflow-x-auto mb-6">
+      <p class="text-slate-500 text-sm p-4">Cargando…</p>
+    </div>
+
+    <!-- Cuentas -->
+    <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Cuentas</h2>
+    <div id="accounts-wrap" class="border border-slate-800 rounded-lg overflow-hidden overflow-x-auto mb-6">
+      <p class="text-slate-500 text-sm p-4">Cargando…</p>
+    </div>
+
+  </div>
+</main>
+
+<script src="js/session.js"></script>
+<script src="js/sidebar.js?v=20260915"></script>
+<script src="js/utils.js?v=20260915"></script>
+<script src="js/rendicionSchema.js?v=20260915"></script>
+<script src="js/rendicionDashboard.js?v=20260915"></script>
+<script>
+  Session.ready.then(() => {
+    Sidebar.init('rendicion-dashboard');
+    RendicionDashboard.init();
+  });
+</script>
+</body>
+</html>

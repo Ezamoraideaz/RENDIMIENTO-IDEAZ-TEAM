@@ -19,9 +19,11 @@ const Session = (() => {
     'protocolo-trello.html': 'protocolo',
     'aprobaciones.html': 'aprobaciones',
     'egresos.html': 'egresos',
+    'rendicion.html': 'rendicion',
+    'rendicion-dashboard.html': 'rendicion-dashboard',
   };
 
-  const ALL_PAGES = ['dashboard', 'proyecto', 'agenda', 'monitor', 'pauta', 'atencion-cliente', 'configuracion', 'protocolo', 'aprobaciones', 'egresos'];
+  const ALL_PAGES = ['dashboard', 'proyecto', 'agenda', 'monitor', 'pauta', 'atencion-cliente', 'configuracion', 'protocolo', 'aprobaciones', 'egresos', 'rendicion', 'rendicion-dashboard'];
 
   // Páginas visibles por rol (los roles del Control de Acceso + superadmin)
   const ACCESS = {
@@ -30,11 +32,11 @@ const Session = (() => {
     agent:         ['atencion-cliente', 'protocolo'],
     agenda_full:   ['agenda', 'protocolo', 'egresos'],
     agenda_member: ['agenda', 'monitor', 'protocolo'],
-    cm:            ['dashboard', 'agenda', 'configuracion', 'monitor', 'protocolo', 'aprobaciones', 'atencion-cliente'],
+    cm:            ['dashboard', 'agenda', 'configuracion', 'monitor', 'protocolo', 'aprobaciones', 'atencion-cliente', 'rendicion'],
   };
 
   // Claves de navegación del sidebar (subconjunto de páginas)
-  const NAV_KEYS = ['dashboard', 'agenda', 'monitor', 'pauta', 'atencion-cliente', 'configuracion', 'aprobaciones', 'egresos'];
+  const NAV_KEYS = ['dashboard', 'agenda', 'monitor', 'pauta', 'atencion-cliente', 'configuracion', 'aprobaciones', 'egresos', 'rendicion', 'rendicion-dashboard'];
 
   const FILE_BY_PAGE = {
     dashboard: 'index.html',
@@ -47,6 +49,8 @@ const Session = (() => {
     protocolo: 'protocolo-trello.html',
     aprobaciones: 'aprobaciones.html',
     egresos: 'egresos.html',
+    rendicion: 'rendicion.html',
+    'rendicion-dashboard': 'rendicion-dashboard.html',
   };
 
   let user = null;

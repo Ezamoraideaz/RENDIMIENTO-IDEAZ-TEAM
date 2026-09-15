@@ -87,3 +87,17 @@ function require_expenses_access(): array
 {
     return require_role(['superadmin', 'admin', 'agenda_full']);
 }
+
+// Acceso al módulo Rendición Trimestral — cm diligencia sus propias cuentas,
+// superadmin/admin además ven el dashboard consolidado y gestionan la
+// encuesta al cliente.
+function require_rendicion_access(): array
+{
+    return require_role(['superadmin', 'admin', 'cm']);
+}
+
+// Dashboard/encuesta de Rendición: solo el dueño/directivos, no el CM.
+function require_rendicion_admin_access(): array
+{
+    return require_role(['superadmin', 'admin']);
+}
