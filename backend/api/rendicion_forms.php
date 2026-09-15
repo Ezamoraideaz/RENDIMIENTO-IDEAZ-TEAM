@@ -94,9 +94,9 @@ function rendicion_validate_submit(array $input, array $answers): ?string
     if (!is_array($improvements) || count(array_filter($improvements, fn($i) => !empty($i['problem']))) < 3) {
         return 'Se requieren al menos 3 oportunidades de mejora';
     }
-    if (empty($answers['client_knowledge']) || count(array_filter((array)$answers['client_knowledge'])) < 3) {
-        return 'Falta completar qué aprendiste sobre el cliente este trimestre';
-    }
+    // "Conocimiento del cliente" es intencionalmente opcional: puede
+    // completarse después, en la reunión de socialización presencial —
+    // no bloquea el envío de la rendición.
     if (empty($input['account_health']) || !in_array($input['account_health'], RENDICION_HEALTH, true)) {
         return 'Selecciona la salud actual de la cuenta';
     }

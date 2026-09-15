@@ -590,3 +590,12 @@ CREATE TABLE IF NOT EXISTS client_surveys (
     CONSTRAINT fk_client_surveys_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
     CONSTRAINT fk_client_surveys_operator FOREIGN KEY (created_by) REFERENCES operators(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Recordatorios por correo de Rendición Trimestral (backend/cron/rendicion_reminders.php).
+-- Ver migration_021_rendicion_reminders.sql para el detalle.
+CREATE TABLE IF NOT EXISTS rendicion_reminders_sent (
+    quarter VARCHAR(7) NOT NULL,
+    reminder_type ENUM('kickoff','meeting') NOT NULL,
+    sent_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (quarter, reminder_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

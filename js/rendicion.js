@@ -207,6 +207,9 @@ const Rendicion = (() => {
     document.getElementById('rendicion-progress-label').textContent = `Paso ${currentStepIndex + 1} de ${steps.length}`;
     document.getElementById('rendicion-progress-bar').style.width = `${((currentStepIndex + 1) / steps.length) * 100}%`;
     document.getElementById('rendicion-step-title').textContent = step.title;
+    const hintEl = document.getElementById('rendicion-step-hint');
+    hintEl.textContent = step.hint || '';
+    hintEl.style.display = step.hint ? '' : 'none';
     document.getElementById('rendicion-form-error').style.display = 'none';
     renderCurrentStepFields();
 

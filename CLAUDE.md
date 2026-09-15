@@ -49,6 +49,7 @@ Dashboard web de rendimiento del equipo IDEAZ, conectado a Trello via API REST.
 | `encuesta-publica.html` | Ezamoraideaz | Formulario 2 — Encuesta Trimestral de Satisfacción, portal público sin login (token en `?t=`), la responde el cliente final |
 | `backend/api/rendicion_forms.php`, `backend/api/rendicion_dashboard.php`, `backend/api/client_surveys.php`, `backend/public/survey_public.php` | Ezamoraideaz | Backend del módulo de Rendición — ver `backend/sql/migration_020_rendicion.sql` para el modelo de datos y el cálculo del Score del CM |
 | `backend/api/rendicion_opportunities.php` | Ezamoraideaz | Pipeline de oportunidades comerciales — permite actualizar el estado/valor de una oportunidad ya reportada (ej. a "Cotizada"/"Vendida") sin reabrir el formulario trimestral al que pertenece; visible en `rendicion.html` (propias) y `rendicion-dashboard.html` (todas) |
+| `backend/cron/rendicion_reminders.php` | Ezamoraideaz | Correos automáticos a CM/PM(agenda_full)/superadmin/admin: 7 días antes de cerrar el trimestre (a diligenciar) y 1 día antes (agendar la socialización presencial). Requiere un **Cron Job nuevo en cPanel, una vez al día** (ver `backend/sql/migration_021_rendicion_reminders.sql`) — aparte del cron por minuto de `process_scheduled.php` |
 
 ---
 

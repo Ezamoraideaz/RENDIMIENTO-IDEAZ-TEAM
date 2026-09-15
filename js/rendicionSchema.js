@@ -218,6 +218,7 @@ const RENDICION_SCHEMA = {
     {
       id: 'conocimiento',
       title: 'Conocimiento del cliente',
+      hint: 'Opcional — si prefieres, déjala en blanco y la completan juntos en la reunión de socialización presencial.',
       fields: [
         { key: 'client_knowledge.selling', label: '¿Qué está vendiendo?', type: 'text' },
         { key: 'client_knowledge.wants_to_sell', label: '¿Qué quiere vender?', type: 'text' },
