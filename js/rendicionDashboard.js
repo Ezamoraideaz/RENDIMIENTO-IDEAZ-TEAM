@@ -152,6 +152,66 @@ const RendicionDashboard = (() => {
     renderSummary();
     renderRanking();
     renderAccounts();
+    loadPipeline(params);
+  }
+
+  // ---- Pipeline de oportunidades ------------------------------------------
+  // A diferencia de "Cuentas", esto se edita en línea (estado/valor) sin
+  // necesidad de reabrir el formulario trimestral al que pertenece cada
+  // oportunidad — ver backend/api/rendicion_opportunities.php.
+
+  function renderPipeline(opportunities) {
+    const wrap = document.getElementById('pipeline-wrap');
+    if (!opportunities.length) {
+      wrap.innerHTML = `<p class="text-slate-500 text-sm p-4">Sin oportunidades reportadas para este filtro.</p>`;
+      return;
+    }
+    const rows = opportunities.map((o) => `
+      <tr class="border-t border-slate-800" data-opp-row="${o.id}">
+        <td class="px-4 py-3 font-semibold">${esc(o.client_name)}</td>
+        <td class="px-4 py-3 text-slate-400">${esc(o.operator_name)}</td>
+        <td class="px-4 py-3 text-slate-400">${esc(o.quarter)}</td>
+        <td class="px-4 py-3 max-w-[220px]">${(o.services || []).map((s) => esc(s)).join(', ') || '<span class="text-slate-600">—</span>'}</td>
+        <td class="px-4 py-3">
+          <select data-opp-stage="${o.id}" class="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500">
+            ${RENDICION_STAGE_OPTIONS.map((s) => `<option value="${s.value}" ${o.stage === s.value ? 'selected' : ''}>${esc(s.label)}</option>`).join('')}
+          </select>
+        </td>
+        <td class="px-4 py-3">
+          <input type="number" min="0" data-opp-value="${o.id}" value="${o.estimated_value ?? ''}" placeholder="$" class="w-28 bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500">
+        </td>
+      </tr>`).join('');
+    wrap.innerHTML = `<table class="w-full text-sm">
+      <thead><tr class="text-left text-xs text-slate-500 uppercase">
+        <th class="px-4 py-2">Cliente</th><th class="px-4 py-2">CM</th><th class="px-4 py-2">Trimestre</th>
+        <th class="px-4 py-2">Servicios</th><th class="px-4 py-2">Estado</th><th class="px-4 py-2">Valor estimado</th>
+      </tr></thead><tbody>${rows}</tbody></table>
+      <p class="text-xs text-slate-500 px-4 py-2">Cambia el estado o el valor apenas tengas noticias — se guarda solo, sin reabrir el formulario trimestral.</p>`;
+
+    wrap.querySelectorAll('[data-opp-stage]').forEach((sel) => {
+      sel.addEventListener('change', () => updateOpportunity(sel.dataset.oppStage, { stage: sel.value }));
+    });
+    wrap.querySelectorAll('[data-opp-value]').forEach((inp) => {
+      inp.addEventListener('change', () => updateOpportunity(inp.dataset.oppValue, { estimated_value: inp.value }));
+    });
+  }
+
+  async function updateOpportunity(id, patch) {
+    try {
+      await Session.apiFetch('api/rendicion_opportunities.php', {
+        method: 'PUT',
+        body: JSON.stringify(Object.assign({ id: Number(id) }, patch)),
+      });
+      Utils.showToast('Oportunidad actualizada ✓', 'success');
+      refresh();
+    } catch (err) {
+      Utils.showToast(err.message, 'error');
+    }
+  }
+
+  async function loadPipeline(params) {
+    const res = await Session.apiFetch(`api/rendicion_opportunities.php?${params.toString()}`);
+    renderPipeline(res.opportunities || []);
   }
 
   // ---- Panel de encuesta al cliente ---------------------------------------

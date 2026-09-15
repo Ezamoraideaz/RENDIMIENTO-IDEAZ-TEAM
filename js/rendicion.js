@@ -156,7 +156,7 @@ const Rendicion = (() => {
             </div>
           </div>
         </div>`).join('')}
-      ${readOnly ? '' : `<button type="button" id="rendicion-add-opp" class="text-sm font-semibold text-indigo-400 hover:text-indigo-300">+ Agregar otra oportunidad</button>`}
+      ${readOnly ? '' : `<button type="button" id="rendicion-add-opp" class="text-sm font-semibold text-indigo-400 hover:text-indigo-300">${opps.length ? '+ Agregar otra oportunidad' : '+ Agregar oportunidad'}</button>`}
     </div>`;
   }
 
@@ -188,7 +188,11 @@ const Rendicion = (() => {
     }
     let html = visibleFields(step).map(renderField).join('');
     if (step.opportunitiesBlock && step.opportunitiesBlock.showIf(formData)) {
-      html += `<div class="mt-2"><label class="block text-sm font-semibold text-slate-200 mb-2">Oportunidades reportadas</label>${renderOpportunities()}</div>`;
+      html += `<div class="mt-2">
+        <label class="block text-sm font-semibold text-slate-200 mb-1">Oportunidades reportadas</label>
+        <p class="text-xs text-slate-500 mb-2">Marca los servicios potenciales de cada una y su estado. Puedes actualizar el estado más adelante (ej. cuando pase a "Cotizada" o "Vendida") desde el pipeline de oportunidades, sin volver a abrir este formulario.</p>
+        ${renderOpportunities()}
+      </div>`;
     }
     container.innerHTML = html;
   }
@@ -312,6 +316,12 @@ const Rendicion = (() => {
       const type = wrap.dataset.type;
       if (type === 'radio-cards') {
         setPath(formData, key, card.dataset.value);
+        // Al responder "Sí" en "¿Detectaste alguna oportunidad?" se agrega
+        // de una vez el primer bloque — así no hay que adivinar que existe
+        // un botón "+ Agregar otra oportunidad" para la primera.
+        if (key === 'opportunities_detected' && card.dataset.value === 'si' && !(formData.opportunities || []).length) {
+          formData.opportunities = [emptyOpportunity()];
+        }
       } else if (type === 'scale5') {
         setPath(formData, key, Number(card.dataset.value));
       } else if (type === 'checkbox-group') {
@@ -501,6 +511,80 @@ const Rendicion = (() => {
     });
   }
 
+  // ---- Pipeline de oportunidades (propias) --------------------------------
+  // Deja actualizar el estado/valor de una oportunidad ya reportada (ej. de
+  // "Detectada" a "Cotizada" o "Vendida") sin reabrir el formulario
+  // trimestral al que pertenece — ver backend/api/rendicion_opportunities.php.
+
+  let pipelineLoaded = false;
+
+  function renderPipeline(opportunities) {
+    const wrap = document.getElementById('rendicion-pipeline-wrap');
+    if (!opportunities.length) {
+      wrap.innerHTML = `<p class="text-slate-500 text-sm p-4">Todavía no has reportado oportunidades comerciales. Aparecen acá apenas marques "Sí" en la sección "Oportunidades comerciales" de una rendición.</p>`;
+      return;
+    }
+    const rows = opportunities.map((o) => `
+      <tr class="border-t border-slate-800">
+        <td class="px-4 py-3 font-semibold">${esc(o.client_name)}</td>
+        <td class="px-4 py-3 text-slate-400">${esc(o.quarter)}</td>
+        <td class="px-4 py-3 max-w-[200px]">${(o.services || []).map((s) => esc(s)).join(', ') || '<span class="text-slate-600">—</span>'}</td>
+        <td class="px-4 py-3">
+          <select data-opp-stage="${o.id}" class="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500">
+            ${RENDICION_STAGE_OPTIONS.map((s) => `<option value="${s.value}" ${o.stage === s.value ? 'selected' : ''}>${esc(s.label)}</option>`).join('')}
+          </select>
+        </td>
+        <td class="px-4 py-3">
+          <input type="number" min="0" data-opp-value="${o.id}" value="${o.estimated_value ?? ''}" placeholder="$" class="w-28 bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500">
+        </td>
+      </tr>`).join('');
+    wrap.innerHTML = `<table class="w-full text-sm">
+      <thead><tr class="text-left text-xs text-slate-500 uppercase">
+        <th class="px-4 py-2">Cliente</th><th class="px-4 py-2">Trimestre</th><th class="px-4 py-2">Servicios</th><th class="px-4 py-2">Estado</th><th class="px-4 py-2">Valor estimado</th>
+      </tr></thead><tbody>${rows}</tbody></table>`;
+    wrap.querySelectorAll('[data-opp-stage]').forEach((sel) => {
+      sel.addEventListener('change', () => updateOpportunity(sel.dataset.oppStage, { stage: sel.value }));
+    });
+    wrap.querySelectorAll('[data-opp-value]').forEach((inp) => {
+      inp.addEventListener('change', () => updateOpportunity(inp.dataset.oppValue, { estimated_value: inp.value }));
+    });
+  }
+
+  async function updateOpportunity(id, patch) {
+    try {
+      await Session.apiFetch('api/rendicion_opportunities.php', {
+        method: 'PUT',
+        body: JSON.stringify(Object.assign({ id: Number(id) }, patch)),
+      });
+      Utils.showToast('Oportunidad actualizada ✓', 'success');
+    } catch (err) {
+      Utils.showToast(err.message, 'error');
+    }
+  }
+
+  async function loadPipeline() {
+    const wrap = document.getElementById('rendicion-pipeline-wrap');
+    wrap.innerHTML = `<p class="text-slate-500 text-sm p-4">Cargando…</p>`;
+    try {
+      const res = await Session.apiFetch('api/rendicion_opportunities.php');
+      renderPipeline(res.opportunities || []);
+    } catch (err) {
+      wrap.innerHTML = `<p class="text-red-400 text-sm p-4">${esc(err.message)}</p>`;
+    }
+  }
+
+  function togglePipeline() {
+    const wrap = document.getElementById('rendicion-pipeline-wrap');
+    const btn = document.getElementById('rendicion-pipeline-toggle');
+    const show = wrap.style.display === 'none';
+    wrap.style.display = show ? '' : 'none';
+    btn.textContent = show ? 'Ocultar ▴' : 'Mostrar ▾';
+    if (show && !pipelineLoaded) {
+      pipelineLoaded = true;
+      loadPipeline();
+    }
+  }
+
   // ---- Cambio de vista ------------------------------------------------------
 
   function showList() {
@@ -508,6 +592,14 @@ const Rendicion = (() => {
     document.getElementById('rendicion-list-view').style.display = '';
     document.getElementById('rendicion-wizard-view').style.display = 'none';
     loadFormsList().then(renderList).catch((err) => Utils.showToast(err.message, 'error'));
+    // Una rendición recién enviada puede traer oportunidades nuevas — si el
+    // pipeline ya estaba visible, se refresca; si no, se recarga la próxima
+    // vez que se abra.
+    pipelineLoaded = false;
+    if (document.getElementById('rendicion-pipeline-wrap').style.display !== 'none') {
+      pipelineLoaded = true;
+      loadPipeline();
+    }
   }
 
   async function openForm(existing) {
@@ -564,6 +656,7 @@ const Rendicion = (() => {
     document.getElementById('rendicion-back-btn').addEventListener('click', goBack);
     document.getElementById('rendicion-next-btn').addEventListener('click', goNext);
     document.getElementById('rendicion-reopen-btn').addEventListener('click', reopenCurrent);
+    document.getElementById('rendicion-pipeline-toggle').addEventListener('click', togglePipeline);
 
     // Permite abrir directo una rendición desde un link externo (ej. la
     // tabla de cuentas de rendicion-dashboard.html), sin pasar por la lista.
