@@ -33,7 +33,7 @@ function rendicion_clamp01(float $v): float
     return max(0.0, min(1.0, $v));
 }
 
-function rendicion_scale_val(?string $v): float
+function rendicion_scale_val($v): float
 {
     return $v === 'si' ? 1.0 : ($v === 'parcial' ? 0.5 : 0.0);
 }
@@ -75,7 +75,8 @@ function rendicion_compute_score(array $form, array $opportunities, ?array $surv
         : 0.0;
 
     $hasRisk = !empty($form['has_risk']);
-    $riskDetailLen = mb_strlen(trim((string)($answers['risk_detail'] ?? '')));
+    $riskDetail = trim(is_string($answers['risk_detail'] ?? null) ? $answers['risk_detail'] : '');
+    $riskDetailLen = function_exists('mb_strlen') ? mb_strlen($riskDetail) : strlen($riskDetail);
     $riskTransparency = !$hasRisk ? 1.0 : ($riskDetailLen >= 40 ? 0.9 : 0.6);
 
     $breakdown = [
@@ -285,8 +286,8 @@ $improvementsLogged = 0;
 $draftsCount = 0;
 
 foreach ($forms as $f) {
-    $f['answers'] = $f['answers'] ? json_decode($f['answers'], true) : [];
-    $f['contracted_services'] = $f['contracted_services'] ? json_decode($f['contracted_services'], true) : [];
+    $f['answers'] = $f['answers'] ? (json_decode($f['answers'], true) ?: []) : [];
+    $f['contracted_services'] = $f['contracted_services'] ? (json_decode($f['contracted_services'], true) ?: []) : [];
     $opps = $opportunitiesByForm[$f['id']] ?? [];
     $survey = $surveysByKey[$f['client_id'] . '|' . $f['quarter']] ?? null;
 
@@ -297,7 +298,14 @@ foreach ($forms as $f) {
         continue;
     }
 
-    [$score, $breakdown] = rendicion_compute_score($f, $opps, $survey);
+    try {
+        [$score, $breakdown] = rendicion_compute_score($f, $opps, $survey);
+    } catch (Throwable $e) {
+        // Una cuenta con datos raros no debe tumbar todo el dashboard.
+        error_log('rendicion_dashboard score form ' . $f['id'] . ': ' . $e->getMessage());
+        $score = 0.0;
+        $breakdown = [];
+    }
     $health = rendicion_health_from_score($score);
     $realProduction = $productionRealByKey[$f['client_id'] . '|' . $f['quarter']] ?? null;
 
@@ -345,7 +353,7 @@ foreach ($forms as $f) {
     $summary['creation_sessions'] += (int)$f['creation_sessions'];
     $summary['client_visits'] += (int)$f['client_visits'];
     $summary['incidents_count'] += (int)$f['incidents_count'];
-    $improvementsLogged += count(array_filter($f['answers']['improvements'] ?? [], fn($i) => !empty($i['problem'])));
+    $improvementsLogged += count(array_filter(is_array($f['answers']['improvements'] ?? null) ? $f['answers']['improvements'] : [], fn($i) => is_array($i) && !empty($i['problem'])));
 }
 
 $cmRanking = [];
