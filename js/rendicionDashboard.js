@@ -72,7 +72,7 @@ const RendicionDashboard = (() => {
     production: 'Volumen y calidad del contenido producido, según lo que reportó la CM. Se contrasta con el módulo Aprobaciones en la sección "Contraste" más abajo.',
     commercial: 'Oportunidades de venta que las CM detectaron en sus clientes y en qué etapa van, desde "detectada" hasta "vendida" o "perdida".',
     pipeline: 'Lista de cada oportunidad reportada. Puedes cambiar el estado o el valor estimado aquí mismo apenas haya novedades, sin reabrir la rendición de la CM.',
-    responses: 'Cada encuesta que un cliente ya contestó, con su calificación general y NPS. Haz clic en una fila para ver todas las calificaciones (1 a 5), la recomendación (0 a 10) y los comentarios escritos. Respeta los filtros de cliente y trimestre de arriba.',
+    responses: 'Cada encuesta que un cliente ya contestó, con su calificación general y NPS. Haz clic en una fila para ver todas las calificaciones (1 a 5), la recomendación (0 a 10) y los comentarios escritos. NPS = qué tan probable es que el cliente recomiende a IDeaz (0 a 10); pasa el mouse por su ? para ver cómo se interpreta. Respeta los filtros de cliente y trimestre de arriba.',
     client: 'La voz del cliente: resultados de la encuesta trimestral de satisfacción. Solo cuenta las encuestas ya respondidas.',
     risk: 'Salud de las cuentas según la propia CM (verde / amarillo / rojo) y cuántas reportan un riesgo para IDeaz. Reportar un riesgo no resta puntos al score: se busca transparencia.',
     improvement: 'Problemas y mejoras que las CM identificaron en su gestión o en los procesos de IDeaz. Cada rendición exige mínimo 3.',
@@ -103,13 +103,19 @@ const RendicionDashboard = (() => {
     'Mejoras registradas este periodo': 'Oportunidades de mejora con problema descrito, sumadas de todas las rendiciones enviadas.',
   };
 
-  function helpIcon(text) {
+  // opts.inline: usa <span> en vez de <button> (para ponerlo dentro de otro botón);
+  // opts.right: ancla el recuadro al borde derecho (para íconos pegados al lado derecho).
+  function helpIcon(text, opts = {}) {
     if (!text) return '';
+    const tag = opts.inline ? 'span' : 'button';
+    const attrs = opts.inline ? '' : ' type="button"';
     return `<span class="relative group inline-block align-middle ml-1 normal-case tracking-normal">
-      <button type="button" tabindex="0" aria-label="Ayuda" class="w-4 h-4 inline-flex items-center justify-center rounded-full border border-slate-500 text-slate-400 text-[10px] font-bold leading-none hover:border-indigo-400 hover:text-indigo-300 focus:border-indigo-400 focus:text-indigo-300 focus:outline-none">?</button>
-      <span role="tooltip" class="hidden group-hover:block group-focus-within:block absolute left-0 top-full mt-1.5 z-30 w-72 max-w-[80vw] bg-slate-950 border border-indigo-500/50 text-slate-200 text-xs font-normal normal-case tracking-normal leading-relaxed rounded-lg p-3 shadow-xl text-left">${esc(text)}</span>
+      <${tag}${attrs} tabindex="0" aria-label="Ayuda" class="w-4 h-4 inline-flex items-center justify-center rounded-full border border-slate-500 text-slate-400 text-[10px] font-bold leading-none hover:border-indigo-400 hover:text-indigo-300 focus:border-indigo-400 focus:text-indigo-300 focus:outline-none">?</${tag}>
+      <span role="tooltip" class="hidden group-hover:block group-focus-within:block absolute ${opts.right ? 'right-0' : 'left-0'} top-full mt-1.5 z-30 w-72 max-w-[80vw] bg-slate-950 border border-indigo-500/50 text-slate-200 text-xs font-normal normal-case tracking-normal leading-relaxed rounded-lg p-3 shadow-xl text-left">${esc(text)}</span>
     </span>`;
   }
+
+  const NPS_HELP = 'NPS (Net Promoter Score) mide la lealtad del cliente con una pregunta: "¿Qué tan probable es que recomiendes IDeaz a otra persona?", de 0 a 10. 9–10 = promotor (recomendaría a IDeaz); 7–8 = pasivo (conforme, pero no entusiasmado); 0–6 = detractor (insatisfecho, en riesgo de irse o de hablar mal). Aquí se muestra la nota individual que dio cada cliente. Pesa 30% de la satisfacción en el score del CM; el 70% restante son las 9 calificaciones de 1 a 5.';
 
   function attachSectionHelp() {
     document.querySelectorAll('[data-help-key]').forEach((h) => {
@@ -276,7 +282,7 @@ const RendicionDashboard = (() => {
         <p class="text-sm text-slate-200 bg-slate-800/60 rounded-lg px-3 py-2 whitespace-pre-wrap">${v ? esc(v) : '<span class="text-slate-600">Sin respuesta</span>'}</p>
       </div>`;
     return `<div class="grid grid-cols-1 sm:grid-cols-3 gap-2">${ratings}</div>
-      <p class="text-xs text-slate-400 mt-3">Probabilidad de recomendar a IDeaz: <b class="text-slate-100">${s.nps ?? '—'}/10</b></p>
+      <p class="text-xs text-slate-400 mt-3">Probabilidad de recomendar a IDeaz (NPS)${helpIcon(NPS_HELP)}: <b class="text-slate-100">${s.nps ?? '—'}/10</b></p>
       ${text('¿Qué es lo que más valoras de trabajar con IDeaz?', s.value_most)}
       ${text('¿Qué deberíamos mejorar?', s.improve_what)}
       ${text('¿Algo que IDeaz podría hacer y hoy no hace?', s.wish_feature)}`;
@@ -297,7 +303,7 @@ const RendicionDashboard = (() => {
             <span class="text-xs text-slate-500 ml-2">${esc(s.quarter)} · ${esc(s.filled_by_name || '')} · ${s.filled_at ? new Date(s.filled_at.replace(' ', 'T')).toLocaleDateString('es-CO') : ''}</span>
           </span>
           <span class="shrink-0 text-xs">
-            General <b class="${ratingColor(s.rating_overall)}">${s.rating_overall ?? '—'}/5</b> · NPS <b class="text-slate-100">${s.nps ?? '—'}</b>
+            General <b class="${ratingColor(s.rating_overall)}">${s.rating_overall ?? '—'}/5</b> · NPS${helpIcon(NPS_HELP, { inline: true, right: true })} <b class="text-slate-100">${s.nps ?? '—'}</b>
             <span class="text-slate-500 ml-1" data-resp-arrow="${i}">▾</span>
           </span>
         </button>
