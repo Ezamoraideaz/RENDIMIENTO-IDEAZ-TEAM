@@ -200,26 +200,37 @@ if ($formIds) {
     }
 }
 
-// Encuestas: se matchean por (client_id, quarter) del propio formulario, no
-// por el filtro global de quarter, para que cada cuenta cruce con SU trimestre.
+// Encuestas: se leen por los mismos filtros de trimestre/cliente, SIN depender
+// de que exista una rendición enviada — si el cliente ya respondió, debe
+// verse aunque la CM aún no haya enviado su formulario. Se matchean después
+// por (client_id, quarter) con cada cuenta.
 $surveysByKey = [];
 $pairs = [];
 foreach ($forms as $f) {
     $pairs[$f['client_id'] . '|' . $f['quarter']] = [$f['client_id'], $f['quarter']];
 }
-if ($pairs) {
-    $orParts = implode(' OR ', array_fill(0, count($pairs), '(client_id = ? AND quarter = ?)'));
-    $params2 = [];
-    foreach ($pairs as [$cid, $q]) {
-        $params2[] = $cid;
-        $params2[] = $q;
-    }
-    $surveyStmt = $pdo->prepare("SELECT * FROM client_surveys WHERE {$orParts}");
-    $surveyStmt->execute($params2);
-    foreach ($surveyStmt->fetchAll() as $s) {
-        $surveysByKey[$s['client_id'] . '|' . $s['quarter']] = $s;
-    }
+$surveyWhere = [];
+$surveyParams = [];
+if ($quarter !== '') {
+    $surveyWhere[] = 'quarter = ?';
+    $surveyParams[] = $quarter;
 }
+if ($clientId > 0) {
+    $surveyWhere[] = 'client_id = ?';
+    $surveyParams[] = $clientId;
+}
+$surveyStmt = $pdo->prepare('SELECT * FROM client_surveys' . ($surveyWhere ? ' WHERE ' . implode(' AND ', $surveyWhere) : ''));
+$surveyStmt->execute($surveyParams);
+foreach ($surveyStmt->fetchAll() as $s) {
+    $surveysByKey[$s['client_id'] . '|' . $s['quarter']] = $s;
+}
+
+// Trimestres con datos (formularios o encuestas), más reciente primero — el
+// front los usa para abrir directo en el trimestre que realmente tiene info
+// en vez del trimestre en curso (que casi siempre está vacío).
+$availableQuarters = $pdo->query(
+    'SELECT quarter FROM (SELECT quarter FROM rendicion_forms UNION SELECT quarter FROM client_surveys) q ORDER BY quarter DESC'
+)->fetchAll(PDO::FETCH_COLUMN);
 
 // Contraste con Aprobaciones: piezas reales (content_items, con fecha) del
 // mismo cliente+trimestre, agrupadas por quarter porque el rango de fechas
@@ -267,6 +278,7 @@ $summary = [
     'creation_sessions' => 0, 'client_visits' => 0, 'incidents_count' => 0,
 ];
 $improvementsLogged = 0;
+$draftsCount = 0;
 
 foreach ($forms as $f) {
     $f['answers'] = $f['answers'] ? json_decode($f['answers'], true) : [];
@@ -277,6 +289,7 @@ foreach ($forms as $f) {
     // El score solo tiene sentido para una rendición ya enviada — un borrador
     // a medio llenar daría un número que confundiría más que ayudaría.
     if ($f['status'] !== 'submitted') {
+        $draftsCount++;
         continue;
     }
 
@@ -358,6 +371,8 @@ foreach ($surveysByKey as $s) {
 
 json_response([
     'quarter' => $quarter,
+    'available_quarters' => $availableQuarters,
+    'drafts_count' => $draftsCount,
     'summary' => array_merge($summary, [
         'total_accounts' => count($accounts),
         'total_cms' => count($cmAgg),

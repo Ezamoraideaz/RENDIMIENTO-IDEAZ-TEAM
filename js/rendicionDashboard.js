@@ -29,14 +29,35 @@ const RendicionDashboard = (() => {
     };
   }
 
-  function populateFilters() {
+  function populateFilters(extraQuarters) {
     const qSel = document.getElementById('f-quarter');
-    qSel.innerHTML = rendicionQuarterOptions().map((o) => `<option value="${o.value}">${esc(o.label)}</option>`).join('');
+    const options = rendicionQuarterOptions();
+    // Trimestres con datos que ya no entran en la ventana de 5 (ej. años anteriores).
+    (extraQuarters || []).forEach((q) => {
+      if (!options.some((o) => o.value === q)) {
+        const m = /^(\d{4})-Q([1-4])$/.exec(q);
+        if (m) options.push({ value: q, label: `Q${m[2]} ${m[1]}` });
+      }
+    });
+    options.sort((a, b) => (a.value < b.value ? 1 : -1));
+    qSel.innerHTML = `<option value="">Todos los trimestres</option>` + options.map((o) => `<option value="${o.value}">${esc(o.label)}</option>`).join('');
     const cSel = document.getElementById('f-client');
-    cSel.innerHTML = `<option value="">Todos los clientes</option>` + clients.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+    if (!cSel.options.length) {
+      cSel.innerHTML = `<option value="">Todos los clientes</option>` + clients.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+    }
+  }
 
-    const surveyClientSel = document.getElementById('survey-client');
-    surveyClientSel.innerHTML = `<option value="">Selecciona un cliente…</option>` + clients.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  function renderNotice() {
+    const box = document.getElementById('dash-notice');
+    const msgs = [];
+    if (data.drafts_count > 0) {
+      msgs.push(`${data.drafts_count} rendición(es) siguen en <b>borrador</b> y no se cuentan: la CM debe presionar "Enviar" en el último paso.`);
+    }
+    if (!data.summary.total_accounts && data.client_satisfaction.surveys_filled > 0) {
+      msgs.push('Hay encuestas respondidas, pero aún no hay rendiciones enviadas por la CM para este filtro.');
+    }
+    box.innerHTML = msgs.join('<br>');
+    box.classList.toggle('hidden', !msgs.length);
   }
 
   function statCard(label, value, sub) {
@@ -198,6 +219,8 @@ const RendicionDashboard = (() => {
     if (filters.client_id) params.set('client_id', filters.client_id);
     data = await Session.apiFetch(`api/rendicion_dashboard.php?${params.toString()}`);
     renderSummary();
+    renderNotice();
+    loadSurveyBox();
     renderRanking();
     renderAccounts();
     renderProductionCheck(filteredAccounts());
@@ -291,20 +314,23 @@ const RendicionDashboard = (() => {
     document.getElementById('survey-revoke-btn')?.addEventListener('click', revokeSurveyLink);
   }
 
+  // La encuesta usa los filtros de arriba (cliente + trimestre) — ya no tiene selectores propios.
   async function loadSurveyBox() {
-    const clientId = document.getElementById('survey-client').value;
-    const quarter = document.getElementById('survey-quarter').value;
+    const { client_id: clientId, quarter } = currentFilters();
+    const ctx = document.getElementById('survey-context');
     if (!clientId || !quarter) {
-      document.getElementById('survey-box').innerHTML = `<p class="text-xs text-slate-500">Selecciona cliente y trimestre.</p>`;
+      ctx.textContent = '';
+      document.getElementById('survey-box').innerHTML = `<p class="text-xs text-slate-500">Elige un cliente y un trimestre específicos en los filtros de arriba para generar o ver su encuesta.</p>`;
       return;
     }
+    const clientName = clients.find((c) => String(c.id) === String(clientId))?.name || '';
+    ctx.textContent = `${clientName} · ${quarter}`;
     const data = await Session.apiFetch(`api/client_surveys.php?client_id=${clientId}&quarter=${quarter}`);
     renderSurveyBox(data.survey);
   }
 
   async function generateSurveyLink() {
-    const clientId = document.getElementById('survey-client').value;
-    const quarter = document.getElementById('survey-quarter').value;
+    const { client_id: clientId, quarter } = currentFilters();
     try {
       const res = await Session.apiFetch('api/client_surveys.php', {
         method: 'POST',
@@ -324,8 +350,7 @@ const RendicionDashboard = (() => {
   }
 
   async function revokeSurveyLink() {
-    const clientId = document.getElementById('survey-client').value;
-    const quarter = document.getElementById('survey-quarter').value;
+    const { client_id: clientId, quarter } = currentFilters();
     try {
       await Session.apiFetch('api/client_surveys.php', {
         method: 'POST',
@@ -373,13 +398,19 @@ const RendicionDashboard = (() => {
 
     document.getElementById('f-quarter').addEventListener('change', refresh);
     document.getElementById('f-client').addEventListener('change', refresh);
-    document.getElementById('survey-client').addEventListener('change', loadSurveyBox);
-    document.getElementById('survey-quarter').innerHTML = document.getElementById('f-quarter').innerHTML;
-    document.getElementById('survey-quarter').addEventListener('change', loadSurveyBox);
     document.getElementById('reminder-test-btn').addEventListener('click', sendReminderTest);
     if (Session.user?.email) document.getElementById('reminder-test-email').value = Session.user.email;
 
+    // Primera carga sin filtro de trimestre para saber cuáles tienen datos, y
+    // abrir en el más reciente: el trimestre en curso casi siempre está vacío
+    // cuando la rendición se llena al cierre del anterior.
     await refresh();
+    const latest = (data.available_quarters || [])[0];
+    if (latest) {
+      populateFilters(data.available_quarters);
+      document.getElementById('f-quarter').value = latest;
+      await refresh();
+    }
   }
 
   return { init };

@@ -31,12 +31,11 @@
     <!-- Encuesta al cliente -->
     <div class="bg-slate-900 border border-slate-700 rounded-xl p-4 mb-6">
       <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-3">✅ Encuesta de satisfacción al cliente</h2>
-      <div class="flex flex-wrap gap-2 mb-3">
-        <select id="survey-client" class="flex-1 min-w-[180px] bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"></select>
-        <select id="survey-quarter" class="flex-1 min-w-[140px] bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"></select>
-      </div>
-      <div id="survey-box"><p class="text-xs text-slate-500">Selecciona cliente y trimestre.</p></div>
+      <p id="survey-context" class="text-xs text-slate-500 mb-3"></p>
+      <div id="survey-box"><p class="text-xs text-slate-500">Selecciona un cliente y un trimestre arriba.</p></div>
     </div>
+
+    <div id="dash-notice" class="hidden bg-amber-900/20 border border-amber-700/40 text-amber-300 text-sm rounded-xl p-3 mb-6"></div>
 
     <!-- Recordatorios por correo (cron diario) -->
     <div class="bg-slate-900 border border-slate-700 rounded-xl p-4 mb-6">
