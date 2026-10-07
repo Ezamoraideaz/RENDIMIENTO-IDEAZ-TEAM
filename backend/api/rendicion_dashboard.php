@@ -13,6 +13,19 @@ require_once __DIR__ . '/../bootstrap.php';
 require_rendicion_admin_access();
 $pdo = db();
 
+// Endpoint solo para superadmin/admin: ante un fallo inesperado devuelve el
+// mensaje real en el JSON (en vez de un 500 vacío) para poder diagnosticarlo
+// desde la consola del navegador sin acceso al error_log del hosting.
+set_exception_handler(function (Throwable $e) {
+    error_log('rendicion_dashboard: ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
+    if (!headers_sent()) {
+        http_response_code(500);
+        header('Content-Type: application/json; charset=utf-8');
+    }
+    echo json_encode(['error' => 'Error interno: ' . $e->getMessage() . ' (' . basename($e->getFile()) . ':' . $e->getLine() . ')']);
+    exit;
+});
+
 // Pesos base (suman 100). Si no hay encuesta del cliente para ese
 // cliente+trimestre, el peso de "satisfaction" se redistribuye
 // proporcionalmente entre las demás categorías en vez de restarse.
