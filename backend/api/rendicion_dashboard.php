@@ -266,7 +266,7 @@ foreach ($clientsByQuarter as $q => $clientIds) {
     $inPlaceholders = implode(',', array_fill(0, count($clientIds), '?'));
     $prodStmt = $pdo->prepare("
         SELECT cb.client_id,
-               COUNT(*) AS generated,
+               COUNT(*) AS generated_count,
                SUM(ci.status = 'approved') AS approved,
                SUM(ci.status = 'changes_requested') AS changes_requested,
                SUM(ci.status = 'pending') AS pending
@@ -278,7 +278,7 @@ foreach ($clientsByQuarter as $q => $clientIds) {
     $prodStmt->execute([...$clientIds, $range[0], $range[1]]);
     foreach ($prodStmt->fetchAll() as $row) {
         $productionRealByKey[$row['client_id'] . '|' . $q] = [
-            'generated' => (int)$row['generated'],
+            'generated' => (int)$row['generated_count'],
             'approved' => (int)$row['approved'],
             'changes_requested' => (int)$row['changes_requested'],
             'pending' => (int)$row['pending'],
