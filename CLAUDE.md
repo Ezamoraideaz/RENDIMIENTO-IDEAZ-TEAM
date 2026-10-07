@@ -43,7 +43,7 @@ Dashboard web de rendimiento del equipo IDEAZ, conectado a Trello via API REST.
 | `backend/` | Ezamoraideaz | Backend PHP + MySQL (webhooks/tokens de Meta + login global + configuración compartida) — ver secciones abajo |
 | `login.html` | Ezamoraideaz | Login global del sitio (email + contraseña contra `backend/auth/login.php`) |
 | `js/session.js` | Ezamoraideaz | Guard de sesión global: incluirlo en toda página nueva y esperar `Session.ready` antes de iniciar |
-| `rendicion.html` / `js/rendicion.js` | Ezamoraideaz | Rendición Trimestral de Gestión — Formulario 1 (wizard interno del CM por cliente/trimestre) + su propia lista de rendiciones. Rol `cm` diligencia, `superadmin`/`admin` revisan y reabren. |
+| `rendicion.html` / `js/rendicion.js` | Ezamoraideaz | Rendición Trimestral de Gestión — Formulario 1 (wizard interno del CM por cliente/trimestre) + su propia lista de rendiciones. Rol `cm` diligencia y puede reabrir sus propias rendiciones enviadas para corregirlas; `superadmin`/`admin` revisan y reabren cualquiera. |
 | `js/rendicionSchema.js` | Ezamoraideaz | Esquema de pasos/campos del wizard (mismo patrón data-driven que `js/briefSchemas.js`) — fuente única de preguntas/opciones/lógica condicional |
 | `rendicion-dashboard.html` / `js/rendicionDashboard.js` | Ezamoraideaz | Dashboard consolidado (solo `superadmin`/`admin`): indicadores por categoría, score/semáforo por CM, gestión del link de la encuesta al cliente, pipeline de oportunidades editable, y contraste "reportado vs. real" de Producción contra el módulo Aprobaciones (`content_items`) |
 | `encuesta-publica.html` | Ezamoraideaz | Formulario 2 — Encuesta Trimestral de Satisfacción, portal público sin login (token en `?t=`), la responde el cliente final |

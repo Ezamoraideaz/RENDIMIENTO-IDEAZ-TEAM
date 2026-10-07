@@ -184,7 +184,7 @@ const Rendicion = (() => {
       <p><span class="text-slate-500">Piezas generadas:</span> <span class="font-semibold">${formData.pieces_generated ?? '—'}</span></p>
       <p><span class="text-slate-500">Oportunidades comerciales reportadas:</span> <span class="font-semibold">${opps}</span></p>
       <p><span class="text-slate-500">Salud de la cuenta:</span> <span class="font-semibold">${formData.account_health || '—'}</span></p>
-      <p class="text-slate-500 pt-2">Revisa que todo esté correcto y presiona "Enviar rendición ✓". Una vez enviada, un administrador debe reabrirla para poder editarla.</p>
+      <p class="text-slate-500 pt-2">Revisa que todo esté correcto y presiona "Enviar rendición ✓". Una vez enviada, puedes reabrirla con el botón "Reabrir" si necesitas corregir algo (deberás volver a enviarla).</p>
     </div>`;
   }
 
@@ -232,7 +232,7 @@ const Rendicion = (() => {
       nextBtn.textContent = isLast ? 'Enviar rendición ✓' : 'Siguiente →';
     }
     nextBtn.disabled = false;
-    document.getElementById('rendicion-reopen-btn').style.display = (readOnly && isAdmin && formStatus === 'submitted') ? '' : 'none';
+    document.getElementById('rendicion-reopen-btn').style.display = (readOnly && formStatus === 'submitted' && (isAdmin || Number(formOperatorId) === Number(Session.user.id))) ? '' : 'none';
     window.scrollTo(0, 0);
   }
 

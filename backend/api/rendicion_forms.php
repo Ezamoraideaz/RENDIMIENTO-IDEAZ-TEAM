@@ -5,7 +5,7 @@ require_once __DIR__ . '/../bootstrap.php';
 
 // Formulario 1 — Rendición Trimestral de Gestión (una fila por cliente +
 // trimestre + CM). El CM (rol `cm`) solo ve/edita sus propias filas;
-// superadmin/admin ven todas y pueden reabrir una ya enviada. Ver
+// superadmin/admin ven todas; la CM dueña (o un admin) puede reabrir una ya enviada. Ver
 // require_rendicion_access() en includes/auth.php.
 //
 // Las respuestas de las secciones 2, 4, 5, 6, 7, 8 y 9 del formulario (MD)
@@ -179,14 +179,16 @@ switch ($_SERVER['REQUEST_METHOD']) {
         $isAdmin = in_array($operator['role'], ['superadmin', 'admin'], true);
         $input = json_body();
 
-        // Reabrir un formulario ya enviado (solo dueño/directivos) — no toca datos.
+        // Reabrir un formulario ya enviado — no toca datos. Lo puede hacer
+        // la CM dueña de la rendición o un admin/superadmin.
         if (($input['action'] ?? '') === 'reopen') {
-            if (!$isAdmin) {
-                json_error('No autorizado', 403);
-            }
             $id = (int)($input['id'] ?? 0);
-            if (!rendicion_find($pdo, $id)) {
+            $found = rendicion_find($pdo, $id);
+            if (!$found) {
                 json_error('No encontrado', 404);
+            }
+            if (!$isAdmin && (int)$found['operator_id'] !== (int)$operator['id']) {
+                json_error('No autorizado', 403);
             }
             $pdo->prepare("UPDATE rendicion_forms SET status = 'draft', submitted_at = NULL WHERE id = ?")->execute([$id]);
             json_response(['ok' => true]);
@@ -205,7 +207,7 @@ switch ($_SERVER['REQUEST_METHOD']) {
             json_error('No autorizado', 403);
         }
         if ($existing && $existing['status'] === 'submitted') {
-            json_error('Este formulario ya fue enviado; un administrador debe reabrirlo primero', 409);
+            json_error('Este formulario ya fue enviado; debes reabrirlo primero para poder editarlo', 409);
         }
         $formOperatorId = $existing ? (int)$existing['operator_id'] : (int)$operator['id'];
 
