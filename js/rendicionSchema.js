@@ -70,6 +70,82 @@ function rendicionQuarterOptions() {
   return out;
 }
 
+// Ayudas que se muestran al pasar el mouse (o tocar) el ícono ? junto a cada
+// pregunta del wizard — responden las dudas más comunes de la CM al llenar la
+// rendición. Clave = `key` del campo. Fuente única: editar acá, no en rendicion.js.
+const RENDICION_HELP = {
+  client_id: 'Elige la marca que vas a evaluar. Se llena una rendición por cliente y por trimestre; si llevas varias cuentas, repite el proceso con cada una.',
+  quarter: 'El trimestre que estás reportando (no el que viene). Ej.: en octubre se reporta Q3 (julio–septiembre).',
+  contracted_services: 'Marca solo lo que el cliente tiene contratado hoy con IDeaz, aunque tú no lo operes directamente.',
+  activity_level: 'Qué tan exigente fue la cuenta: Baja = pocas solicitudes y poco movimiento; Media = ritmo normal; Alta = muchas solicitudes, cambios o reuniones.',
+
+  meetings_total: 'Cuenta todas las reuniones del trimestre (presenciales y virtuales) con este cliente. Debe ser mayor o igual a la suma de las de planeación y las solicitadas por el cliente.',
+  meetings_planning: 'Reuniones para planear contenido, calendario o campañas.',
+  meetings_client_requested: 'Reuniones que el cliente pidió; no cuentan las que tú agendaste.',
+  meetings_cm_initiated: 'Reuniones o seguimientos que tú propusiste sin que el cliente los pidiera. Mostrar iniciativa suma a tu evaluación de gestión.',
+  followups_count: 'Aproximado de mensajes, llamadas o correos de seguimiento (no reuniones). No necesitas el número exacto.',
+  avg_response_time: 'Cuánto tardas normalmente en responderle al cliente en horario laboral. Ej.: "Menos de 2 horas", "El mismo día".',
+  proactivity_self_score: 'Evalúate con honestidad: 1 = solo respondí lo que pidieron, 5 = propuse ideas, anticipé necesidades y llevé la iniciativa. Se contrasta con tus reuniones propuestas.',
+
+  calendar_status: 'Sí = lo entregaste a tiempo cada mes; Parcialmente = hubo meses con retraso; No = se entregó tarde o no se entregó.',
+  calendar_approved: 'Si el cliente aprobó el calendario propuesto. Parcialmente = aprobó solo parte o lo hizo tarde.',
+  changes_requested_count: 'Cambios grandes pedidos por el cliente (cambio de enfoque, piezas rehechas). No cuentes ajustes menores de texto.',
+  unproduced_content: 'Marca Sí si alguna pieza del calendario aprobado no llegó a producirse o publicarse en el trimestre.',
+  unproduced_reason: 'Elige la causa principal. Ser claro sobre el motivo ayuda a corregirlo; no penaliza por sí mismo.',
+
+  creation_sessions: 'Jornadas de grabación, fotografía o creación de contenido realizadas para esta cuenta.',
+  client_visits: 'Veces que fuiste al establecimiento del cliente (no incluye reuniones virtuales).',
+  pieces_generated: 'Total aproximado de piezas creadas en el trimestre (posts, historias, reels, etc.). Se contrasta con lo registrado en el módulo Aprobaciones, así que usa el dato más cercano a la realidad.',
+  pieces_delivered: 'Piezas que pasaron a diseño para producción.',
+  pieces_approved: 'Piezas que el cliente aprobó. Aprobadas + retrabajo no debería superar el total generado.',
+  pieces_rework: 'Piezas que el cliente rechazó o que hubo que rehacer. Reportarlo con claridad no te resta puntos.',
+
+  needs: 'Necesidades reales que notaste en el negocio del cliente, aunque IDeaz aún no las ofrezca. Son la base para detectar oportunidades.',
+  opportunities_detected: 'Sí = viste algo que IDeaz podría venderle a este cliente. Si marcas Sí, agrega al menos una oportunidad con sus servicios y su estado.',
+
+  fidelizacion_actions: 'Marca todo lo que hiciste para cuidar la relación más allá de lo contratado. Más acciones suman a tu evaluación.',
+  fidelizacion_detail: 'Cuenta UNA acción concreta que haya tenido buen efecto en la relación. Máximo 300 caracteres: qué hiciste y qué resultado tuvo.',
+
+  error_types: 'Marca los tipos de incidencia que ocurrieron. Si no hubo ninguna, déjalo vacío y pon 0 en el número.',
+  incidents_count: 'Solo incidencias relevantes (que llegaron al cliente o causaron retrabajo). Si es mayor a 0 debes explicar qué pasó.',
+  error_detail: 'Describe qué ocurrió y qué haremos para que no se repita. Enfócate en el proceso, no en culpar a una persona.',
+
+  'improvements.0.problem': 'Un problema concreto que detectaste en tu gestión o en el proceso. Se piden mínimo 3 oportunidades de mejora.',
+  'improvements.0.cause': 'Por qué crees que pasó.',
+  'improvements.0.proposal': 'Qué propones hacer para resolverlo.',
+  'improvements.0.impact': 'Qué mejoraría si se aplica (tiempo, calidad, satisfacción del cliente).',
+  'improvements.1.problem': 'Segundo problema o aspecto a mejorar. Debe ser distinto al primero.',
+  'improvements.1.cause': 'Por qué crees que pasó.',
+  'improvements.1.proposal': 'Qué propones hacer para resolverlo.',
+  'improvements.1.impact': 'Qué mejoraría si se aplica.',
+  'improvements.2.problem': 'Tercer problema o aspecto a mejorar. Con este completas el mínimo requerido.',
+  'improvements.2.cause': 'Por qué crees que pasó.',
+  'improvements.2.proposal': 'Qué propones hacer para resolverlo.',
+  'improvements.2.impact': 'Qué mejoraría si se aplica.',
+
+  'client_knowledge.selling': 'Los productos o servicios que hoy vende el cliente.',
+  'client_knowledge.wants_to_sell': 'Lo que el cliente quisiera vender y todavía no vende o no promociona.',
+  'client_knowledge.priority_product': 'El producto o servicio al que el cliente quiere darle más visibilidad.',
+  'client_knowledge.problems': 'Problemas del negocio del cliente (ventas, operación, imagen) que conozcas.',
+  'client_knowledge.campaigns': 'Campañas que el cliente ha mencionado que quiere hacer.',
+  'client_knowledge.seasons': 'Fechas o temporadas fuertes para su negocio en los próximos meses.',
+  'client_knowledge.competition': 'Competidores que el cliente observa o menciona.',
+  'client_knowledge.concerns': 'Lo que preocupa al cliente respecto a su negocio o a nuestro servicio.',
+  'client_knowledge.growth_opportunities': 'Oportunidades de crecimiento que ves o que el cliente ha mencionado.',
+
+  account_health: 'Verde = el cliente está contento y estable; Amarillo = hay señales a vigilar; Rojo = riesgo real de perder la cuenta o de un conflicto grave.',
+  has_risk: 'Sí = hay algo que la dirección debería saber (insatisfacción, problemas de pago, posible cancelación). Reportar un riesgo con claridad nunca te resta puntos.',
+  risk_types: 'Marca todos los que apliquen.',
+  risk_detail: 'Explica el riesgo y qué recomiendas hacer. Un detalle claro y completo (más de 40 caracteres) se valora mejor que una frase corta.',
+
+  'value_generated.problem_detected': 'Un problema del cliente que tú identificaste y que él no te había señalado.',
+  'value_generated.solved': 'Qué resolviste tú o tu equipo, con un resultado concreto si lo hay.',
+  'value_generated.opportunity_detected': 'Una oportunidad comercial para IDeaz con este cliente (puede repetir la que registraste arriba).',
+  'value_generated.additional_service': 'Otro servicio de IDeaz que le serviría a este cliente y por qué.',
+  'value_generated.current_risk': 'El mayor riesgo que ves hoy en la cuenta. Si no hay, escribe "Ninguno por ahora".',
+  'value_generated.next_quarter_action': 'La acción más importante que IDeaz debería ejecutar con este cliente el próximo trimestre.',
+};
+
 const RENDICION_SCHEMA = {
   steps: [
     {
@@ -278,6 +354,7 @@ const RENDICION_SCHEMA = {
 
 if (typeof window !== 'undefined') {
   window.RENDICION_SCHEMA = RENDICION_SCHEMA;
+  window.RENDICION_HELP = RENDICION_HELP;
   window.RENDICION_NEEDS_OPTIONS = RENDICION_NEEDS_OPTIONS;
   window.RENDICION_SERVICES_OPTIONS = RENDICION_SERVICES_OPTIONS;
   window.RENDICION_STAGE_OPTIONS = RENDICION_STAGE_OPTIONS;

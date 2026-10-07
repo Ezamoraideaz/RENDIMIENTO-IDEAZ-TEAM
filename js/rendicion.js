@@ -68,6 +68,17 @@ const Rendicion = (() => {
     return v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0);
   }
 
+  // Ícono "?" con la ayuda de la pregunta (RENDICION_HELP en rendicionSchema.js):
+  // aparece al pasar el mouse o al enfocar/tocar, para que funcione también en móvil.
+  function helpIcon(key) {
+    const text = (window.RENDICION_HELP || {})[key];
+    if (!text) return '';
+    return `<span class="relative group inline-block align-middle ml-1">
+      <button type="button" tabindex="0" aria-label="Ayuda" class="w-4 h-4 inline-flex items-center justify-center rounded-full border border-slate-500 text-slate-400 text-[10px] font-bold leading-none hover:border-indigo-400 hover:text-indigo-300 focus:border-indigo-400 focus:text-indigo-300 focus:outline-none">?</button>
+      <span role="tooltip" class="hidden group-hover:block group-focus-within:block absolute left-0 top-full mt-1.5 z-30 w-72 max-w-[80vw] bg-slate-950 border border-indigo-500/50 text-slate-200 text-xs font-normal leading-relaxed rounded-lg p-3 shadow-xl">${esc(text)}</span>
+    </span>`;
+  }
+
   function renderField(field) {
     const value = getPath(formData, field.key);
     const req = field.required ? '<span class="text-red-400">*</span>' : '';
@@ -111,7 +122,7 @@ const Rendicion = (() => {
     }
 
     return `<div class="mb-5" data-field-wrap="${field.key}">
-      <label class="block text-sm font-semibold text-slate-200 mb-1.5">${esc(field.label)} ${req}</label>
+      <label class="block text-sm font-semibold text-slate-200 mb-1.5">${esc(field.label)} ${req}${helpIcon(field.key)}</label>
       ${control}
       <p class="rendicion-error hidden text-xs text-red-400 mt-1">Este campo es obligatorio</p>
     </div>`;
