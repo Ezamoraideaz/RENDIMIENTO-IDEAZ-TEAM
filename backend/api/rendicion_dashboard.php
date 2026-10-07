@@ -228,9 +228,13 @@ foreach ($surveyStmt->fetchAll() as $s) {
 // Trimestres con datos (formularios o encuestas), más reciente primero — el
 // front los usa para abrir directo en el trimestre que realmente tiene info
 // en vez del trimestre en curso (que casi siempre está vacío).
-$availableQuarters = $pdo->query(
-    'SELECT quarter FROM (SELECT quarter FROM rendicion_forms UNION SELECT quarter FROM client_surveys) q ORDER BY quarter DESC'
-)->fetchAll(PDO::FETCH_COLUMN);
+// Dos consultas separadas (no UNION) para evitar conflictos de collation entre tablas.
+$availableQuarters = array_unique(array_merge(
+    $pdo->query('SELECT DISTINCT quarter FROM rendicion_forms')->fetchAll(PDO::FETCH_COLUMN),
+    $pdo->query('SELECT DISTINCT quarter FROM client_surveys')->fetchAll(PDO::FETCH_COLUMN)
+));
+rsort($availableQuarters);
+$availableQuarters = array_values($availableQuarters);
 
 // Contraste con Aprobaciones: piezas reales (content_items, con fecha) del
 // mismo cliente+trimestre, agrupadas por quarter porque el rango de fechas
