@@ -60,9 +60,65 @@ const RendicionDashboard = (() => {
     box.classList.toggle('hidden', !msgs.length);
   }
 
+  // ---- Ayudas (ícono "?" con explicación al pasar el mouse / tocar) --------
+  // Sirven para socializar qué significa cada sección e indicador del reporte.
+  // Se editan acá: SECTION_HELP por sección (data-help-key en el HTML) y
+  // STAT_HELP por el texto exacto de la etiqueta de cada indicador.
+
+  const SECTION_HELP = {
+    survey: 'Encuesta que responde el cliente final (sin login) sobre su satisfacción con IDeaz y con su CM. Aquí generas, copias o revocas el link para el cliente y trimestre elegidos en los filtros de arriba.',
+    management: 'Cómo gestionó la CM la relación con sus clientes: reuniones, seguimientos y qué tan proactiva fue. Suma lo de todas las rendiciones enviadas dentro del filtro.',
+    production: 'Volumen y calidad del contenido producido, según lo que reportó la CM. Se contrasta con el módulo Aprobaciones en la sección "Contraste" más abajo.',
+    commercial: 'Oportunidades de venta que las CM detectaron en sus clientes y en qué etapa van, desde "detectada" hasta "vendida" o "perdida".',
+    pipeline: 'Lista de cada oportunidad reportada. Puedes cambiar el estado o el valor estimado aquí mismo apenas haya novedades, sin reabrir la rendición de la CM.',
+    client: 'La voz del cliente: resultados de la encuesta trimestral de satisfacción. Solo cuenta las encuestas ya respondidas.',
+    risk: 'Salud de las cuentas según la propia CM (verde / amarillo / rojo) y cuántas reportan un riesgo para IDeaz. Reportar un riesgo no resta puntos al score: se busca transparencia.',
+    improvement: 'Problemas y mejoras que las CM identificaron en su gestión o en los procesos de IDeaz. Cada rendición exige mínimo 3.',
+    score: 'Puntaje de 0 a 100 por CM (promedio de sus cuentas). Pesos: satisfacción del cliente 25, gestión 15, cumplimiento 10, producción 10, comercial 10, calidad 10, fidelización 8, conocimiento del cliente 7, transparencia de riesgo 5. Si el cliente no ha respondido la encuesta, el peso de satisfacción se reparte entre las demás categorías. Semáforo: verde desde 80, amarillo desde 60, rojo por debajo de 60. Haz clic en una CM para filtrar sus cuentas.',
+    accounts: 'Una fila por rendición enviada. "Score" lo calcula el sistema (ver Score del CM); "Salud" es el semáforo de ese score. Haz clic en una fila para abrir la rendición completa.',
+    contrast: 'Compara las piezas que la CM dice haber generado con las registradas en Aprobaciones en el mismo trimestre. 🟢 coincide (diferencia hasta 2), 🟡 revisar (hasta 5), 🔴 diferencia grande (más de 5).',
+  };
+
+  const STAT_HELP = {
+    'Cuentas evaluadas': 'Rendiciones ya enviadas en el filtro actual (una por cliente y trimestre). Los borradores no se cuentan.',
+    'Reuniones totales': 'Suma de todas las reuniones que las CM reportaron con sus clientes en el periodo.',
+    'Seguimientos': 'Mensajes, llamadas o correos de seguimiento aproximados que reportaron las CM (no incluye reuniones).',
+    'Proactividad promedio': 'Promedio de la autoevaluación de las CM, de 1 (solo responde) a 5 (propone y lidera). Es subjetivo; en el score se combina con las reuniones que la CM propuso por iniciativa propia.',
+    'Jornadas de creación': 'Jornadas de grabación, fotografía o creación de contenido realizadas en el periodo.',
+    'Piezas generadas': 'Total de piezas de contenido que las CM reportaron haber creado. Compáralo con la sección "Contraste con Aprobaciones".',
+    'Tasa de aprobación': 'Piezas aprobadas ÷ (aprobadas + con retrabajo). Mide qué tanto del contenido pasa a la primera. El número pequeño indica cuántas piezas tuvieron retrabajo.',
+    'Incidencias': 'Errores relevantes reportados (publicaciones con error, información incorrecta, retrabajos). Más incidencias respecto a las piezas generadas bajan el puntaje de calidad.',
+    'Oportunidades detectadas': 'Total de oportunidades comerciales reportadas, en cualquier etapa.',
+    'Vendidas': 'Oportunidades que ya llegaron a la etapa "Vendida"; debajo, el valor total vendido.',
+    'Valor potencial total': 'Suma del valor estimado de todas las oportunidades reportadas (vendidas, perdidas o en curso). Es una proyección, no ingresos confirmados.',
+    'Satisfacción promedio': 'Promedio de la calificación general (1 a 5) que dieron los clientes en la encuesta. Solo encuestas respondidas.',
+    'Encuestas respondidas': 'Clientes que ya contestaron la encuesta de satisfacción del trimestre.',
+    'Encuestas pendientes': 'Clientes a los que se les generó el link pero aún no responden. Conviene hacerles seguimiento.',
+    '🟢 Saludables': 'Cuentas que la CM calificó como estables y con cliente contento. Es la percepción de la CM, distinta al semáforo del score.',
+    '🟡 Requieren atención': 'Cuentas con señales a vigilar según la CM: demoras, cambios de ánimo del cliente o riesgos incipientes.',
+    '🔴 En riesgo': 'Cuentas que la CM considera en riesgo real de perderse o con un conflicto serio. Prioridad para la dirección.',
+    'Cuentas con riesgo reportado': 'Cuentas donde la CM marcó que existe un riesgo que IDeaz debe conocer, sin importar su color de salud.',
+    'Mejoras registradas este periodo': 'Oportunidades de mejora con problema descrito, sumadas de todas las rendiciones enviadas.',
+  };
+
+  function helpIcon(text) {
+    if (!text) return '';
+    return `<span class="relative group inline-block align-middle ml-1 normal-case tracking-normal">
+      <button type="button" tabindex="0" aria-label="Ayuda" class="w-4 h-4 inline-flex items-center justify-center rounded-full border border-slate-500 text-slate-400 text-[10px] font-bold leading-none hover:border-indigo-400 hover:text-indigo-300 focus:border-indigo-400 focus:text-indigo-300 focus:outline-none">?</button>
+      <span role="tooltip" class="hidden group-hover:block group-focus-within:block absolute left-0 top-full mt-1.5 z-30 w-72 max-w-[80vw] bg-slate-950 border border-indigo-500/50 text-slate-200 text-xs font-normal normal-case tracking-normal leading-relaxed rounded-lg p-3 shadow-xl text-left">${esc(text)}</span>
+    </span>`;
+  }
+
+  function attachSectionHelp() {
+    document.querySelectorAll('[data-help-key]').forEach((h) => {
+      if (h.querySelector('[role="tooltip"]')) return;
+      h.insertAdjacentHTML('beforeend', helpIcon(SECTION_HELP[h.dataset.helpKey]));
+    });
+  }
+
   function statCard(label, value, sub) {
     return `<div class="bg-slate-900 border border-slate-700 rounded-xl p-4">
-      <p class="text-xs text-slate-500 mb-1">${esc(label)}</p>
+      <p class="text-xs text-slate-500 mb-1">${esc(label)}${helpIcon(STAT_HELP[label])}</p>
       <p class="text-2xl font-black text-slate-100">${value}</p>
       ${sub ? `<p class="text-xs text-slate-500 mt-1">${sub}</p>` : ''}
     </div>`;
@@ -395,6 +451,7 @@ const RendicionDashboard = (() => {
     const clientsData = await Session.apiFetch('api/clients.php');
     clients = (clientsData.clients || []).filter((c) => c.status === 'active');
     populateFilters();
+    attachSectionHelp();
 
     document.getElementById('f-quarter').addEventListener('change', refresh);
     document.getElementById('f-client').addEventListener('change', refresh);

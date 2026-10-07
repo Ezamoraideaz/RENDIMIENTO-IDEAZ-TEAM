@@ -30,7 +30,7 @@
 
     <!-- Encuesta al cliente -->
     <div class="bg-slate-900 border border-slate-700 rounded-xl p-4 mb-6">
-      <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-3">✅ Encuesta de satisfacción al cliente</h2>
+      <h2 data-help-key="survey" class="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-3">✅ Encuesta de satisfacción al cliente</h2>
       <p id="survey-context" class="text-xs text-slate-500 mb-3"></p>
       <div id="survey-box"><p class="text-xs text-slate-500">Selecciona un cliente y un trimestre arriba.</p></div>
     </div>
@@ -48,53 +48,53 @@
     </div>
 
     <!-- Gestión -->
-    <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Gestión</h2>
+    <h2 data-help-key="management" class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Gestión</h2>
     <div id="dash-management" class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6"></div>
 
     <!-- Producción -->
-    <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Producción</h2>
+    <h2 data-help-key="production" class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Producción</h2>
     <div id="dash-production" class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6"></div>
 
     <!-- Comercial -->
-    <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Comercial</h2>
+    <h2 data-help-key="commercial" class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Comercial</h2>
     <div id="dash-commercial" class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6"></div>
 
     <!-- Pipeline de oportunidades (edición en línea del estado/valor) -->
-    <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Pipeline de oportunidades</h2>
+    <h2 data-help-key="pipeline" class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Pipeline de oportunidades</h2>
     <div id="pipeline-wrap" class="border border-slate-800 rounded-lg overflow-hidden overflow-x-auto mb-6">
       <p class="text-slate-500 text-sm p-4">Cargando…</p>
     </div>
 
     <!-- Cliente -->
-    <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Cliente</h2>
+    <h2 data-help-key="client" class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Cliente</h2>
     <div id="dash-client" class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6"></div>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
       <div>
-        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Riesgo</h2>
+        <h2 data-help-key="risk" class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Riesgo</h2>
         <div id="dash-risk" class="grid grid-cols-2 gap-4"></div>
       </div>
       <div>
-        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Mejora</h2>
+        <h2 data-help-key="improvement" class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Mejora</h2>
         <div id="dash-improvement" class="grid grid-cols-1 gap-4"></div>
       </div>
     </div>
 
     <!-- Score / ranking de CMs -->
-    <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Score del Community Manager</h2>
+    <h2 data-help-key="score" class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Score del Community Manager</h2>
     <div id="cm-ranking-wrap" class="border border-slate-800 rounded-lg overflow-hidden overflow-x-auto mb-6">
       <p class="text-slate-500 text-sm p-4">Cargando…</p>
     </div>
 
     <!-- Cuentas -->
-    <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Cuentas</h2>
+    <h2 data-help-key="accounts" class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Cuentas</h2>
     <div id="accounts-wrap" class="border border-slate-800 rounded-lg overflow-hidden overflow-x-auto mb-6">
       <p class="text-slate-500 text-sm p-4">Cargando…</p>
     </div>
 
     <!-- Contraste con Aprobaciones: lo que reporta la CM vs. lo real -->
     <div class="flex items-center justify-between mb-2">
-      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider">Contraste con Aprobaciones — lo reportado vs. lo real</h2>
+      <h2 data-help-key="contrast" class="text-sm font-semibold text-slate-400 uppercase tracking-wider">Contraste con Aprobaciones — lo reportado vs. lo real</h2>
     </div>
     <p class="text-xs text-slate-500 mb-2">"Real" sale del módulo Aprobaciones (piezas con fecha real de creación/decisión). Si un cliente no usa Aprobaciones para todo su contenido, esta comparación no aplica — úsala como pista, no como verdad absoluta.</p>
     <div id="production-check-wrap" class="border border-slate-800 rounded-lg overflow-hidden overflow-x-auto mb-6">
@@ -108,7 +108,7 @@
 <script src="js/sidebar.js?v=20260915"></script>
 <script src="js/utils.js?v=20260915"></script>
 <script src="js/rendicionSchema.js?v=20261007"></script>
-<script src="js/rendicionDashboard.js?v=20261007"></script>
+<script src="js/rendicionDashboard.js?v=20261007b"></script>
 <script>
   Session.ready.then(() => {
     Sidebar.init('rendicion-dashboard');
