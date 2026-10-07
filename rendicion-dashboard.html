@@ -69,6 +69,12 @@
     <h2 data-help-key="client" class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Cliente</h2>
     <div id="dash-client" class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6"></div>
 
+    <!-- Respuestas completas de las encuestas de satisfacción -->
+    <h2 data-help-key="responses" class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Respuestas de los clientes</h2>
+    <div id="survey-responses-wrap" class="border border-slate-800 rounded-lg overflow-hidden mb-6">
+      <p class="text-slate-500 text-sm p-4">Cargando…</p>
+    </div>
+
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
       <div>
         <h2 data-help-key="risk" class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Riesgo</h2>
@@ -108,7 +114,7 @@
 <script src="js/sidebar.js?v=20260915"></script>
 <script src="js/utils.js?v=20260915"></script>
 <script src="js/rendicionSchema.js?v=20261007"></script>
-<script src="js/rendicionDashboard.js?v=20261007c"></script>
+<script src="js/rendicionDashboard.js?v=20261007d"></script>
 <script>
   Session.ready.then(() => {
     Sidebar.init('rendicion-dashboard');

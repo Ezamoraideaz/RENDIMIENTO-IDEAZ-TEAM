@@ -394,8 +394,38 @@ foreach ($surveysByKey as $s) {
     }
 }
 
+// Respuestas completas de las encuestas ya contestadas (para la sección
+// "Respuestas de los clientes"): calificaciones, NPS y comentarios abiertos.
+$clientNames = [];
+foreach ($pdo->query('SELECT id, name FROM clients')->fetchAll() as $c) {
+    $clientNames[(int)$c['id']] = $c['name'];
+}
+$surveyList = [];
+foreach ($surveysByKey as $s) {
+    if ($s['status'] !== 'filled') continue;
+    $item = [
+        'client_id' => (int)$s['client_id'],
+        'client_name' => $clientNames[(int)$s['client_id']] ?? ('Cliente #' . $s['client_id']),
+        'quarter' => $s['quarter'],
+        'filled_by_name' => $s['filled_by_name'],
+        'filled_by_email' => $s['filled_by_email'] ?? null,
+        'filled_at' => $s['filled_at'],
+        'nps' => $s['nps'] !== null ? (int)$s['nps'] : null,
+        'value_most' => $s['value_most'],
+        'improve_what' => $s['improve_what'],
+        'wish_feature' => $s['wish_feature'],
+    ];
+    foreach (['rating_ideaz', 'rating_cm', 'rating_response_time', 'rating_quality', 'rating_creativity',
+        'rating_commitment', 'rating_communication', 'rating_understands_business', 'rating_overall'] as $rf) {
+        $item[$rf] = $s[$rf] !== null ? (int)$s[$rf] : null;
+    }
+    $surveyList[] = $item;
+}
+usort($surveyList, fn($a, $b) => strcmp((string)$b['filled_at'], (string)$a['filled_at']));
+
 json_response([
     'quarter' => $quarter,
+    'surveys' => $surveyList,
     'available_quarters' => $availableQuarters,
     'drafts_count' => $draftsCount,
     'summary' => array_merge($summary, [

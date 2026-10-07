@@ -72,6 +72,7 @@ const RendicionDashboard = (() => {
     production: 'Volumen y calidad del contenido producido, según lo que reportó la CM. Se contrasta con el módulo Aprobaciones en la sección "Contraste" más abajo.',
     commercial: 'Oportunidades de venta que las CM detectaron en sus clientes y en qué etapa van, desde "detectada" hasta "vendida" o "perdida".',
     pipeline: 'Lista de cada oportunidad reportada. Puedes cambiar el estado o el valor estimado aquí mismo apenas haya novedades, sin reabrir la rendición de la CM.',
+    responses: 'Cada encuesta que un cliente ya contestó, con su calificación general y NPS. Haz clic en una fila para ver todas las calificaciones (1 a 5), la recomendación (0 a 10) y los comentarios escritos. Respeta los filtros de cliente y trimestre de arriba.',
     client: 'La voz del cliente: resultados de la encuesta trimestral de satisfacción. Solo cuenta las encuestas ya respondidas.',
     risk: 'Salud de las cuentas según la propia CM (verde / amarillo / rojo) y cuántas reportan un riesgo para IDeaz. Reportar un riesgo no resta puntos al score: se busca transparencia.',
     improvement: 'Problemas y mejoras que las CM identificaron en su gestión o en los procesos de IDeaz. Cada rendición exige mínimo 3.',
@@ -243,6 +244,75 @@ const RendicionDashboard = (() => {
     });
   }
 
+  // ---- Respuestas de las encuestas de satisfacción -------------------------
+
+  const RATING_LABELS = [
+    ['rating_ideaz', 'Atención recibida de IDeaz'],
+    ['rating_cm', 'Atención de su Community Manager'],
+    ['rating_response_time', 'Tiempos de respuesta'],
+    ['rating_quality', 'Calidad del contenido'],
+    ['rating_creativity', 'Creatividad y propuestas'],
+    ['rating_commitment', 'Cumplimiento de lo acordado'],
+    ['rating_communication', 'Comunicación del equipo'],
+    ['rating_understands_business', 'Entienden el negocio'],
+    ['rating_overall', 'Experiencia general con IDeaz'],
+  ];
+
+  function ratingColor(n) {
+    if (n === null || n === undefined) return 'text-slate-500';
+    return n >= 4 ? 'text-emerald-400' : (n === 3 ? 'text-amber-400' : 'text-red-400');
+  }
+
+  // Detalle completo de una encuesta (también lo usa el cuadro de "Encuesta de satisfacción").
+  function surveyDetailHtml(s) {
+    const ratings = RATING_LABELS.map(([k, label]) => `
+      <div class="flex items-center justify-between bg-slate-800/60 rounded-lg px-3 py-2 text-xs">
+        <span class="text-slate-400">${esc(label)}</span>
+        <span class="font-bold ${ratingColor(s[k])}">${s[k] ?? '—'}/5</span>
+      </div>`).join('');
+    const text = (label, v) => `
+      <div class="mt-3">
+        <p class="text-xs text-slate-500 mb-1">${esc(label)}</p>
+        <p class="text-sm text-slate-200 bg-slate-800/60 rounded-lg px-3 py-2 whitespace-pre-wrap">${v ? esc(v) : '<span class="text-slate-600">Sin respuesta</span>'}</p>
+      </div>`;
+    return `<div class="grid grid-cols-1 sm:grid-cols-3 gap-2">${ratings}</div>
+      <p class="text-xs text-slate-400 mt-3">Probabilidad de recomendar a IDeaz: <b class="text-slate-100">${s.nps ?? '—'}/10</b></p>
+      ${text('¿Qué es lo que más valoras de trabajar con IDeaz?', s.value_most)}
+      ${text('¿Qué deberíamos mejorar?', s.improve_what)}
+      ${text('¿Algo que IDeaz podría hacer y hoy no hace?', s.wish_feature)}`;
+  }
+
+  function renderSurveyResponses() {
+    const wrap = document.getElementById('survey-responses-wrap');
+    const list = data.surveys || [];
+    if (!list.length) {
+      wrap.innerHTML = `<p class="text-slate-500 text-sm p-4">Ningún cliente ha respondido la encuesta para este filtro.</p>`;
+      return;
+    }
+    wrap.innerHTML = list.map((s, i) => `
+      <div class="border-t border-slate-800 first:border-t-0">
+        <button type="button" data-resp-toggle="${i}" class="w-full flex items-center justify-between gap-3 text-left px-4 py-3 hover:bg-slate-800/30 transition-colors">
+          <span class="min-w-0">
+            <span class="font-semibold text-sm">${esc(s.client_name)}</span>
+            <span class="text-xs text-slate-500 ml-2">${esc(s.quarter)} · ${esc(s.filled_by_name || '')} · ${s.filled_at ? new Date(s.filled_at.replace(' ', 'T')).toLocaleDateString('es-CO') : ''}</span>
+          </span>
+          <span class="shrink-0 text-xs">
+            General <b class="${ratingColor(s.rating_overall)}">${s.rating_overall ?? '—'}/5</b> · NPS <b class="text-slate-100">${s.nps ?? '—'}</b>
+            <span class="text-slate-500 ml-1" data-resp-arrow="${i}">▾</span>
+          </span>
+        </button>
+        <div data-resp-detail="${i}" class="hidden px-4 pb-4">${surveyDetailHtml(s)}${s.filled_by_email ? `<p class="text-xs text-slate-500 mt-3">Contacto: ${esc(s.filled_by_email)}</p>` : ''}</div>
+      </div>`).join('');
+    wrap.querySelectorAll('[data-resp-toggle]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const i = btn.dataset.respToggle;
+        const detail = wrap.querySelector(`[data-resp-detail="${i}"]`);
+        const open = detail.classList.toggle('hidden') === false;
+        wrap.querySelector(`[data-resp-arrow="${i}"]`).textContent = open ? '▴' : '▾';
+      });
+    });
+  }
+
   function renderRanking() {
     const wrap = document.getElementById('cm-ranking-wrap');
     if (!data.cm_ranking.length) {
@@ -350,6 +420,7 @@ const RendicionDashboard = (() => {
     data = await Session.apiFetch(`api/rendicion_dashboard.php?${params.toString()}`);
     renderSummary();
     renderNotice();
+    renderSurveyResponses();
     loadSurveyBox();
     renderRanking();
     renderAccounts();
@@ -426,7 +497,7 @@ const RendicionDashboard = (() => {
     const box = document.getElementById('survey-box');
     if (survey && survey.status === 'filled') {
       box.innerHTML = `<p class="text-sm text-emerald-400">✓ Respondida por ${esc(survey.filled_by_name)} el ${new Date(survey.filled_at).toLocaleDateString('es-CO')}</p>
-        <p class="text-sm text-slate-400 mt-1">Calificación general: ${survey.rating_overall}/5 · NPS: ${survey.nps}/10</p>`;
+        <div class="mt-3">${surveyDetailHtml(survey)}</div>`;
       return;
     }
     const btns = [];
