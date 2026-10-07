@@ -7,6 +7,7 @@
 const RendicionDashboard = (() => {
   let clients = [];
   let data = null;
+  let pipelineData = []; // última lista del pipeline, para reordenar sin volver a pedirla
   let operatorFilter = null; // set al hacer clic en una fila del ranking de CMs
 
   function esc(s) {
@@ -164,13 +165,91 @@ const RendicionDashboard = (() => {
     document.getElementById('dash-improvement').innerHTML = statCard('Mejoras registradas este periodo', fmt(data.improvement.total_improvements_logged));
   }
 
+  // ---- Ordenamiento de tablas (clic en el título de la columna) -------------
+  // Primer clic = ascendente, segundo = descendente, y así alterna. Los vacíos
+  // siempre quedan al final. El estado persiste al refrescar/filtrar.
+
+  const sortState = {}; // tableId => { key, dir: 'asc' | 'desc' }
+
+  const STAGE_ORDER = ['detectada', 'reportada', 'presentada', 'cotizada', 'en_negociacion', 'aprobada', 'vendida', 'perdida', 'pendiente'];
+
+  const RANKING_COLS = [
+    { key: 'name', label: 'Community Manager', get: (r) => r.operator_name },
+    { key: 'accounts', label: 'Cuentas', get: (r) => r.accounts_count },
+    { key: 'score', label: 'Score', get: (r) => r.avg_score },
+    { key: 'semaforo', label: 'Semáforo', get: (r) => r.avg_score },
+  ];
+  const ACCOUNT_COLS = [
+    { key: 'client', label: 'Cliente', get: (a) => a.client_name },
+    { key: 'cm', label: 'CM', get: (a) => a.operator_name },
+    { key: 'quarter', label: 'Trimestre', get: (a) => a.quarter },
+    { key: 'score', label: 'Score', get: (a) => a.score },
+    { key: 'health', label: 'Salud', get: (a) => a.score },
+    { key: 'risk', label: 'Riesgo', get: (a) => (a.has_risk ? 1 : 0) },
+    { key: 'survey', label: 'Cliente respondió', get: (a) => (a.survey_filled ? 1 : 0) },
+  ];
+  const CONTRAST_COLS = [
+    { key: 'client', label: 'Cliente', get: (a) => a.client_name },
+    { key: 'cm', label: 'CM', get: (a) => a.operator_name },
+    { key: 'quarter', label: 'Trimestre', get: (a) => a.quarter },
+    { key: 'reported', label: 'Reportado por la CM', get: (a) => a.production_check.reported.generated },
+    { key: 'real', label: 'Real (Aprobaciones)', get: (a) => (a.production_check.real ? a.production_check.real.generated : null) },
+    { key: 'diff', label: 'Contraste', get: (a) => (a.production_check.real ? Math.abs(a.production_check.reported.generated - a.production_check.real.generated) : null) },
+  ];
+  const PIPELINE_COLS = [
+    { key: 'client', label: 'Cliente', get: (o) => o.client_name },
+    { key: 'cm', label: 'CM', get: (o) => o.operator_name },
+    { key: 'quarter', label: 'Trimestre', get: (o) => o.quarter },
+    { key: 'services', label: 'Servicios', get: (o) => (o.services || []).join(', ') },
+    { key: 'stage', label: 'Estado', get: (o) => { const i = STAGE_ORDER.indexOf(o.stage); return i === -1 ? STAGE_ORDER.length : i; } },
+    { key: 'value', label: 'Valor estimado', get: (o) => (o.estimated_value === null || o.estimated_value === undefined || o.estimated_value === '' ? null : Number(o.estimated_value)) },
+  ];
+
+  function sortedRows(tableId, rows, cols) {
+    const st = sortState[tableId];
+    const col = st && cols.find((c) => c.key === st.key);
+    if (!col) return rows;
+    const dir = st.dir === 'asc' ? 1 : -1;
+    const empty = (v) => v === null || v === undefined || v === '';
+    return [...rows].sort((a, b) => {
+      const va = col.get(a);
+      const vb = col.get(b);
+      if (empty(va) && empty(vb)) return 0;
+      if (empty(va)) return 1;
+      if (empty(vb)) return -1;
+      if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir;
+      return String(va).localeCompare(String(vb), 'es', { numeric: true, sensitivity: 'base' }) * dir;
+    });
+  }
+
+  function sortHead(tableId, cols) {
+    const st = sortState[tableId];
+    return `<tr class="text-left text-xs text-slate-500 uppercase">${cols.map((c) => {
+      const active = st && st.key === c.key;
+      const arrow = active ? (st.dir === 'asc' ? '▲' : '▼') : '↕';
+      return `<th class="px-4 py-2 cursor-pointer select-none hover:text-slate-300 whitespace-nowrap ${active ? 'text-indigo-300' : ''}" data-sort-table="${tableId}" data-sort-key="${c.key}" title="Ordenar por ${esc(c.label)}">${esc(c.label)} <span class="${active ? '' : 'opacity-40'}">${arrow}</span></th>`;
+    }).join('')}</tr>`;
+  }
+
+  function bindSort(wrap, rerender) {
+    wrap.querySelectorAll('[data-sort-key]').forEach((th) => {
+      th.addEventListener('click', () => {
+        const t = th.dataset.sortTable;
+        const k = th.dataset.sortKey;
+        const st = sortState[t];
+        sortState[t] = st && st.key === k ? { key: k, dir: st.dir === 'asc' ? 'desc' : 'asc' } : { key: k, dir: 'asc' };
+        rerender();
+      });
+    });
+  }
+
   function renderRanking() {
     const wrap = document.getElementById('cm-ranking-wrap');
     if (!data.cm_ranking.length) {
       wrap.innerHTML = `<p class="text-slate-500 text-sm p-4">Sin rendiciones enviadas todavía para este filtro.</p>`;
       return;
     }
-    const rows = data.cm_ranking.map((cm) => `
+    const rows = sortedRows('ranking', data.cm_ranking, RANKING_COLS).map((cm) => `
       <tr class="border-t border-slate-800 hover:bg-slate-800/30 cursor-pointer ${operatorFilter === cm.operator_id ? 'bg-slate-800/50' : ''}" data-cm-row="${cm.operator_id}">
         <td class="px-4 py-3 font-semibold">${esc(cm.operator_name)}</td>
         <td class="px-4 py-3 text-slate-400">${cm.accounts_count}</td>
@@ -178,10 +257,9 @@ const RendicionDashboard = (() => {
         <td class="px-4 py-3">${healthBadge(cm.semaforo)}</td>
       </tr>`).join('');
     wrap.innerHTML = `<table class="w-full text-sm">
-      <thead><tr class="text-left text-xs text-slate-500 uppercase">
-        <th class="px-4 py-2">Community Manager</th><th class="px-4 py-2">Cuentas</th><th class="px-4 py-2">Score</th><th class="px-4 py-2">Semáforo</th>
-      </tr></thead><tbody>${rows}</tbody></table>
-      <p class="text-xs text-slate-500 px-4 py-2">Haz clic en un CM para filtrar sus cuentas abajo.</p>`;
+      <thead>${sortHead('ranking', RANKING_COLS)}</thead><tbody>${rows}</tbody></table>
+      <p class="text-xs text-slate-500 px-4 py-2">Haz clic en un CM para filtrar sus cuentas abajo. Haz clic en el título de una columna para ordenar.</p>`;
+    bindSort(wrap, renderRanking);
     wrap.querySelectorAll('[data-cm-row]').forEach((tr) => {
       tr.addEventListener('click', () => {
         const id = Number(tr.dataset.cmRow);
@@ -204,7 +282,7 @@ const RendicionDashboard = (() => {
       wrap.innerHTML = `<p class="text-slate-500 text-sm p-4">Sin cuentas para este filtro.</p>`;
       return;
     }
-    const rows = accounts.map((a) => `
+    const rows = sortedRows('accounts', accounts, ACCOUNT_COLS).map((a) => `
       <tr class="border-t border-slate-800 hover:bg-slate-800/30 cursor-pointer" data-open-form="${a.form_id}">
         <td class="px-4 py-3 font-semibold">${esc(a.client_name)}</td>
         <td class="px-4 py-3 text-slate-400">${esc(a.operator_name)}</td>
@@ -215,10 +293,8 @@ const RendicionDashboard = (() => {
         <td class="px-4 py-3">${a.survey_filled ? '<span class="text-emerald-400 text-xs">✓ encuesta</span>' : '<span class="text-slate-600 text-xs">sin encuesta</span>'}</td>
       </tr>`).join('');
     wrap.innerHTML = `<table class="w-full text-sm">
-      <thead><tr class="text-left text-xs text-slate-500 uppercase">
-        <th class="px-4 py-2">Cliente</th><th class="px-4 py-2">CM</th><th class="px-4 py-2">Trimestre</th>
-        <th class="px-4 py-2">Score</th><th class="px-4 py-2">Salud</th><th class="px-4 py-2">Riesgo</th><th class="px-4 py-2">Cliente respondió</th>
-      </tr></thead><tbody>${rows}</tbody></table>`;
+      <thead>${sortHead('accounts', ACCOUNT_COLS)}</thead><tbody>${rows}</tbody></table>`;
+    bindSort(wrap, renderAccounts);
     wrap.querySelectorAll('[data-open-form]').forEach((tr) => {
       tr.addEventListener('click', () => { window.location.href = `rendicion.html?form=${tr.dataset.openForm}`; });
     });
@@ -240,7 +316,7 @@ const RendicionDashboard = (() => {
       wrap.innerHTML = `<p class="text-slate-500 text-sm p-4">Sin cuentas para este filtro.</p>`;
       return;
     }
-    const rows = accounts.map((a) => {
+    const rows = sortedRows('contrast', accounts, CONTRAST_COLS).map((a) => {
       const pc = a.production_check;
       const r = pc.reported;
       const real = pc.real;
@@ -258,10 +334,8 @@ const RendicionDashboard = (() => {
       </tr>`;
     }).join('');
     wrap.innerHTML = `<table class="w-full text-sm">
-      <thead><tr class="text-left text-xs text-slate-500 uppercase">
-        <th class="px-4 py-2">Cliente</th><th class="px-4 py-2">CM</th><th class="px-4 py-2">Trimestre</th>
-        <th class="px-4 py-2">Reportado por la CM</th><th class="px-4 py-2">Real (Aprobaciones)</th><th class="px-4 py-2">Contraste</th>
-      </tr></thead><tbody>${rows}</tbody></table>`;
+      <thead>${sortHead('contrast', CONTRAST_COLS)}</thead><tbody>${rows}</tbody></table>`;
+    bindSort(wrap, () => renderProductionCheck(accounts));
     wrap.querySelectorAll('[data-open-form]').forEach((tr) => {
       tr.addEventListener('click', () => { window.location.href = `rendicion.html?form=${tr.dataset.openForm}`; });
     });
@@ -294,7 +368,8 @@ const RendicionDashboard = (() => {
       wrap.innerHTML = `<p class="text-slate-500 text-sm p-4">Sin oportunidades reportadas para este filtro.</p>`;
       return;
     }
-    const rows = opportunities.map((o) => `
+    pipelineData = opportunities;
+    const rows = sortedRows('pipeline', opportunities, PIPELINE_COLS).map((o) => `
       <tr class="border-t border-slate-800" data-opp-row="${o.id}">
         <td class="px-4 py-3 font-semibold">${esc(o.client_name)}</td>
         <td class="px-4 py-3 text-slate-400">${esc(o.operator_name)}</td>
@@ -310,12 +385,10 @@ const RendicionDashboard = (() => {
         </td>
       </tr>`).join('');
     wrap.innerHTML = `<table class="w-full text-sm">
-      <thead><tr class="text-left text-xs text-slate-500 uppercase">
-        <th class="px-4 py-2">Cliente</th><th class="px-4 py-2">CM</th><th class="px-4 py-2">Trimestre</th>
-        <th class="px-4 py-2">Servicios</th><th class="px-4 py-2">Estado</th><th class="px-4 py-2">Valor estimado</th>
-      </tr></thead><tbody>${rows}</tbody></table>
+      <thead>${sortHead('pipeline', PIPELINE_COLS)}</thead><tbody>${rows}</tbody></table>
       <p class="text-xs text-slate-500 px-4 py-2">Cambia el estado o el valor apenas tengas noticias — se guarda solo, sin reabrir el formulario trimestral.</p>`;
 
+    bindSort(wrap, () => renderPipeline(pipelineData));
     wrap.querySelectorAll('[data-opp-stage]').forEach((sel) => {
       sel.addEventListener('change', () => updateOpportunity(sel.dataset.oppStage, { stage: sel.value }));
     });
