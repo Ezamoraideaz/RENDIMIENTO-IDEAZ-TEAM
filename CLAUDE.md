@@ -51,6 +51,29 @@ Dashboard web de rendimiento del equipo IDEAZ, conectado a Trello via API REST.
 | `backend/api/rendicion_opportunities.php` | Ezamoraideaz | Pipeline de oportunidades comerciales — permite actualizar el estado/valor de una oportunidad ya reportada (ej. a "Cotizada"/"Vendida") sin reabrir el formulario trimestral al que pertenece; visible en `rendicion.html` (propias) y `rendicion-dashboard.html` (todas) |
 | `backend/cron/rendicion_reminders.php` | Ezamoraideaz | Correos automáticos a CM/PM(agenda_full)/superadmin/admin: 7 días antes de cerrar el trimestre (a diligenciar) y 1 día antes (agendar la socialización presencial). Requiere un **Cron Job nuevo en cPanel, una vez al día** (ver `backend/sql/migration_021_rendicion_reminders.sql`) — aparte del cron por minuto de `process_scheduled.php`. Lógica compartida en `backend/includes/rendicion_reminders.php` |
 | `backend/api/rendicion_reminders_test.php` | Ezamoraideaz | Botón "Enviar correo de prueba" en `rendicion-dashboard.html` — prueba el envío real sin Terminal/SSH, solo a la dirección indicada, sin afectar el cron real |
+| `backend/webhook/telegram.php`, `backend/cron/process_design_reviews.php`, `backend/includes/{telegram_api,review_parser,design_review_ai,design_review}.php`, `backend/setup/telegram_setup.php` | Ezamoraideaz | Revisión automática de piezas con IA vía bot de Telegram — ver sección "Revisión de piezas por Telegram" abajo y `plan-revision-ia-disenos.md` |
+
+---
+
+## Revisión de piezas por Telegram (bot + Gemini + cronograma)
+
+Los diseñadores envían la pieza al grupo de Telegram de la marca con un texto `#5 - 18 REEL FEED`
+(`#ID` del post · día de publicación · formato). El bot cruza ese `#ID` con el cronograma de Google Sheets
+(una pestaña por mes; A=post, C=día, D=indicaciones, E=mensaje de arte, F=copy), revisa la pieza con Gemini
+y responde en el grupo con un reporte con score (🟢 ≥85, 🟡 60–84, 🔴 <60) y botones para CM/PM.
+Los botones son **solo comunicación** (registran el evento en `design_review_events` y avisan en el grupo); no tocan Trello.
+
+- **Mes:** como la publicación es siempre futura, un día `>=` al de hoy es este mes y uno menor es el mes siguiente.
+- **Roles:** `telegram_role_rules` (texto que debe contener el @usuario/nombre de Telegram → `cm`/`pm`). Quien no coincide es diseñador. CM/PM no generan revisiones.
+- **Límites:** el Bot API estándar solo permite descargar archivos de hasta 20 MB. Gemini usa la capa gratuita (cuota por minuto/día; Google puede usar los datos enviados).
+
+### Puesta en marcha (una sola vez)
+1. Correr `backend/sql/migration_022_telegram_design_review.sql` (ya incluida en `schema.sql` para instalaciones nuevas).
+2. Crear el bot en @BotFather; completar `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `GEMINI_API_KEY` (aistudio.google.com) en `config.php`.
+3. Visitar `backend/setup/telegram_setup.php?token=SETUP_TOKEN&action=set` para registrar el webhook; luego borrar ese archivo y vaciar `SETUP_TOKEN`.
+4. Agregar el bot como **administrador** de cada grupo de marca y escribir allí `/vincular slug-de-la-marca` (solo admins del grupo).
+5. Crear un **Cron Job nuevo en cPanel, cada minuto**: `php backend/cron/process_design_reviews.php` (aparte de `process_scheduled.php`).
+6. Compartir el Google Sheet de cada marca con la cuenta de servicio (ya hecho para Aprobaciones) y tener `clients.sheet_id` guardado.
 
 ---
 

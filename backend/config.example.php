@@ -51,3 +51,16 @@ define('SESSION_COOKIE_NAME', 'ideaz_ac_session');
 // operador sin acceso a Terminal/SSH). Generar un valor propio aleatorio, usarlo una
 // vez, y luego borrar backend/setup/bootstrap_operator.php del servidor.
 define('SETUP_TOKEN', '');
+
+// Revisión de piezas con IA vía Telegram (backend/webhook/telegram.php).
+// Bot: hablar con @BotFather → /newbot. Luego hacerlo ADMINISTRADOR de cada grupo de marca
+// (así recibe todos los mensajes, aunque el modo privacidad esté activo).
+define('TELEGRAM_BOT_TOKEN', '');
+// String aleatorio propio; Telegram lo reenvía en cada petición al webhook (cabecera
+// X-Telegram-Bot-Api-Secret-Token) y el webhook rechaza lo que no lo traiga.
+// Generar con: php -r "echo bin2hex(random_bytes(24)), PHP_EOL;"
+define('TELEGRAM_WEBHOOK_SECRET', '');
+// Gemini (aistudio.google.com → Get API key) — capa gratuita. Analiza imágenes y video.
+define('GEMINI_API_KEY', '');
+// Modelo de Gemini; verificar en AI Studio cuál está vigente en la capa gratuita.
+define('GEMINI_MODEL', 'gemini-2.5-flash');
