@@ -51,7 +51,17 @@ function design_review_mention(int $userId, string $name): string
     return '<a href="tg://user?id=' . $userId . '">' . tg_h($name) . '</a>';
 }
 
-// ---------------------------------------------------------------- Ingesta (webhook)
+// ---------------------------------------------------------------- Ingesta
+
+// Punto de entrada único para un update de Telegram (lo usan el webhook y el polling).
+function design_review_dispatch_update(PDO $pdo, array $update): void
+{
+    if (isset($update['message']) && is_array($update['message'])) {
+        design_review_ingest_message($pdo, $update['message']);
+    } elseif (isset($update['callback_query']) && is_array($update['callback_query'])) {
+        design_review_handle_callback($pdo, $update['callback_query']);
+    }
+}
 
 // Extrae [kind, file_id, mime, size, name] del mensaje, o null si no trae una pieza.
 function design_review_extract_media(array $msg): ?array

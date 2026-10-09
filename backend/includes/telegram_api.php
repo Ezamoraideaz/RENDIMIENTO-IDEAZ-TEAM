@@ -21,7 +21,7 @@ function telegram_configured(): bool
 }
 
 // Llama a un método del Bot API. Devuelve el campo "result" o null si falló.
-function telegram_call(string $method, array $params = []): mixed
+function telegram_call(string $method, array $params = [], int $timeout = 20): mixed
 {
     if (!telegram_configured()) {
         telegram_last_error('TELEGRAM_BOT_TOKEN no está definido en config.php');
@@ -34,7 +34,7 @@ function telegram_call(string $method, array $params = []): mixed
         CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
         CURLOPT_POSTFIELDS     => json_encode($params, JSON_UNESCAPED_UNICODE),
         CURLOPT_SSL_VERIFYPEER => true,
-        CURLOPT_TIMEOUT        => 20,
+        CURLOPT_TIMEOUT        => $timeout,
     ]);
     $raw = curl_exec($ch);
     $curlErr = curl_error($ch);

@@ -70,7 +70,7 @@ Los botones son **solo comunicación** (registran el evento en `design_review_ev
 ### Puesta en marcha (una sola vez)
 1. Correr `backend/sql/migration_022_telegram_design_review.sql` (ya incluida en `schema.sql` para instalaciones nuevas).
 2. Crear el bot en @BotFather; completar `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `GEMINI_API_KEY` (aistudio.google.com) en `config.php`.
-3. Visitar `backend/setup/telegram_setup.php?token=SETUP_TOKEN&action=set` para registrar el webhook; luego borrar ese archivo y vaciar `SETUP_TOKEN`.
+3. **Recepción de mensajes:** por defecto el cron hace *polling* (`getUpdates`, `backend/includes/telegram_poll.php`) y no necesita webhook — útil si el firewall del hosting bloquea las peticiones entrantes de Telegram (409). Alternativa con webhook (solo si el hosting lo permite): visitar `backend/setup/telegram_setup.php?token=SETUP_TOKEN&action=set`; luego borrar ese archivo y vaciar `SETUP_TOKEN`. Con polling el webhook se elimina solo.
 4. Agregar el bot como **administrador** de cada grupo de marca y escribir allí `/vincular slug-de-la-marca` (solo admins del grupo).
 5. Crear un **Cron Job nuevo en cPanel, cada minuto**: `php backend/cron/process_design_reviews.php` (aparte de `process_scheduled.php`).
 6. Compartir el Google Sheet de cada marca con la cuenta de servicio (ya hecho para Aprobaciones) y tener `clients.sheet_id` guardado.

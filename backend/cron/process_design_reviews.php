@@ -16,6 +16,7 @@ require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/google_sheets.php';
 require_once __DIR__ . '/../includes/design_review.php';
+require_once __DIR__ . '/../includes/telegram_poll.php';
 
 // Evita corridas solapadas (una revisión de video puede tardar más de un minuto).
 $lockFile = __DIR__ . '/../storage/design_reviews.lock';
@@ -27,6 +28,14 @@ if ($lock === false || !flock($lock, LOCK_EX | LOCK_NB)) {
 }
 
 $pdo = db();
+
+// 1) Recibir mensajes nuevos de los grupos por polling (getUpdates). Dura hasta
+//    TELEGRAM_POLL_SECONDS (45 por defecto; 0 = una sola consulta rápida) para que el
+//    bot responda en segundos aunque el cron corra solo una vez por minuto.
+$pollSeconds = defined('TELEGRAM_POLL_SECONDS') ? (int)TELEGRAM_POLL_SECONDS : 45;
+$received = telegram_poll_run($pdo, $pollSeconds);
+
+// 2) Revisar las piezas en cola.
 $reviews = design_review_claim($pdo, 3); // pocas por corrida: respeta los límites del plan gratuito
 
 $done = 0;

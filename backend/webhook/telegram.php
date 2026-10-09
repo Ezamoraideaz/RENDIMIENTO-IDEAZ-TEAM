@@ -13,20 +13,6 @@ require_once __DIR__ . '/../includes/design_review.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
-// DIAGNÓSTICO TEMPORAL (borrar cuando el webhook funcione): deja constancia de cada
-// petición que llega a este archivo, para distinguir "bloqueada antes de PHP" de "falla en PHP".
-$dbgFile = __DIR__ . '/../storage/telegram_debug.log';
-@mkdir(dirname($dbgFile), 0700, true);
-if (!is_file($dbgFile) || filesize($dbgFile) < 200000) {
-    $dbgSecret = defined('TELEGRAM_WEBHOOK_SECRET') ? (string)TELEGRAM_WEBHOOK_SECRET : '';
-    $dbgSent = (string)($_SERVER['HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN'] ?? '');
-    @file_put_contents($dbgFile, date('c') . ' ' . $_SERVER['REQUEST_METHOD']
-        . ' ip=' . ($_SERVER['REMOTE_ADDR'] ?? '?')
-        . ' secretHeader=' . ($dbgSent !== '' ? 'si' : 'no')
-        . ' secretCoincide=' . (($dbgSecret !== '' && hash_equals($dbgSecret, $dbgSent)) ? 'si' : 'no')
-        . ' bytes=' . strlen((string)file_get_contents('php://input')) . "\n", FILE_APPEND);
-}
-
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     exit('{"ok":false}');
@@ -49,11 +35,7 @@ if (!is_array($update)) {
 // Siempre 200 hacia Telegram (si no, reintenta el mismo update en bucle); los fallos se registran.
 try {
     $pdo = db();
-    if (isset($update['message']) && is_array($update['message'])) {
-        design_review_ingest_message($pdo, $update['message']);
-    } elseif (isset($update['callback_query']) && is_array($update['callback_query'])) {
-        design_review_handle_callback($pdo, $update['callback_query']);
-    }
+    design_review_dispatch_update($pdo, $update);
 } catch (Throwable $e) {
     error_log('[telegram webhook] ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
 }

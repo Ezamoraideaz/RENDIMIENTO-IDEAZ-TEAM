@@ -64,3 +64,6 @@ define('TELEGRAM_WEBHOOK_SECRET', '');
 define('GEMINI_API_KEY', '');
 // Modelo de Gemini; verificar en AI Studio cuál está vigente en la capa gratuita.
 define('GEMINI_MODEL', 'gemini-2.5-flash');
+// Segundos que el cron escucha mensajes nuevos de Telegram en cada corrida (polling, para
+// hostings que bloquean el webhook). 45 con un cron por minuto; 0 = una sola consulta.
+define('TELEGRAM_POLL_SECONDS', 45);
