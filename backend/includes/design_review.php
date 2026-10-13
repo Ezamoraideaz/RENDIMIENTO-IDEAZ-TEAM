@@ -442,7 +442,14 @@ function design_review_fail(PDO $pdo, array $review, string $reason, bool $retry
     $final = !$retry || (int)$review['attempts'] >= DESIGN_REVIEW_MAX_ATTEMPTS;
     $pdo->prepare('UPDATE design_reviews SET status = ?, error = ?, claimed_at = NULL, processed_at = ? WHERE id = ?')
         ->execute([$final ? 'failed' : 'pending', $reason, $final ? date('Y-m-d H:i:s') : null, $review['id']]);
-    // Si va a reintentarse, no molestar al grupo; solo avisar cuando es definitivo.
+    // Si va a reintentarse, mostrar el motivo en el mismo mensaje (no deja el grupo en "Revisando…" sin explicación).
+    if (!$final && !empty($review['report_message_id'])) {
+        telegram_edit_message(
+            (int)$review['chat_id'],
+            (int)$review['report_message_id'],
+            '⏳ Reintentando la revisión del Post #' . (int)$review['post_number'] . ' (intento ' . (int)$review['attempts'] . '/' . DESIGN_REVIEW_MAX_ATTEMPTS . '): ' . tg_h(design_review_clip($reason, 400))
+        );
+    }
     if ($final) {
         $label = '#' . (int)$review['post_number'] . ' v' . (int)$review['version'];
         $text = '⚠️ No pude revisar el Post ' . $label . ': ' . tg_h($reason);
