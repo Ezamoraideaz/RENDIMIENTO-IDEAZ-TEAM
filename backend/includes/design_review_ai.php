@@ -194,7 +194,8 @@ function design_review_run(array $row, string $clientName, ?string $aiContext, s
 
     // Saturación pasajera (503/500/502/504): reintenta dos veces con pausa y luego prueba el modelo de respaldo.
     $res = ['status' => 0, 'body' => '', 'curl_error' => ''];
-    foreach (gemini_models() as $model) {
+    foreach (gemini_models() as $idx => $model) {
+        $previous = $res;
         for ($try = 0; $try < 2; $try++) {
             $res = gemini_http(
                 'POST',
@@ -203,6 +204,12 @@ function design_review_run(array $row, string $clientName, ?string $aiContext, s
                 ['Content-Type: application/json'],
                 180
             );
+            if ($idx > 0 && in_array($res['status'], [400, 403, 404], true)) {
+                // Modelo de respaldo mal escrito o sin acceso: ignorarlo y conservar el error real del principal.
+                gemini_last_error("Modelo de respaldo {$model} no usable (HTTP {$res['status']}); revisa GEMINI_FALLBACK_MODEL");
+                $res = $previous;
+                break 2;
+            }
             if (!in_array($res['status'], [500, 502, 503, 504], true)) {
                 break 2; // éxito o error que reintentar no arregla
             }
