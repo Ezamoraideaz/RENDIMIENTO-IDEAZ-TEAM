@@ -25,7 +25,17 @@ function gemini_configured(): bool
 
 function gemini_model(): string
 {
-    return (defined('GEMINI_MODEL') && GEMINI_MODEL !== '') ? GEMINI_MODEL : 'gemini-2.5-flash';
+    return (defined('GEMINI_MODEL') && GEMINI_MODEL !== '') ? GEMINI_MODEL : 'gemini-3.8-flash';
+}
+
+// Modelos a probar en orden: el principal y, si está definido, uno de respaldo (GEMINI_FALLBACK_MODEL).
+function gemini_models(): array
+{
+    $models = [gemini_model()];
+    if (defined('GEMINI_FALLBACK_MODEL') && GEMINI_FALLBACK_MODEL !== '' && GEMINI_FALLBACK_MODEL !== $models[0]) {
+        $models[] = (string)GEMINI_FALLBACK_MODEL;
+    }
+    return $models;
 }
 
 function gemini_http(string $method, string $url, ?string $body = null, array $headers = [], int $timeout = 60): array
@@ -182,13 +192,25 @@ function design_review_run(array $row, string $clientName, ?string $aiContext, s
         'generationConfig' => ['responseMimeType' => 'application/json', 'temperature' => 0.2, 'maxOutputTokens' => 8192],
     ], JSON_UNESCAPED_UNICODE);
 
-    $res = gemini_http(
-        'POST',
-        GEMINI_BASE . '/v1beta/models/' . rawurlencode(gemini_model()) . ':generateContent',
-        (string)$payload,
-        ['Content-Type: application/json'],
-        180
-    );
+    // Saturación pasajera (503/500/502/504): reintenta dos veces con pausa y luego prueba el modelo de respaldo.
+    $res = ['status' => 0, 'body' => '', 'curl_error' => ''];
+    foreach (gemini_models() as $model) {
+        for ($try = 0; $try < 2; $try++) {
+            $res = gemini_http(
+                'POST',
+                GEMINI_BASE . '/v1beta/models/' . rawurlencode($model) . ':generateContent',
+                (string)$payload,
+                ['Content-Type: application/json'],
+                180
+            );
+            if (!in_array($res['status'], [500, 502, 503, 504], true)) {
+                break 2; // éxito o error que reintentar no arregla
+            }
+            if ($try === 0) {
+                sleep(8);
+            }
+        }
+    }
     foreach ($uploaded as $n) {
         gemini_delete_file($n);
     }

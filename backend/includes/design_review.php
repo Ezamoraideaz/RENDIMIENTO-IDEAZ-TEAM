@@ -11,7 +11,7 @@ require_once __DIR__ . '/review_parser.php';
 require_once __DIR__ . '/design_review_ai.php';
 require_once __DIR__ . '/google_sheets.php';
 
-const DESIGN_REVIEW_MAX_ATTEMPTS = 3;
+const DESIGN_REVIEW_MAX_ATTEMPTS = 5;
 
 function design_review_tmp_dir(int $reviewId): string
 {
@@ -429,6 +429,7 @@ function design_review_claim(PDO $pdo, int $limit): array
     $pdo->prepare('
         UPDATE design_reviews SET status = "processing", claimed_at = ?, attempts = attempts + 1
         WHERE status = "pending" AND post_number IS NOT NULL AND last_file_at <= (NOW() - INTERVAL 25 SECOND) AND attempts < ?
+          AND (attempts = 0 OR claimed_at IS NULL OR claimed_at <= (NOW() - INTERVAL (attempts * 2) MINUTE))
         ORDER BY id LIMIT ' . (int)$limit
     )->execute([$stamp, DESIGN_REVIEW_MAX_ATTEMPTS]);
 
@@ -440,7 +441,8 @@ function design_review_claim(PDO $pdo, int $limit): array
 function design_review_fail(PDO $pdo, array $review, string $reason, bool $retry): void
 {
     $final = !$retry || (int)$review['attempts'] >= DESIGN_REVIEW_MAX_ATTEMPTS;
-    $pdo->prepare('UPDATE design_reviews SET status = ?, error = ?, claimed_at = NULL, processed_at = ? WHERE id = ?')
+    // En reintento se conserva claimed_at (hora del último intento) para espaciar los siguientes.
+    $pdo->prepare('UPDATE design_reviews SET status = ?, error = ?, claimed_at = ' . ($final ? 'NULL' : 'NOW()') . ', processed_at = ? WHERE id = ?')
         ->execute([$final ? 'failed' : 'pending', $reason, $final ? date('Y-m-d H:i:s') : null, $review['id']]);
     // Si va a reintentarse, mostrar el motivo en el mismo mensaje (no deja el grupo en "Revisando…" sin explicación).
     if (!$final && !empty($review['report_message_id'])) {
