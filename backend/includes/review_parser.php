@@ -113,6 +113,18 @@ function review_find_row(array $values, int $post, ?int $day): ?array
     return $matches[0] + ['duplicates' => count($matches)];
 }
 
+// ¿Es una historia (story)? Las historias no llevan copy/caption: solo el arte. Se detecta por el
+// formato del cronograma (col. B, ej. "HISTORIA") o por lo que escribió el diseñador ("STORY").
+function review_is_story(string ...$texts): bool
+{
+    foreach ($texts as $t) {
+        if (preg_match('/(?<![\p{L}\p{N}])(historia|historias|story|stories)(?![\p{L}\p{N}])/iu', $t)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // Semáforo del score: >=85 verde, 60-84 amarillo, <60 rojo.
 function review_semaphore(int $score, bool $disqualified = false): array
 {

@@ -349,7 +349,10 @@ function design_review_format_report(array $review, array $row, array $report, ?
     }
 
     $c = $report['copy'] ?? [];
-    if (trim((string)$row['copy']) === '') {
+    $parsedHint = review_parse_caption((string)$review['caption'])['hint'];
+    if (review_is_story((string)$row['format'], $parsedHint)) {
+        // Las historias no llevan copy: no se muestra la sección ni se avisa de columna F vacía.
+    } elseif (trim((string)$row['copy']) === '') {
         $t .= "\n<b>Copy (F)</b> · n/a\nℹ️ La columna F del cronograma está vacía: la CM debe completar el copy (con gancho y CTA).\n";
     } elseif (is_numeric($c['score'] ?? null) || isset($c['has_hook'])) {
         $t .= "\n" . design_review_cat_title('Copy (F)', $c['score'] ?? null);

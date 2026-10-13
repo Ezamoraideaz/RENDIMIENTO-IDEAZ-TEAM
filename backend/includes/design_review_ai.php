@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/review_parser.php';
+
 // Revisión de una pieza (imagen/video) con Gemini (capa gratuita), cruzada con lo
 // que dice el cronograma para ese post. Imágenes van en línea (base64); videos
 // se suben primero a la File API de Gemini y se borran al terminar. Nunca lanza
@@ -118,9 +120,12 @@ function design_review_mime(string $path, string $kind): string
 // no trae indicaciones en D), su peso se reparte entre las demás.
 const DESIGN_REVIEW_WEIGHTS = ['art_text' => 30, 'spelling' => 20, 'design' => 25, 'brief' => 15, 'copy' => 10];
 
-function design_review_prompt(array $row, string $clientName, string $formatHint, string $brandContext, bool $isVideo, int $fileCount): string
+function design_review_prompt(array $row, string $clientName, string $formatHint, string $brandContext, bool $isVideo, int $fileCount, bool $isStory): string
 {
     $or = static fn(string $v): string => $v !== '' ? $v : '(vacío en el cronograma)';
+    $copyBlock = $isStory
+        ? "- COPY: NO APLICA. Esta pieza es una HISTORIA y las historias no llevan copy/caption. No evalúes copy, gancho ni CTA."
+        : "- COPY del post (columna F) — debe usar ganchos y CTA:\n" . $or($row['copy']);
     $media = $isVideo ? 'un VIDEO (revisa TODAS las escenas, subtítulos, textos en pantalla y el audio/locución)' : ($fileCount > 1 ? "{$fileCount} imágenes (un carrusel: cada archivo es una lámina, en orden)" : 'una IMAGEN');
 
     return <<<PROMPT
@@ -134,8 +139,7 @@ DATOS DEL CRONOGRAMA PARA ESTE POST:
 - MENSAJE DE ARTE (columna E) — son ÚNICAMENTE los textos que deben ir dentro del arte/video:
 {$or($row['art_text'])}
 
-- COPY del post (columna F) — debe usar ganchos y CTA:
-{$or($row['copy'])}
+{$copyBlock}
 
 TAREA. Evalúa la pieza enviada y responde SOLO con un JSON válido (sin markdown) con esta forma exacta:
 {
@@ -149,7 +153,7 @@ TAREA. Evalúa la pieza enviada y responde SOLO con un JSON válido (sin markdow
 }
 REGLAS:
 - Compara el texto REAL que ves en la pieza contra la columna E, palabra por palabra (ignora diferencias solo de mayúsculas o saltos de línea). Si la columna E está vacía, art_text.score = null.
-- Si la columna D está vacía, brief.score = null. Si la columna F está vacía, copy.score = null.
+- Si la columna D está vacía, brief.score = null. Si la columna F está vacía, copy.score = null. Si la pieza es una HISTORIA, copy.score = null (no se evalúa copy).
 - Revisa ortografía, tildes y puntuación en español del texto DENTRO de la pieza (spelling) y del copy de la columna F (copy.spelling_errors). No marques como error los nombres propios, marcas ni hashtags.
 - Una sola falta de ortografía o tilde en el texto de la pieza descalifica la pieza: repórtala SIEMPRE en spelling.errors, aunque la columna E tenga el mismo error. Si no hay ninguna, deja spelling.errors vacío y spelling.score = 100. No inventes errores: lista solo faltas reales.
 - Sé concreto y breve: cada nota en una frase. No inventes problemas; si algo está bien, dilo. Si no puedes leer algún texto, indícalo en notes.
@@ -186,7 +190,8 @@ function design_review_run(array $row, string $clientName, ?string $aiContext, s
     }
 
     $brandContext = ($aiContext !== null && trim($aiContext) !== '') ? "CONTEXTO DE LA MARCA:\n" . trim($aiContext) : '';
-    array_unshift($parts, ['text' => design_review_prompt($row, $clientName, $formatHint, $brandContext, $isVideo, count($files))]);
+    $isStory = review_is_story((string)$row['format'], $formatHint);
+    array_unshift($parts, ['text' => design_review_prompt($row, $clientName, $formatHint, $brandContext, $isVideo, count($files), $isStory)]);
 
     $payload = json_encode([
         'contents'         => [['parts' => $parts]],
@@ -243,6 +248,9 @@ function design_review_run(array $row, string $clientName, ?string $aiContext, s
         return ['error' => 'Gemini devolvió una respuesta ilegible. Se reintentará.', 'retry' => true];
     }
 
+    if ($isStory) {
+        $report['copy'] = ['score' => null, 'not_applicable' => true]; // las historias no llevan copy
+    }
     $report = design_review_postprocess($report, $row);
     return ['report' => $report];
 }
