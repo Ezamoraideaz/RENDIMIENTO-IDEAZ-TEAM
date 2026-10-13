@@ -349,7 +349,9 @@ function design_review_format_report(array $review, array $row, array $report, ?
     }
 
     $c = $report['copy'] ?? [];
-    if (is_numeric($c['score'] ?? null) || isset($c['has_hook'])) {
+    if (trim((string)$row['copy']) === '') {
+        $t .= "\n<b>Copy (F)</b> · n/a\nℹ️ La columna F del cronograma está vacía: la CM debe completar el copy (con gancho y CTA).\n";
+    } elseif (is_numeric($c['score'] ?? null) || isset($c['has_hook'])) {
         $t .= "\n" . design_review_cat_title('Copy (F)', $c['score'] ?? null);
         $t .= 'Gancho ' . (!empty($c['has_hook']) ? '✅' : '❌') . ' · CTA ' . (!empty($c['has_cta']) ? '✅' : '❌') . "\n";
         $copyErrs = design_review_errors_list((array)($c['spelling_errors'] ?? []), 3);
