@@ -291,8 +291,10 @@ function design_review_errors_list(array $errors, int $limit = 5): string
     $out = '';
     $errors = array_values(array_filter($errors, fn($e) => is_array($e) && !empty($e['found'])));
     foreach (array_slice($errors, 0, $limit) as $e) {
-        $out .= '✏️ <s>' . tg_h(design_review_clip((string)$e['found'], 80)) . '</s> → <b>' . tg_h(design_review_clip((string)($e['suggestion'] ?? '?'), 80)) . '</b>'
-            . (!empty($e['in_schedule']) ? ' 📋 (igual en el cronograma)' : '') . "\n";
+        $out .= (!empty($e['unverified']) ? '❓ ' : '✏️ ') . '<s>' . tg_h(design_review_clip((string)$e['found'], 80)) . '</s> → <b>' . tg_h(design_review_clip((string)($e['suggestion'] ?? '?'), 80)) . '</b>'
+            . (!empty($e['at']) ? ' ⏱ ' . tg_h((string)$e['at']) : '')
+            . (!empty($e['in_schedule']) ? ' 📋 (igual en el cronograma)' : '')
+            . (!empty($e['unverified']) ? ' (por confirmar)' : '') . "\n";
     }
     if (count($errors) > $limit) {
         $out .= '… y ' . (count($errors) - $limit) . " más\n";

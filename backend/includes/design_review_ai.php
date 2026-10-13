@@ -126,6 +126,19 @@ function design_review_prompt(array $row, string $clientName, string $formatHint
     $copyBlock = $isStory
         ? "- COPY: NO APLICA. Esta pieza es una HISTORIA y las historias no llevan copy/caption. No evalúes copy, gancho ni CTA."
         : "- COPY del post (columna F) — debe usar ganchos y CTA:\n" . $or($row['copy']);
+    $videoRules = '';
+    if ($isVideo) {
+        $videoRules = <<<VIDEO
+
+REGLAS ESPECÍFICAS PARA VIDEO / REEL (tienen prioridad sobre las reglas generales de abajo):
+- El "mensaje de arte" (columna E) es el MENSAJE CLAVE en términos generales, NO un guion literal. En un video es normal que haya además subtítulos (transcripción de lo que se dice), textos de apoyo, títulos, CTA y elementos de marca. Nada de eso es un error.
+- El texto cambia y se anima con rapidez (aparece palabra por palabra, por líneas, en varias escenas). El mensaje de la columna E cuenta como PRESENTE si aparece en algún momento: completo, por partes consecutivas o animado, o con el mismo sentido y casi las mismas palabras. Solo ponlo en art_text.missing si su idea central NUNCA aparece.
+- art_text.extra: en video lista SOLO textos que contradigan el cronograma o no pertenezcan (datos, precios, fechas o promesas distintos a los del cronograma, otra marca, texto de relleno). NO listes subtítulos, textos de apoyo, CTA ni elementos de marca.
+- art_text.score: 100 si el mensaje clave aparece con claridad; baja solo si falta o su sentido se distorsiona.
+- Antes de juzgar, anota en "observed_text" todo el texto que veas en pantalla (con el minuto:segundo aproximado en "at" y su tipo en "kind": titulo, subtitulo, cta, marca u otro; máximo 40 elementos). Reporta errores ortográficos SOLO de palabras que hayas anotado ahí, completamente visibles y legibles. Ignora texto a medio animar, borroso, en movimiento rápido o parcialmente tapado: ante la duda NO lo reportes.
+- En cada error ortográfico y en cada falta importante indica "at" con el mm:ss aproximado.
+VIDEO;
+    }
     $media = $isVideo ? 'un VIDEO (revisa TODAS las escenas, subtítulos, textos en pantalla y el audio/locución)' : ($fileCount > 1 ? "{$fileCount} imágenes (un carrusel: cada archivo es una lámina, en orden)" : 'una IMAGEN');
 
     return <<<PROMPT
@@ -140,19 +153,21 @@ DATOS DEL CRONOGRAMA PARA ESTE POST:
 {$or($row['art_text'])}
 
 {$copyBlock}
+{$videoRules}
 
 TAREA. Evalúa la pieza enviada y responde SOLO con un JSON válido (sin markdown) con esta forma exacta:
 {
+  "observed_text": [{"at": "mm:ss", "text": "texto visto en pantalla", "kind": "titulo|subtitulo|cta|marca|otro"}],
   "summary": "máximo 2 frases con el veredicto general",
   "art_text": {"score": 0-100 o null, "missing": ["textos de la col. E que NO aparecen en la pieza"], "extra": ["textos en la pieza que NO están en la col. E"], "notes": ["observaciones breves"]},
-  "spelling": {"score": 0-100, "errors": [{"found": "texto con error tal como aparece", "suggestion": "corrección"}]},
+  "spelling": {"score": 0-100, "errors": [{"found": "texto con error tal como aparece", "suggestion": "corrección", "at": "mm:ss solo en video"}]},
   "design": {"score": 0-100, "notes": ["observaciones accionables sobre jerarquía, contraste, legibilidad, alineación, márgenes seguros, uso de marca/logo, proporción correcta para el formato"]},
   "brief": {"score": 0-100 o null, "notes": ["qué indicaciones de la col. D se cumplen o no"]},
   "copy": {"score": 0-100 o null, "has_hook": true/false, "has_cta": true/false, "spelling_errors": [{"found": "...", "suggestion": "..."}], "notes": ["observaciones sobre el copy de la col. F"]},
   "must_fix": ["lista priorizada (máx. 5) de lo que el diseñador debe corregir antes de enviar al cliente"]
 }
 REGLAS:
-- Compara el texto REAL que ves en la pieza contra la columna E, palabra por palabra (ignora diferencias solo de mayúsculas o saltos de línea). Si la columna E está vacía, art_text.score = null.
+- En IMÁGENES compara el texto REAL que ves en la pieza contra la columna E, palabra por palabra (ignora diferencias solo de mayúsculas o saltos de línea). En VIDEO aplica las reglas específicas de video. "observed_text" solo se llena en video; en imágenes devuélvelo como []. Si la columna E está vacía, art_text.score = null.
 - Si la columna D está vacía, brief.score = null. Si la columna F está vacía, copy.score = null. Si la pieza es una HISTORIA, copy.score = null (no se evalúa copy).
 - Revisa ortografía, tildes y puntuación en español del texto DENTRO de la pieza (spelling) y del copy de la columna F (copy.spelling_errors). No marques como error los nombres propios, marcas ni hashtags.
 - Una sola falta de ortografía o tilde en el texto de la pieza descalifica la pieza: repórtala SIEMPRE en spelling.errors, aunque la columna E tenga el mismo error. Si no hay ninguna, deja spelling.errors vacío y spelling.score = 100. No inventes errores: lista solo faltas reales.
@@ -183,7 +198,8 @@ function design_review_run(array $row, string $clientName, ?string $aiContext, s
                 return ['error' => 'No se pudo subir el video a Gemini: ' . gemini_last_error()];
             }
             $uploaded[] = $up['name'];
-            $parts[] = ['file_data' => ['mime_type' => $up['mime'], 'file_uri' => $up['uri']]];
+            // 3 fotogramas por segundo (por defecto es 1): el texto animado de los reels cambia más rápido.
+            $parts[] = ['file_data' => ['mime_type' => $up['mime'], 'file_uri' => $up['uri']], 'video_metadata' => ['fps' => 3]];
         } else {
             $parts[] = ['inline_data' => ['mime_type' => $mime, 'data' => base64_encode((string)file_get_contents($f['path']))]];
         }
@@ -193,36 +209,50 @@ function design_review_run(array $row, string $clientName, ?string $aiContext, s
     $isStory = review_is_story((string)$row['format'], $formatHint);
     array_unshift($parts, ['text' => design_review_prompt($row, $clientName, $formatHint, $brandContext, $isVideo, count($files), $isStory)]);
 
-    $payload = json_encode([
-        'contents'         => [['parts' => $parts]],
-        'generationConfig' => ['responseMimeType' => 'application/json', 'temperature' => 0.2, 'maxOutputTokens' => 8192],
-    ], JSON_UNESCAPED_UNICODE);
-
     // Saturación pasajera (503/500/502/504): reintenta dos veces con pausa y luego prueba el modelo de respaldo.
-    $res = ['status' => 0, 'body' => '', 'curl_error' => ''];
-    foreach (gemini_models() as $idx => $model) {
-        $previous = $res;
-        for ($try = 0; $try < 2; $try++) {
-            $res = gemini_http(
-                'POST',
-                GEMINI_BASE . '/v1beta/models/' . rawurlencode($model) . ':generateContent',
-                (string)$payload,
-                ['Content-Type: application/json'],
-                180
-            );
-            if ($idx > 0 && in_array($res['status'], [400, 403, 404], true)) {
-                // Modelo de respaldo mal escrito o sin acceso: ignorarlo y conservar el error real del principal.
-                gemini_last_error("Modelo de respaldo {$model} no usable (HTTP {$res['status']}); revisa GEMINI_FALLBACK_MODEL");
-                $res = $previous;
-                break 2;
-            }
-            if (!in_array($res['status'], [500, 502, 503, 504], true)) {
-                break 2; // éxito o error que reintentar no arregla
-            }
-            if ($try === 0) {
-                sleep(8);
+    $send = static function (array $parts): array {
+        $payload = json_encode([
+            'contents'         => [['parts' => $parts]],
+            'generationConfig' => ['responseMimeType' => 'application/json', 'temperature' => 0.2, 'maxOutputTokens' => 8192],
+        ], JSON_UNESCAPED_UNICODE);
+
+        $res = ['status' => 0, 'body' => '', 'curl_error' => ''];
+        foreach (gemini_models() as $idx => $model) {
+            $previous = $res;
+            for ($try = 0; $try < 2; $try++) {
+                $res = gemini_http(
+                    'POST',
+                    GEMINI_BASE . '/v1beta/models/' . rawurlencode($model) . ':generateContent',
+                    (string)$payload,
+                    ['Content-Type: application/json'],
+                    180
+                );
+                if ($idx > 0 && in_array($res['status'], [400, 403, 404], true)) {
+                    // Modelo de respaldo mal escrito o sin acceso: ignorarlo y conservar el error real del principal.
+                    gemini_last_error("Modelo de respaldo {$model} no usable (HTTP {$res['status']}); revisa GEMINI_FALLBACK_MODEL");
+                    $res = $previous;
+                    break 2;
+                }
+                if (!in_array($res['status'], [500, 502, 503, 504], true)) {
+                    break 2; // éxito o error que reintentar no arregla
+                }
+                if ($try === 0) {
+                    sleep(8);
+                }
             }
         }
+        return $res;
+    };
+
+    $res = $send($parts);
+    if ($res['status'] === 400 && $isVideo) {
+        // Por si el API rechazara video_metadata (fps): reintentar una vez sin ese ajuste.
+        gemini_last_error('HTTP 400 con video_metadata; reintentando sin fps: ' . substr($res['body'], 0, 200));
+        $plain = array_map(static function (array $p): array {
+            unset($p['video_metadata']);
+            return $p;
+        }, $parts);
+        $res = $send($plain);
     }
     foreach ($uploaded as $n) {
         gemini_delete_file($n);
@@ -251,7 +281,7 @@ function design_review_run(array $row, string $clientName, ?string $aiContext, s
     if ($isStory) {
         $report['copy'] = ['score' => null, 'not_applicable' => true]; // las historias no llevan copy
     }
-    $report = design_review_postprocess($report, $row);
+    $report = design_review_postprocess($report, $row, $isVideo);
     return ['report' => $report];
 }
 
@@ -275,16 +305,36 @@ function design_review_contains(string $haystack, string $needle): bool
 //  - Cualquier error ortográfico en el arte DESCALIFICA la pieza (score tope 49, semáforo rojo).
 //  - Si ese error ya está escrito igual en la columna E del cronograma, se marca (el diseñador copió sin revisar).
 //  - Los errores del copy (columna F) los escribió la CM, no el diseñador: se reportan pero no descalifican la pieza.
-function design_review_postprocess(array $report, array $row): array
+function design_review_postprocess(array $report, array $row, bool $isVideo = false): array
 {
+    // Video: solo cuenta (y descalifica) un error si la IA lo anotó antes en observed_text, o sea que de
+    // verdad lo vio en pantalla. Los demás se muestran "por confirmar" para no descalificar por una alucinación.
+    $observed = '';
+    $observedCount = 0;
+    if ($isVideo) {
+        foreach ((array)($report['observed_text'] ?? []) as $o) {
+            if (is_array($o) && !empty($o['text'])) {
+                $observed .= ' ' . design_review_norm((string)$o['text']);
+                $observedCount++;
+            }
+        }
+    }
+    $verifiable = $isVideo && $observedCount >= 3;
+
     $artErrors = [];
+    $unverified = [];
     foreach ((array)($report['spelling']['errors'] ?? []) as $e) {
         if (is_array($e) && !empty($e['found'])) {
             $e['in_schedule'] = design_review_contains((string)$row['art_text'], (string)$e['found']);
+            if ($verifiable && mb_strpos($observed, design_review_norm((string)$e['found'])) === false) {
+                $e['unverified'] = true;
+                $unverified[] = $e;
+                continue;
+            }
             $artErrors[] = $e;
         }
     }
-    $report['spelling']['errors'] = $artErrors;
+    $report['spelling']['errors'] = array_merge($artErrors, $unverified);
 
     $copyErrors = [];
     foreach ((array)($report['copy']['spelling_errors'] ?? []) as $e) {
@@ -295,7 +345,7 @@ function design_review_postprocess(array $report, array $row): array
     $report['copy']['spelling_errors'] = $copyErrors;
 
     $report['score'] = design_review_score($report);
-    $report['disqualified'] = count($artErrors) > 0;
+    $report['disqualified'] = count($artErrors) > 0; // los "por confirmar" no descalifican
     $report['error_from_schedule'] = (bool)array_filter($artErrors, fn($e) => !empty($e['in_schedule']));
     if ($report['disqualified']) {
         $report['score'] = min($report['score'], 49);
