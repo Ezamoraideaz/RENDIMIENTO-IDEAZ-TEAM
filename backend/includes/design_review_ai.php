@@ -151,6 +151,7 @@ REGLAS:
 - Compara el texto REAL que ves en la pieza contra la columna E, palabra por palabra (ignora diferencias solo de mayúsculas o saltos de línea). Si la columna E está vacía, art_text.score = null.
 - Si la columna D está vacía, brief.score = null. Si la columna F está vacía, copy.score = null.
 - Revisa ortografía, tildes y puntuación en español del texto DENTRO de la pieza (spelling) y del copy de la columna F (copy.spelling_errors). No marques como error los nombres propios, marcas ni hashtags.
+- Una sola falta de ortografía o tilde en el texto de la pieza descalifica la pieza: repórtala SIEMPRE en spelling.errors, aunque la columna E tenga el mismo error. Si no hay ninguna, deja spelling.errors vacío y spelling.score = 100. No inventes errores: lista solo faltas reales.
 - Sé concreto y breve: cada nota en una frase. No inventes problemas; si algo está bien, dilo. Si no puedes leer algún texto, indícalo en notes.
 - Escribe todo en español.
 PROMPT;
@@ -242,8 +243,56 @@ function design_review_run(array $row, string $clientName, ?string $aiContext, s
         return ['error' => 'Gemini devolvió una respuesta ilegible. Se reintentará.', 'retry' => true];
     }
 
-    $report['score'] = design_review_score($report);
+    $report = design_review_postprocess($report, $row);
     return ['report' => $report];
+}
+
+// Normaliza para comparar textos: minúsculas y espacios colapsados (las tildes SÍ cuentan).
+function design_review_norm(string $s): string
+{
+    return trim((string)preg_replace('/\s+/u', ' ', mb_strtolower($s)));
+}
+
+// ¿Aparece $needle como palabra/frase completa dentro de $haystack?
+function design_review_contains(string $haystack, string $needle): bool
+{
+    $needle = design_review_norm($needle);
+    if ($needle === '') {
+        return false;
+    }
+    return preg_match('/(?<![\p{L}\p{N}])' . preg_quote($needle, '/') . '(?![\p{L}\p{N}])/u', design_review_norm($haystack)) === 1;
+}
+
+// Reglas de negocio sobre lo que devolvió la IA:
+//  - Cualquier error ortográfico en el arte DESCALIFICA la pieza (score tope 49, semáforo rojo).
+//  - Si ese error ya está escrito igual en la columna E del cronograma, se marca (el diseñador copió sin revisar).
+//  - Los errores del copy (columna F) los escribió la CM, no el diseñador: se reportan pero no descalifican la pieza.
+function design_review_postprocess(array $report, array $row): array
+{
+    $artErrors = [];
+    foreach ((array)($report['spelling']['errors'] ?? []) as $e) {
+        if (is_array($e) && !empty($e['found'])) {
+            $e['in_schedule'] = design_review_contains((string)$row['art_text'], (string)$e['found']);
+            $artErrors[] = $e;
+        }
+    }
+    $report['spelling']['errors'] = $artErrors;
+
+    $copyErrors = [];
+    foreach ((array)($report['copy']['spelling_errors'] ?? []) as $e) {
+        if (is_array($e) && !empty($e['found'])) {
+            $copyErrors[] = $e;
+        }
+    }
+    $report['copy']['spelling_errors'] = $copyErrors;
+
+    $report['score'] = design_review_score($report);
+    $report['disqualified'] = count($artErrors) > 0;
+    $report['error_from_schedule'] = (bool)array_filter($artErrors, fn($e) => !empty($e['in_schedule']));
+    if ($report['disqualified']) {
+        $report['score'] = min($report['score'], 49);
+    }
+    return $report;
 }
 
 // Score final ponderado (0-100). Categorías sin score (null) no cuentan.

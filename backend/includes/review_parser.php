@@ -114,8 +114,11 @@ function review_find_row(array $values, int $post, ?int $day): ?array
 }
 
 // Semáforo del score: >=85 verde, 60-84 amarillo, <60 rojo.
-function review_semaphore(int $score): array
+function review_semaphore(int $score, bool $disqualified = false): array
 {
+    if ($disqualified) {
+        return ['⛔', 'Descalificada por error ortográfico'];
+    }
     if ($score >= 85) {
         return ['🟢', 'Aprobable'];
     }

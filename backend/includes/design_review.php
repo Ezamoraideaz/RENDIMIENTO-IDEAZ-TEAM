@@ -291,7 +291,8 @@ function design_review_errors_list(array $errors, int $limit = 5): string
     $out = '';
     $errors = array_values(array_filter($errors, fn($e) => is_array($e) && !empty($e['found'])));
     foreach (array_slice($errors, 0, $limit) as $e) {
-        $out .= '✏️ <s>' . tg_h(design_review_clip((string)$e['found'], 80)) . '</s> → <b>' . tg_h(design_review_clip((string)($e['suggestion'] ?? '?'), 80)) . "</b>\n";
+        $out .= '✏️ <s>' . tg_h(design_review_clip((string)$e['found'], 80)) . '</s> → <b>' . tg_h(design_review_clip((string)($e['suggestion'] ?? '?'), 80)) . '</b>'
+            . (!empty($e['in_schedule']) ? ' 📋 (igual en el cronograma)' : '') . "\n";
     }
     if (count($errors) > $limit) {
         $out .= '… y ' . (count($errors) - $limit) . " más\n";
@@ -307,13 +308,20 @@ function design_review_cat_title(string $title, $score): string
 function design_review_format_report(array $review, array $row, array $report, ?DateTimeImmutable $pubMonth, ?string $warning): string
 {
     $score = (int)$report['score'];
-    [$icon, $label] = review_semaphore($score);
+    $disq = !empty($report['disqualified']);
+    [$icon, $label] = review_semaphore($score, $disq);
     $dayTxt = $review['pub_day'] ? ' · publica ' . str_pad((string)$review['pub_day'], 2, '0', STR_PAD_LEFT) . ($pubMonth ? '/' . $pubMonth->format('m') : '') : '';
 
     $t = "{$icon} <b>Revisión IA · " . tg_h($row['label']) . ' · v' . (int)$review['version'] . '</b>' . tg_h($dayTxt) . "\n";
     $t .= '<b>Score: ' . $score . '/100</b> — ' . $label . "\n";
     if (!empty($report['summary'])) {
         $t .= '<i>' . tg_h(design_review_clip((string)$report['summary'], 300)) . "</i>\n";
+    }
+    if ($disq) {
+        $t .= "⛔ <b>Un error ortográfico descalifica la pieza.</b> No puede ir al cliente hasta corregirlo.\n";
+    }
+    if (!empty($report['error_from_schedule'])) {
+        $t .= "📋 <b>El error ya estaba escrito en el cronograma (col. E):</b> el diseñador copió el texto sin revisarlo. La CM debe corregirlo también en el cronograma.\n";
     }
     if ($warning) {
         $t .= '⚠️ ' . tg_h($warning) . "\n";
@@ -344,7 +352,10 @@ function design_review_format_report(array $review, array $row, array $report, ?
     if (is_numeric($c['score'] ?? null) || isset($c['has_hook'])) {
         $t .= "\n" . design_review_cat_title('Copy (F)', $c['score'] ?? null);
         $t .= 'Gancho ' . (!empty($c['has_hook']) ? '✅' : '❌') . ' · CTA ' . (!empty($c['has_cta']) ? '✅' : '❌') . "\n";
-        $t .= design_review_errors_list((array)($c['spelling_errors'] ?? []), 3);
+        $copyErrs = design_review_errors_list((array)($c['spelling_errors'] ?? []), 3);
+        if ($copyErrs !== '') {
+            $t .= "⚠️ Errores en el copy del cronograma (col. F) — la CM debe corregirlos:\n" . $copyErrs;
+        }
         $t .= design_review_bullets((array)($c['notes'] ?? []), '•', 2);
     }
 
