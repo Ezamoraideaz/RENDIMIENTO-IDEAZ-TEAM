@@ -288,9 +288,45 @@ const RendicionDashboard = (() => {
       ${text('¿Algo que IDeaz podría hacer y hoy no hace?', s.wish_feature)}`;
   }
 
+  // Descarga en CSV las respuestas que están a la vista (ya filtradas por cliente y trimestre).
+  // ";" como separador + BOM UTF-8: así Excel en español abre las columnas y las tildes bien.
+  function csvCell(v) {
+    let s = String(v ?? '');
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; // evita que Excel interprete texto del cliente como fórmula
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+
+  function downloadSurveysCsv() {
+    const list = data.surveys || [];
+    if (!list.length) return;
+    const head = ['Cliente', 'Trimestre', 'Respondió', 'Correo de contacto', 'Fecha de respuesta']
+      .concat(RATING_LABELS.map(([, label]) => label + ' (1-5)'))
+      .concat(['Recomendaría a IDeaz (NPS 0-10)', '¿Qué es lo que más valoras de trabajar con IDeaz?', '¿Qué deberíamos mejorar?', '¿Algo que IDeaz podría hacer y hoy no hace?']);
+    const rows = list.map((s) => [s.client_name, s.quarter, s.filled_by_name, s.filled_by_email, s.filled_at]
+      .concat(RATING_LABELS.map(([k]) => s[k]))
+      .concat([s.nps, s.value_most, s.improve_what, s.wish_feature]));
+    const csv = '\ufeff' + [head].concat(rows).map((r) => r.map(csvCell).join(';')).join('\r\n');
+
+    const f = currentFilters();
+    const clientSel = document.getElementById('f-client');
+    const clientName = f.client_id ? clientSel.options[clientSel.selectedIndex].text : 'todos-los-clientes';
+    const slug = (t) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase();
+    const filename = `encuestas-${slug(clientName) || 'clientes'}-${f.quarter || 'todos-los-trimestres'}.csv`;
+
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   function renderSurveyResponses() {
     const wrap = document.getElementById('survey-responses-wrap');
     const list = data.surveys || [];
+    document.getElementById('survey-csv-btn').disabled = !list.length;
     if (!list.length) {
       wrap.innerHTML = `<p class="text-slate-500 text-sm p-4">Ningún cliente ha respondido la encuesta para este filtro.</p>`;
       return;
@@ -605,6 +641,7 @@ const RendicionDashboard = (() => {
 
     document.getElementById('f-quarter').addEventListener('change', refresh);
     document.getElementById('f-client').addEventListener('change', refresh);
+    document.getElementById('survey-csv-btn').addEventListener('click', downloadSurveysCsv);
     document.getElementById('reminder-test-btn').addEventListener('click', sendReminderTest);
     if (Session.user?.email) document.getElementById('reminder-test-email').value = Session.user.email;
 
