@@ -70,7 +70,12 @@
     <div id="dash-client" class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6"></div>
 
     <!-- Respuestas completas de las encuestas de satisfacción -->
-    <h2 data-help-key="responses" class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Respuestas de los clientes</h2>
+    <div class="flex items-center justify-between gap-3 mb-2">
+      <h2 data-help-key="responses" class="text-sm font-semibold text-slate-400 uppercase tracking-wider">Respuestas de los clientes</h2>
+      <button id="survey-csv-btn" type="button" disabled
+        class="shrink-0 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        title="Descarga en CSV las respuestas que se ven abajo (respeta los filtros de cliente y trimestre)">⬇️ Descargar CSV</button>
+    </div>
     <div id="survey-responses-wrap" class="border border-slate-800 rounded-lg mb-6">
       <p class="text-slate-500 text-sm p-4">Cargando…</p>
     </div>
