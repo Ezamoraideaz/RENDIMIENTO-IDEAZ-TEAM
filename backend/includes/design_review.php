@@ -46,6 +46,15 @@ function design_review_display_name(array $from): string
     return $name !== '' ? $name : (string)($from['username'] ?? 'Usuario');
 }
 
+// "el Post #5 v2" o "el contenido extra (ref 12)" para los mensajes al grupo.
+function design_review_subject(array $review): string
+{
+    if ((int)$review['post_number'] === 0) {
+        return 'el contenido extra (ref ' . (int)$review['id'] . ')';
+    }
+    return 'el Post #' . (int)$review['post_number'] . ' v' . (int)$review['version'];
+}
+
 function design_review_mention(int $userId, string $name): string
 {
     return '<a href="tg://user?id=' . $userId . '">' . tg_h($name) . '</a>';
@@ -101,6 +110,9 @@ function design_review_group_client(PDO $pdo, int $chatId): ?array
 
 function design_review_next_version(PDO $pdo, int $clientId, int $post, int $excludeId = 0): int
 {
+    if ($post === 0) {
+        return 1; // contenido extra: no hay "mismo post" que versionar
+    }
     $stmt = $pdo->prepare('SELECT COUNT(*) FROM design_reviews WHERE client_id = ? AND post_number = ? AND id <> ? AND status IN ("pending","processing","done","failed")');
     $stmt->execute([$clientId, $post, $excludeId]);
     return (int)$stmt->fetchColumn() + 1;
@@ -240,7 +252,7 @@ function design_review_command(PDO $pdo, array $msg, bool $isGroup): void
         }
         $pdo->prepare('INSERT INTO telegram_groups (chat_id, client_id, title) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE client_id = VALUES(client_id), title = VALUES(title)')
             ->execute([$chatId, (int)$match['id'], (string)($msg['chat']['title'] ?? '')]);
-        telegram_send_message($chatId, '✅ Grupo vinculado a <b>' . tg_h($match['name']) . "</b>.\nPara revisar una pieza, envíala con un texto como: <code>#5 - 18 REEL FEED</code> (#ID del post - día de publicación - formato).\nTip: envía imágenes como <b>archivo</b> (sin comprimir) para que la IA lea mejor los textos.", $replyTo);
+        telegram_send_message($chatId, '✅ Grupo vinculado a <b>' . tg_h($match['name']) . "</b>.\nPara revisar una pieza, envíala con un texto como: <code>#5 - 18 REEL FEED</code> (#ID del post - día de publicación - formato).\nPara contenido que no está en el cronograma usa <code>#extra - REEL FEED</code> (y, si quieres, una nota con indicaciones).\nTip: envía imágenes como <b>archivo</b> (sin comprimir) para que la IA lea mejor los textos.", $replyTo);
         return;
     }
 
@@ -261,7 +273,7 @@ function design_review_command(PDO $pdo, array $msg, bool $isGroup): void
     }
 
     if ($cmd === '/ayuda' || $cmd === '/start') {
-        telegram_send_message($chatId, "Envía la pieza (imagen, carrusel o video de hasta 20 MB) con un texto así:\n<code>#5 - 18 REEL FEED</code>\n(#ID del post · día de publicación · formato)\nLa IA la cruza con el cronograma (indicaciones, mensaje de arte y copy) y responde con un reporte. Si corriges la pieza, reenvíala con el mismo #ID: queda como nueva versión.", $replyTo);
+        telegram_send_message($chatId, "Envía la pieza (imagen, carrusel o video de hasta 20 MB) con un texto así:\n<code>#5 - 18 REEL FEED</code>\n(#ID del post · día de publicación · formato)\nLa IA la cruza con el cronograma (indicaciones, mensaje de arte y copy) y responde con un reporte. Si corriges la pieza, reenvíala con el mismo #ID: queda como nueva versión. Contenido fuera del cronograma: <code>#extra - REEL FEED</code> (revisa ortografía, diseño y formato).", $replyTo);
     }
 }
 
@@ -314,7 +326,9 @@ function design_review_format_report(array $review, array $row, array $report, ?
     [$icon, $label] = review_semaphore($score, $disq);
     $dayTxt = $review['pub_day'] ? ' · publica ' . str_pad((string)$review['pub_day'], 2, '0', STR_PAD_LEFT) . ($pubMonth ? '/' . $pubMonth->format('m') : '') : '';
 
-    $t = "{$icon} <b>Revisión IA · " . tg_h($row['label']) . ' · v' . (int)$review['version'] . '</b>' . tg_h($dayTxt) . "\n";
+    $isExtra = !empty($row['extra']);
+    $tag = $isExtra ? 'EXTRA · ref ' . (int)$review['id'] : tg_h($row['label']) . ' · v' . (int)$review['version'];
+    $t = "{$icon} <b>Revisión IA · " . $tag . '</b>' . tg_h($dayTxt) . "\n";
     $t .= '<b>Score: ' . $score . '/100</b> — ' . $label . "\n";
     if (!empty($report['summary'])) {
         $t .= '<i>' . tg_h(design_review_clip((string)$report['summary'], 300)) . "</i>\n";
@@ -329,11 +343,15 @@ function design_review_format_report(array $review, array $row, array $report, ?
         $t .= '⚠️ ' . tg_h($warning) . "\n";
     }
 
-    $a = $report['art_text'] ?? [];
-    $t .= "\n" . design_review_cat_title('Texto del arte vs cronograma (E)', $a['score'] ?? null);
-    $t .= design_review_bullets((array)($a['missing'] ?? []), '❌ Falta:');
-    $t .= design_review_bullets((array)($a['extra'] ?? []), '➕ Sobra:');
-    $t .= design_review_bullets((array)($a['notes'] ?? []), '•', 2);
+    if ($isExtra) {
+        $t .= "\nℹ️ Contenido extra (fuera del cronograma): se revisó ortografía, diseño y formato, sin comparar contra mensaje de arte ni copy.\n";
+    } else {
+        $a = $report['art_text'] ?? [];
+        $t .= "\n" . design_review_cat_title('Texto del arte vs cronograma (E)', $a['score'] ?? null);
+        $t .= design_review_bullets((array)($a['missing'] ?? []), '❌ Falta:');
+        $t .= design_review_bullets((array)($a['extra'] ?? []), '➕ Sobra:');
+        $t .= design_review_bullets((array)($a['notes'] ?? []), '•', 2);
+    }
 
     $s = $report['spelling'] ?? [];
     $t .= "\n" . design_review_cat_title('Ortografía en la pieza', $s['score'] ?? null);
@@ -346,14 +364,14 @@ function design_review_format_report(array $review, array $row, array $report, ?
 
     $b = $report['brief'] ?? [];
     if (is_numeric($b['score'] ?? null) || !empty($b['notes'])) {
-        $t .= "\n" . design_review_cat_title('Indicaciones del diseñador (D)', $b['score'] ?? null);
+        $t .= "\n" . design_review_cat_title($isExtra ? 'Notas del diseñador' : 'Indicaciones del diseñador (D)', $b['score'] ?? null);
         $t .= design_review_bullets((array)($b['notes'] ?? []), '•', 3);
     }
 
     $c = $report['copy'] ?? [];
     $parsedHint = review_parse_caption((string)$review['caption'])['hint'];
-    if (review_is_story((string)$row['format'], $parsedHint)) {
-        // Las historias no llevan copy: no se muestra la sección ni se avisa de columna F vacía.
+    if ($isExtra || review_is_story((string)$row['format'], $parsedHint)) {
+        // Extras (sin cronograma) e historias (no llevan copy): no se muestra la sección ni se avisa de columna F vacía.
     } elseif (trim((string)$row['copy']) === '') {
         $t .= "\n<b>Copy (F)</b> · n/a\nℹ️ La columna F del cronograma está vacía: la CM debe completar el copy (con gancho y CTA).\n";
     } elseif (is_numeric($c['score'] ?? null) || isset($c['has_hook'])) {
@@ -423,11 +441,12 @@ function design_review_handle_callback(PDO $pdo, array $cb): void
 
     $who = '<b>' . tg_h(design_review_display_name($from)) . '</b> (' . strtoupper($role) . ')';
     $designer = design_review_mention((int)$review['from_user_id'], (string)$review['from_name']);
-    $post = '#' . (int)$review['post_number'] . ' v' . (int)$review['version'];
+    $subject = design_review_subject($review);
+    $resend = (int)$review['post_number'] === 0 ? '#extra' : '#' . (int)$review['post_number'];
     $text = match ($action) {
-        'approve' => "✅ {$who} aprobó el Post {$post} para pasar a validación con el cliente.\n(Recuerda mover la tarea en Trello.)",
-        'adjust'  => "✏️ {$who} pide ajustes en el Post {$post}.\n{$designer}: respondan a este mensaje con los ajustes y, al corregir, reenvíen la pieza con el mismo #{$review['post_number']}.",
-        default   => "💬 {$who} va a dejar un comentario sobre el Post {$post}. Respóndanle a este mensaje.",
+        'approve' => "✅ {$who} aprobó {$subject} para pasar a validación con el cliente.\n(Recuerda mover la tarea en Trello.)",
+        'adjust'  => "✏️ {$who} pide ajustes en {$subject}.\n{$designer}: respondan a este mensaje con los ajustes y, al corregir, reenvíen la pieza con el mismo {$resend}.",
+        default   => "💬 {$who} va a dejar un comentario sobre {$subject}. Respóndanle a este mensaje.",
     };
     $anchor = (int)($review['report_message_id'] ?: $review['message_id']);
     telegram_send_message((int)$review['chat_id'], $text, $anchor);
@@ -467,12 +486,11 @@ function design_review_fail(PDO $pdo, array $review, string $reason, bool $retry
         telegram_edit_message(
             (int)$review['chat_id'],
             (int)$review['report_message_id'],
-            '⏳ Reintentando la revisión del Post #' . (int)$review['post_number'] . ' (intento ' . (int)$review['attempts'] . '/' . DESIGN_REVIEW_MAX_ATTEMPTS . '): ' . tg_h(design_review_clip($reason, 400))
+            '⏳ Reintentando la revisión de ' . design_review_subject($review) . ' (intento ' . (int)$review['attempts'] . '/' . DESIGN_REVIEW_MAX_ATTEMPTS . '): ' . tg_h(design_review_clip($reason, 400))
         );
     }
     if ($final) {
-        $label = '#' . (int)$review['post_number'] . ' v' . (int)$review['version'];
-        $text = '⚠️ No pude revisar el Post ' . $label . ': ' . tg_h($reason);
+        $text = '⚠️ No pude revisar ' . design_review_subject($review) . ': ' . tg_h($reason);
         if (!empty($review['report_message_id']) && telegram_edit_message((int)$review['chat_id'], (int)$review['report_message_id'], $text)) {
             return;
         }
@@ -494,76 +512,89 @@ function design_review_process(PDO $pdo, array $review): void
     }
 
     // Acuse: un solo mensaje que luego se convierte en el reporte (o en el error).
-    $label = '#' . (int)$review['post_number'] . ' v' . (int)$review['version'];
     if (empty($review['report_message_id'])) {
-        $ack = telegram_send_message($chatId, "🔎 Revisando el Post {$label}…", (int)$review['message_id']);
+        $ack = telegram_send_message($chatId, '🔎 Revisando ' . design_review_subject($review) . '…', (int)$review['message_id']);
         if ($ack && !empty($ack['message_id'])) {
             $review['report_message_id'] = (int)$ack['message_id'];
             $pdo->prepare('UPDATE design_reviews SET report_message_id = ? WHERE id = ?')->execute([$review['report_message_id'], $reviewId]);
         }
     }
 
-    if (empty($client['sheet_id'])) {
-        design_review_fail($pdo, $review, 'Esta marca no tiene el cronograma (Google Sheet) vinculado todavía.', false);
-        return;
-    }
-
-    // --- Mes y pestaña
     $parsed = review_parse_caption((string)$review['caption']);
-    try {
-        $tz = new DateTimeZone($client['timezone'] ?: 'America/Bogota');
-    } catch (Throwable $e) {
-        $tz = new DateTimeZone('America/Bogota');
-    }
-    $now = new DateTimeImmutable('now', $tz);
-    $day = $review['pub_day'] !== null ? (int)$review['pub_day'] : null;
+    $isExtra = (int)$review['post_number'] === 0;
 
-    $months = [];
-    if ($day !== null) {
-        $months[] = review_resolve_month($day, $now);
-    }
-    foreach ([$now->modify('first day of this month')->setTime(0, 0), $now->modify('first day of next month')->setTime(0, 0)] as $alt) {
-        if (!array_filter($months, fn($m) => $m->format('Y-m') === $alt->format('Y-m'))) {
-            $months[] = $alt;
+    if ($isExtra) {
+        // Contenido extra (#extra): no existe en el cronograma. Solo se revisa ortografía, diseño y formato;
+        // el texto que escribió el diseñador junto al #extra se pasa como notas libres.
+        $row = [
+            'label' => 'Extra', 'format' => $parsed['hint'], 'day_raw' => '', 'day' => null,
+            'topic' => $parsed['hint'], 'art_text' => '', 'copy' => '', 'hashtags' => '', 'duplicates' => 1, 'extra' => true,
+        ];
+        $pubMonth = null;
+        $tabUsed = null;
+        $warning = null;
+    } else {
+        if (empty($client['sheet_id'])) {
+            design_review_fail($pdo, $review, 'Esta marca no tiene el cronograma (Google Sheet) vinculado todavía.', false);
+            return;
         }
-    }
 
-    $row = null;
-    $pubMonth = null;
-    $tabUsed = null;
-    $sheetError = null;
-    foreach ($months as $month) {
-        $tab = google_sheets_find_tab((string)$client['sheet_id'], review_month_name_es((int)$month->format('n')));
-        if ($tab === null) {
-            $sheetError = google_sheets_last_error();
-            continue;
+        // --- Mes y pestaña
+        try {
+            $tz = new DateTimeZone($client['timezone'] ?: 'America/Bogota');
+        } catch (Throwable $e) {
+            $tz = new DateTimeZone('America/Bogota');
         }
-        $values = google_sheets_get_values((string)$client['sheet_id'], google_sheets_quote_tab($tab) . '!A:H');
-        if ($values === null) {
-            $sheetError = google_sheets_last_error();
-            continue;
-        }
-        $found = review_find_row($values, (int)$review['post_number'], $day);
-        if ($found !== null) {
-            $row = $found;
-            $pubMonth = $month;
-            $tabUsed = $tab;
-            break;
-        }
-    }
-    if ($row === null) {
-        $reason = 'No encontré el Post #' . (int)$review['post_number'] . ' en el cronograma (pestañas probadas: '
-            . implode(', ', array_map(fn($m) => review_month_name_es((int)$m->format('n')), $months)) . '). Revisa el número.';
-        // Fallo de lectura de Sheets (permisos/red) puede ser transitorio; "no existe" no.
-        design_review_fail($pdo, $review, $reason . ($sheetError ? ' (' . $sheetError . ')' : ''), $sheetError !== null);
-        return;
-    }
+        $now = new DateTimeImmutable('now', $tz);
+        $day = $review['pub_day'] !== null ? (int)$review['pub_day'] : null;
 
-    $warning = null;
-    if ($day !== null && $row['day'] !== null && $row['day'] !== $day) {
-        $warning = "El día indicado ({$day}) no coincide con el cronograma ({$row['day_raw']}). Verifica que sea el post correcto.";
-    } elseif (($row['duplicates'] ?? 1) > 1) {
-        $warning = 'El #' . (int)$review['post_number'] . ' aparece ' . $row['duplicates'] . ' veces en la pestaña; revisé contra la fila que coincide con el día.';
+        $months = [];
+        if ($day !== null) {
+            $months[] = review_resolve_month($day, $now);
+        }
+        foreach ([$now->modify('first day of this month')->setTime(0, 0), $now->modify('first day of next month')->setTime(0, 0)] as $alt) {
+            if (!array_filter($months, fn($m) => $m->format('Y-m') === $alt->format('Y-m'))) {
+                $months[] = $alt;
+            }
+        }
+
+        $row = null;
+        $pubMonth = null;
+        $tabUsed = null;
+        $sheetError = null;
+        foreach ($months as $month) {
+            $tab = google_sheets_find_tab((string)$client['sheet_id'], review_month_name_es((int)$month->format('n')));
+            if ($tab === null) {
+                $sheetError = google_sheets_last_error();
+                continue;
+            }
+            $values = google_sheets_get_values((string)$client['sheet_id'], google_sheets_quote_tab($tab) . '!A:H');
+            if ($values === null) {
+                $sheetError = google_sheets_last_error();
+                continue;
+            }
+            $found = review_find_row($values, (int)$review['post_number'], $day);
+            if ($found !== null) {
+                $row = $found;
+                $pubMonth = $month;
+                $tabUsed = $tab;
+                break;
+            }
+        }
+        if ($row === null) {
+            $reason = 'No encontré el Post #' . (int)$review['post_number'] . ' en el cronograma (pestañas probadas: '
+                . implode(', ', array_map(fn($m) => review_month_name_es((int)$m->format('n')), $months)) . '). Revisa el número.';
+            // Fallo de lectura de Sheets (permisos/red) puede ser transitorio; "no existe" no.
+            design_review_fail($pdo, $review, $reason . ($sheetError ? ' (' . $sheetError . ')' : ''), $sheetError !== null);
+            return;
+        }
+
+        $warning = null;
+        if ($day !== null && $row['day'] !== null && $row['day'] !== $day) {
+            $warning = "El día indicado ({$day}) no coincide con el cronograma ({$row['day_raw']}). Verifica que sea el post correcto.";
+        } elseif (($row['duplicates'] ?? 1) > 1) {
+            $warning = 'El #' . (int)$review['post_number'] . ' aparece ' . $row['duplicates'] . ' veces en la pestaña; revisé contra la fila que coincide con el día.';
+        }
     }
 
     // --- Archivos

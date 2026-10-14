@@ -126,6 +126,17 @@ function design_review_prompt(array $row, string $clientName, string $formatHint
     $copyBlock = $isStory
         ? "- COPY: NO APLICA. Esta pieza es una HISTORIA y las historias no llevan copy/caption. No evalúes copy, gancho ni CTA."
         : "- COPY del post (columna F) — debe usar ganchos y CTA:\n" . $or($row['copy']);
+    if (!empty($row['extra'])) {
+        $notes = trim((string)$row['topic']);
+        $dataBlock = "CONTENIDO EXTRA: esta pieza NO está en el cronograma, así que no hay indicaciones oficiales (columna D), mensaje de arte (columna E) ni copy (columna F) con qué compararla.\n"
+            . 'Notas libres del diseñador (pueden venir vacías o solo traer el formato): ' . ($notes !== '' ? $notes : '(ninguna)') . "\n"
+            . 'Revisa ortografía, diseño y formato con criterio profesional. Usa art_text.score = null y copy.score = null (no hay con qué comparar). '
+            . 'brief.score = null salvo que las notas del diseñador traigan indicaciones concretas: en ese caso evalúalas en brief.';
+    } else {
+        $dataBlock = "DATOS DEL CRONOGRAMA PARA ESTE POST:\n- INDICACIONES / TEMA / REFERENCIA PARA EL DISEÑADOR (columna D):\n" . $or($row['topic'])
+            . "\n\n- MENSAJE DE ARTE (columna E) — son ÚNICAMENTE los textos que deben ir dentro del arte/video:\n" . $or($row['art_text'])
+            . "\n\n" . $copyBlock;
+    }
     $videoRules = '';
     if ($isVideo) {
         $videoRules = <<<VIDEO
@@ -145,14 +156,7 @@ VIDEO;
 Eres el revisor de calidad de una agencia de marketing digital en Colombia. Te envían {$media} para el post "{$row['label']}" de la marca "{$clientName}". Formato indicado por el diseñador: "{$formatHint}"; formato en el cronograma: "{$row['format']}".
 {$brandContext}
 
-DATOS DEL CRONOGRAMA PARA ESTE POST:
-- INDICACIONES / TEMA / REFERENCIA PARA EL DISEÑADOR (columna D):
-{$or($row['topic'])}
-
-- MENSAJE DE ARTE (columna E) — son ÚNICAMENTE los textos que deben ir dentro del arte/video:
-{$or($row['art_text'])}
-
-{$copyBlock}
+{$dataBlock}
 {$videoRules}
 
 TAREA. Evalúa la pieza enviada y responde SOLO con un JSON válido (sin markdown) con esta forma exacta:
@@ -278,8 +282,11 @@ function design_review_run(array $row, string $clientName, ?string $aiContext, s
         return ['error' => 'Gemini devolvió una respuesta ilegible. Se reintentará.', 'retry' => true];
     }
 
-    if ($isStory) {
-        $report['copy'] = ['score' => null, 'not_applicable' => true]; // las historias no llevan copy
+    if ($isStory || !empty($row['extra'])) {
+        $report['copy'] = ['score' => null, 'not_applicable' => true]; // las historias no llevan copy; los extras no tienen copy de cronograma
+    }
+    if (!empty($row['extra'])) {
+        $report['art_text'] = ['score' => null, 'not_applicable' => true]; // sin mensaje de arte con qué comparar
     }
     $report = design_review_postprocess($report, $row, $isVideo);
     return ['report' => $report];

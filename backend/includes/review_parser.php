@@ -15,7 +15,16 @@ declare(strict_types=1);
 // Devuelve ['post' => ?int, 'day' => ?int, 'hint' => string]. post=null si no hay "#número".
 function review_parse_caption(string $caption): array
 {
-    $out = ['post' => null, 'day' => null, 'hint' => ''];
+    $out = ['post' => null, 'day' => null, 'hint' => '', 'extra' => false];
+
+    // "#extra - REEL FEED nota opcional": contenido fuera del cronograma (post_number = 0, sin fila que cruzar).
+    if (preg_match('/#\s*extras?\b/iu', $caption, $x, PREG_OFFSET_CAPTURE)) {
+        $out['post'] = 0;
+        $out['extra'] = true;
+        $end = $x[0][1] + strlen($x[0][0]);
+        $out['hint'] = trim((string)preg_replace('/^[\s\-–—:.,]+/u', '', substr($caption, $end)));
+        return $out;
+    }
     if (!preg_match('/#\s*(\d{1,4})\b(?:\s*[-–—:.,]?\s*(\d{1,2})\b)?/u', $caption, $m, PREG_OFFSET_CAPTURE)) {
         return $out;
     }

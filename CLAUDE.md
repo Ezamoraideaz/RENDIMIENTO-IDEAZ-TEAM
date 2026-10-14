@@ -63,6 +63,7 @@ Los diseñadores envían la pieza al grupo de Telegram de la marca con un texto 
 y responde en el grupo con un reporte con score (🟢 ≥85, 🟡 60–84, 🔴 <60) y botones para CM/PM.
 Los botones son **solo comunicación** (registran el evento en `design_review_events` y avisan en el grupo); no tocan Trello.
 
+- **Contenido extra (fuera del cronograma):** el diseñador lo envía como `#extra - REEL FEED` (+ nota opcional). No se cruza con el Sheet: solo se revisa ortografía, diseño y formato (sin Texto de arte ni Copy). Se guarda con `post_number = 0`.
 - **Mes:** como la publicación es siempre futura, un día `>=` al de hoy es este mes y uno menor es el mes siguiente.
 - **Roles:** `telegram_role_rules` (texto que debe contener el @usuario/nombre de Telegram → `cm`/`pm`). Quien no coincide es diseñador. CM/PM no generan revisiones.
 - **Límites:** el Bot API estándar solo permite descargar archivos de hasta 20 MB. Gemini usa la capa gratuita (cuota por minuto/día; Google puede usar los datos enviados).
