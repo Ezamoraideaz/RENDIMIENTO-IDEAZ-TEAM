@@ -214,7 +214,8 @@ function design_review_run(array $row, string $clientName, ?string $aiContext, s
     array_unshift($parts, ['text' => design_review_prompt($row, $clientName, $formatHint, $brandContext, $isVideo, count($files), $isStory)]);
 
     // Saturación pasajera (503/500/502/504): reintenta dos veces con pausa y luego prueba el modelo de respaldo.
-    $send = static function (array $parts): array {
+    $trail = []; // último resultado por modelo (para explicar bien un error de cuota)
+    $send = static function (array $parts) use (&$trail): array {
         $payload = json_encode([
             'contents'         => [['parts' => $parts]],
             'generationConfig' => ['responseMimeType' => 'application/json', 'temperature' => 0.2, 'maxOutputTokens' => 8192],
@@ -232,6 +233,7 @@ function design_review_run(array $row, string $clientName, ?string $aiContext, s
                     ['Content-Type: application/json'],
                     180
                 );
+                $trail[$model] = ['status' => $res['status'], 'body' => $res['body']];
                 if ($idx > 0 && in_array($res['status'], [400, 403, 404], true)) {
                     // Modelo de respaldo mal escrito o sin acceso: ignorarlo y conservar el error real del principal.
                     gemini_last_error("Modelo de respaldo {$model} no usable (HTTP {$res['status']}); revisa GEMINI_FALLBACK_MODEL");
@@ -271,12 +273,28 @@ function design_review_run(array $row, string $clientName, ?string $aiContext, s
     if ($res['status'] !== 200) {
         $msg = $res['curl_error'] ?: (json_decode($res['body'], true)['error']['message'] ?? substr($res['body'], 0, 300));
         gemini_last_error('generateContent HTTP ' . $res['status'] . ': ' . $msg);
-        if ($res['status'] === 429 && stripos($res['body'], 'PerDay') !== false) {
-            return ['error' => 'Se agotó la cuota DIARIA gratuita de Gemini (se renueva cada día). Reenvía la pieza más tarde o mañana.', 'retry' => false];
+        if ($res['status'] === 429) {
+            // Juzgar TODOS los modelos probados: la revisión solo es imposible hoy si todos agotaron su cuota diaria;
+            // si alguno solo topó el límite por minuto, vale la pena reintentar en unos minutos.
+            $notes = [];
+            $allDaily = true;
+            foreach ($trail as $m => $r) {
+                if ($r['status'] === 429) {
+                    $daily = stripos($r['body'], 'PerDay') !== false;
+                    $notes[] = $m . ': ' . ($daily ? 'cuota diaria agotada' : 'límite por minuto');
+                    $allDaily = $allDaily && $daily;
+                } else {
+                    $allDaily = false;
+                    $notes[] = $m . ': HTTP ' . $r['status'];
+                }
+            }
+            $detail = $notes ? ' (' . implode('; ', $notes) . ')' : '';
+            if ($allDaily && $notes) {
+                return ['error' => 'Se agotó la cuota DIARIA gratuita de todos los modelos de Gemini' . $detail . '. Reenvía la pieza más tarde o mañana.', 'retry' => false];
+            }
+            return ['error' => 'Límite gratuito de Gemini alcanzado' . $detail . '. Se reintentará en unos minutos.', 'retry' => true];
         }
-        return ['error' => $res['status'] === 429
-            ? 'Se alcanzó el límite gratuito de Gemini (cuota por minuto/día). Se reintentará más tarde.'
-            : 'Gemini respondió con error (HTTP ' . $res['status'] . '): ' . $msg, 'retry' => $res['status'] === 429 || $res['status'] >= 500];
+        return ['error' => 'Gemini respondió con error (HTTP ' . $res['status'] . '): ' . $msg, 'retry' => $res['status'] >= 500];
     }
 
     $data = json_decode($res['body'], true);
