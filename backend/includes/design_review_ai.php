@@ -221,7 +221,8 @@ function design_review_run(array $row, string $clientName, ?string $aiContext, s
         ], JSON_UNESCAPED_UNICODE);
 
         $res = ['status' => 0, 'body' => '', 'curl_error' => ''];
-        foreach (gemini_models() as $idx => $model) {
+        $models = gemini_models();
+        foreach ($models as $idx => $model) {
             $previous = $res;
             for ($try = 0; $try < 2; $try++) {
                 $res = gemini_http(
@@ -236,6 +237,11 @@ function design_review_run(array $row, string $clientName, ?string $aiContext, s
                     gemini_last_error("Modelo de respaldo {$model} no usable (HTTP {$res['status']}); revisa GEMINI_FALLBACK_MODEL");
                     $res = $previous;
                     break 2;
+                }
+                if ($res['status'] === 429 && $idx < count($models) - 1) {
+                    // Cuota agotada en este modelo (cada modelo tiene su propio cupo): pasar de inmediato al siguiente.
+                    gemini_last_error("Cuota agotada en {$model}; probando {$models[$idx + 1]}");
+                    continue 2;
                 }
                 if (!in_array($res['status'], [500, 502, 503, 504], true)) {
                     break 2; // éxito o error que reintentar no arregla
@@ -265,6 +271,9 @@ function design_review_run(array $row, string $clientName, ?string $aiContext, s
     if ($res['status'] !== 200) {
         $msg = $res['curl_error'] ?: (json_decode($res['body'], true)['error']['message'] ?? substr($res['body'], 0, 300));
         gemini_last_error('generateContent HTTP ' . $res['status'] . ': ' . $msg);
+        if ($res['status'] === 429 && stripos($res['body'], 'PerDay') !== false) {
+            return ['error' => 'Se agotó la cuota DIARIA gratuita de Gemini (se renueva cada día). Reenvía la pieza más tarde o mañana.', 'retry' => false];
+        }
         return ['error' => $res['status'] === 429
             ? 'Se alcanzó el límite gratuito de Gemini (cuota por minuto/día). Se reintentará más tarde.'
             : 'Gemini respondió con error (HTTP ' . $res['status'] . '): ' . $msg, 'retry' => $res['status'] === 429 || $res['status'] >= 500];
