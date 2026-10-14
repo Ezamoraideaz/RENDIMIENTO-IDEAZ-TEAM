@@ -343,27 +343,48 @@ function design_review_format_report(array $review, array $row, array $report, ?
         $t .= '⚠️ ' . tg_h($warning) . "\n";
     }
 
+    // Reporte corto: las categorías que salieron bien solo muestran su score (en una línea al final);
+    // el detalle se reserva para lo que hay que corregir.
+    $okAt = 85; // mismo corte que el semáforo verde
+    $good = static fn($score): bool => is_numeric($score) && (float)$score >= $okAt;
+    $okLine = [];
+
     if ($isExtra) {
         $t .= "\nℹ️ Contenido extra (fuera del cronograma): se revisó ortografía, diseño y formato, sin comparar contra mensaje de arte ni copy.\n";
     } else {
         $a = $report['art_text'] ?? [];
-        $t .= "\n" . design_review_cat_title('Texto del arte vs cronograma (E)', $a['score'] ?? null);
-        $t .= design_review_bullets((array)($a['missing'] ?? []), '❌ Falta:');
-        $t .= design_review_bullets((array)($a['extra'] ?? []), '➕ Sobra:');
-        $t .= design_review_bullets((array)($a['notes'] ?? []), '•', 2);
+        $missing = array_filter((array)($a['missing'] ?? []), 'is_string');
+        $extras = array_filter((array)($a['extra'] ?? []), 'is_string');
+        if (is_numeric($a['score'] ?? null) && $good($a['score']) && !$missing && !$extras) {
+            $okLine[] = 'Texto del arte ' . (int)$a['score'];
+        } elseif (is_numeric($a['score'] ?? null) || $missing || $extras) {
+            $t .= "\n" . design_review_cat_title('Texto del arte vs cronograma (E)', $a['score'] ?? null);
+            $t .= design_review_bullets($missing, '❌ Falta:');
+            $t .= design_review_bullets($extras, '➕ Sobra:');
+            $t .= design_review_bullets((array)($a['notes'] ?? []), '•', 2);
+        }
     }
 
     $s = $report['spelling'] ?? [];
-    $t .= "\n" . design_review_cat_title('Ortografía en la pieza', $s['score'] ?? null);
     $errs = design_review_errors_list((array)($s['errors'] ?? []));
-    $t .= $errs !== '' ? $errs : "✅ Sin errores detectados\n";
+    if ($errs !== '') {
+        $t .= "\n" . design_review_cat_title('Ortografía en la pieza', $s['score'] ?? null) . $errs;
+    } else {
+        $okLine[] = 'Ortografía ' . (is_numeric($s['score'] ?? null) ? (int)$s['score'] : 100);
+    }
 
     $d = $report['design'] ?? [];
-    $t .= "\n" . design_review_cat_title('Diseño', $d['score'] ?? null);
-    $t .= design_review_bullets((array)($d['notes'] ?? []), '•', 4);
+    if ($good($d['score'] ?? null)) {
+        $okLine[] = 'Diseño ' . (int)$d['score'];
+    } else {
+        $t .= "\n" . design_review_cat_title('Diseño', $d['score'] ?? null);
+        $t .= design_review_bullets((array)($d['notes'] ?? []), '•', 4);
+    }
 
     $b = $report['brief'] ?? [];
-    if (is_numeric($b['score'] ?? null) || !empty($b['notes'])) {
+    if ($good($b['score'] ?? null)) {
+        $okLine[] = ($isExtra ? 'Notas del diseñador ' : 'Indicaciones (D) ') . (int)$b['score'];
+    } elseif (is_numeric($b['score'] ?? null) || !empty($b['notes'])) {
         $t .= "\n" . design_review_cat_title($isExtra ? 'Notas del diseñador' : 'Indicaciones del diseñador (D)', $b['score'] ?? null);
         $t .= design_review_bullets((array)($b['notes'] ?? []), '•', 3);
     }
@@ -375,13 +396,21 @@ function design_review_format_report(array $review, array $row, array $report, ?
     } elseif (trim((string)$row['copy']) === '') {
         $t .= "\n<b>Copy (F)</b> · n/a\nℹ️ La columna F del cronograma está vacía: la CM debe completar el copy (con gancho y CTA).\n";
     } elseif (is_numeric($c['score'] ?? null) || isset($c['has_hook'])) {
-        $t .= "\n" . design_review_cat_title('Copy (F)', $c['score'] ?? null);
-        $t .= 'Gancho ' . (!empty($c['has_hook']) ? '✅' : '❌') . ' · CTA ' . (!empty($c['has_cta']) ? '✅' : '❌') . "\n";
         $copyErrs = design_review_errors_list((array)($c['spelling_errors'] ?? []), 3);
-        if ($copyErrs !== '') {
-            $t .= "⚠️ Errores en el copy del cronograma (col. F) — la CM debe corregirlos:\n" . $copyErrs;
+        if ($good($c['score'] ?? null) && !empty($c['has_hook']) && !empty($c['has_cta']) && $copyErrs === '') {
+            $okLine[] = 'Copy (F) ' . (int)$c['score'];
+        } else {
+            $t .= "\n" . design_review_cat_title('Copy (F)', $c['score'] ?? null);
+            $t .= 'Gancho ' . (!empty($c['has_hook']) ? '✅' : '❌') . ' · CTA ' . (!empty($c['has_cta']) ? '✅' : '❌') . "\n";
+            if ($copyErrs !== '') {
+                $t .= "⚠️ Errores en el copy del cronograma (col. F) — la CM debe corregirlos:\n" . $copyErrs;
+            }
+            $t .= design_review_bullets((array)($c['notes'] ?? []), '•', 2);
         }
-        $t .= design_review_bullets((array)($c['notes'] ?? []), '•', 2);
+    }
+
+    if ($okLine) {
+        $t .= "\n✅ <b>Sin observaciones:</b> " . implode(' · ', $okLine) . "\n";
     }
 
     $fix = array_values(array_filter((array)($report['must_fix'] ?? []), 'is_string'));
