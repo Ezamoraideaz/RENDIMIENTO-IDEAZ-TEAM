@@ -53,6 +53,8 @@ const Sidebar = (() => {
     kanban:    '<path d="M6 5v11M12 5v6M18 5v14"/>',
     zap:       '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
     plus:      '<path d="M5 12h14M12 5v14"/>',
+    chevronsLeft:  '<path d="m11 17-5-5 5-5M18 17l-5-5 5-5"/>',
+    chevronsRight: '<path d="m6 17 5-5-5-5M13 17l5-5-5-5"/>',
     bubble:    '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
     sparkles:  '<path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>',
     book:      '<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/>',
@@ -95,6 +97,7 @@ const Sidebar = (() => {
 
   const THEME_KEY = 'ideaz_theme';
   const NAV_KEY   = 'ideaz_nav';   // 'side' (menú a la izquierda) | 'dock' (menú flotante inferior)
+  const COLLAPSE_KEY = 'ideaz_side_collapsed'; // '1' = menú lateral retraído (solo iconos)
 
   // localStorage puede no estar disponible (modo privado, bloqueos): nunca debe romper la página
   const store = {
@@ -128,17 +131,34 @@ const Sidebar = (() => {
     return store.get(NAV_KEY) === 'dock' ? 'dock' : 'side';
   }
 
+  const _isCollapsed = () => store.get(COLLAPSE_KEY) === '1';
+
   function _applyNavMode(mode) {
     const dock = mode === 'dock';
+    const collapsed = !dock && _isCollapsed();
     document.body.classList.toggle('ideaz-dock', dock);
+    document.body.classList.toggle('ideaz-collapsed', collapsed);
     const mainEl = document.querySelector('main[data-sidebar-main]');
-    if (mainEl) mainEl.style.marginLeft = dock ? '0' : '15rem';
+    if (mainEl) mainEl.style.marginLeft = dock ? '0' : (collapsed ? '4.75rem' : '15rem');
     _closeMobileMenu();
     const btn = document.getElementById('ideaz-mode-btn');
     if (btn) {
+      const label = dock ? 'Fijar menú a la izquierda' : 'Menú flotante';
       btn.querySelector('[data-mode-icon]').innerHTML = icon(dock ? 'panelLeft' : 'panelBottom');
-      btn.querySelector('[data-mode-label]').textContent = dock ? 'Fijar menú a la izquierda' : 'Menú flotante';
+      btn.querySelector('[data-mode-label]').textContent = label;
+      btn.dataset.tip = label;
     }
+    const cbtn = document.getElementById('ideaz-collapse-btn');
+    if (cbtn) {
+      cbtn.innerHTML = icon(collapsed ? 'chevronsRight' : 'chevronsLeft', 'w-4 h-4');
+      cbtn.dataset.tip = collapsed ? 'Expandir menú' : 'Retraer menú';
+      cbtn.setAttribute('aria-label', cbtn.dataset.tip);
+    }
+  }
+
+  function toggleCollapse() {
+    store.set(COLLAPSE_KEY, _isCollapsed() ? '0' : '1');
+    _applyNavMode(_getNavMode());
   }
 
   function toggleNavMode() {
@@ -168,6 +188,26 @@ const Sidebar = (() => {
       html:not(.light) .ideaz-switch { background:var(--accent); }
       html:not(.light) .ideaz-switch::after { transform:translateX(.9rem); }
       .ideaz-logout:hover { color:#f43f5e !important; }
+      .ideaz-brand-row { display:flex; align-items:center; justify-content:space-between; padding-right:.6rem; }
+      .ideaz-collapse { width:1.9rem; height:1.9rem; border-radius:.6rem; display:grid; place-items:center; color:var(--mut); flex:none; transition:background .15s, color .15s; }
+      .ideaz-collapse:hover { background:var(--s2); color:var(--ink); }
+
+      /* Menú lateral retraído: solo iconos (con tooltip). El contenido propio de la página
+         (filtros, info del proyecto…) se oculta, igual que hacía la versión anterior. */
+      @media (min-width: 768px) {
+        body.ideaz-collapsed #app-sidebar { width:4.75rem !important; overflow-x:hidden; }
+        body.ideaz-collapsed #app-sidebar .sidebar-text,
+        body.ideaz-collapsed #app-sidebar .ideaz-brand > div:not(.ideaz-logo),
+        body.ideaz-collapsed #app-sidebar .ideaz-switch,
+        body.ideaz-collapsed #app-sidebar .ideaz-user > div:not(.ideaz-avatar),
+        body.ideaz-collapsed #app-sidebar > :not(.ideaz-brand-row):not(.ideaz-nav):not(.ideaz-foot) { display:none !important; }
+        body.ideaz-collapsed #app-sidebar .ideaz-brand-row { flex-direction:column; gap:.4rem; padding:0 0 .4rem; }
+        body.ideaz-collapsed #app-sidebar .ideaz-brand { padding:1rem 0 .2rem; justify-content:center; }
+        body.ideaz-collapsed #app-sidebar .ideaz-nav,
+        body.ideaz-collapsed #app-sidebar .ideaz-foot { padding-left:.65rem; padding-right:.65rem; }
+        body.ideaz-collapsed #app-sidebar .sidebar-nav-item { justify-content:center; padding:.6rem; }
+        body.ideaz-collapsed #app-sidebar .ideaz-user { justify-content:center; padding:.35rem 0 .6rem; }
+      }
 
       /* Menú flotante (dock) */
       #ideaz-dock { display:none; position:fixed; bottom:16px; left:50%; transform:translateX(-50%); z-index:45; background:#0c0a09; border-radius:1.5rem; padding:.45rem; gap:.15rem; box-shadow:0 20px 40px -10px rgba(0,0,0,.5); max-width:96vw; }
@@ -193,7 +233,7 @@ const Sidebar = (() => {
         #app-sidebar.mobile-open { transform:translateX(0); }
         body.ideaz-dock #ideaz-dock { display:none; }
         body.ideaz-dock main[data-sidebar-main] { padding-bottom:0; }
-        #ideaz-mode-btn { display:none !important; }
+        #ideaz-mode-btn, #ideaz-collapse-btn { display:none !important; }
       }
     `;
     document.head.appendChild(s);
@@ -249,11 +289,19 @@ const Sidebar = (() => {
       if (!el) { tip.style.opacity = 0; return; }
       const r = el.getBoundingClientRect();
       tip.textContent = el.dataset.tip;
-      tip.style.left = Math.min(innerWidth - 50, Math.max(50, r.left + r.width / 2)) + 'px';
-      tip.style.top = (r.top - 8) + 'px';
+      if (el.closest('#app-sidebar')) {
+        // menú retraído: el tooltip va a la derecha del icono
+        tip.style.left = (r.right + 10) + 'px';
+        tip.style.top = (r.top + r.height / 2) + 'px';
+        tip.style.transform = 'translate(0,-50%)';
+      } else {
+        tip.style.left = Math.min(innerWidth - 50, Math.max(50, r.left + r.width / 2)) + 'px';
+        tip.style.top = (r.top - 8) + 'px';
+        tip.style.transform = '';
+      }
       tip.style.opacity = 1;
     };
-    document.addEventListener('mouseover', (e) => show(e.target.closest('#ideaz-dock [data-tip]')));
+    document.addEventListener('mouseover', (e) => show(e.target.closest('#ideaz-dock [data-tip], body.ideaz-collapsed #app-sidebar [data-tip]')));
     document.addEventListener('scroll', () => show(null), true);
   }
 
@@ -368,16 +416,19 @@ const Sidebar = (() => {
     // ── Menú lateral: marca + navegación arriba; el contenido propio de cada
     //    página (filtros, info de proyecto…) queda en medio, tal como estaba.
     aside.insertAdjacentHTML('afterbegin', `
-      <a href="${logoHref}" class="ideaz-brand">
-        <div class="ideaz-logo">I</div>
-        <div class="min-w-0 leading-tight">
-          <div class="font-extrabold text-slate-100 text-sm">Monitor Ideaz</div>
-          <div class="text-[11px] text-slate-400 font-medium">${logoSub}</div>
-        </div>
-      </a>
+      <div class="ideaz-brand-row">
+        <a href="${logoHref}" class="ideaz-brand" data-tip="Monitor Ideaz">
+          <div class="ideaz-logo">I</div>
+          <div class="min-w-0 leading-tight">
+            <div class="font-extrabold text-slate-100 text-sm">Monitor Ideaz</div>
+            <div class="text-[11px] text-slate-400 font-medium">${logoSub}</div>
+          </div>
+        </a>
+        <button type="button" id="ideaz-collapse-btn" class="ideaz-collapse"></button>
+      </div>
       <nav class="ideaz-nav">
         ${visibleLinks.map(({ href, icon: ic, label, key }) => `
-          <a href="${href}" class="sidebar-nav-item ${key === activePage ? 'is-active' : ''}" title="${label}">
+          <a href="${href}" class="sidebar-nav-item ${key === activePage ? 'is-active' : ''}" data-tip="${label}">
             ${icon(ic)}<span class="sidebar-text">${label}</span>
           </a>`).join('')}
       </nav>`);
@@ -386,7 +437,7 @@ const Sidebar = (() => {
     aside.insertAdjacentHTML('beforeend', `
       <div class="ideaz-foot">
         ${sessionUser ? `
-          <div class="ideaz-user">
+          <div class="ideaz-user" data-tip="${esc(sessionUser.name || sessionUser.email)}">
             <div class="ideaz-avatar">${esc(initials(sessionUser.name || sessionUser.email))}</div>
             <div class="min-w-0">
               <div class="text-xs font-bold text-slate-200 truncate">${esc(sessionUser.name || sessionUser.email)}</div>
@@ -394,17 +445,17 @@ const Sidebar = (() => {
             </div>
           </div>` : ''}
         ${onRefresh ? `
-          <button id="sidebar-refresh-btn" class="sidebar-nav-item" title="Obtener datos frescos de Trello">
+          <button id="sidebar-refresh-btn" class="sidebar-nav-item" data-tip="Actualizar Trello">
             ${icon('refresh')}<span class="sidebar-text">Actualizar Trello</span>
           </button>` : ''}
-        <button id="theme-toggle-btn" class="sidebar-nav-item" title="Cambiar entre tema claro y oscuro">
+        <button id="theme-toggle-btn" class="sidebar-nav-item" data-theme-tip data-tip="Cambiar tema">
           <span data-theme-icon></span><span class="sidebar-text">Modo oscuro</span><span class="ideaz-switch"></span>
         </button>
-        <button id="ideaz-mode-btn" class="sidebar-nav-item" title="Cambiar entre menú lateral y menú flotante">
+        <button id="ideaz-mode-btn" class="sidebar-nav-item" data-tip="Menú flotante">
           <span data-mode-icon></span><span class="sidebar-text" data-mode-label></span>
         </button>
         ${sessionUser ? `
-          <button class="sidebar-nav-item ideaz-logout" onclick="Session.logout()" title="Cerrar sesión">
+          <button class="sidebar-nav-item ideaz-logout" onclick="Session.logout()" data-tip="Cerrar sesión">
             ${icon('logout')}<span class="sidebar-text">Cerrar sesión</span>
           </button>` : ''}
       </div>`);
@@ -430,6 +481,7 @@ const Sidebar = (() => {
     if (onRefresh) document.getElementById('sidebar-refresh-btn').addEventListener('click', onRefresh);
     document.getElementById('theme-toggle-btn').addEventListener('click', toggleTheme);
     document.getElementById('ideaz-mode-btn').addEventListener('click', toggleNavMode);
+    document.getElementById('ideaz-collapse-btn').addEventListener('click', toggleCollapse);
 
     _injectStyles();
     _ensureMobileChrome();
@@ -440,7 +492,7 @@ const Sidebar = (() => {
     _initTableViews();
   }
 
-  return { init, toggleTheme, toggleNavMode, icon, hydrate };
+  return { init, toggleTheme, toggleNavMode, toggleCollapse, icon, hydrate };
 })();
 
 window.Sidebar = Sidebar;

@@ -207,6 +207,25 @@ table.tv-cards tr:has(> td[colspan]:only-child) { grid-column:1 / -1; }
 /* Agenda cards en modo claro: invertir hover (oscurecer en vez de aclarar) */
 html.light .agenda-card:hover { filter: brightness(0.93) !important; }
 
+/* Agenda en tema claro — contraste. js/agenda.js (módulo de MCLuna) pinta colores en línea
+   pensados para fondo oscuro; se corrigen acá sin tocar su lógica. */
+/* Día de hoy: tinte índigo suave en vez de índigo casi negro translúcido (quedaba gris) */
+html.light .bg-indigo-950\/15 { background-color: rgba(99,102,241,.06) !important; }
+html.light .bg-indigo-950\/30 { background-color: rgba(99,102,241,.09) !important; }
+html.light .bg-indigo-950\/40 { background-color: rgba(99,102,241,.12) !important; }
+/* Tarjetas completadas / fuera de fecha / duplicadas: sin la transparencia del 75% */
+html.light .agenda-card[style*="opacity:0.75"] { opacity: 1 !important; }
+/* Colores de etapa usados como texto: un tono más oscuro para leerse sobre su tinte claro */
+html.light .agenda-card [style*="color:#10b981"] { color: #047857 !important; }
+html.light .agenda-card [style*="color:#ef4444"] { color: #b91c1c !important; }
+html.light .agenda-card [style*="color:#6366f1"] { color: #4338ca !important; }
+html.light .agenda-card [style*="color:#cbd5e1"] { color: #78716c !important; }
+/* Tarjetas "rezagadas" (fantasma): usan el color de etapa sin ajustar al tema */
+html.light .agenda-card [style*="color:#94a3b8"] { color: #57534e !important; }
+html.light .agenda-card [style*="color:#f59e0b"] { color: #b45309 !important; }
+html.light .agenda-card [style*="color:#0ea5e9"] { color: #0369a1 !important; }
+html.light .agenda-card [style*="color:#a855f7"] { color: #7c3aed !important; }
+
 /* Barra de días de la semana en vista Mes (modo claro) */
 html.light .cal-day-header                { background-color: var(--s4) !important; border-color: var(--line3) !important; }
 html.light .cal-day-header > div          { color: var(--ink3) !important; }
