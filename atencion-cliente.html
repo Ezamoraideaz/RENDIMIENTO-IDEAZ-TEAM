@@ -10,15 +10,17 @@
   <link rel="stylesheet" href="css/main.css?v=20261021">
   <link rel="stylesheet" href="js/vendor/drawflow.min.css">
   <style>
-    /* Tema oscuro para los nodos de Drawflow, acorde a la paleta slate/indigo del dashboard */
-    #drawflow { background: #020617; background-image: radial-gradient(#1e293b 1px, transparent 1px); background-size: 18px 18px; }
-    .drawflow .drawflow-node { background: #0f172a; border: 1px solid #334155; border-radius: 0.75rem; padding: 0; box-shadow: none; min-width: 180px; }
+    /* Nodos de Drawflow con las variables de tema de css/main.css (claro y oscuro) */
+    #drawflow { background: var(--bg); background-image: radial-gradient(var(--line2) 1px, transparent 1px); background-size: 18px 18px; }
+    .drawflow .drawflow-node { background: var(--s1); border: 1px solid var(--line); border-radius: 1rem; padding: 0; box-shadow: var(--shadow); min-width: 180px; }
     .drawflow .drawflow-node.selected { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,0.4); }
     .df-node-box { padding: 0.75rem 1rem; }
-    .df-node-title { font-size: 0.8125rem; font-weight: 700; color: #e2e8f0; }
-    .df-node-sub { font-size: 0.6875rem; color: #94a3b8; margin-top: 0.25rem; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .df-node-title { font-size: 0.8125rem; font-weight: 700; color: var(--ink2); display: flex; align-items: center; gap: .45rem; }
+    /* drawflow.min.css pone position:absolute a todo svg del lienzo (lo usa para las conexiones) */
+    .drawflow .df-node-title svg { color: #6366f1; position: static !important; overflow: hidden !important; }
+    .df-node-sub { font-size: 0.6875rem; color: var(--mut); margin-top: 0.25rem; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .drawflow .connection .main-path { stroke: #6366f1; stroke-width: 2px; }
-    .drawflow .drawflow-node .input, .drawflow .drawflow-node .output { background: #6366f1; border: 2px solid #0f172a; }
+    .drawflow .drawflow-node .input, .drawflow .drawflow-node .output { background: #6366f1; border: 2px solid var(--s1); }
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans">
@@ -54,10 +56,10 @@
     <div id="state-clients" style="display:none" class="p-6">
       <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
-          <h1 class="text-2xl font-bold">Atención al Cliente</h1>
+          <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-100">Atención al Cliente</h1>
           <p class="text-slate-400 text-sm mt-0.5">Automatización de conversaciones por marca (Messenger / Instagram)</p>
         </div>
-        <button onclick="AtencionCliente.openNewClientPrompt()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">+ Cliente</button>
+        <button onclick="AtencionCliente.openNewClientPrompt()" class="ui-chip ui-chip-primary"><span data-icon="plus"></span>Cliente</button>
       </div>
       <div id="client-cards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
     </div>
@@ -66,43 +68,43 @@
     <div id="state-builder" style="display:none" class="h-screen flex flex-col">
       <div class="px-4 py-3 border-b border-slate-700 flex items-center justify-between gap-4 flex-shrink-0 bg-slate-900">
         <div class="flex items-center gap-3 min-w-0">
-          <button onclick="AtencionCliente.closeBuilder()" class="text-slate-400 hover:text-slate-100 text-sm font-semibold">← Volver</button>
+          <button onclick="AtencionCliente.closeBuilder()" class="ui-chip"><span data-icon="arrowLeft"></span>Volver</button>
           <input id="builder-flow-name" class="bg-transparent border-none text-lg font-bold focus:outline-none focus:bg-slate-800 rounded px-2 py-1 min-w-0">
         </div>
         <div class="flex items-center gap-2 flex-shrink-0">
           <span id="builder-status" class="text-xs text-slate-500"></span>
-          <button onclick="FlowBuilder.save()" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors">Guardar borrador</button>
-          <button onclick="FlowBuilder.pause()" class="bg-slate-800 hover:bg-slate-700 border border-amber-600/60 text-amber-400 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors">Pausar</button>
-          <button onclick="FlowBuilder.publish()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors">Publicar</button>
+          <button onclick="FlowBuilder.save()" class="ui-chip"><span data-icon="save"></span>Guardar borrador</button>
+          <button onclick="FlowBuilder.pause()" class="ui-chip text-amber-400" style="border-color:rgba(217,119,6,.5)">Pausar</button>
+          <button onclick="FlowBuilder.publish()" class="ui-chip ui-chip-success">Publicar</button>
         </div>
       </div>
       <div class="flex flex-1 min-h-0">
         <!-- Paleta de nodos -->
         <div class="w-48 border-r border-slate-700 bg-slate-900 p-3 flex flex-col gap-2 flex-shrink-0 overflow-y-auto">
           <p class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Disparadores</p>
-          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors" draggable="true" data-node="trigger_keyword">🎯 Palabra clave</div>
-          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors" draggable="true" data-node="trigger_comment">💭 Comentario en post</div>
-          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors" draggable="true" data-node="trigger_new_conversation">✨ Nueva conversación</div>
-          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors" draggable="true" data-node="trigger_story_reply">📖 Respuesta a historia</div>
-          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors" draggable="true" data-node="trigger_ad_message">📢 Anuncio "Enviar mensaje"</div>
+          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors flex items-center gap-2" draggable="true" data-node="trigger_keyword"><span data-icon="target" class="text-indigo-400"></span>Palabra clave</div>
+          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors flex items-center gap-2" draggable="true" data-node="trigger_comment"><span data-icon="bubble" class="text-indigo-400"></span>Comentario en post</div>
+          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors flex items-center gap-2" draggable="true" data-node="trigger_new_conversation"><span data-icon="sparkles" class="text-indigo-400"></span>Nueva conversación</div>
+          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors flex items-center gap-2" draggable="true" data-node="trigger_story_reply"><span data-icon="book" class="text-indigo-400"></span>Respuesta a historia</div>
+          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors flex items-center gap-2" draggable="true" data-node="trigger_ad_message"><span data-icon="megaphone" class="text-indigo-400"></span>Anuncio "Enviar mensaje"</div>
           <p class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1 mt-3">Mensajes</p>
-          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors" draggable="true" data-node="message">💬 Mensaje</div>
-          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors" draggable="true" data-node="ai">🤖 Respuesta IA</div>
-          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors" draggable="true" data-node="image">🖼️ Imagen</div>
-          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors" draggable="true" data-node="card">🃏 Tarjeta CTA</div>
-          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors" draggable="true" data-node="carousel">🎠 Carrusel</div>
-          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors" draggable="true" data-node="quick_replies">🔘 Botones</div>
+          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors flex items-center gap-2" draggable="true" data-node="message"><span data-icon="message" class="text-indigo-400"></span>Mensaje</div>
+          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors flex items-center gap-2" draggable="true" data-node="ai"><span data-icon="bot" class="text-indigo-400"></span>Respuesta IA</div>
+          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors flex items-center gap-2" draggable="true" data-node="image"><span data-icon="image" class="text-indigo-400"></span>Imagen</div>
+          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors flex items-center gap-2" draggable="true" data-node="card"><span data-icon="idCard" class="text-indigo-400"></span>Tarjeta CTA</div>
+          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors flex items-center gap-2" draggable="true" data-node="carousel"><span data-icon="gallery" class="text-indigo-400"></span>Carrusel</div>
+          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors flex items-center gap-2" draggable="true" data-node="quick_replies"><span data-icon="buttons" class="text-indigo-400"></span>Botones</div>
           <p class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1 mt-3">Leads</p>
-          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors" draggable="true" data-node="question">📝 Pregunta (lead)</div>
-          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors" draggable="true" data-node="csat">⭐ Encuesta CSAT</div>
-          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors" draggable="true" data-node="tag">🏷️ Etiqueta</div>
-          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors" draggable="true" data-node="notify">📣 Avisar al equipo</div>
+          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors flex items-center gap-2" draggable="true" data-node="question"><span data-icon="pencil" class="text-indigo-400"></span>Pregunta (lead)</div>
+          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors flex items-center gap-2" draggable="true" data-node="csat"><span data-icon="star" class="text-indigo-400"></span>Encuesta CSAT</div>
+          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors flex items-center gap-2" draggable="true" data-node="tag"><span data-icon="tag" class="text-indigo-400"></span>Etiqueta</div>
+          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors flex items-center gap-2" draggable="true" data-node="notify"><span data-icon="bell" class="text-indigo-400"></span>Avisar al equipo</div>
           <p class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1 mt-3">Lógica</p>
-          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors" draggable="true" data-node="condition">🔀 Condición</div>
-          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors" draggable="true" data-node="hours">⏰ Horario</div>
-          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors" draggable="true" data-node="ab_split">🎲 Test A/B</div>
-          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors" draggable="true" data-node="delay">⏱️ Espera</div>
-          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors" draggable="true" data-node="handoff">🙋 Pasar a humano</div>
+          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors flex items-center gap-2" draggable="true" data-node="condition"><span data-icon="split" class="text-indigo-400"></span>Condición</div>
+          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors flex items-center gap-2" draggable="true" data-node="hours"><span data-icon="clock" class="text-indigo-400"></span>Horario</div>
+          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors flex items-center gap-2" draggable="true" data-node="ab_split"><span data-icon="dice" class="text-indigo-400"></span>Test A/B</div>
+          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors flex items-center gap-2" draggable="true" data-node="delay"><span data-icon="timer" class="text-indigo-400"></span>Espera</div>
+          <div class="drawflow-node-drag bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm cursor-grab hover:border-indigo-500 transition-colors flex items-center gap-2" draggable="true" data-node="handoff"><span data-icon="hand" class="text-indigo-400"></span>Pasar a humano</div>
           <p class="text-[11px] text-slate-600 mt-2">Arrastra un nodo al lienzo. Conecta desde el punto de salida de un nodo al de entrada de otro.</p>
         </div>
         <!-- Canvas -->
@@ -128,9 +130,9 @@
   <script src="js/utils.js"></script>
   <script src="js/sidebar.js?v=20261021"></script>
   <script src="js/vendor/drawflow.min.js"></script>
-  <script src="js/flowBuilder.js"></script>
+  <script src="js/flowBuilder.js?v=20261021"></script>
   <script src="js/briefSchemas.js"></script>
-  <script src="js/atencionCliente.js"></script>
+  <script src="js/atencionCliente.js?v=20261021"></script>
   <script>
     Session.ready.then(() => {
       Sidebar.init('atencion-cliente');
