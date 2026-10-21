@@ -41,9 +41,22 @@ const Sidebar = (() => {
     clock:     '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
     folder:    '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/>',
     x:         '<path d="M18 6 6 18M6 6l12 12"/>',
+    tag:       '<path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/>',
+    users:     '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+    key:       '<circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6M15.5 7.5l3 3L22 7l-3-3"/>',
+    alert:     '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4M12 17h.01"/>',
+    chart:     '<path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/>',
   };
   function icon(name, cls = 'w-5 h-5') {
     return `<svg class="${cls} flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ''}</svg>`;
+  }
+
+  // Reemplaza <span data-icon="nombre" class="..."></span> del HTML estático por su SVG
+  // (conserva las clases del span; tamaño por defecto w-4 h-4 o data-size="w-5 h-5").
+  function hydrate(root = document) {
+    root.querySelectorAll('[data-icon]').forEach((el) => {
+      el.outerHTML = icon(el.dataset.icon, `${el.dataset.size || 'w-4 h-4'} ${el.className}`.trim());
+    });
   }
 
   const THEME_KEY = 'ideaz_theme';
@@ -305,11 +318,12 @@ const Sidebar = (() => {
     _ensureTooltip();
     _applyTheme(_getTheme());
     _applyNavMode(_getNavMode());
+    hydrate();
   }
 
-  return { init, toggleTheme, toggleNavMode, icon };
+  return { init, toggleTheme, toggleNavMode, icon, hydrate };
 })();
 
 window.Sidebar = Sidebar;
-// Iconos reutilizables por los módulos: Icons.svg('calendar', 'w-4 h-4')
-window.Icons = { svg: Sidebar.icon };
+// Iconos reutilizables por los módulos: Icons.svg('calendar', 'w-4 h-4') · Icons.hydrate(elemento)
+window.Icons = { svg: Sidebar.icon, hydrate: Sidebar.hydrate };

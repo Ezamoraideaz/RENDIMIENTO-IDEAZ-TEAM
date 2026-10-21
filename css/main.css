@@ -125,6 +125,39 @@ html.light .text-lime-200, html.light .text-lime-300 { color: #4d7c0f !important
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--s4); border-radius: 8px; }
 
+/* ── Componentes del front nuevo (reutilizables por cualquier módulo) ──── */
+/* Barra de filtros fija arriba */
+.ui-toolbar { background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+/* Chips / botones píldora — todos de la misma altura que los campos */
+.ui-chip { display:inline-flex; align-items:center; justify-content:center; gap:.4rem; box-sizing:border-box; height:2.25rem; padding:0 .9rem; border-radius:999px; border:1px solid var(--line); background:var(--s1); color:var(--ink); font-size:.78rem; font-weight:600; line-height:1; white-space:nowrap; cursor:pointer; transition:border-color .15s, background .15s, color .15s; }
+.ui-chip:hover { border-color:#6366f1; }
+.ui-chip.is-on, .ui-chip-primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+.ui-chip-primary:hover { background:#6366f1; }
+/* Campo con icono dentro (izquierda) y flechita (derecha) */
+.ui-field { position:relative; display:inline-flex; align-items:center; height:2.25rem; }
+.ui-field > svg { position:absolute; left:.75rem; pointer-events:none; color:var(--mut); }
+.ui-field > svg.ui-field-end { left:auto; right:.7rem; }
+.ui-select, .ui-input,
+html.light .ui-select, html.light .ui-input { appearance:none; -webkit-appearance:none; box-sizing:border-box; height:2.25rem; width:100%; border:1px solid var(--line) !important; background:var(--s1) !important; color:var(--ink) !important; border-radius:999px; padding:0 2rem 0 2.15rem; font-size:.78rem; font-weight:600; line-height:1; outline:none; cursor:pointer; }
+.ui-input, html.light .ui-input { padding-right:.9rem; cursor:text; }
+.ui-select:focus, .ui-input:focus { border-color:#6366f1 !important; }
+
+/* Tarjetas bento */
+.bento-card { background:var(--s1); border:1px solid var(--line); border-radius:1.75rem; padding:1.4rem; min-width:0; box-shadow:var(--shadow); transition:transform .2s, box-shadow .2s, border-color .2s; }
+a.bento-card:hover, .bento-card.is-hoverable:hover { transform:translateY(-2px); box-shadow:0 16px 32px -18px rgba(0,0,0,.35); border-color:#6366f1; }
+.bento-label { font-size:.7rem; font-weight:800; letter-spacing:.09em; text-transform:uppercase; color:var(--mut); }
+.bento-hero  { --hero-bg:#4f46e5; background:var(--hero-bg) !important; border-color:transparent !important; color:#fff; }
+html:not(.light) .bento-hero { --hero-bg:#4338ca; }
+.bento-amber { background:#fcd34d !important; border-color:transparent !important; color:#451a03; }
+.bento-rose  { background:#fecdd3 !important; border-color:transparent !important; color:#4c0519; }
+.bento-ink   { background:#0c0a09 !important; border-color:transparent !important; color:#fff; }
+html:not(.light) .bento-ink { background:#05070d !important; border-color:var(--line) !important; }
+.bento-ring { width:158px; height:158px; border-radius:50%; display:grid; place-items:center; flex:none; background:conic-gradient(#fff calc(var(--p) * 1%), rgba(255,255,255,.25) 0); }
+.bento-ring > div { width:120px; height:120px; border-radius:50%; background:var(--hero-bg); display:grid; place-items:center; text-align:center; }
+.bento-pill { display:inline-flex; align-items:center; gap:.3rem; border-radius:999px; padding:.15rem .6rem; font-size:.7rem; font-weight:800; white-space:nowrap; }
+.bento-track { height:.5rem; border-radius:999px; background:var(--s3); overflow:hidden; }
+.bento-track > div { height:100%; border-radius:999px; }
+
 /* ── Reglas propias de módulos (se conservan) ───────────────────────────── */
 [x-cloak] { display: none !important; }
 .chart-container { position: relative; height: 260px; }

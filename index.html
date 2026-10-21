@@ -31,49 +31,7 @@
 
 <!-- SIDEBAR -->
 <aside id="app-sidebar" class="fixed left-0 top-0 h-screen w-64 bg-slate-900 border-r border-slate-700 flex flex-col z-50 overflow-y-auto">
-  <!-- Logo y nav inyectados por js/sidebar.js -->
-
-  <!-- Filters section -->
-  <div class="p-3 flex-1 overflow-y-auto" id="sidebar-filters" style="display:none">
-    <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 px-1">Filtros</div>
-
-    <div class="mb-2">
-      <select id="filter-workspace" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 w-full" onchange="applyFilters()">
-        <option value="">Todos los espacios</option>
-      </select>
-    </div>
-
-    <div class="mb-2">
-      <select id="filter-type" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 w-full" onchange="applyFilters()">
-        <option value="">Todos los tipos</option>
-        <option value="retencion">♻️ Retención mensual</option>
-        <option value="unico">📦 Proyecto único</option>
-      </select>
-    </div>
-
-    <div class="mb-2">
-      <select id="filter-category" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 w-full" onchange="applyFilters()">
-        <option value="">Todas las categorías</option>
-      </select>
-    </div>
-
-    <div class="mb-2">
-      <select id="filter-period" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 w-full" onchange="applyFilters()">
-        <option value="">Todos los periodos</option>
-      </select>
-    </div>
-
-    <div class="mb-2">
-      <input type="text" id="search-projects"
-        class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 w-full"
-        placeholder="Buscar proyecto..."
-        oninput="applyFilters()">
-    </div>
-
-    <button class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-1.5 rounded-lg text-sm transition-colors w-full" onclick="clearFilters()" id="btn-clear-filters" style="display:none">✕ Limpiar filtros</button>
-
-    <div id="filter-info" class="text-xs text-slate-400 mt-2 px-1" style="display:none"></div>
-  </div>
+  <!-- Logo y nav inyectados por js/sidebar.js. Los filtros viven en la barra superior del dashboard. -->
 
   <!-- Bottom status -->
   <div class="p-3 border-t border-slate-700 flex-shrink-0 sidebar-text">
@@ -89,15 +47,15 @@
     <div class="max-w-lg mx-auto mt-16 px-4">
       <div class="bg-slate-900 border border-slate-700 rounded-2xl p-10">
         <div class="text-center mb-6">
-          <div class="text-5xl mb-3">📊</div>
+          <div class="w-14 h-14 mx-auto mb-3 rounded-2xl bg-indigo-600 text-white grid place-items-center"><span data-icon="chart" data-size="w-7 h-7"></span></div>
           <h1 class="text-2xl font-black text-slate-100">IDEAZ Dashboard</h1>
           <p class="text-slate-400 text-sm mt-1">Rendimiento del equipo y proyectos</p>
         </div>
-        <div class="flex gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-sm mb-4">
-          ⚠️ Necesitas conectar tu cuenta de Trello para ver el dashboard.
+        <div class="flex items-start gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-sm mb-4">
+          <span data-icon="alert" class="mt-0.5"></span><span>Necesitas conectar tu cuenta de Trello para ver el dashboard.</span>
         </div>
         <a href="configuracion.html" class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2 w-full">
-          🔑 Ir a Configuración
+          <span data-icon="key"></span>Ir a Configuración
         </a>
       </div>
     </div>
@@ -129,37 +87,75 @@
     <div class="p-4 sm:p-6 max-w-screen-2xl mx-auto">
 
       <!-- Header -->
-      <div class="flex flex-wrap justify-between items-center gap-3 mb-6">
+      <div class="flex flex-wrap justify-between items-end gap-3 mb-4">
         <div class="min-w-0">
-          <h1 class="text-xl sm:text-2xl font-black text-slate-100">📊 Dashboard de Rendimiento</h1>
+          <p class="text-sm text-slate-400" id="dash-date"></p>
+          <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-100">Dashboard de Rendimiento</h1>
           <div class="text-xs text-slate-400 mt-1" id="user-greeting"></div>
         </div>
         <div class="flex gap-2 items-center">
-          <span id="boards-count-badge" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30"></span>
-          <button class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors" onclick="loadDashboard(true)">↻ Actualizar</button>
+          <span id="boards-count-badge" class="ui-chip" style="cursor:default;color:#6366f1"></span>
+          <button class="ui-chip ui-chip-primary" onclick="loadDashboard(true)"><span data-icon="refresh"></span>Actualizar</button>
+        </div>
+      </div>
+
+      <!-- BARRA DE FILTROS (se muestra al cargar los datos; mismos IDs que usaba el sidebar) -->
+      <div id="sidebar-filters" style="display:none" class="ui-toolbar sticky top-[3.25rem] md:top-0 z-30 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3 mb-6">
+        <div class="flex flex-wrap items-center gap-2">
+          <label class="ui-field flex-1 min-w-[170px] max-w-[280px]">
+            <span data-icon="search"></span>
+            <input type="text" id="search-projects" class="ui-input" placeholder="Buscar proyecto…" oninput="applyFilters()">
+          </label>
+          <div class="flex flex-wrap gap-1.5" id="type-chips">
+            <button type="button" class="ui-chip" data-type="" onclick="setTypeFilter('')">Todos</button>
+            <button type="button" class="ui-chip" data-type="retencion" onclick="setTypeFilter('retencion')"><span data-icon="repeat"></span>Retención</button>
+            <button type="button" class="ui-chip" data-type="unico" onclick="setTypeFilter('unico')"><span data-icon="package"></span>Único</button>
+          </div>
+          <select id="filter-type" class="hidden" onchange="applyFilters()" aria-hidden="true">
+            <option value="">Todos los tipos</option>
+            <option value="retencion">Retención mensual</option>
+            <option value="unico">Proyecto único</option>
+          </select>
+          <label class="ui-field" title="Mes según la fecha límite de las tarjetas">
+            <span data-icon="clock"></span>
+            <select id="filter-period" class="ui-select" onchange="applyFilters()"><option value="">Todos los periodos</option></select>
+            <span data-icon="chevron" class="ui-field-end"></span>
+          </label>
+          <label class="ui-field">
+            <span data-icon="folder"></span>
+            <select id="filter-workspace" class="ui-select" onchange="applyFilters()"><option value="">Todos los espacios</option></select>
+            <span data-icon="chevron" class="ui-field-end"></span>
+          </label>
+          <label class="ui-field">
+            <span data-icon="tag"></span>
+            <select id="filter-category" class="ui-select" onchange="applyFilters()"><option value="">Todas las categorías</option></select>
+            <span data-icon="chevron" class="ui-field-end"></span>
+          </label>
+          <button type="button" class="ui-chip" onclick="clearFilters()" id="btn-clear-filters" style="display:none"><span data-icon="x"></span>Limpiar</button>
+          <span id="filter-info" class="text-xs text-slate-400" style="display:none"></span>
         </div>
       </div>
 
       <!-- KPI GLOBAL -->
-      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Resumen Global</h2>
-      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 mb-6" id="kpi-global"></div>
+      <h2 class="bento-label mb-3">Resumen global</h2>
+      <div class="grid grid-cols-2 lg:grid-cols-4 auto-rows-[minmax(140px,auto)] gap-4 mb-8" id="kpi-global"></div>
 
       <!-- FINANCIAL KPIs -->
       <div id="section-financial">
-        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Financiero</h2>
-        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 mb-6" id="kpi-financial"></div>
+        <h2 class="bento-label mb-3">Financiero</h2>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8" id="kpi-financial"></div>
       </div>
 
       <!-- CHARTS ROW 1 -->
       <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4" id="section-charts-1">
         <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 sm:p-5">
-          <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Progreso por Proyecto</h2>
+          <h2 class="bento-label mb-3">Progreso por Proyecto</h2>
           <div class="chart-container">
             <canvas id="chart-progress"></canvas>
           </div>
         </div>
         <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 sm:p-5">
-          <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Presupuesto vs Ingresos</h2>
+          <h2 class="bento-label mb-3">Presupuesto vs Ingresos</h2>
           <div class="chart-container">
             <canvas id="chart-financial"></canvas>
           </div>
@@ -169,13 +165,13 @@
       <!-- CHARTS ROW 2 -->
       <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4" id="section-charts-2">
         <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 sm:p-5">
-          <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">ROI por Proyecto (%)</h2>
+          <h2 class="bento-label mb-3">ROI por Proyecto (%)</h2>
           <div class="chart-container">
             <canvas id="chart-roi"></canvas>
           </div>
         </div>
         <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 sm:p-5">
-          <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Distribución de Tarjetas</h2>
+          <h2 class="bento-label mb-3">Distribución de Tarjetas</h2>
           <div class="chart-container">
             <canvas id="chart-cards"></canvas>
           </div>
@@ -186,18 +182,29 @@
       <div id="trend-section" style="display:none" class="bg-slate-900 border border-slate-700 rounded-2xl p-4 sm:p-5 mb-4">
         <div class="flex justify-between items-center mb-3">
           <div>
-            <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-0">📈 Evolución mensual — <span id="trend-cat-name" class="text-indigo-300 normal-case"></span></h2>
+            <h2 class="bento-label">Evolución mensual — <span id="trend-cat-name" class="text-indigo-300 normal-case"></span></h2>
             <div class="text-xs text-slate-400 mt-1">Comparativo mes a mes del servicio recurrente</div>
           </div>
         </div>
         <div id="trend-table-wrap" class="overflow-x-auto rounded-xl border border-slate-700"></div>
       </div>
 
-      <!-- PROJECTS TABLE -->
-      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 sm:p-5 mb-4" id="section-projects-table">
-        <div class="flex justify-between items-center mb-3 flex-wrap gap-2">
-          <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-0">Proyectos (Tableros de Trello)</h2>
+      <!-- PROYECTOS: vista de tarjetas o tabla (el CM solo ve tarjetas) -->
+      <div class="flex flex-wrap items-center justify-between gap-3 mt-8 mb-3">
+        <h2 class="bento-label">Proyectos (tableros de Trello) · <span id="projects-count"></span></h2>
+        <div class="flex gap-1.5" id="projects-view-toggle">
+          <button type="button" class="ui-chip" data-view="cards" onclick="setProjectsView('cards')"><span data-icon="grid"></span>Tarjetas</button>
+          <button type="button" class="ui-chip" data-view="table" onclick="setProjectsView('table')"><span data-icon="list"></span>Tabla</button>
         </div>
+      </div>
+
+      <!-- PROJECT CARDS GRID -->
+      <div id="section-project-cards" class="mb-8">
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4" id="project-cards-grid"></div>
+      </div>
+
+      <!-- PROJECTS TABLE -->
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 sm:p-5 mb-8" id="section-projects-table" style="display:none">
         <div class="overflow-x-auto rounded-xl border border-slate-700">
           <table class="w-full text-sm">
             <thead>
@@ -225,7 +232,7 @@
       <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 sm:p-5 mb-4" id="section-approval-timing">
         <div class="flex justify-between items-center mb-3 flex-wrap gap-2">
           <div>
-            <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-0">Tiempos de Aprobación por Marca</h2>
+            <h2 class="bento-label">Tiempos de Aprobación por Marca</h2>
             <div class="text-xs text-slate-400 mt-1">Desde que la tarjeta entra a "Enviado" hasta que pasa a Cambios o a Aprobado — cada ciclo cuenta por separado. Se ordena por la mediana (el "caso típico"); el promedio se muestra de referencia porque unos pocos casos muy lentos pueden inflarlo. "En Enviado (esperando)" cuenta las tarjetas que siguen ahí ahora mismo, sin importar el rango de fechas. "Espera acumulada" suma el tiempo TOTAL que cada tarjeta pasó en "Enviado" a lo largo de toda su vida (todos los tramos, incluso si volvió desde "Cambios"), de TODAS las tarjetas que alguna vez pasaron por ahí — ya estén pendientes, aprobadas o con cambios pedidos</div>
           </div>
           <select id="approval-timing-period" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500" onchange="onApprovalTimingPeriodChange(this)">
@@ -255,7 +262,7 @@
 
       <!-- TEAM PERFORMANCE -->
       <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 sm:p-5 mb-4" id="section-team-performance">
-        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Rendimiento del Equipo</h2>
+        <h2 class="bento-label mb-3">Rendimiento del Equipo</h2>
         <div class="overflow-x-auto rounded-xl border border-slate-700">
           <table class="w-full text-sm">
             <thead>
@@ -273,12 +280,6 @@
             <tbody id="team-table-body" class="divide-y divide-slate-700/50"></tbody>
           </table>
         </div>
-      </div>
-
-      <!-- PROJECT CARDS GRID -->
-      <div id="section-project-cards">
-        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Vista Rápida de Proyectos</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="project-cards-grid"></div>
       </div>
 
       <div class="h-8"></div>
@@ -303,9 +304,20 @@
   let _currentFilteredProjects = [];
   let _memberModalCharts = {};
 
-  Chart.defaults.color = '#94a3b8';
-  Chart.defaults.borderColor = '#2d2d4e';
-  Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
+  // Colores de las gráficas según el tema activo (variables de css/main.css)
+  let CHART_GRID = '#2d2d4e', CHART_SURFACE = '#0f0f1a';
+  function applyChartTheme() {
+    const css = getComputedStyle(document.documentElement);
+    const v = (name, fallback) => css.getPropertyValue(name).trim() || fallback;
+    Chart.defaults.color = v('--mut', '#94a3b8');
+    CHART_GRID = v('--line', '#2d2d4e');
+    CHART_SURFACE = v('--s1', '#0f0f1a');
+    Chart.defaults.borderColor = CHART_GRID;
+  }
+  Chart.defaults.font.family = "'Plus Jakarta Sans', system-ui, sans-serif";
+  applyChartTheme();
+  // Al cambiar de tema se redibuja todo con la paleta nueva
+  window.addEventListener('ideaz:theme', () => { applyChartTheme(); if (dashboardData) applyFilters(); });
 
   function setState(name) {
     ['state-auth','state-loading','state-error','state-dashboard'].forEach(id => {
@@ -496,8 +508,8 @@
 
   function renderKPIGlobal(projects, members) {
     const totalCards   = projects.reduce((s, p) => s + p.totalCards, 0);
-    const totalDone    = projects.reduce((s, p) => s + p.completedCards, 0);
     const totalHours   = projects.reduce((s, p) => s + p.totalHours, 0);
+    const totalRevisions = projects.reduce((s, p) => s + p.totalRevisions, 0);
 
     // Three-tier progress (only cards with due date)
     const totalWithDue    = projects.reduce((s, p) => s + (p.nWithDue    || 0), 0);
@@ -509,76 +521,90 @@
     const pctApproved    = totalWithDue > 0 ? Math.round(totalApproved    / totalWithDue * 100) : 0;
     const pctWithSent    = totalWithDue > 0 ? Math.round(totalWithSent    / totalWithDue * 100) : 0;
 
-    const progressColor = pctApproved >= 75 ? 'border-l-emerald-500' : pctApproved >= 40 ? 'border-l-amber-500' : 'border-l-red-500';
-    const pctColor      = pctApproved >= 75 ? 'text-emerald-400'     : pctApproved >= 40 ? 'text-amber-400'     : 'text-red-400';
+    // Semáforo del progreso (mismos umbrales que antes: ≥75 bien, ≥40 atención)
+    const status = pctApproved >= 75 ? ['Al día', '#34d399'] : pctApproved >= 40 ? ['Atención', '#fbbf24'] : ['Crítico', '#fb7185'];
 
     const sinDue = totalCards - totalWithDue;
     const totalDeliveredInMonth = projects.reduce((s, p) => s + (p.nDeliveredInMonth || 0), 0);
     // Entregas de meses anteriores = entregadas este mes pero cuyo due no era este mes
     const entregasExtras = Math.max(0, totalDeliveredInMonth - totalApproved);
 
+    const row = (label, value) => `
+      <div class="flex items-center justify-between gap-3">
+        <span style="color:rgba(255,255,255,.75)">${label}</span>
+        <span class="font-bold">${value}</span>
+      </div>`;
+
+    const shown = members.slice(0, 14);
+    const avatars = shown.map(m =>
+      `<div class="w-9 h-9 rounded-full grid place-items-center text-white text-[11px] font-bold border-2" style="background:${Utils.avatarColor(m.id)};border-color:var(--s1)" title="${m.name}">${Utils.initials(m.name)}</div>`
+    ).join('') + (members.length > shown.length
+      ? `<div class="w-9 h-9 rounded-full grid place-items-center text-[11px] font-bold border-2 bg-slate-700 text-slate-200" style="border-color:var(--s1)">+${members.length - shown.length}</div>` : '');
+
     document.getElementById('kpi-global').innerHTML = `
-      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-violet-500 rounded-2xl p-4 sm:p-5">
-        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">📁 Proyectos Activos</div>
-        <div class="text-2xl sm:text-3xl font-black text-slate-100">${projects.length}</div>
+      <div class="bento-card bento-hero col-span-2 row-span-2 flex items-center justify-between gap-4">
+        <div class="flex flex-col justify-between h-full min-w-0 gap-4">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-xs font-extrabold tracking-widest" style="color:rgba(255,255,255,.8)">PROGRESO GLOBAL</span>
+            <span class="bento-pill" style="background:rgba(255,255,255,.16)"><span style="width:7px;height:7px;border-radius:50%;background:${status[1]}"></span>${status[0]}</span>
+          </div>
+          <div>
+            <div class="text-6xl sm:text-7xl font-extrabold leading-none">${pctApproved}<span class="text-3xl">%</span></div>
+            <p class="text-sm mt-2" style="color:rgba(255,255,255,.8)">${totalApproved} de ${totalWithDue} compromisos del período</p>
+            ${totalDeliveredInMonth > 0 ? `
+            <p class="text-xs mt-1" style="color:rgba(255,255,255,.7)">
+              + ${totalDeliveredInMonth} entrega${totalDeliveredInMonth !== 1 ? 's' : ''} real${totalDeliveredInMonth !== 1 ? 'es' : ''} en el mes
+              ${entregasExtras > 0 ? `(${entregasExtras} de meses anteriores)` : ''}
+            </p>` : ''}
+            <button type="button" onclick="toggleKpiBreakdown(this)" class="mt-3 text-xs font-bold inline-flex items-center gap-1 text-white/90 hover:text-white">
+              ${Icons.svg('chevron', 'w-3.5 h-3.5')}<span>Ver desglose</span>
+            </button>
+            <div class="hidden mt-3 space-y-1.5 pt-3 text-xs" style="border-top:1px solid rgba(255,255,255,.2);max-width:22rem">
+              ${row('Marcadas completadas', `${pctDueComplete}% (${totalDueComplete})`)}
+              ${row('+ Aprobadas / Publicadas', `${pctApproved}% (${totalApproved})`)}
+              ${row('+ Enviadas al cliente', `${pctWithSent}% (${totalWithSent})`)}
+              ${totalDeliveredInMonth > 0 ? row('Entregas reales en el mes', totalDeliveredInMonth) : ''}
+            </div>
+          </div>
+        </div>
+        <div class="bento-ring hidden sm:grid" style="--p:${pctApproved}">
+          <div><div><div class="text-2xl font-extrabold">${totalApproved}</div><div class="text-[11px]" style="color:rgba(255,255,255,.75)">de ${totalWithDue}</div></div></div>
+        </div>
+      </div>
+      <div class="bento-card">
+        <div class="bento-label">Proyectos activos</div>
+        <div class="text-4xl font-extrabold text-slate-100 mt-2">${projects.length}</div>
         <div class="text-xs text-slate-400 mt-1">tableros en Trello</div>
       </div>
-      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-indigo-500 rounded-2xl p-4 sm:p-5">
-        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">🗂 Tarjetas Totales</div>
-        <div class="text-2xl sm:text-3xl font-black text-slate-100">${Utils.fmt(totalCards)}</div>
-        <div class="text-xs text-slate-400 mt-1">
-          ${Utils.fmt(totalWithDue)} con fecha límite
-          ${sinDue > 0 ? `<span class="text-slate-600"> · ${sinDue} sin fecha</span>` : ''}
-        </div>
+      <div class="bento-card">
+        <div class="bento-label">Tarjetas totales</div>
+        <div class="text-4xl font-extrabold text-slate-100 mt-2">${Utils.fmt(totalCards)}</div>
+        <div class="text-xs text-slate-400 mt-1">${Utils.fmt(totalWithDue)} con fecha límite${sinDue > 0 ? ` · ${sinDue} sin fecha` : ''}</div>
       </div>
-      <div class="bg-slate-900 border border-l-4 border-slate-700 ${progressColor} rounded-2xl p-4 sm:p-5">
-        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">✅ Progreso Global</div>
-        <div class="text-2xl sm:text-3xl font-black ${pctColor}">${pctApproved}%</div>
-        <div class="text-xs text-slate-400 mt-0.5">${totalApproved} de ${totalWithDue} compromisos del período</div>
-        ${totalDeliveredInMonth > 0 ? `
-        <div class="text-xs text-slate-500 mt-1">
-          + ${totalDeliveredInMonth} entrega${totalDeliveredInMonth !== 1 ? 's' : ''} real${totalDeliveredInMonth !== 1 ? 'es' : ''} en el mes
-          ${entregasExtras > 0 ? `<span class="text-slate-600">(${entregasExtras} de meses anteriores)</span>` : ''}
-        </div>` : ''}
-        <button onclick="(function(b){var d=b.nextElementSibling;var open=!d.classList.contains('hidden');d.classList.toggle('hidden');b.innerHTML=open?'▾ Ver desglose':'▴ Ocultar desglose';})(this)"
-          class="mt-2 text-xs text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1">
-          ▾ Ver desglose
-        </button>
-        <div class="hidden mt-2 space-y-1.5 border-t border-slate-700/60 pt-2.5">
-          <div class="flex items-center justify-between text-xs">
-            <span class="text-slate-500">☑ Marcadas completadas</span>
-            <span class="font-semibold text-slate-300">${pctDueComplete}% <span class="text-slate-600 font-normal">(${totalDueComplete})</span></span>
-          </div>
-          <div class="flex items-center justify-between text-xs">
-            <span class="text-slate-500">✓ + Aprobadas / Publicadas</span>
-            <span class="font-semibold ${pctColor}">${pctApproved}% <span class="text-slate-600 font-normal">(${totalApproved})</span></span>
-          </div>
-          <div class="flex items-center justify-between text-xs">
-            <span class="text-slate-500">→ + Enviadas al cliente</span>
-            <span class="font-semibold text-amber-400">${pctWithSent}% <span class="text-slate-600 font-normal">(${totalWithSent})</span></span>
-          </div>
-          ${totalDeliveredInMonth > 0 ? `
-          <div class="flex items-center justify-between text-xs border-t border-slate-700/40 pt-2 mt-1">
-            <span class="text-slate-500">📦 Entregas reales en el mes</span>
-            <span class="font-semibold text-sky-400">${totalDeliveredInMonth}</span>
-          </div>` : ''}
-        </div>
+      <div class="bento-card bento-amber">
+        <div class="bento-label" style="color:#78350f">Horas laborales (Trello)</div>
+        <div class="text-4xl font-extrabold mt-2">${Utils.fmt(totalHours, 1)}</div>
+        <div class="text-xs mt-1" style="color:#78350f">calculadas desde actividad real</div>
       </div>
-      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-cyan-500 rounded-2xl p-4 sm:p-5">
-        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">👥 Miembros del Equipo</div>
-        <div class="text-2xl sm:text-3xl font-black text-slate-100">${members.length}</div>
-        <div class="text-xs text-slate-400 mt-1">en los proyectos filtrados</div>
+      <div class="bento-card bento-rose">
+        <div class="bento-label" style="color:#881337">Total revisiones</div>
+        <div class="text-4xl font-extrabold mt-2">${Utils.fmt(totalRevisions)}</div>
+        <div class="text-xs mt-1" style="color:#881337">cambios del cliente (proyectos filtrados)</div>
       </div>
-      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-amber-500 rounded-2xl p-4 sm:p-5">
-        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">⏱ Horas Laborales (Trello)</div>
-        <div class="text-2xl sm:text-3xl font-black text-slate-100">${Utils.fmt(totalHours, 1)}</div>
-        <div class="text-xs text-slate-400 mt-1">calculadas desde actividad real</div>
-      </div>
-      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-red-500 rounded-2xl p-4 sm:p-5">
-        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">🔄 Total Revisiones</div>
-        <div class="text-2xl sm:text-3xl font-black text-slate-100">${projects.reduce((s,p)=>s+p.totalRevisions,0)}</div>
-        <div class="text-xs text-slate-400 mt-1">cambios del cliente (proyectos filtrados)</div>
+      <div class="bento-card col-span-2 lg:col-span-4 flex flex-wrap items-center gap-x-6 gap-y-3">
+        <div class="bento-label">Miembros del equipo</div>
+        <div class="flex -space-x-2">${avatars}</div>
+        <span class="text-lg font-extrabold text-slate-100">${members.length}</span>
+        <span class="text-xs text-slate-400">en los proyectos filtrados</span>
       </div>`;
+  }
+
+  function toggleKpiBreakdown(btn) {
+    const panel = btn.nextElementSibling;
+    const open = !panel.classList.contains('hidden');
+    panel.classList.toggle('hidden');
+    btn.querySelector('span').textContent = open ? 'Ver desglose' : 'Ocultar desglose';
+    btn.querySelector('svg').style.transform = open ? '' : 'rotate(180deg)';
   }
 
   function renderKPIFinancial(projects) {
@@ -586,32 +612,65 @@
     const totalRevenue = projects.reduce((s, p) => s + p.revenue, 0);
     const totalCost    = projects.reduce((s, p) => s + p.totalCost, 0);
     const globalROI    = Utils.calcROI(totalRevenue, totalCost);
-    document.getElementById('kpi-financial').innerHTML = `
-      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-indigo-500 rounded-2xl p-4 sm:p-5">
-        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">💰 Presupuesto Total</div>
-        <div class="text-xl sm:text-2xl font-black text-slate-100">${Utils.fmtMoney(totalBudget)}</div>
-        <div class="text-xs text-slate-400 mt-1">suma de proyectos filtrados</div>
-      </div>
-      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-emerald-500 rounded-2xl p-4 sm:p-5">
-        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">📈 Ingresos Totales</div>
-        <div class="text-xl sm:text-2xl font-black text-slate-100">${Utils.fmtMoney(totalRevenue)}</div>
-        <div class="text-xs text-slate-400 mt-1">suma de proyectos filtrados</div>
-      </div>
-      <div class="bg-slate-900 border border-l-4 border-slate-700 ${totalCost > totalBudget ? 'border-l-red-500' : 'border-l-amber-500'} rounded-2xl p-4 sm:p-5">
-        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">💸 Costo Total (calculado)</div>
-        <div class="text-xl sm:text-2xl font-black text-slate-100">${Utils.fmtMoney(totalCost)}</div>
-        <div class="text-xs text-slate-400 mt-1">horas × tarifa promedio</div>
-      </div>
-      <div class="bg-slate-900 border border-l-4 border-slate-700 ${globalROI !== null && globalROI >= 0 ? 'border-l-emerald-500' : 'border-l-red-500'} rounded-2xl p-4 sm:p-5">
-        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">📊 ROI Global</div>
-        <div class="text-xl sm:text-2xl font-black text-slate-100">${globalROI !== null ? Utils.fmtPercent(globalROI) : '—'}</div>
-        <div class="text-xs text-slate-400 mt-1">(Ingresos - Costo) / Costo</div>
-      </div>
-      <div class="bg-slate-900 border border-l-4 border-slate-700 border-l-violet-500 rounded-2xl p-4 sm:p-5">
-        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">📉 Margen Neto</div>
-        <div class="text-xl sm:text-2xl font-black text-slate-100">${Utils.fmtMoney(totalRevenue - totalCost)}</div>
-        <div class="text-xs text-slate-400 mt-1">ingresos − costo calculado</div>
+    const margin       = totalRevenue - totalCost;
+    const max          = Math.max(totalBudget, totalRevenue, totalCost, 1);
+    const bar = (label, value, color) => `
+      <div>
+        <div class="flex justify-between gap-3 text-xs mb-1"><span style="color:#a8a29e">${label}</span><b class="text-right">${Utils.fmtMoney(value)}</b></div>
+        <div class="h-2.5 rounded-full" style="background:rgba(255,255,255,.1)"><div class="h-2.5 rounded-full" style="width:${value / max * 100}%;background:${color}"></div></div>
       </div>`;
+    document.getElementById('kpi-financial').innerHTML = `
+      <div class="bento-card bento-ink col-span-2 row-span-2">
+        <div class="bento-label" style="color:#a8a29e">Margen neto</div>
+        <div class="text-2xl sm:text-4xl font-extrabold mt-1 break-words" style="color:${margin < 0 ? '#fb7185' : '#34d399'}">${Utils.fmtMoney(margin)}</div>
+        <div class="text-xs mb-5" style="color:#a8a29e">ingresos − costo calculado</div>
+        <div class="space-y-3.5">
+          ${bar('Presupuesto total', totalBudget, '#818cf8')}
+          ${bar('Ingresos totales', totalRevenue, '#34d399')}
+          ${bar('Costo total (calculado)', totalCost, '#fbbf24')}
+        </div>
+      </div>
+      <div class="bento-card">
+        <div class="bento-label">ROI global</div>
+        <div class="text-3xl sm:text-4xl font-extrabold mt-2 ${globalROI === null ? 'text-slate-100' : globalROI >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${globalROI !== null ? Utils.fmtPercent(globalROI) : '—'}</div>
+        <div class="text-xs text-slate-400 mt-1">(Ingresos − Costo) / Costo</div>
+      </div>
+      <div class="bento-card">
+        <div class="bento-label">Presupuesto total</div>
+        <div class="text-lg xl:text-xl font-extrabold text-slate-100 mt-2 break-words">${Utils.fmtMoney(totalBudget)}</div>
+        <div class="text-xs text-slate-400 mt-1">suma de proyectos filtrados</div>
+      </div>
+      <div class="bento-card">
+        <div class="bento-label">Ingresos totales</div>
+        <div class="text-lg xl:text-xl font-extrabold text-emerald-400 mt-2 break-words">${Utils.fmtMoney(totalRevenue)}</div>
+        <div class="text-xs text-slate-400 mt-1">suma de proyectos filtrados</div>
+      </div>
+      <div class="bento-card">
+        <div class="bento-label">Costo total (calculado)</div>
+        <div class="text-lg xl:text-xl font-extrabold mt-2 break-words ${totalCost > totalBudget ? 'text-rose-400' : 'text-amber-400'}">${Utils.fmtMoney(totalCost)}</div>
+        <div class="text-xs text-slate-400 mt-1">horas × tarifa promedio</div>
+      </div>`;
+  }
+
+  // Filtro de tipo con chips: escribe en el <select id="filter-type"> oculto, que sigue
+  // siendo la fuente que leen applyFilters() y clearFilters().
+  function setTypeFilter(value) {
+    document.getElementById('filter-type').value = value;
+    applyFilters();
+  }
+
+  function syncTypeChips() {
+    const value = document.getElementById('filter-type').value;
+    document.querySelectorAll('#type-chips [data-type]').forEach(b => b.classList.toggle('is-on', b.dataset.type === value));
+  }
+
+  // Vista de proyectos: 'cards' | 'table' (se recuerda por navegador). El CM solo ve tarjetas.
+  function setProjectsView(view) {
+    if (_cmDashboardMode) view = 'cards';
+    try { localStorage.setItem('ideaz_dash_projects_view', view); } catch (e) {}
+    document.getElementById('section-project-cards').style.display = view === 'cards' ? '' : 'none';
+    document.getElementById('section-projects-table').style.display = view === 'table' ? '' : 'none';
+    document.querySelectorAll('#projects-view-toggle [data-view]').forEach(b => b.classList.toggle('is-on', b.dataset.view === view));
   }
 
   function renderDashboard(data) {
@@ -650,7 +709,7 @@
         ...chartCfg,
         indexAxis: 'y',
         scales: {
-          x: { min: 0, max: 100, grid: { color: '#2d2d4e' }, ticks: { callback: v => v + '%' } },
+          x: { min: 0, max: 100, grid: { color: CHART_GRID }, ticks: { callback: v => v + '%' } },
           y: { grid: { display: false } }
         },
         plugins: {
@@ -674,10 +733,10 @@
       },
       options: {
         ...chartCfg,
-        plugins: { legend: { display: true, labels: { color: '#94a3b8', boxWidth: 12 } } },
+        plugins: { legend: { display: true, labels: { color: Chart.defaults.color, boxWidth: 12 } } },
         scales: {
           x: { grid: { display: false } },
-          y: { grid: { color: '#2d2d4e' } }
+          y: { grid: { color: CHART_GRID } }
         }
       }
     });
@@ -700,7 +759,7 @@
         ...chartCfg,
         scales: {
           x: { grid: { display: false } },
-          y: { grid: { color: '#2d2d4e' }, ticks: { callback: v => v + '%' } }
+          y: { grid: { color: CHART_GRID }, ticks: { callback: v => v + '%' } }
         },
         plugins: {
           legend: { display: false },
@@ -720,7 +779,7 @@
         datasets: [{
           data: [totalDone, totalOpen],
           backgroundColor: ['rgba(16,185,129,0.8)', 'rgba(99,102,241,0.8)'],
-          borderColor: '#0f0f1a',
+          borderColor: CHART_SURFACE,
           borderWidth: 3,
           hoverOffset: 6
         }]
@@ -729,7 +788,7 @@
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { display: true, position: 'bottom', labels: { color: '#94a3b8', boxWidth: 12 } }
+          legend: { display: true, position: 'bottom', labels: { color: Chart.defaults.color, boxWidth: 12 } }
         }
       }
     });
@@ -758,7 +817,7 @@
             ${p.displayName !== p.name ? `<div class="text-xs text-slate-400" style="margin-top:1px">${p.name}</div>` : ''}
             <div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;align-items:center">
               ${p.category ? (() => { const c = Utils.categoryColor(p.category); return `<span style="padding:1px 7px;border-radius:999px;font-size:0.65rem;font-weight:600;background:${c}22;color:${c};border:1px solid ${c}44">${p.category}</span>`; })() : ''}
-              ${p.type ? (() => { const c = Utils.typeColor(p.type); return `<span style="padding:1px 7px;border-radius:999px;font-size:0.65rem;font-weight:600;background:${c}22;color:${c};border:1px solid ${c}44">${Utils.typeLabel(p.type)}</span>`; })() : ''}
+              ${p.type ? (() => { const c = Utils.typeColor(p.type); return `<span style="padding:1px 7px;border-radius:999px;font-size:0.65rem;font-weight:600;background:${c}22;color:${c};border:1px solid ${c}44">${Icons.svg(p.type === 'retencion' ? 'repeat' : 'package', 'w-3 h-3 inline -mt-px')} ${p.type === 'retencion' ? 'Retención' : 'Único'}</span>`; })() : ''}
               ${p.workspace ? `<span class="text-xs text-slate-400">${p.workspace}</span>` : ''}
             </div>
           </td>
@@ -776,7 +835,7 @@
           <td class="px-4 py-3 text-sm text-slate-300">${p.totalHours > 0 ? Utils.fmtHours(p.totalHours) : '<span class="text-slate-500">—</span>'}</td>
           <td class="px-4 py-3 text-sm">
             ${p.totalRevisions > 0
-              ? `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30" title="Veces que regresó a 'Cambios del Cliente'">🔄 ${p.totalRevisions}</span>`
+              ? `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30 gap-1" title="Veces que regresó a 'Cambios del Cliente'">${Icons.svg('refresh', 'w-3 h-3')}${p.totalRevisions}</span>`
               : '<span class="text-slate-500">0</span>'}
           </td>
           <td class="px-4 py-3 text-sm text-slate-400">${p.avgCycleTime > 0 ? Utils.fmtHours(p.avgCycleTime) : '—'}</td>
@@ -916,6 +975,7 @@
       info.style.display = 'none';
     }
 
+    syncTypeChips();
     _currentFilteredProjects = filtered;
     const members = computeMemberStats(filtered);
     renderKPIGlobal(filtered, members);
@@ -1215,7 +1275,7 @@
             </div>
           </td>
           <td class="px-4 py-3 text-sm text-slate-300">${m.hours > 0 ? Utils.fmtHours(m.hours) : '<span class="text-slate-500">—</span>'}</td>
-          <td class="px-4 py-3 text-sm">${m.revisions > 0 ? `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30">🔄 ${m.revisions}</span>` : '<span class="text-slate-500">0</span>'}</td>${salaryCostCells}
+          <td class="px-4 py-3 text-sm">${m.revisions > 0 ? `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30 gap-1">${Icons.svg('refresh', 'w-3 h-3')}${m.revisions}</span>` : '<span class="text-slate-500">0</span>'}</td>${salaryCostCells}
         </tr>`;
     }).join('');
     Utils.makeSortable(tbody.closest('table'));
@@ -1224,6 +1284,14 @@
   function renderProjectCards(projects, activePeriod = '') {
     const periodParam = activePeriod ? `&period=${activePeriod}` : '';
     const grid = document.getElementById('project-cards-grid');
+    const countEl = document.getElementById('projects-count');
+    if (countEl) countEl.textContent = dashboardData ? `${projects.length} de ${dashboardData.projects.length}` : projects.length;
+    if (!projects.length) {
+      grid.innerHTML = '<div class="bento-card text-sm text-slate-400 col-span-full">No hay proyectos con estos filtros.</div>';
+      return;
+    }
+    const pill = (text, color) => `<span class="bento-pill" style="background:${color}22;color:${color};border:1px solid ${color}44">${text}</span>`;
+    const stat = (label, value, cls = 'text-slate-100') => `<div class="min-w-0"><div class="text-slate-400">${label}</div><div class="font-bold truncate ${cls}">${value}</div></div>`;
     grid.innerHTML = projects.map(p => {
       const pColor = Utils.progressColor(p.progress);
       const progressBarColor = pColor === 'green' ? 'bg-emerald-500' : pColor === 'yellow' ? 'bg-amber-500' : 'bg-red-500';
@@ -1233,38 +1301,45 @@
           ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
           : 'bg-red-500/20 text-red-400 border-red-500/30')
         : 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30';
+      const typePill = p.type
+        ? pill(`${Icons.svg(p.type === 'retencion' ? 'repeat' : 'package', 'w-3 h-3')}${p.type === 'retencion' ? 'Retención' : 'Único'}`, Utils.typeColor(p.type))
+        : '';
       const memberAvatars = p.members.slice(0, 5).map(m =>
-        `<div class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white" style="background:${Utils.avatarColor(m.id)}" title="${m.fullName}">${Utils.initials(m.fullName)}</div>`
+        `<div class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white border-2" style="background:${Utils.avatarColor(m.id)};border-color:var(--s1)" title="${m.fullName}">${Utils.initials(m.fullName)}</div>`
       ).join('');
       return `
-        <a href="proyecto.html?id=${p.id}${periodParam}" class="bg-slate-900 border border-slate-700 rounded-2xl p-4 sm:p-5 block cursor-pointer transition-all hover:border-indigo-500 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-500/10 text-inherit no-underline" style="text-decoration:none;color:inherit">
-          <div class="flex justify-between items-center mb-1">
-            <div class="font-semibold text-slate-100 truncate max-w-[200px]">${p.displayName}</div>
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${roiBadge}">ROI ${roiText}</span>
-          </div>
-          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:5px">
-            ${p.category ? (() => { const c = Utils.categoryColor(p.category); return `<span style="padding:1px 8px;border-radius:999px;font-size:0.65rem;font-weight:600;background:${c}22;color:${c};border:1px solid ${c}44">${p.category}</span>`; })() : ''}
-            ${p.type ? (() => { const c = Utils.typeColor(p.type); return `<span style="padding:1px 8px;border-radius:999px;font-size:0.65rem;font-weight:600;background:${c}22;color:${c};border:1px solid ${c}44">${Utils.typeLabel(p.type)}</span>`; })() : ''}
-          </div>
-          ${p.displayName !== p.name ? `<div class="text-xs text-slate-400 mb-1 -mt-0.5">${p.name}</div>` : ''}
-          <div class="flex justify-between text-xs text-slate-400 mb-2">
-            <span>${p.totalCards} tarjetas</span>
-            <span>${Utils.timeSince(p.lastActivity)}</span>
-          </div>
-          <div class="w-full bg-slate-700 rounded-full h-1.5 mb-2">
-            <div class="h-1.5 rounded-full ${progressBarColor}" style="width:${p.progress}%"></div>
-          </div>
-          <div class="flex justify-between items-center">
-            <div class="flex items-center gap-1 text-xs text-slate-400">
-              <span>${p.progress}% completado</span>
+        <a href="proyecto.html?id=${p.id}${periodParam}" class="bento-card block" style="text-decoration:none;color:inherit">
+          <div class="flex justify-between items-start gap-2">
+            <div class="min-w-0">
+              <div class="font-bold text-slate-100 truncate" title="${p.displayName}">${p.displayName}</div>
+              ${p.displayName !== p.name ? `<div class="text-xs text-slate-400 truncate">${p.name}</div>` : ''}
             </div>
-            <div class="avatar-stack">${memberAvatars}</div>
+            <span class="inline-flex items-center flex-shrink-0 px-2.5 py-0.5 rounded-full text-xs font-bold border ${roiBadge}">ROI ${roiText}</span>
+          </div>
+          <div class="flex flex-wrap items-center gap-1.5 mt-2">
+            ${p.category ? pill(p.category, Utils.categoryColor(p.category)) : ''}
+            ${typePill}
+            ${p.workspace ? `<span class="text-[11px] text-slate-400">${p.workspace}</span>` : ''}
+          </div>
+          <div class="flex justify-between text-xs mt-4 mb-1">
+            <span class="text-slate-400">${p.completedCards}/${p.totalCards} tarjetas</span>
+            <b class="text-slate-100">${p.progress}%</b>
+          </div>
+          <div class="bento-track"><div class="${progressBarColor}" style="width:${p.progress}%"></div></div>
+          <div class="grid grid-cols-3 gap-2 mt-4 text-xs">
+            ${stat('Horas', p.totalHours > 0 ? Utils.fmtHours(p.totalHours) : '—')}
+            ${stat('Revisiones', p.totalRevisions, p.totalRevisions > 0 ? 'text-rose-400' : 'text-slate-100')}
+            ${stat('T. ciclo', p.avgCycleTime > 0 ? Utils.fmtHours(p.avgCycleTime) : '—')}
           </div>
           ${p.revenue > 0 ? `
-          <div class="border-t border-slate-700 mt-3 pt-3 flex justify-between text-xs">
-            <span class="text-slate-400">Ingresos: <strong class="text-emerald-400">${Utils.fmtMoney(p.revenue, p.currency)}</strong></span>
-            <span class="text-slate-400">Ppto: <strong class="text-slate-200">${Utils.fmtMoney(p.budget, p.currency)}</strong></span>
+          <div class="grid grid-cols-2 gap-2 mt-3 text-xs">
+            ${stat('Ingresos', Utils.fmtMoney(p.revenue, p.currency), 'text-emerald-400')}
+            ${stat('Presupuesto', Utils.fmtMoney(p.budget, p.currency))}
           </div>` : ''}
+          <div class="flex justify-between items-center mt-4 pt-3 border-t border-slate-700 text-xs">
+            <span class="text-slate-400">${Utils.timeSince(p.lastActivity)}</span>
+            <div class="flex -space-x-1.5">${memberAvatars}</div>
+          </div>
         </a>`;
     }).join('');
   }
@@ -1510,7 +1585,7 @@
           <div class="flex items-center gap-2 flex-shrink-0">
             <span class="text-xs font-bold text-indigo-400">${Utils.fmtHours(hours)}</span>
             <span class="px-1.5 py-0.5 rounded text-xs" style="color:${sColor};background:${sColor}22">${sLabel}</span>
-            ${timeline.revisions > 0 ? `<span class="text-red-400 text-xs">🔄${timeline.revisions}</span>` : ''}
+            ${timeline.revisions > 0 ? `<span class="text-red-400 text-xs inline-flex items-center gap-0.5">${Icons.svg('refresh', 'w-3 h-3')}${timeline.revisions}</span>` : ''}
           </div>
         </div>`;
       }).join('');
@@ -1575,27 +1650,27 @@
         <div class="text-xs text-slate-500 mt-1">por tarea completada · objetivo ≤ 8h</div>
       </div>
       <div class="bg-slate-800 rounded-xl p-4">
-        <div class="text-xs text-slate-400 mb-1">✅ Entregas a tiempo</div>
+        <div class="text-xs text-slate-400 mb-1">Entregas a tiempo</div>
         <div class="text-xl font-black ${onTimePct !== null ? cc(onTimePct,85,60) : 'text-slate-500'}">${onTimePct !== null ? onTimePct + '%' : '—'}</div>
         <div class="text-xs text-slate-500 mt-1">${doneOnTime} de ${done.length} en fecha · objetivo ≥ 85%</div>
       </div>
       <div class="bg-slate-800 rounded-xl p-4">
-        <div class="text-xs text-slate-400 mb-1">🔄 Revisiones / tarea</div>
+        <div class="text-xs text-slate-400 mb-1">Revisiones / tarea</div>
         <div class="text-xl font-black ${started.length ? cc(avgRevisions<=1?10:avgRevisions<=2?5:0,5,1) : 'text-slate-500'}">${started.length > 0 ? avgRevisions.toFixed(1) : '—'}</div>
         <div class="text-xs text-slate-500 mt-1">promedio de cambios · objetivo ≤ 1</div>
       </div>
       <div class="bg-slate-800 rounded-xl p-4">
-        <div class="text-xs text-slate-400 mb-1">🎯 Primera entrega OK</div>
+        <div class="text-xs text-slate-400 mb-1">Primera entrega OK</div>
         <div class="text-xl font-black ${firstEff !== null ? cc(firstEff,50,30) : 'text-slate-500'}">${firstEff !== null ? firstEff + '%' : '—'}</div>
         <div class="text-xs text-slate-500 mt-1">aprobadas sin cambios · objetivo ≥ 50%</div>
       </div>
       <div class="bg-slate-800 rounded-xl p-4">
-        <div class="text-xs text-slate-400 mb-1">⚡ Horas activas</div>
+        <div class="text-xs text-slate-400 mb-1">Horas activas</div>
         <div class="text-xl font-black text-indigo-400">${totalActiveHours > 0 ? Utils.fmtHours(totalActiveHours) : '—'}</div>
         <div class="text-xs text-slate-500 mt-1">tiempo real en "En Proceso"</div>
       </div>
       <div class="bg-slate-800 rounded-xl p-4">
-        <div class="text-xs text-slate-400 mb-1">📋 Tareas iniciadas</div>
+        <div class="text-xs text-slate-400 mb-1">Tareas iniciadas</div>
         <div class="text-xl font-black text-slate-100">${started.length} <span class="text-sm font-normal text-slate-400">/ ${_modalMemberCardData.length}</span></div>
         <div class="text-xs text-slate-500 mt-1">${done.length} completadas en el período</div>
       </div>`;
@@ -1668,7 +1743,7 @@
             <td class="px-3 py-2 max-w-xs"><a href="https://trello.com/c/${card.shortLink}" target="_blank" rel="noopener" class="text-xs text-slate-200 hover:text-indigo-400 transition-colors truncate block" title="${card.name.replace(/"/g,'&quot;')}">${card.name}</a></td>
             <td class="px-3 py-2"><span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium" style="color:${sColor};background:${sColor}22">${sLabel}</span></td>
             <td class="px-3 py-2 text-slate-300">${activeHours > 0 ? Utils.fmtHours(activeHours) : '—'}</td>
-            <td class="px-3 py-2">${revisionsInRange > 0 ? `<span class="text-red-400">🔄 ${revisionsInRange}</span>` : '<span class="text-slate-500">—</span>'}</td>
+            <td class="px-3 py-2">${revisionsInRange > 0 ? `<span class="text-red-400 inline-flex items-center gap-1">${Icons.svg('refresh', 'w-3 h-3')}${revisionsInRange}</span>` : '<span class="text-slate-500">—</span>'}</td>
             <td class="px-3 py-2 text-slate-400">${dueStr}</td>
             <td class="px-3 py-2">${isDoneInRange ? `<span class="${isOT?'text-emerald-400':'text-red-400'}">${isOT?'✓ ':'⚠ '}${endStr}</span>` : (timeline.isStarted ? '<span class="text-indigo-400">En curso</span>' : '<span class="text-slate-500">Pendiente</span>')}</td>
           </tr>`;
@@ -1730,6 +1805,12 @@
     }
 
     Sidebar.init('dashboard', { onRefresh: () => loadDashboard(true) });
+    if (_cmDashboardMode) document.getElementById('projects-view-toggle').style.display = 'none';
+    let _savedView = 'cards';
+    try { _savedView = localStorage.getItem('ideaz_dash_projects_view') || 'cards'; } catch (e) {}
+    setProjectsView(_savedView);
+    const _today = new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' });
+    document.getElementById('dash-date').textContent = _today.charAt(0).toUpperCase() + _today.slice(1);
     loadDashboard();
     Alarm.init();
   });
