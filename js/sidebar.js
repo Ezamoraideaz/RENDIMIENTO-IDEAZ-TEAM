@@ -140,7 +140,7 @@ const Sidebar = (() => {
   // funcionando). Al volver al menú lateral completo, regresa a su lugar.
   const PAGE_PANELS = {
     // Agenda bloqueada (diseñadores): "Mi actividad" — lo pinta js/agenda.js
-    agenda: [{ id: 'sidebar-locked-tasks', title: 'Mi actividad', icon: 'list', after: '#state-agenda main > :first-child' }],
+    agenda: [{ id: 'sidebar-locked-tasks', title: 'Mi actividad', icon: 'list', after: '#cal-container' }], // debajo del calendario
   };
   const _ppPlaceholders = {};
 
