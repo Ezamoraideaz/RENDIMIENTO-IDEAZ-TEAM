@@ -13,6 +13,7 @@ if (!file_exists($config)) {
     exit;
 }
 require_once $config;
+require_once __DIR__ . '/../backend/includes/google_ads_auth.php';
 
 // Versión de la Graph API de Meta, sobreescribible desde api/config.php
 if (!defined('META_GRAPH_VERSION')) {
@@ -66,6 +67,12 @@ switch ($platform) {
     case 'google_detail':
         $result = getGoogleCampaignDetail($account_id, $date_from, $date_to, $debug);
         break;
+    case 'meta_status':   // estado de la cuenta: pago pendiente, límite de gasto, deshabilitada…
+        $result = getMetaAccountStatus($account_id, $debug);
+        break;
+    case 'google_status':
+        $result = getGoogleAccountStatus($account_id, $debug);
+        break;
     default:
         http_response_code(400);
         echo json_encode(['error' => "Plataforma no soportada: {$platform}"]);
@@ -80,30 +87,10 @@ echo $json;
 
 // ─── GOOGLE ADS ──────────────────────────────────────────────────────────────
 
+// El refresh token sale de la BD (botón "Conectar Google Ads" de Pauta) o, si no hay, de
+// GOOGLE_REFRESH_TOKEN en este config.php. Ver backend/includes/google_ads_auth.php.
 function getGoogleAccessToken(): array {
-    if (!defined('GOOGLE_CLIENT_ID') || !defined('GOOGLE_CLIENT_SECRET') || !defined('GOOGLE_REFRESH_TOKEN')) {
-        return ['error' => 'Credenciales de Google Ads no configuradas en config.php'];
-    }
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL            => 'https://oauth2.googleapis.com/token',
-        CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => http_build_query([
-            'client_id'     => GOOGLE_CLIENT_ID,
-            'client_secret' => GOOGLE_CLIENT_SECRET,
-            'refresh_token' => GOOGLE_REFRESH_TOKEN,
-            'grant_type'    => 'refresh_token',
-        ]),
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 10,
-    ]);
-    $response = curl_exec($ch);
-    $curl_err = curl_error($ch);
-    curl_close($ch);
-    if ($curl_err) return ['error' => "cURL error obteniendo token: {$curl_err}"];
-    $data = json_decode($response, true);
-    if (isset($data['error'])) return ['error' => "OAuth error: {$data['error_description']}"];
-    return $data;
+    return google_ads_access_token();
 }
 
 function getGoogleSpend(string $customer_id, string $date_from, string $date_to, bool $debug = false): array {
@@ -113,7 +100,7 @@ function getGoogleSpend(string $customer_id, string $date_from, string $date_to,
 
     $token = getGoogleAccessToken();
     if (isset($token['error'])) {
-        return ['error' => $token['error'], 'platform' => 'google'];
+        return ['error' => $token['error'], 'platform' => 'google', 'reauth' => !empty($token['reauth'])];
     }
 
     // Customer ID sin guiones para la URL
@@ -424,7 +411,7 @@ function getGoogleCampaignDetail(string $customer_id, string $date_from, string 
     }
 
     $token = getGoogleAccessToken();
-    if (isset($token['error'])) return ['error' => $token['error'], 'platform' => 'google'];
+    if (isset($token['error'])) return ['error' => $token['error'], 'platform' => 'google', 'reauth' => !empty($token['reauth'])];
 
     $cid = preg_replace('/[^0-9]/', '', $customer_id);
     $mcc = preg_replace('/[^0-9]/', '', GOOGLE_MCC_ID);
@@ -518,5 +505,217 @@ function getGoogleCampaignDetail(string $customer_id, string $date_from, string 
         'date_from'   => $date_from,
         'date_to'     => $date_to,
         '_api_version' => $used_ver,
+    ];
+}
+
+// ─── ESTADO DE CUENTA (pausas por pago / presupuesto) ────────────────────────
+// Respuesta normalizada para Pauta:
+//   state: ok | warn | review | budget | payment | disabled
+//   reason: explicación en español · billing_url: dónde resolverlo
+
+function metaGraphGet(string $url, string $token): array {
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL            => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_TIMEOUT        => 15,
+        CURLOPT_HTTPHEADER     => ['Authorization: Bearer ' . $token],
+    ]);
+    $response = curl_exec($ch);
+    $curl_err = curl_error($ch);
+    curl_close($ch);
+    if ($curl_err) return ['error' => ['message' => "cURL error: {$curl_err}"]];
+    $data = json_decode((string)$response, true);
+    return is_array($data) ? $data : ['error' => ['message' => 'Respuesta no válida de Meta']];
+}
+
+function getMetaAccountStatus(string $account_id, bool $debug = false): array {
+    if (!defined('META_ACCESS_TOKEN') || META_ACCESS_TOKEN === 'YOUR_META_SYSTEM_USER_TOKEN_HERE') {
+        return ['error' => 'Meta Access Token no configurado en config.php', 'platform' => 'meta'];
+    }
+    // funding_source_details puede no estar permitido para el token: si falla, se reintenta sin él
+    $fieldSets = [
+        'name,account_status,disable_reason,spend_cap,amount_spent,currency,is_prepay_account,funding_source_details',
+        'name,account_status,disable_reason,spend_cap,amount_spent,currency,is_prepay_account',
+    ];
+    $d = null;
+    foreach ($fieldSets as $fields) {
+        $url = sprintf('https://graph.facebook.com/%s/%s?fields=%s', META_GRAPH_VERSION, urlencode($account_id), urlencode($fields));
+        $d = metaGraphGet($url, META_ACCESS_TOKEN);
+        if (!isset($d['error'])) break;
+    }
+    if ($debug) return ['debug' => true, 'raw' => $d];
+    if (isset($d['error'])) {
+        return ['error' => $d['error']['message'] ?? 'Error desconocido de Meta API', 'platform' => 'meta'];
+    }
+
+    $status  = (int)($d['account_status'] ?? 0);
+    $disable = (int)($d['disable_reason'] ?? 0);
+    $cap     = (float)($d['spend_cap'] ?? 0);     // 0 = sin límite de gasto de cuenta
+    $spent   = (float)($d['amount_spent'] ?? 0);  // misma unidad que spend_cap
+    $funding = $d['funding_source_details']['display_string'] ?? null;
+    $prepaid = !empty($d['is_prepay_account']);
+
+    $DISABLE_REASONS = [
+        1 => 'incumplimiento de políticas de anuncios', 2 => 'revisión de propiedad intelectual', 3 => 'problema con el método de pago',
+        4 => 'cuenta cerrada por Meta', 5 => 'revisión de la cuenta', 6 => 'integridad del negocio',
+        7 => 'cierre permanente', 8 => 'cuenta de revendedor sin uso', 9 => 'cuenta sin uso',
+    ];
+
+    $state = 'ok';
+    $reason = '';
+    switch ($status) {
+        case 3: // UNSETTLED
+        case 8: // PENDING_SETTLEMENT
+            $state  = 'payment';
+            $reason = 'Pago pendiente: la cuenta tiene un saldo sin pagar y los anuncios pueden estar detenidos.';
+            break;
+        case 9: // IN_GRACE_PERIOD
+            $state  = 'payment';
+            $reason = 'El cobro falló: la cuenta está en período de gracia y los anuncios se detendrán si no se paga.';
+            break;
+        case 2: // DISABLED
+            $state  = $disable === 3 ? 'payment' : 'disabled';
+            $reason = 'Cuenta publicitaria deshabilitada por Meta' . (isset($DISABLE_REASONS[$disable]) ? ': ' . $DISABLE_REASONS[$disable] : '') . '.';
+            break;
+        case 7: // PENDING_RISK_REVIEW
+            $state  = 'review';
+            $reason = 'Meta tiene la cuenta en revisión de riesgo; los anuncios pueden no publicarse.';
+            break;
+        case 100: // PENDING_CLOSURE
+        case 101: // CLOSED
+            $state  = 'disabled';
+            $reason = 'La cuenta publicitaria está cerrada o en proceso de cierre.';
+            break;
+    }
+
+    // Prepago con saldo en cero (solo si Meta muestra el saldo y es exactamente 0)
+    if ($state === 'ok' && $prepaid && $funding && preg_match('/[\d][\d.,]*/', $funding, $m) && (int)preg_replace('/\D/', '', $m[0]) === 0) {
+        $state  = 'payment';
+        $reason = 'El saldo prepago de la cuenta se agotó: hay que recargar para que los anuncios sigan.';
+    }
+
+    $capPct = $cap > 0 ? round($spent / $cap * 100, 1) : null;
+    if ($state === 'ok' && $cap > 0) {
+        if ($spent >= $cap) {
+            $state  = 'budget';
+            $reason = 'Se alcanzó el límite de gasto de la cuenta: los anuncios están detenidos hasta subirlo o reiniciarlo.';
+        } elseif ($capPct >= 90) {
+            $state  = 'warn';
+            $reason = "La cuenta va en {$capPct}% de su límite de gasto: pronto se detendrán los anuncios.";
+        }
+    }
+
+    $numericId = preg_replace('/\D/', '', $account_id);
+    return [
+        'platform'      => 'meta',
+        'account_id'    => $account_id,
+        'account_name'  => $d['name'] ?? null,
+        'state'         => $state,
+        'reason'        => $reason,
+        'prepaid'       => $prepaid,
+        'funding'       => $funding,
+        'spend_cap_pct' => $capPct,
+        'billing_url'   => "https://business.facebook.com/billing_hub/accounts/details?asset_id={$numericId}",
+    ];
+}
+
+// Una consulta GAQL contra Google Ads, probando versiones de la API como getGoogleSpend()
+function googleAdsSearch(string $cid, string $query, string $accessToken): array {
+    $mcc = preg_replace('/[^0-9]/', '', GOOGLE_MCC_ID);
+    foreach (['v22', 'v21'] as $ver) {
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL            => "https://googleads.googleapis.com/{$ver}/customers/{$cid}/googleAds:search",
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => json_encode(['query' => $query]),
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 15,
+            CURLOPT_HTTPHEADER     => [
+                'Authorization: Bearer ' . $accessToken,
+                'developer-token: '      . GOOGLE_DEVELOPER_TOKEN,
+                'login-customer-id: '    . $mcc,
+                'Content-Type: application/json',
+            ],
+        ]);
+        $response  = curl_exec($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curl_err  = curl_error($ch);
+        curl_close($ch);
+        if ($curl_err) return ['error' => "cURL error: {$curl_err}"];
+        $data   = json_decode((string)$response, true);
+        $reqErr = $data['error']['details'][0]['errors'][0]['errorCode']['requestError'] ?? '';
+        if ($http_code === 404 || $reqErr === 'UNSUPPORTED_VERSION') continue;
+        if (isset($data['error'])) {
+            return ['error' => $data['error']['message'] ?? ($data['error']['details'][0]['errors'][0]['message'] ?? 'Error de Google Ads API')];
+        }
+        return ['results' => $data['results'] ?? []];
+    }
+    return ['error' => 'Ninguna versión de Google Ads API respondió'];
+}
+
+function getGoogleAccountStatus(string $customer_id, bool $debug = false): array {
+    if (!defined('GOOGLE_DEVELOPER_TOKEN') || !defined('GOOGLE_MCC_ID')) {
+        return ['error' => 'GOOGLE_DEVELOPER_TOKEN o GOOGLE_MCC_ID no configurados en config.php', 'platform' => 'google'];
+    }
+    $token = getGoogleAccessToken();
+    if (isset($token['error'])) return ['error' => $token['error'], 'platform' => 'google', 'reauth' => !empty($token['reauth'])];
+
+    $cid = preg_replace('/[^0-9]/', '', $customer_id);
+    $cust = googleAdsSearch($cid, 'SELECT customer.status, customer.descriptive_name FROM customer LIMIT 1', $token['access_token']);
+    if (isset($cust['error'])) return ['error' => $cust['error'], 'platform' => 'google'];
+
+    // Presupuesto de cuenta (solo existe con facturación mensual / orden de compra)
+    $budget = googleAdsSearch($cid,
+        "SELECT account_budget.status, account_budget.approved_spending_limit_micros, account_budget.approved_spending_limit_type,
+                account_budget.amount_served_micros, account_budget.approved_end_date_time
+         FROM account_budget WHERE account_budget.status = 'APPROVED'", $token['access_token']);
+
+    if ($debug) return ['debug' => true, 'customer' => $cust, 'account_budget' => $budget];
+
+    $c      = $cust['results'][0]['customer'] ?? [];
+    $status = $c['status'] ?? 'UNKNOWN';
+    $state  = 'ok';
+    $reason = '';
+    if ($status === 'SUSPENDED') {
+        $state  = 'disabled';
+        $reason = 'Google suspendió la cuenta: revisa la facturación o las políticas en Google Ads.';
+    } elseif (in_array($status, ['CANCELED', 'CLOSED'], true)) {
+        $state  = 'disabled';
+        $reason = 'La cuenta de Google Ads está cancelada o cerrada.';
+    }
+
+    $budgetPct = null;
+    if ($state === 'ok' && empty($budget['error'])) {
+        $now = time();
+        foreach ($budget['results'] as $row) {
+            $b   = $row['accountBudget'] ?? [];
+            $end = $b['approvedEndDateTime'] ?? null;
+            if ($end && strtotime($end) !== false && strtotime($end) < $now) continue;      // ya terminó
+            if (($b['approvedSpendingLimitType'] ?? '') === 'INFINITE') continue;           // sin tope
+            $limit  = (float)($b['approvedSpendingLimitMicros'] ?? 0);
+            $served = (float)($b['amountServedMicros'] ?? 0);
+            if ($limit <= 0) continue;
+            $budgetPct = round($served / $limit * 100, 1);
+            if ($served >= $limit) {
+                $state  = 'budget';
+                $reason = 'Se agotó el presupuesto de la cuenta (facturación mensual): los anuncios están detenidos.';
+            } elseif ($budgetPct >= 90) {
+                $state  = 'warn';
+                $reason = "La cuenta va en {$budgetPct}% de su presupuesto de cuenta.";
+            }
+            break;
+        }
+    }
+
+    return [
+        'platform'     => 'google',
+        'account_id'   => $customer_id,
+        'account_name' => $c['descriptiveName'] ?? null,
+        'state'        => $state,
+        'reason'       => $reason,
+        'budget_pct'   => $budgetPct,
+        'billing_url'  => 'https://ads.google.com/aw/billing/summary',
     ];
 }

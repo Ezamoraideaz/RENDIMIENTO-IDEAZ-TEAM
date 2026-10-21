@@ -96,8 +96,20 @@
         <span id="f-now-dot" class="w-2 h-2 rounded-full bg-slate-600 flex-shrink-0"></span>
         Solo activos ahora
       </button>
+      <!-- Marcas con la pauta detenida o en riesgo por pago / presupuesto -->
+      <button id="f-pay-label"
+        onclick="PautaMonitor.toggleFilter('pay')"
+        class="ui-chip border-slate-700 text-slate-400 select-none">
+        <span id="f-pay-dot" class="w-2 h-2 rounded-full bg-slate-600 flex-shrink-0"></span>
+        Requieren atención <span id="f-pay-count" class="bento-pill bg-red-500/15 text-red-400" style="display:none"></span>
+      </button>
       <span id="pauta-count" class="ml-auto text-xs text-slate-500"></span>
+      <!-- Conexión con Google Ads (la llena pauta.js) -->
+      <a id="g-ads-btn" href="backend/oauth/google_ads_connect.php" class="ui-chip" style="display:none;text-decoration:none"></a>
     </div>
+
+    <!-- Avisos (resultado de "Conectar Google Ads") -->
+    <div id="pauta-notice" style="display:none" class="mb-5"></div>
 
     <!-- Cards grid -->
     <div id="pauta-cards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"></div>
@@ -108,7 +120,7 @@
 <script src="js/session.js"></script>
 <script src="js/storage.js?v=20260630"></script>
 <script src="js/sidebar.js?v=20261026"></script>
-<script src="js/pauta.js?v=20261021"></script>
+<script src="js/pauta.js?v=20261028"></script>
 <script src="js/alarm.js?v=20260630"></script>
 <script>
   Session.ready.then(() => {
