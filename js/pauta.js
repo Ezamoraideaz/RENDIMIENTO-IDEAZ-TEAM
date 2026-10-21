@@ -12,7 +12,8 @@ const PautaMonitor = (() => {
   let _spend    = {};   // { 'clientId:platform:accountId': { total_spend, daily_data, currency, error } }
   let _loading  = false;
   let _simState = null; // estado del simulador de presupuesto
-  const _filters = { period: false, now: false };
+  const _filters = { period: false, now: false, pay: false };
+  let _status = {};   // { 'platform:accountId': { state, reason, billing_url, ... } } — estado de la cuenta publicitaria
 
   // ── Storage (BD compartida — backend/api/pauta_clients.php + pauta_leads.php) ──
   // Antes vivía en localStorage: cada usuario veía su propia lista de clientes.
@@ -216,6 +217,9 @@ const PautaMonitor = (() => {
         const accountId = _accountIdOf(plat);
         if (!accountId) continue;
         calls.push(_fetchSpend(plat.platform, accountId, from, to, fresh));
+        if (plat.platform === 'meta' || plat.platform === 'google') {
+          _splitIds(accountId).forEach(id => calls.push(_fetchStatus(plat.platform, id, fresh)));
+        }
       }
     }
 
@@ -371,6 +375,125 @@ const PautaMonitor = (() => {
     render();
   }
 
+  // ── Marcas que requieren atención (pausa por pago / presupuesto) ─────────
+  // Fuentes: el estado de la cuenta publicitaria que informa Meta / Google (api/spend.php
+  // ?platform=meta_status|google_status) y, para cualquier plataforma, una regla: si hubo
+  // gasto en el período y los 2 últimos días quedó en $0, es una posible pausa.
+
+  async function _fetchStatus(platform, id, fresh) {
+    const url = `${API_PATH}?platform=${encodeURIComponent(platform + '_status')}&account_id=${encodeURIComponent(id)}${fresh ? '&fresh=1' : ''}`;
+    try {
+      const res = await fetch(url);
+      _status[`${platform}:${id}`] = await res.json();
+    } catch (e) {
+      _status[`${platform}:${id}`] = { error: 'No se pudo consultar el estado de la cuenta' };
+    }
+  }
+
+  const _ATTN_DANGER = new Set(['payment', 'budget', 'disabled']);
+
+  // Gasto en $0 los últimos 2 días completos (ayer y anteayer), solo si el rango llega a hoy
+  function _looksPaused(dailyArr, from, to) {
+    const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const today = new Date();
+    const y1 = new Date(today); y1.setDate(today.getDate() - 1);
+    const y2 = new Date(today); y2.setDate(today.getDate() - 2);
+    if (to < iso(y1) || from > iso(y2)) return false;            // el rango no cubre los últimos días
+    const byDate = Object.fromEntries((dailyArr || []).map(d => [d.date, Number(d.spend) || 0]));
+    const before = (dailyArr || []).some(d => d.date < iso(y2) && Number(d.spend) > 0);
+    return before && !(byDate[iso(y1)] > 0) && !(byDate[iso(y2)] > 0);
+  }
+
+  function _clientAttention(client) {
+    const { from, to } = _dateRange();
+    const out = [];
+    for (const plat of (client.platforms || [])) {
+      if (!plat.enabled) continue;
+      const accountId = _accountIdOf(plat);
+      if (!accountId) continue;
+      const meta = PLATFORMS.find(p => p.key === plat.platform) || { label: plat.platform };
+      let flagged = false;
+      for (const id of _splitIds(accountId)) {
+        const st = _status[`${plat.platform}:${id}`];
+        if (st && st.state && st.state !== 'ok') {
+          out.push({ level: _ATTN_DANGER.has(st.state) ? 'danger' : 'warn', label: meta.label, reason: st.reason, url: st.billing_url });
+          flagged = true;
+        }
+      }
+      if (flagged) continue;
+      const sp = _spend[_spendKey(plat.platform, accountId, from, to)];
+      if (sp && !sp.error && _looksPaused(sp.daily_data, from, to)) {
+        out.push({ level: 'warn', label: meta.label, reason: 'Sin gasto en los últimos 2 días: revisa si la pauta se detuvo por pago o presupuesto.' });
+      }
+    }
+    return out;
+  }
+
+  function _attentionHtml(client) {
+    const items = _clientAttention(client);
+    if (!items.length) return '';
+    const danger = items.some(i => i.level === 'danger');
+    const box = danger ? 'border-red-500/40 bg-red-500/10' : 'border-amber-500/40 bg-amber-500/10';
+    const title = danger ? 'text-red-400' : 'text-amber-400';
+    return `
+      <div class="rounded-xl border ${box} px-3 py-2.5">
+        <div class="flex items-center gap-1.5 text-xs font-bold ${title}">
+          ${Icons.svg('alert', 'w-3.5 h-3.5')}${danger ? 'Requiere atención — pago o presupuesto' : 'Revisar — posible pausa'}
+        </div>
+        <ul class="mt-1.5 space-y-1">
+          ${items.map(i => `
+            <li class="text-xs text-slate-300 leading-snug">
+              <strong class="${i.level === 'danger' ? 'text-red-400' : 'text-amber-400'}">${_esc(i.label)}:</strong> ${_esc(i.reason || '')}
+              ${i.url ? `<a href="${i.url}" target="_blank" rel="noopener" class="ml-1 font-semibold text-indigo-400 hover:text-indigo-300 whitespace-nowrap">Ir a facturación ↗</a>` : ''}
+            </li>`).join('')}
+        </ul>
+      </div>`;
+  }
+
+  function _renderPayCount() {
+    const el = document.getElementById('f-pay-count');
+    if (!el) return;
+    const n = _clients.filter(c => _clientAttention(c).length > 0).length;
+    el.textContent = n;
+    el.style.display = n ? '' : 'none';
+  }
+
+  // ── Conexión con Google Ads ───────────────────────────────────────────────
+  async function _loadGoogleAdsStatus() {
+    const btn = document.getElementById('g-ads-btn');
+    if (!btn) return;
+    try {
+      const st = await Session.apiFetch('api/google_ads_status.php?check=1');
+      const ok = st.connected && st.valid !== false;
+      btn.style.display = '';
+      btn.title = ok
+        ? 'Conexión con Google Ads activa' + (st.updated_at ? ` (conectada el ${st.updated_at})` : '')
+        : (st.error || 'Conecta la cuenta de Google Ads para ver el gasto');
+      btn.className = 'ui-chip' + (ok ? '' : ' ui-chip-primary');
+      btn.innerHTML = ok
+        ? `<span class="w-2 h-2 rounded-full bg-emerald-500"></span>Google Ads conectado`
+        : `${Icons.svg('link', 'w-4 h-4')}${st.connected ? 'Reconectar Google Ads' : 'Conectar Google Ads'}`;
+    } catch (e) {
+      btn.style.display = 'none'; // sin permisos o backend no disponible
+    }
+  }
+
+  // Resultado de volver de Google (?google_ads=ok|error&msg=...)
+  function _showGoogleAdsResult() {
+    const params = new URLSearchParams(location.search);
+    const result = params.get('google_ads');
+    if (!result) return;
+    const box = document.getElementById('pauta-notice');
+    if (box) {
+      const ok = result === 'ok';
+      box.style.display = '';
+      box.innerHTML = `<div class="rounded-xl border px-4 py-3 text-sm ${ok ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400' : 'border-red-500/40 bg-red-500/10 text-red-400'}">
+        ${ok ? 'Google Ads conectado. El gasto se vuelve a cargar con la nueva conexión.' : 'No se pudo conectar Google Ads: ' + _esc(params.get('msg') || 'error desconocido')}
+      </div>`;
+    }
+    history.replaceState(null, '', location.pathname); // no repetir el aviso al recargar
+  }
+
   function render() {
     const container = document.getElementById('pauta-cards');
     const countEl   = document.getElementById('pauta-count');
@@ -392,6 +515,11 @@ const PautaMonitor = (() => {
     let visible = _clients;
     if (_filters.period) visible = visible.filter(_clientHasSpendInPeriod);
     if (_filters.now)    visible = visible.filter(_clientIsActiveNow);
+    if (_filters.pay)    visible = visible.filter(c => _clientAttention(c).length > 0);
+    // Las marcas que requieren atención (pago/presupuesto) van primero
+    const rank = c => { const a = _clientAttention(c); return a.some(x => x.level === 'danger') ? 0 : a.length ? 1 : 2; };
+    visible = [...visible].sort((a, b) => rank(a) - rank(b));
+    _renderPayCount();
 
     if (countEl) {
       countEl.textContent = (_filters.period || _filters.now)
@@ -495,6 +623,8 @@ const PautaMonitor = (() => {
         </div>
       </div>
 
+      ${_attentionHtml(client)}
+
       ${currencyWarning}
 
       <!-- Global progress -->
@@ -537,6 +667,7 @@ const PautaMonitor = (() => {
       return `<div class="flex items-center gap-2 text-xs">
         <span>${meta.icon} ${meta.label}</span>
         <span class="text-red-400 border border-red-500/30 bg-red-500/10 rounded px-1.5 py-0.5">⚠ ${_esc(errMsg)}</span>
+        ${plat.platform === 'google' && /reconéctala|no está conectado/i.test(errMsg || '') ? `<a href="backend/oauth/google_ads_connect.php" class="font-semibold text-indigo-400 hover:text-indigo-300 whitespace-nowrap">Reconectar</a>` : ''}
       </div>`;
     }
 
@@ -1734,6 +1865,8 @@ const PautaMonitor = (() => {
   // ── Init ───────────────────────────────────────────────────────────────────
 
   async function init() {
+    _showGoogleAdsResult();
+    _loadGoogleAdsStatus();
     await _load();
     setThisMonth();
     loadData();

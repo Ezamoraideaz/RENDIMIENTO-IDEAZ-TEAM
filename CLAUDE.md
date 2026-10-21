@@ -55,6 +55,17 @@ Dashboard web de rendimiento del equipo IDEAZ, conectado a Trello via API REST.
 
 ---
 
+## Pauta — Google Ads y marcas que requieren atención
+
+- **Conexión con Google Ads:** botón "Conectar / Reconectar Google Ads" en `pauta.html` (solo superadmin/admin) → `backend/oauth/google_ads_connect.php` → `google_ads_callback.php`. El refresh token se guarda cifrado en `app_settings` (`google_ads_refresh_token`); si no hay, se usa `GOOGLE_REFRESH_TOKEN` de `api/config.php`. Lógica en `backend/includes/google_ads_auth.php` (también cachea el access token ~1 h). Estado: `backend/api/google_ads_status.php`.
+- **Por qué se vencía ("OAuth error: Bad Request" = `invalid_grant`):** la app de OAuth en Google Cloud estaba en modo "Prueba", y ahí Google vence los refresh tokens a los 7 días. Configuración única en Google Cloud:
+  1. Pantalla de consentimiento de OAuth → **Publicar app / "En producción"** (para uso propio no requiere verificación; al conectar aparece el aviso "app no verificada" → Avanzado → Continuar).
+  2. El cliente OAuth debe ser **Aplicación web** con la URI de redireccionamiento `https://marketingdigitalideaz.com/dashboard/backend/oauth/google_ads_callback.php`.
+  3. Pegar ese Client ID / Secret en `api/config.php` y pulsar "Conectar Google Ads" en Pauta.
+- **Marcas que requieren atención:** `api/spend.php?platform=meta_status|google_status` informa el estado de la cuenta publicitaria (pago pendiente / fallido, límite de gasto alcanzado, deshabilitada, suspendida, presupuesto de cuenta agotado). Pauta además marca "posible pausa" si hubo gasto y los 2 últimos días quedó en $0. Se muestra en cada tarjeta, con filtro "Requieren atención" y las marcas afectadas primero. Google no informa por API los cobros fallidos de tarjeta: en ese caso solo aplica la regla de los 2 días.
+
+---
+
 ## Revisión de piezas por Telegram (bot + Gemini + cronograma)
 
 Los diseñadores envían la pieza al grupo de Telegram de la marca con un texto `#5 - 18 REEL FEED`
