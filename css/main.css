@@ -135,6 +135,10 @@ html.light .bg-indigo-950 { background-color: #eef2ff !important; }
 ::-webkit-scrollbar-thumb { background: var(--s4); border-radius: 8px; }
 
 /* ── Componentes del front nuevo (reutilizables por cualquier módulo) ──── */
+/* Marca dentro de la barra superior: solo con el menú flotante en escritorio
+   (con el menú lateral, o en celular con la barra móvil, la marca ya está visible) */
+.ui-brand { display: none; }
+@media (min-width: 768px) { body.ideaz-dock .ui-brand { display: inline-flex; } }
 /* Barra de filtros fija arriba */
 .ui-toolbar { background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
 /* Chips / botones píldora — todos de la misma altura que los campos */
@@ -169,6 +173,25 @@ html:not(.light) .bento-ink { background:#05070d !important; border-color:var(--
 .bento-pill { display:inline-flex; align-items:center; gap:.3rem; border-radius:999px; padding:.15rem .6rem; font-size:.7rem; font-weight:800; white-space:nowrap; }
 .bento-track { height:.5rem; border-radius:999px; background:var(--s3); overflow:hidden; }
 .bento-track > div { height:100%; border-radius:999px; }
+
+/* ── Tablas ↔ tarjetas (js/sidebar.js agrega el selector y los data-label) ── */
+.tv-toggle { display:flex; justify-content:flex-end; gap:.35rem; margin:.5rem .5rem .6rem; }
+.tv-toggle button { display:inline-flex; align-items:center; gap:.35rem; height:1.9rem; padding:0 .75rem; border-radius:999px; border:1px solid var(--line); background:var(--s1); color:var(--mut); font-size:.72rem; font-weight:600; cursor:pointer; transition:border-color .15s, color .15s, background .15s; }
+.tv-toggle button:hover { border-color:#6366f1; color:var(--ink); }
+.tv-toggle button.is-on { background:var(--accent); border-color:var(--accent); color:#fff; }
+table.tv-cards { display:block; width:100%; }
+table.tv-cards thead { display:none; }
+table.tv-cards tbody, table.tv-cards tfoot { display:grid; grid-template-columns:repeat(auto-fill, minmax(270px, 1fr)); gap:1rem; padding:.25rem 0 .75rem; }
+table.tv-cards tr { display:flex; flex-direction:column; gap:.3rem; min-width:0; background:var(--s1); border:1px solid var(--line) !important; border-radius:1.25rem; padding:1rem 1.1rem; box-shadow:var(--shadow); }
+table.tv-cards tbody tr:hover { border-color:#6366f1 !important; }
+table.tv-cards td { display:flex; justify-content:space-between; align-items:center; gap:.75rem; padding:.2rem 0 !important; border:0 !important; text-align:right; white-space:normal !important; width:auto !important; min-width:0 !important; max-width:none !important; }
+table.tv-cards td::before { content:attr(data-label); flex-shrink:0; text-align:left; font-size:.66rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--mut); }
+table.tv-cards td:first-child { display:block; text-align:left; padding-bottom:.6rem !important; margin-bottom:.2rem; border-bottom:1px solid var(--line) !important; }
+table.tv-cards td:first-child::before, table.tv-cards td[data-label=""]::before, table.tv-cards td[colspan]::before { display:none; }
+table.tv-cards td[data-label=""] { justify-content:flex-end; }
+table.tv-cards td[colspan] { display:block; text-align:left; }
+table.tv-cards tr:has(> td[colspan]:only-child) { grid-column:1 / -1; }
+.tv-host-cards { border:0 !important; background:transparent !important; box-shadow:none !important; overflow:visible !important; }
 
 /* ── Reglas propias de módulos (se conservan) ───────────────────────────── */
 [x-cloak] { display: none !important; }

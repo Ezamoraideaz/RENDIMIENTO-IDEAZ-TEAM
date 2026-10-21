@@ -257,6 +257,90 @@ const Sidebar = (() => {
     document.addEventListener('scroll', () => show(null), true);
   }
 
+  // ── Tablas ↔ tarjetas ──────────────────────────────────────────────────
+  // Cada tabla del contenido principal recibe un selector "Tabla / Tarjetas". En modo
+  // tarjetas se transforman las MISMAS filas con CSS (table.tv-cards en main.css): cada
+  // fila es una tarjeta y cada celda muestra el nombre de su columna (data-label). Como no
+  // se re-renderiza nada, los clics, botones, inputs y modales de cada fila siguen igual.
+  // La elección se recuerda por tabla en este navegador.
+  // Para excluir una tabla: <table data-tv="off">. Quedan fuera las tablas anidadas y las
+  // de ventanas modales (.fixed).
+  const TV_KEY = 'ideaz_tv';
+  const TV_SKIP_PAGES = ['monitor']; // módulo de MCLuna: activarlo cuando se coordine
+
+  const _tvPrefs = () => { try { return JSON.parse(store.get(TV_KEY) || '{}'); } catch (e) { return {}; } };
+
+  function _tvLabel(table) {
+    const head = table.tHead && table.tHead.rows[table.tHead.rows.length - 1];
+    const labels = head ? [...head.cells].map((th) => th.textContent.replace(/[▲▼↑↓⇅⇵]/g, '').trim()) : [];
+    [...table.tBodies, ...(table.tFoot ? [table.tFoot] : [])].forEach((sec) => {
+      [...sec.rows].forEach((tr) => {
+        let col = 0;
+        [...tr.cells].forEach((td) => {
+          const label = labels[col] || '';
+          if (td.dataset.label !== label) td.dataset.label = label;
+          col += td.colSpan || 1;
+        });
+      });
+    });
+  }
+
+  function _tvEnhance(table, index) {
+    if (table.dataset.tv === 'off' || !table.tHead) return;
+    if (table.parentElement.closest('table') || table.closest('.fixed, [role="dialog"]')) return;
+    table.dataset.tvReady = '1';
+
+    const host = table.closest('.overflow-x-auto') || table;
+    const file = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
+    const anchor = table.id || (table.tBodies[0] && table.tBodies[0].id) || ((host.id || host.parentElement.id || '') + ':' + index);
+    const key = `${file}#${anchor}`;
+
+    // Si el módulo vuelve a pintar la tabla dentro del mismo contenedor, se reutiliza el selector
+    let bar = host.previousElementSibling;
+    if (!bar || !bar.classList.contains('tv-toggle')) {
+      bar = document.createElement('div');
+      bar.className = 'tv-toggle' + (host.classList.contains('hidden') ? ' hidden sm:flex' : '');
+      bar.innerHTML = `<button type="button" data-v="table">${icon('list', 'w-3.5 h-3.5')}Tabla</button>`
+        + `<button type="button" data-v="cards">${icon('grid', 'w-3.5 h-3.5')}Tarjetas</button>`;
+      host.parentNode.insertBefore(bar, host);
+    }
+    // La tarjeta de sección que envuelve solo a esta tabla también se aplana en modo tarjetas
+    // (si no, quedan tarjetas dentro de otra tarjeta)
+    const section = host.parentElement && host.parentElement.closest('.bento-card, .bg-slate-900.rounded-2xl');
+    const sectionOwnsOnlyThis = section && section.querySelectorAll('table').length === 1;
+    const apply = (view) => {
+      table.classList.toggle('tv-cards', view === 'cards');
+      host.classList.toggle('tv-host-cards', view === 'cards');
+      if (sectionOwnsOnlyThis) section.classList.toggle('tv-host-cards', view === 'cards');
+      bar.querySelectorAll('button').forEach((b) => b.classList.toggle('is-on', b.dataset.v === view));
+    };
+    bar.onclick = (e) => {
+      const b = e.target.closest('button[data-v]');
+      if (!b) return;
+      const prefs = _tvPrefs();
+      prefs[key] = b.dataset.v;
+      store.set(TV_KEY, JSON.stringify(prefs));
+      apply(b.dataset.v);
+    };
+    _tvLabel(table);
+    apply(_tvPrefs()[key] || 'table');
+  }
+
+  function _tvScan() {
+    const root = document.querySelector('main') || document.body;
+    root.querySelectorAll('table').forEach((t, i) => (t.dataset.tvReady ? _tvLabel(t) : _tvEnhance(t, i)));
+  }
+
+  function _initTableViews() {
+    if (window.Session && Session.currentPage && TV_SKIP_PAGES.includes(Session.currentPage())) return;
+    const root = document.querySelector('main') || document.body;
+    let timer;
+    // Los módulos pintan sus tablas después de cargar datos (y las repintan al filtrar)
+    new MutationObserver(() => { clearTimeout(timer); timer = setTimeout(_tvScan, 60); })
+      .observe(root, { childList: true, subtree: true });
+    _tvScan();
+  }
+
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (m) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
   const initials = (s) => String(s || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
@@ -353,6 +437,7 @@ const Sidebar = (() => {
     _applyTheme(_getTheme());
     _applyNavMode(_getNavMode());
     hydrate();
+    _initTableViews();
   }
 
   return { init, toggleTheme, toggleNavMode, icon, hydrate };

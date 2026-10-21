@@ -23,7 +23,7 @@
     }
   </script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-  <link rel="stylesheet" href="css/main.css?v=20261022">
+  <link rel="stylesheet" href="css/main.css?v=20261023">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="js/timeCalc.js"></script>
 </head>
@@ -86,22 +86,17 @@
   <div id="state-dashboard" style="display:none">
     <div class="p-4 sm:p-6 max-w-screen-2xl mx-auto">
 
-      <!-- Header -->
-      <div class="flex flex-wrap justify-between items-end gap-3 mb-4">
-        <div class="min-w-0">
-          <p class="text-sm text-slate-400" id="dash-date"></p>
-          <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-100">Dashboard de Rendimiento</h1>
-          <div class="text-xs text-slate-400 mt-1" id="user-greeting"></div>
-        </div>
-        <div class="flex gap-2 items-center">
-          <span id="boards-count-badge" class="ui-chip" style="cursor:default;color:#6366f1"></span>
-          <button class="ui-chip ui-chip-primary" onclick="loadDashboard(true)"><span data-icon="refresh"></span>Actualizar</button>
-        </div>
-      </div>
-
-      <!-- BARRA DE FILTROS (se muestra al cargar los datos; mismos IDs que usaba el sidebar) -->
-      <div id="sidebar-filters" style="display:none" class="ui-toolbar sticky top-[3.25rem] md:top-0 z-30 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3 mb-6">
+      <!-- BARRA SUPERIOR (como en el demo): marca, búsqueda, filtros, tema y actualizar.
+           Se muestra al cargar los datos; los filtros conservan los IDs que usaba el sidebar. -->
+      <div id="sidebar-filters" style="display:none" class="ui-toolbar sticky top-[3.25rem] md:top-0 z-30 -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 px-4 sm:px-6 py-3 mb-6">
         <div class="flex flex-wrap items-center gap-2">
+          <a href="index.html" class="ui-brand items-center gap-2 mr-2" style="text-decoration:none" title="Monitor Ideaz">
+            <div class="ideaz-logo">I</div>
+            <div class="leading-tight">
+              <div class="font-extrabold text-slate-100 text-sm">Monitor Ideaz</div>
+              <div class="text-[11px] text-slate-400">Dashboard</div>
+            </div>
+          </a>
           <label class="ui-field flex-1 min-w-[170px] max-w-[280px]">
             <span data-icon="search"></span>
             <input type="text" id="search-projects" class="ui-input" placeholder="Buscar proyecto…" oninput="applyFilters()">
@@ -133,8 +128,21 @@
           </label>
           <button type="button" class="ui-chip" onclick="clearFilters()" id="btn-clear-filters" style="display:none"><span data-icon="x"></span>Limpiar</button>
           <span id="filter-info" class="text-xs text-slate-400" style="display:none"></span>
+          <div class="ml-auto flex items-center gap-2">
+            <span id="bar-updated" class="text-[11px] text-slate-400 hidden xl:inline"></span>
+            <span id="boards-count-badge" class="ui-chip" style="cursor:default;color:#6366f1"></span>
+            <button type="button" class="ui-chip !px-0 w-9" onclick="Sidebar.toggleTheme()" data-theme-icon data-cls="w-4 h-4" title="Cambiar tema" aria-label="Cambiar tema"></button>
+            <button type="button" class="ui-chip ui-chip-primary" onclick="loadDashboard(true)"><span data-icon="refresh"></span>Actualizar</button>
+          </div>
         </div>
       </div>
+
+      <!-- Saludo (como en el demo): fecha pequeña, saludo grande y el nombre del dashboard como secundario -->
+      <header class="mb-6">
+        <p class="text-sm text-slate-400" id="dash-date"></p>
+        <h1 class="text-3xl sm:text-4xl font-extrabold text-slate-100 mt-0.5" id="dash-hello">Hola</h1>
+        <p class="text-sm font-semibold text-slate-400 mt-1">Dashboard de Rendimiento <span class="font-normal text-slate-500" id="user-greeting"></span></p>
+      </header>
 
       <!-- KPI GLOBAL -->
       <h2 class="bento-label mb-3">Resumen global</h2>
@@ -206,7 +214,7 @@
       <!-- PROJECTS TABLE -->
       <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 sm:p-5 mb-8" id="section-projects-table" style="display:none">
         <div class="overflow-x-auto rounded-xl border border-slate-700">
-          <table class="w-full text-sm">
+          <table class="w-full text-sm" data-tv="off">
             <thead>
               <tr class="border-b border-slate-700 bg-slate-800/50">
                 <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Proyecto</th>
@@ -294,7 +302,7 @@
 <script src="js/cache.js"></script>
 <script src="js/api.js"></script>
 <script src="js/utils.js"></script>
-<script src="js/sidebar.js?v=20261021"></script>
+<script src="js/sidebar.js?v=20261023"></script>
 <script src="js/alarm.js"></script>
 <script>
   let dashboardData = null;
@@ -336,7 +344,7 @@
     try {
       const me = await api.getMe();
       document.getElementById('user-greeting').textContent =
-        `Hola, ${me.fullName} — @${me.username}`;
+        `· Trello: ${me.fullName} (@${me.username})`;
 
       const boards = await api.getBoards();
       document.getElementById('boards-count-badge').textContent =
@@ -360,6 +368,8 @@
       } else {
         lastUpdatedEl.textContent = 'Actualizado: ' + new Date().toLocaleTimeString('es-MX');
       }
+      const barUpdated = document.getElementById('bar-updated');
+      if (barUpdated) barUpdated.innerHTML = lastUpdatedEl.innerHTML;
       setState('dashboard');
     } catch (e) {
       document.getElementById('error-msg').textContent = e.message;
@@ -1811,6 +1821,8 @@
     setProjectsView(_savedView);
     const _today = new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' });
     document.getElementById('dash-date').textContent = _today.charAt(0).toUpperCase() + _today.slice(1);
+    const _firstName = String((Session.user && (Session.user.name || Session.user.email)) || '').trim().split(/[\s@]+/)[0];
+    document.getElementById('dash-hello').textContent = _firstName ? `Hola, ${_firstName}` : 'Hola';
     loadDashboard();
     Alarm.init();
   });
