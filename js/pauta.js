@@ -470,11 +470,85 @@ const PautaMonitor = (() => {
         ? 'Conexión con Google Ads activa' + (st.updated_at ? ` (conectada el ${st.updated_at})` : '')
         : (st.error || 'Conecta la cuenta de Google Ads para ver el gasto');
       btn.className = 'ui-chip' + (ok ? '' : ' ui-chip-primary');
+      btn.style.textDecoration = 'none';
       btn.innerHTML = ok
         ? `<span class="w-2 h-2 rounded-full bg-emerald-500"></span>Google Ads conectado`
         : `${Icons.svg('link', 'w-4 h-4')}${st.connected ? 'Reconectar Google Ads' : 'Conectar Google Ads'}`;
     } catch (e) {
       btn.style.display = 'none'; // sin permisos o backend no disponible
+    }
+  }
+
+  // Ventana "Conectar Google Ads": 1) abrir Google, 2) pegar la dirección a la que te lleva.
+  // Se hace así porque el hosting bloquea (ModSecurity) la vuelta directa de Google a nuestro
+  // servidor. Ver backend/api/google_ads_exchange.php.
+  function openGoogleAdsModal() {
+    if (document.getElementById('gads-modal')) return;
+    document.body.insertAdjacentHTML('beforeend', `
+      <div id="gads-modal" class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60" onclick="if(event.target===this)PautaMonitor.closeGoogleAdsModal()">
+        <div class="bento-card w-full max-w-lg" style="padding:1.5rem">
+          <div class="flex items-start justify-between gap-3 mb-4">
+            <div>
+              <h2 class="text-lg font-extrabold text-slate-100">Conectar Google Ads</h2>
+              <p class="text-xs text-slate-400 mt-1">Son dos pasos y dura menos de un minuto.</p>
+            </div>
+            <button type="button" onclick="PautaMonitor.closeGoogleAdsModal()" class="text-slate-400 hover:text-slate-100" aria-label="Cerrar">${Icons.svg('x', 'w-5 h-5')}</button>
+          </div>
+          <ol class="space-y-4 text-sm text-slate-300">
+            <li>
+              <b class="text-slate-100">1. Autoriza en Google.</b>
+              <p class="text-xs text-slate-400 mt-1">Se abre en otra pestaña. Elige la cuenta que administra Google Ads y acepta el permiso. Si dice "Google no verificó esta app", pulsa Configuración avanzada → Continuar.</p>
+              <button type="button" class="ui-chip ui-chip-primary mt-2" onclick="window.open('backend/oauth/google_ads_connect.php?mode=paste','_blank')">${Icons.svg('link', 'w-4 h-4')}Abrir Google</button>
+            </li>
+            <li>
+              <b class="text-slate-100">2. Pega la dirección.</b>
+              <p class="text-xs text-slate-400 mt-1">Google te lleva a una página de <i>OAuth 2.0 Playground</i> (puede verse vacía o con avisos: es normal). Copia la dirección completa de esa pestaña (la barra de arriba) y pégala aquí.</p>
+              <textarea id="gads-paste" rows="3" class="w-full mt-2 rounded-xl border px-3 py-2 text-xs" style="border-color:var(--line2);background:var(--s1);color:var(--ink)" placeholder="https://developers.google.com/oauthplayground/?code=4/0A…"></textarea>
+              <p id="gads-msg" class="text-xs mt-2" style="display:none"></p>
+              <div class="flex justify-end gap-2 mt-3">
+                <button type="button" class="ui-chip" onclick="PautaMonitor.closeGoogleAdsModal()">Cancelar</button>
+                <button type="button" id="gads-submit" class="ui-chip ui-chip-primary" onclick="PautaMonitor.submitGoogleAdsCode()">Conectar</button>
+              </div>
+            </li>
+          </ol>
+        </div>
+      </div>`);
+  }
+
+  function closeGoogleAdsModal() {
+    document.getElementById('gads-modal')?.remove();
+  }
+
+  // Del texto pegado se saca solo el código (la dirección completa trae https:// y el firewall
+  // del hosting la bloquearía al enviarla)
+  function _extractGoogleCode(text) {
+    const t = String(text || '').trim();
+    if (!t) return '';
+    try { const c = new URL(t).searchParams.get('code'); if (c) return c; } catch (e) { /* no es una URL */ }
+    const m = t.match(/[?&#]code=([^&\s#]+)/);
+    if (m) { try { return decodeURIComponent(m[1]); } catch (e) { return m[1]; } }
+    return /^[A-Za-z0-9_\-/.]{10,600}$/.test(t) ? t : '';
+  }
+
+  async function submitGoogleAdsCode() {
+    const msg = document.getElementById('gads-msg');
+    const show = (text, ok) => {
+      msg.style.display = '';
+      msg.className = 'text-xs mt-2 ' + (ok ? 'text-emerald-400' : 'text-red-400');
+      msg.textContent = text;
+    };
+    const code = _extractGoogleCode(document.getElementById('gads-paste').value);
+    if (!code) { show('No encontré el código en lo que pegaste. Copia la dirección completa de la pestaña a la que te llevó Google.', false); return; }
+    const btn = document.getElementById('gads-submit');
+    btn.disabled = true;
+    try {
+      await Session.apiFetch('api/google_ads_exchange.php', { method: 'POST', body: JSON.stringify({ code }) });
+      show('Google Ads conectado. Cargando el gasto…', true);
+      _loadGoogleAdsStatus();
+      setTimeout(() => { closeGoogleAdsModal(); loadData(true); }, 900);
+    } catch (e) {
+      show(e.message || 'No se pudo conectar', false);
+      btn.disabled = false;
     }
   }
 
@@ -667,7 +741,7 @@ const PautaMonitor = (() => {
       return `<div class="flex items-center gap-2 text-xs">
         <span>${meta.icon} ${meta.label}</span>
         <span class="text-red-400 border border-red-500/30 bg-red-500/10 rounded px-1.5 py-0.5">⚠ ${_esc(errMsg)}</span>
-        ${plat.platform === 'google' && /reconéctala|no está conectado/i.test(errMsg || '') ? `<a href="backend/oauth/google_ads_connect.php" class="font-semibold text-indigo-400 hover:text-indigo-300 whitespace-nowrap">Reconectar</a>` : ''}
+        ${plat.platform === 'google' && /reconéctala|no está conectado/i.test(errMsg || '') ? `<button type="button" onclick="PautaMonitor.openGoogleAdsModal()" class="font-semibold text-indigo-400 hover:text-indigo-300 whitespace-nowrap">Reconectar</button>` : ''}
       </div>`;
     }
 
@@ -1877,6 +1951,9 @@ const PautaMonitor = (() => {
     loadData,
     render,
     toggleFilter,
+    openGoogleAdsModal,
+    closeGoogleAdsModal,
+    submitGoogleAdsCode,
     openClientModal,
     closeModal,
     saveClient,

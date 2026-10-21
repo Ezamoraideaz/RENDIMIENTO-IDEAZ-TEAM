@@ -105,7 +105,7 @@
       </button>
       <span id="pauta-count" class="ml-auto text-xs text-slate-500"></span>
       <!-- Conexión con Google Ads (la llena pauta.js) -->
-      <a id="g-ads-btn" href="backend/oauth/google_ads_connect.php" class="ui-chip" style="display:none;text-decoration:none"></a>
+      <button type="button" id="g-ads-btn" class="ui-chip" style="display:none" onclick="PautaMonitor.openGoogleAdsModal()"></button>
     </div>
 
     <!-- Avisos (resultado de "Conectar Google Ads") -->
@@ -120,7 +120,7 @@
 <script src="js/session.js"></script>
 <script src="js/storage.js?v=20260630"></script>
 <script src="js/sidebar.js?v=20261026"></script>
-<script src="js/pauta.js?v=20261028"></script>
+<script src="js/pauta.js?v=20261029"></script>
 <script src="js/alarm.js?v=20260630"></script>
 <script>
   Session.ready.then(() => {

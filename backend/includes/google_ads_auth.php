@@ -14,6 +14,12 @@
 const GOOGLE_ADS_SETTING_KEY = 'google_ads_refresh_token';
 const GOOGLE_ADS_SCOPE       = 'https://www.googleapis.com/auth/adwords';
 
+// Modo "pegar": algunos hostings (ModSecurity) bloquean la vuelta de Google a nuestro
+// callback ("Not Acceptable"). En ese modo Google devuelve al usuario a esta URI —que ya
+// está autorizada en el cliente OAuth— y el usuario pega aquí la dirección completa de esa
+// página; backend/api/google_ads_exchange.php canjea el código por el refresh token.
+const GOOGLE_ADS_PASTE_REDIRECT = 'https://developers.google.com/oauthplayground';
+
 function google_ads_load_api_config(): void
 {
     $file = __DIR__ . '/../../api/config.php';

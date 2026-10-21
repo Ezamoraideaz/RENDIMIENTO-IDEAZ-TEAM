@@ -13,12 +13,14 @@ if (!google_ads_client_configured()) {
     exit;
 }
 
+$paste = ($_GET['mode'] ?? '') === 'paste';
 $state = bin2hex(random_bytes(16));
 $_SESSION['google_ads_oauth_state'] = $state;
+$_SESSION['google_ads_oauth_mode']  = $paste ? 'paste' : 'direct';
 
 $params = [
     'client_id'              => GOOGLE_CLIENT_ID,
-    'redirect_uri'           => google_ads_redirect_uri(),
+    'redirect_uri'           => $paste ? GOOGLE_ADS_PASTE_REDIRECT : google_ads_redirect_uri(),
     'response_type'          => 'code',
     'scope'                  => GOOGLE_ADS_SCOPE,
     'access_type'            => 'offline',  // para recibir refresh token
