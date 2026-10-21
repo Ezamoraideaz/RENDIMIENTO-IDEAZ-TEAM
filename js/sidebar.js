@@ -133,6 +133,68 @@ const Sidebar = (() => {
 
   const _isCollapsed = () => store.get(COLLAPSE_KEY) === '1';
 
+  // ── Paneles de página ──────────────────────────────────────────────────
+  // Algunas páginas ponen información importante dentro del menú lateral. Con el menú
+  // flotante o retraído no se vería, así que ese mismo bloque se MUEVE a una sección
+  // dentro de la página (la página lo sigue actualizando por su id, y sus clics siguen
+  // funcionando). Al volver al menú lateral completo, regresa a su lugar.
+  const PAGE_PANELS = {
+    // Agenda bloqueada (diseñadores): "Mi actividad" — lo pinta js/agenda.js
+    agenda: [{ id: 'sidebar-locked-tasks', title: 'Mi actividad', icon: 'list', after: '#state-agenda main > :first-child' }],
+  };
+  const _ppPlaceholders = {};
+
+  function _syncPagePanels(show) {
+    const page = window.Session && Session.currentPage ? Session.currentPage() : '';
+    (PAGE_PANELS[page] || []).forEach((p) => {
+      const el = document.getElementById(p.id);
+      if (!el) return;
+      let sec = document.getElementById('ideaz-pp-' + p.id);
+      if (show && !sec) {
+        const anchor = document.querySelector(p.after);
+        if (!anchor) return;
+        if (!_ppPlaceholders[p.id]) {
+          const ph = document.createComment('ideaz-page-panel');
+          el.parentNode.insertBefore(ph, el);
+          _ppPlaceholders[p.id] = ph;
+        }
+        anchor.insertAdjacentHTML('afterend', `
+          <section id="ideaz-pp-${p.id}" class="bento-card ideaz-pp">
+            <button type="button" class="ideaz-pp-head" aria-expanded="true">
+              ${icon(p.icon, 'w-4 h-4')}<span class="bento-label">${p.title}</span>
+              <span class="ideaz-pp-count"></span>
+              <span class="ideaz-pp-chev">${icon('chevron', 'w-4 h-4')}</span>
+            </button>
+            <div class="ideaz-pp-body"></div>
+          </section>`);
+        sec = document.getElementById('ideaz-pp-' + p.id);
+        sec.querySelector('.ideaz-pp-body').appendChild(el);
+        const key = 'ideaz_pp_' + p.id;
+        const head = sec.querySelector('.ideaz-pp-head');
+        const setOpen = (open) => { sec.classList.toggle('is-collapsed', !open); head.setAttribute('aria-expanded', String(open)); };
+        setOpen(store.get(key) !== '0');
+        head.onclick = () => {
+          const open = sec.classList.contains('is-collapsed');
+          store.set(key, open ? '1' : '0');
+          setOpen(open);
+        };
+        // La sección sigue al bloque: oculta si la página lo oculta, y cuenta sus tareas
+        const refresh = () => {
+          sec.style.display = el.style.display === 'none' ? 'none' : '';
+          sec.querySelector('.ideaz-pp-count').textContent = el.querySelectorAll('[data-card-id]').length || '';
+        };
+        sec._obs = new MutationObserver(refresh);
+        sec._obs.observe(el, { attributes: true, attributeFilter: ['style'], childList: true, subtree: true });
+        refresh();
+      } else if (!show && sec) {
+        if (sec._obs) sec._obs.disconnect();
+        const ph = _ppPlaceholders[p.id];
+        if (ph && ph.parentNode) ph.parentNode.insertBefore(el, ph);
+        sec.remove();
+      }
+    });
+  }
+
   function _applyNavMode(mode) {
     const dock = mode === 'dock';
     const collapsed = !dock && _isCollapsed();
@@ -148,6 +210,7 @@ const Sidebar = (() => {
       btn.querySelector('[data-mode-label]').textContent = label;
       btn.dataset.tip = label;
     }
+    _syncPagePanels(dock || collapsed);
     const cbtn = document.getElementById('ideaz-collapse-btn');
     if (cbtn) {
       cbtn.innerHTML = icon(collapsed ? 'chevronsRight' : 'chevronsLeft', 'w-4 h-4');

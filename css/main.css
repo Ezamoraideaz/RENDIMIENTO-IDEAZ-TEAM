@@ -174,6 +174,21 @@ html:not(.light) .bento-ink { background:#05070d !important; border-color:var(--
 .bento-track { height:.5rem; border-radius:999px; background:var(--s3); overflow:hidden; }
 .bento-track > div { height:100%; border-radius:999px; }
 
+/* ── Paneles de página (contenido del menú lateral visible con menú flotante/retraído) ── */
+.ideaz-pp { padding: 1rem 1.25rem; margin-bottom: 1.25rem; }
+.ideaz-pp-head { display:flex; align-items:center; gap:.55rem; width:100%; text-align:left; color:var(--mut); }
+.ideaz-pp-head:hover { color:var(--ink); }
+.ideaz-pp-count { min-width:1.35rem; height:1.35rem; padding:0 .4rem; border-radius:999px; background:var(--accent); color:#fff; font-size:.7rem; font-weight:800; display:inline-grid; place-items:center; }
+.ideaz-pp-count:empty { display:none; }
+.ideaz-pp-chev { margin-left:auto; display:grid; transition:transform .2s; }
+.ideaz-pp.is-collapsed .ideaz-pp-chev { transform:rotate(-90deg); }
+.ideaz-pp.is-collapsed .ideaz-pp-body { display:none; }
+.ideaz-pp-body { margin-top:.85rem; }
+.ideaz-pp-body > * { padding:0 !important; }
+/* "Mi actividad" de Agenda: un grupo (En Proceso / Cambios / Enviado) por columna */
+.ideaz-pp-body > #sidebar-locked-tasks { display:grid !important; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:.25rem 1.25rem; }
+.ideaz-pp-body > #sidebar-locked-tasks > div:first-child:not(.mb-3) { display:none; } /* título "Mi Actividad" (ya está en la sección) */
+
 /* ── Tablas ↔ tarjetas (js/sidebar.js agrega el selector y los data-label) ── */
 .tv-toggle { display:flex; justify-content:flex-end; gap:.35rem; margin:.5rem .5rem .6rem; }
 .tv-toggle button { display:inline-flex; align-items:center; gap:.35rem; height:1.9rem; padding:0 .75rem; border-radius:999px; border:1px solid var(--line); background:var(--s1); color:var(--mut); font-size:.72rem; font-weight:600; cursor:pointer; transition:border-color .15s, color .15s, background .15s; }
