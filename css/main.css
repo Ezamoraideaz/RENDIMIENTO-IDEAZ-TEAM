@@ -80,6 +80,12 @@ html { overflow-x: hidden; }
 .border-slate-600      { border-color: var(--line2) !important; }
 .border-slate-500      { border-color: var(--line3) !important; }
 .hover\:border-slate-500:hover { border-color: var(--line3) !important; }
+/* Spinners (border-slate-* + border-t-*): el color de arriba debe ganarle al border-color de las reglas
+   anteriores, si no el anillo queda de un solo color y no se nota que gira. */
+.border-t-indigo-500   { border-top-color: #6366f1 !important; }
+.border-t-indigo-400   { border-top-color: #818cf8 !important; }
+.border-t-emerald-500  { border-top-color: #10b981 !important; }
+.border-t-transparent  { border-top-color: transparent !important; }
 .divide-slate-800 > :not([hidden]) ~ :not([hidden])     { border-color: var(--line0) !important; }
 .divide-slate-800\/60 > :not([hidden]) ~ :not([hidden]) { border-color: color-mix(in srgb, var(--line0) 60%, transparent) !important; }
 .divide-slate-700\/60 > :not([hidden]) ~ :not([hidden]) { border-color: color-mix(in srgb, var(--line) 60%, transparent) !important; }
