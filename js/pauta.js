@@ -265,12 +265,14 @@ const PautaMonitor = (() => {
     const areaPath = `${linePath} L ${pts[pts.length-1].x} ${H} L 0 ${H} Z`;
     const gradId   = 'sg' + color.replace('#', '');
     const dots     = pts.map(p =>
-      `<circle cx="${p.x}" cy="${p.y}" r="2.5" fill="${color}" style="stroke:var(--s1)" stroke-width="1.5">
-        <title>${p.date}  $${_fmt(p.v)}</title>
-      </circle>`
+      `<circle cx="${p.x}" cy="${p.y}" r="2.5" fill="${color}" style="stroke:var(--s1)" stroke-width="1.5"/>`
     ).join('');
 
-    return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="40" preserveAspectRatio="none">
+    // Datos para el imán (ver _initSparkHover): fecha, gasto y altura relativa de cada punto.
+    // El contenedor tiene 8px de margen invisible arriba y abajo para que sea fácil apuntar.
+    const sparkData = _esc(JSON.stringify({ c: color, p: pts.map(p => [p.date, p.v, +(p.y / H).toFixed(4)]) }));
+
+    return `<div class="spark" data-spark="${sparkData}" style="position:relative;padding:8px 0;margin:-8px 0;cursor:crosshair"><svg viewBox="0 0 ${W} ${H}" width="100%" height="40" preserveAspectRatio="none" style="display:block">
       <defs>
         <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stop-color="${color}" stop-opacity="0.25"/>
@@ -280,7 +282,70 @@ const PautaMonitor = (() => {
       <path d="${areaPath}" fill="url(#${gradId})"/>
       <path d="${linePath}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
       ${dots}
-    </svg>`;
+    </svg></div>`;
+  }
+
+  // ── Imán en las gráficas de gasto diario ──────────────────────────────────
+  // Al pasar el mouse (o el dedo) por cualquier parte de la gráfica se "pega" al día más cercano:
+  // guía vertical, punto resaltado y un tooltip con la fecha y el gasto. Un solo manejador para
+  // todas las gráficas de la página (delegación de eventos).
+  function _initSparkHover() {
+    if (window.__sparkHoverReady) return;
+    window.__sparkHoverReady = true;
+
+    const tip = document.createElement('div');
+    tip.id = 'spark-tip';
+    tip.style.cssText = 'position:fixed;z-index:70;pointer-events:none;opacity:0;transform:translate(-50%,-100%);background:#0c0a09;color:#fff;font-size:11px;font-weight:600;padding:5px 10px;border-radius:9px;white-space:nowrap;box-shadow:0 6px 18px rgba(0,0,0,.35);transition:opacity .1s';
+    document.body.appendChild(tip);
+
+    let active = null;
+    const hide = () => {
+      tip.style.opacity = 0;
+      if (active) { active._guide.style.display = 'none'; active._dot.style.display = 'none'; active = null; }
+    };
+    const fmtDate = (iso) => {
+      const d = new Date(iso + 'T00:00:00');
+      return isNaN(d) ? iso : d.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'short' });
+    };
+    const ensureMarkers = (el) => {
+      if (el._guide) return;
+      el._guide = document.createElement('div');
+      el._guide.style.cssText = 'position:absolute;top:0;bottom:0;width:0;border-left:1px dashed var(--line3);pointer-events:none;display:none';
+      el._dot = document.createElement('div');
+      el._dot.style.cssText = `position:absolute;width:11px;height:11px;margin:-5.5px 0 0 -5.5px;border-radius:50%;background:${el._sp.c};border:2px solid var(--s1);box-shadow:0 0 0 3px ${el._sp.c}40;pointer-events:none;display:none`;
+      el.appendChild(el._guide); el.appendChild(el._dot);
+    };
+
+    const onMove = (e) => {
+      const el = e.target && e.target.closest ? e.target.closest('.spark') : null;
+      if (!el) { if (active) hide(); return; }
+      if (!el._sp) { try { el._sp = JSON.parse(el.dataset.spark); } catch (err) { return; } }
+      ensureMarkers(el);
+      if (active && active !== el) hide();
+      active = el;
+
+      const r = el.getBoundingClientRect();
+      const pts = el._sp.p;
+      const t = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+      const i = Math.round(t * (pts.length - 1));               // el día más cercano (imán)
+      const [date, spend, yRel] = pts[i];
+      const x = (i / (pts.length - 1)) * r.width;
+      const y = 8 + yRel * 40;                                   // 8px de margen + altura del SVG (40)
+
+      el._guide.style.display = el._dot.style.display = '';
+      el._guide.style.left = x + 'px';
+      el._dot.style.left = x + 'px';
+      el._dot.style.top = y + 'px';
+
+      tip.innerHTML = `<span style="opacity:.7">${fmtDate(date)}</span>&nbsp; $${_fmt(spend)}`;
+      tip.style.left = Math.min(innerWidth - 70, Math.max(70, r.left + x)) + 'px';
+      tip.style.top = (r.top + y - 12) + 'px';
+      tip.style.opacity = 1;
+    };
+
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerdown', onMove);
+    document.addEventListener('scroll', hide, true);
   }
 
   function _insightsHtml(spend, budget, dailyAvg, days, from, to) {
@@ -1939,6 +2004,7 @@ const PautaMonitor = (() => {
   // ── Init ───────────────────────────────────────────────────────────────────
 
   async function init() {
+    _initSparkHover();
     _showGoogleAdsResult();
     _loadGoogleAdsStatus();
     await _load();

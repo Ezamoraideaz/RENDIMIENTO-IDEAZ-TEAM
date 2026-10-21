@@ -348,6 +348,11 @@
     Chart.defaults.borderColor = CHART_GRID;
   }
   Chart.defaults.font.family = "'Plus Jakarta Sans', system-ui, sans-serif";
+  // "Imán" al pasar el mouse: se muestra el dato de la columna/fila más cercana aunque el mouse
+  // no esté exactamente sobre la barra. Las donas conservan el comportamiento de siempre.
+  Chart.defaults.interaction = { mode: 'index', axis: 'x', intersect: false };
+  Chart.overrides.doughnut.interaction = { mode: 'nearest', intersect: true };
+  Chart.overrides.pie.interaction = { mode: 'nearest', intersect: true };
   applyChartTheme();
   window.addEventListener('ideaz:theme', () => {
     applyChartTheme();
