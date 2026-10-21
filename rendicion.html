@@ -23,25 +23,22 @@
     <div id="rendicion-list-view">
       <div class="flex items-start justify-between mb-6 flex-wrap gap-4">
         <div class="min-w-0">
-          <h1 class="text-xl sm:text-2xl font-black text-slate-100">📝 Rendición Trimestral</h1>
+          <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-100">Rendición Trimestral</h1>
           <p class="text-slate-400 text-sm mt-1">Evaluación interna de gestión por cliente — no es el reporte que ve el cliente</p>
         </div>
-        <button id="rendicion-new-btn"
-          class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2.5 rounded-lg text-sm transition-colors whitespace-nowrap">
-          + Nueva rendición
-        </button>
+        <button id="rendicion-new-btn" class="ui-chip ui-chip-primary w-full sm:w-auto"><span data-icon="plus"></span>Nueva rendición</button>
       </div>
-      <div id="rendicion-list-wrap" class="border border-slate-800 rounded-lg overflow-hidden overflow-x-auto">
+      <div id="rendicion-list-wrap" class="bento-card !p-0 overflow-hidden overflow-x-auto">
         <p class="text-slate-500 text-sm p-4">Cargando…</p>
       </div>
 
       <!-- Oportunidades comerciales reportadas — el estado (Cotizada,
            Vendida...) se puede actualizar acá sin reabrir el formulario. -->
       <div class="flex items-center justify-between mt-8 mb-3">
-        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider">Mis oportunidades comerciales</h2>
+        <h2 class="bento-label">Mis oportunidades comerciales</h2>
         <button id="rendicion-pipeline-toggle" class="text-xs text-indigo-400 hover:text-indigo-300 font-semibold">Mostrar ▾</button>
       </div>
-      <div id="rendicion-pipeline-wrap" style="display:none" class="border border-slate-800 rounded-lg overflow-hidden overflow-x-auto">
+      <div id="rendicion-pipeline-wrap" style="display:none" class="bento-card !p-0 overflow-hidden overflow-x-auto">
         <p class="text-slate-500 text-sm p-4">Cargando…</p>
       </div>
     </div>
@@ -75,8 +72,8 @@
 <script src="js/session.js"></script>
 <script src="js/sidebar.js?v=20261021"></script>
 <script src="js/utils.js?v=20260915"></script>
-<script src="js/rendicionSchema.js?v=20261007"></script>
-<script src="js/rendicion.js?v=20261007b"></script>
+<script src="js/rendicionSchema.js?v=20261021"></script>
+<script src="js/rendicion.js?v=20261021"></script>
 <script>
   Session.ready.then(() => {
     Sidebar.init('rendicion');

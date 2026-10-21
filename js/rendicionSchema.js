@@ -312,7 +312,7 @@ const RENDICION_SCHEMA = {
       title: 'Salud y riesgo de la cuenta',
       fields: [
         { key: 'account_health', label: '¿Cómo consideras actualmente la salud de esta cuenta?', type: 'radio-cards', required: true, options: [
-          { value: 'verde', label: '🟢 Saludable' }, { value: 'amarillo', label: '🟡 Requiere atención' }, { value: 'rojo', label: '🔴 Riesgo' },
+          { value: 'verde', label: 'Saludable' }, { value: 'amarillo', label: 'Requiere atención' }, { value: 'rojo', label: 'Riesgo' },
         ] },
         { key: 'has_risk', label: '¿Existe algún riesgo que IDeaz deba conocer?', type: 'radio-cards', required: true, options: [
           { value: '0', label: 'No' }, { value: '1', label: 'Sí' },
