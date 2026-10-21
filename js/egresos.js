@@ -121,8 +121,8 @@ const Egresos = (() => {
     wrap.innerHTML = `
       <div class="hidden sm:block overflow-x-auto">
         <table class="w-full text-sm">
-          <thead class="bg-slate-900">
-            <tr class="text-left text-slate-500 border-b border-slate-800">
+          <thead class="bg-slate-800/50">
+            <tr class="text-left text-[11px] uppercase tracking-wider text-slate-400 border-b border-slate-700">
               <th class="py-2.5 px-4">Fecha</th>
               <th class="py-2.5 px-4">Tipo</th>
               <th class="py-2.5 px-4">Categoría</th>
@@ -143,7 +143,7 @@ const Egresos = (() => {
                 <td class="py-2 px-4 text-slate-400">${_esc(e.account || '—')}</td>
                 <td class="py-2 px-4 text-right font-semibold whitespace-nowrap">${_money(e.amount, e.currency)}</td>
                 <td class="py-2 px-4">${_statusBadge(e)}</td>
-                <td class="py-2 px-4 text-right text-slate-500 whitespace-nowrap">${e.attachment_count ? `📎 ${e.attachment_count}` : ''}</td>
+                <td class="py-2 px-4 text-right text-slate-500 whitespace-nowrap">${e.attachment_count ? `<span class="inline-flex items-center gap-1">${Icons.svg('clip', 'w-3.5 h-3.5')}${e.attachment_count}</span>` : ''}</td>
               </tr>`).join('')}
           </tbody>
         </table>
@@ -158,7 +158,7 @@ const Egresos = (() => {
             <div class="flex items-center justify-between gap-2 text-xs text-slate-500">
               <span class="truncate">${_fmtDate(e.expense_date)} · ${TYPE_LABEL[e.type] || e.type}${e.category ? ' · ' + _esc(e.category) : ''}${e.account ? ' · ' + _esc(e.account) : ''}</span>
               <span class="flex-shrink-0 flex items-center gap-2">
-                ${e.attachment_count ? `<span>📎${e.attachment_count}</span>` : ''}
+                ${e.attachment_count ? `<span class="inline-flex items-center gap-1">${Icons.svg('clip', 'w-3.5 h-3.5')}${e.attachment_count}</span>` : ''}
                 ${_statusBadge(e) !== '<span class="text-slate-600">—</span>' ? _statusBadge(e) : ''}
               </span>
             </div>
@@ -313,7 +313,7 @@ const Egresos = (() => {
     if (!statusEl) return;
     statusEl.style.display = '';
     statusEl.className = 'text-xs mt-1.5 text-indigo-400';
-    statusEl.textContent = '🔍 Leyendo datos del comprobante…';
+    statusEl.textContent = 'Leyendo datos del comprobante…';
     try {
       const formData = new FormData();
       formData.append('file', file, file.name);
@@ -498,8 +498,8 @@ const Egresos = (() => {
 
       <div class="flex flex-wrap gap-2 pt-2 border-t border-slate-800">
         ${isLoanPending ? `<button onclick="Egresos._markReimbursed(${e.id})" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold">✅ Marcar como reembolsado</button>` : ''}
-        <button onclick="document.getElementById('expense-detail-overlay').remove(); Egresos.openForm(${e.id})" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold">✏️ Editar</button>
-        <button onclick="Egresos._deleteExpense(${e.id})" class="bg-slate-800 hover:bg-red-900/40 border border-red-700/50 text-red-400 px-3 py-1.5 rounded-lg text-xs font-semibold">🗑️ Eliminar</button>
+        <button onclick="document.getElementById('expense-detail-overlay').remove(); Egresos.openForm(${e.id})" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold">${Icons.svg('pencil', 'w-3.5 h-3.5 inline -mt-0.5 mr-1')}Editar</button>
+        <button onclick="Egresos._deleteExpense(${e.id})" class="bg-slate-800 hover:bg-red-900/40 border border-red-700/50 text-red-400 px-3 py-1.5 rounded-lg text-xs font-semibold">${Icons.svg('trash', 'w-3.5 h-3.5 inline -mt-0.5 mr-1')}Eliminar</button>
       </div>`;
   }
 
