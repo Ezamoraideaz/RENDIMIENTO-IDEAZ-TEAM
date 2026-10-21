@@ -93,6 +93,90 @@ function getGoogleAccessToken(): array {
     return google_ads_access_token();
 }
 
+// ─── LLAMADA A GOOGLE ADS (compartida) ───────────────────────────────────────
+
+// Versiones de la API de Google Ads, de más nueva a más antigua. Google retira una versión cada
+// pocos meses: una versión retirada responde 404 (HTML) o UNSUPPORTED_VERSION. Se prueban en
+// orden y se recuerda la que funcionó (12 h) para no repetir intentos en cada consulta.
+// Si algún día todas fallan, el mensaje de error lista lo que respondió cada una: basta
+// con agregar aquí la versión nueva.
+// (función y no const: este archivo ejecuta su código antes de llegar a las definiciones de abajo)
+function googleAdsApiVersions(): array {
+    return ['v26', 'v25', 'v24', 'v23', 'v22', 'v21'];
+}
+
+function googleAdsSearchCall(string $cid, string $query, string $accessToken): array {
+    $mcc       = preg_replace('/[^0-9]/', '', GOOGLE_MCC_ID);
+    $cacheFile = sys_get_temp_dir() . '/pauta_google_ads_version';
+    $versions  = googleAdsApiVersions();
+    if (is_file($cacheFile) && (time() - filemtime($cacheFile)) < 43200) {
+        $cached = trim((string)@file_get_contents($cacheFile));
+        if ($cached !== '' && in_array($cached, $versions, true)) {
+            array_unshift($versions, $cached);
+            $versions = array_values(array_unique($versions));
+        }
+    }
+
+    $tried = [];
+    foreach ($versions as $ver) {
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL            => "https://googleads.googleapis.com/{$ver}/customers/{$cid}/googleAds:search",
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => json_encode(['query' => $query]),
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 15,
+            CURLOPT_HTTPHEADER     => [
+                'Authorization: Bearer ' . $accessToken,
+                'developer-token: '      . GOOGLE_DEVELOPER_TOKEN,
+                'login-customer-id: '    . $mcc,
+                'Content-Type: application/json',
+            ],
+        ]);
+        $response  = curl_exec($ch);
+        $http_code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curl_err  = curl_error($ch);
+        curl_close($ch);
+
+        if ($curl_err) return ['curl_err' => $curl_err, 'tried' => $tried];
+
+        $data   = json_decode((string)$response, true);
+        $reqErr = $data['error']['details'][0]['errors'][0]['errorCode']['requestError'] ?? '';
+        // Problema de VERSIÓN: 404 sin JSON (la ruta no existe) o UNSUPPORTED_VERSION.
+        // Un 404/403 con JSON es un problema de la CUENTA y no se arregla cambiando de versión.
+        $versionProblem = ($http_code === 404 && !is_array($data)) || $reqErr === 'UNSUPPORTED_VERSION';
+        $tried[] = $ver . ':' . $http_code . ($reqErr ? '/' . $reqErr : '');
+        if ($versionProblem) continue;
+
+        @file_put_contents($cacheFile, $ver);
+        return ['http_code' => $http_code, 'data' => is_array($data) ? $data : [], 'version' => $ver, 'tried' => $tried];
+    }
+
+    @unlink($cacheFile);
+    return ['no_version' => true, 'tried' => $tried];
+}
+
+function googleAdsNoVersionMessage(array $call): string {
+    return 'Google Ads API: ninguna versión respondió (' . implode(', ', $call['tried'] ?? []) . '). '
+         . 'Si todas dicen 404, Google retiró esas versiones: hay que agregar la versión vigente en googleAdsApiVersions() (api/spend.php).';
+}
+
+// Mensaje en español para los errores de cuenta más comunes (conserva el texto original de Google)
+function googleAdsFriendlyError(array $data): string {
+    $orig = $data['error']['message'] ?? ($data['error']['details'][0]['errors'][0]['message'] ?? 'Error desconocido de Google Ads API');
+    $code = $data['error']['details'][0]['errors'][0]['errorCode'] ?? [];
+    $name = is_array($code) && $code ? (string)reset($code) : '';
+    $map = [
+        'USER_PERMISSION_DENIED'  => 'Sin acceso a esta cuenta: no está vinculada a tu MCC o el ID es incorrecto',
+        'CUSTOMER_NOT_ENABLED'    => 'La cuenta de Google Ads está cancelada o sin facturación activa',
+        'CUSTOMER_NOT_FOUND'      => 'No existe una cuenta de Google Ads con ese ID',
+        'DEVELOPER_TOKEN_NOT_APPROVED' => 'El developer token de Google Ads no está aprobado para cuentas reales',
+        'DEVELOPER_TOKEN_PROHIBITED'   => 'El developer token no puede usarse con esta cuenta',
+        'INVALID_CUSTOMER_ID'     => 'ID de cuenta de Google Ads no válido',
+    ];
+    return isset($map[$name]) ? "{$map[$name]} ({$name})" : $orig;
+}
+
 function getGoogleSpend(string $customer_id, string $date_from, string $date_to, bool $debug = false): array {
     if (!defined('GOOGLE_DEVELOPER_TOKEN') || !defined('GOOGLE_MCC_ID')) {
         return ['error' => 'GOOGLE_DEVELOPER_TOKEN o GOOGLE_MCC_ID no configurados en config.php', 'platform' => 'google'];
@@ -114,55 +198,15 @@ function getGoogleSpend(string $customer_id, string $date_from, string $date_to,
                 AND campaign.status != 'REMOVED'
               ORDER BY segments.date ASC";
 
-    // Probar versiones de más nueva a más antigua hasta encontrar una activa
-    // v17/v18/v19: eliminadas del servidor Google (devuelven HTML 404)
-    // v20: bloqueada con UNSUPPORTED_VERSION
-    // v21/v22: versiones activas en Jun 2026
-    $versions  = ['v22', 'v21'];
-    $response  = null;
-    $http_code = 0;
-    $curl_err  = '';
-    $used_ver  = '';
-
-    foreach ($versions as $ver) {
-        $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL            => "https://googleads.googleapis.com/{$ver}/customers/{$cid}/googleAds:search",
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => json_encode(['query' => $query]),
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 15,
-            CURLOPT_HTTPHEADER     => [
-                'Authorization: Bearer ' . $token['access_token'],
-                'developer-token: '      . GOOGLE_DEVELOPER_TOKEN,
-                'login-customer-id: '    . $mcc,
-                'Content-Type: application/json',
-            ],
-        ]);
-        $response  = curl_exec($ch);
-        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curl_err  = curl_error($ch);
-        curl_close($ch);
-
-        if ($curl_err) break;
-        if ($http_code === 200) { $used_ver = $ver; break; }
-
-        // Continuar al siguiente si: versión no existe (404) o está deprecada (UNSUPPORTED_VERSION)
-        // Parar si es cualquier otro error real (autenticación, query inválido, etc.)
-        $tmp    = json_decode($response, true);
-        $reqErr = $tmp['error']['details'][0]['errors'][0]['errorCode']['requestError'] ?? '';
-        if ($http_code !== 404 && $reqErr !== 'UNSUPPORTED_VERSION') { $used_ver = $ver; break; }
+    if (strlen($cid) < 8) {
+        return ['error' => "ID de cuenta de Google Ads no válido (\"{$customer_id}\"): debe tener 10 dígitos", 'platform' => 'google'];
     }
-
-    if (!$used_ver && !$curl_err) {
-        return ['error' => 'Ninguna versión de Google Ads API respondió correctamente para esta cuenta', 'platform' => 'google'];
-    }
-
-    if ($curl_err) {
-        return ['error' => "cURL error: {$curl_err}", 'platform' => 'google'];
-    }
-
-    $data = json_decode($response, true);
+    $call = googleAdsSearchCall($cid, $query, $token['access_token']);
+    if (isset($call['curl_err']))      return ['error' => "cURL error: {$call['curl_err']}", 'platform' => 'google'];
+    if (!empty($call['no_version']))   return ['error' => googleAdsNoVersionMessage($call), 'platform' => 'google'];
+    $used_ver  = $call['version'];
+    $http_code = $call['http_code'];
+    $data      = $call['data'];
 
     if ($debug) {
         return [
@@ -177,8 +221,7 @@ function getGoogleSpend(string $customer_id, string $date_from, string $date_to,
     }
 
     if (isset($data['error'])) {
-        $msg = $data['error']['message'] ?? ($data['error']['details'][0]['errors'][0]['message'] ?? 'Error desconocido de Google Ads API');
-        return ['error' => $msg, 'platform' => 'google'];
+        return ['error' => googleAdsFriendlyError($data), 'platform' => 'google'];
     }
 
     // Agrupar cost_micros por día y detectar moneda real de la cuenta
@@ -423,42 +466,15 @@ function getGoogleCampaignDetail(string $customer_id, string $date_from, string 
               WHERE segments.date BETWEEN '{$date_from}' AND '{$date_to}'
                 AND campaign.status != 'REMOVED'";
 
-    $versions = ['v22', 'v21'];
-    $response = null; $http_code = 0; $curl_err = ''; $used_ver = '';
-
-    foreach ($versions as $ver) {
-        $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL            => "https://googleads.googleapis.com/{$ver}/customers/{$cid}/googleAds:search",
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => json_encode(['query' => $query]),
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 15,
-            CURLOPT_HTTPHEADER     => [
-                'Authorization: Bearer ' . $token['access_token'],
-                'developer-token: '      . GOOGLE_DEVELOPER_TOKEN,
-                'login-customer-id: '    . $mcc,
-                'Content-Type: application/json',
-            ],
-        ]);
-        $response  = curl_exec($ch);
-        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curl_err  = curl_error($ch);
-        curl_close($ch);
-        if ($curl_err) break;
-        if ($http_code === 200) { $used_ver = $ver; break; }
-        $tmp    = json_decode($response, true);
-        $reqErr = $tmp['error']['details'][0]['errors'][0]['errorCode']['requestError'] ?? '';
-        if ($http_code !== 404 && $reqErr !== 'UNSUPPORTED_VERSION') { $used_ver = $ver; break; }
-    }
-
-    if ($curl_err) return ['error' => "cURL error: {$curl_err}", 'platform' => 'google'];
-
-    $data = json_decode($response, true);
+    $call = googleAdsSearchCall($cid, $query, $token['access_token']);
+    if (isset($call['curl_err']))    return ['error' => "cURL error: {$call['curl_err']}", 'platform' => 'google'];
+    if (!empty($call['no_version'])) return ['error' => googleAdsNoVersionMessage($call), 'platform' => 'google'];
+    $used_ver  = $call['version'];
+    $http_code = $call['http_code'];
+    $data      = $call['data'];
     if ($debug) return ['debug' => true, 'http_code' => $http_code, 'api_version' => $used_ver, 'raw' => $data];
     if (isset($data['error'])) {
-        $msg = $data['error']['message'] ?? 'Error Google Ads API';
-        return ['error' => $msg, 'platform' => 'google'];
+        return ['error' => googleAdsFriendlyError($data), 'platform' => 'google'];
     }
 
     // Agregar por campaña (la query puede devolver filas por día)
@@ -621,38 +637,13 @@ function getMetaAccountStatus(string $account_id, bool $debug = false): array {
     ];
 }
 
-// Una consulta GAQL contra Google Ads, probando versiones de la API como getGoogleSpend()
+// Una consulta GAQL contra Google Ads (usa googleAdsSearchCall: prueba versiones y recuerda la vigente)
 function googleAdsSearch(string $cid, string $query, string $accessToken): array {
-    $mcc = preg_replace('/[^0-9]/', '', GOOGLE_MCC_ID);
-    foreach (['v22', 'v21'] as $ver) {
-        $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL            => "https://googleads.googleapis.com/{$ver}/customers/{$cid}/googleAds:search",
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => json_encode(['query' => $query]),
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 15,
-            CURLOPT_HTTPHEADER     => [
-                'Authorization: Bearer ' . $accessToken,
-                'developer-token: '      . GOOGLE_DEVELOPER_TOKEN,
-                'login-customer-id: '    . $mcc,
-                'Content-Type: application/json',
-            ],
-        ]);
-        $response  = curl_exec($ch);
-        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curl_err  = curl_error($ch);
-        curl_close($ch);
-        if ($curl_err) return ['error' => "cURL error: {$curl_err}"];
-        $data   = json_decode((string)$response, true);
-        $reqErr = $data['error']['details'][0]['errors'][0]['errorCode']['requestError'] ?? '';
-        if ($http_code === 404 || $reqErr === 'UNSUPPORTED_VERSION') continue;
-        if (isset($data['error'])) {
-            return ['error' => $data['error']['message'] ?? ($data['error']['details'][0]['errors'][0]['message'] ?? 'Error de Google Ads API')];
-        }
-        return ['results' => $data['results'] ?? []];
-    }
-    return ['error' => 'Ninguna versión de Google Ads API respondió'];
+    $call = googleAdsSearchCall($cid, $query, $accessToken);
+    if (isset($call['curl_err']))    return ['error' => "cURL error: {$call['curl_err']}"];
+    if (!empty($call['no_version'])) return ['error' => googleAdsNoVersionMessage($call)];
+    if (isset($call['data']['error'])) return ['error' => googleAdsFriendlyError($call['data'])];
+    return ['results' => $call['data']['results'] ?? []];
 }
 
 function getGoogleAccountStatus(string $customer_id, bool $debug = false): array {
