@@ -8,26 +8,26 @@ const FlowBuilder = (() => {
   let api = null;
 
   const NODE_DEFS = {
-    trigger_keyword:          { title: '🎯 Palabra clave',      inputs: 0, outputs: 1, defaultData: { keywords: [], platform_scope: 'both' } },
-    trigger_comment:          { title: '💭 Comentario en post', inputs: 0, outputs: 1, defaultData: { keywords: [], platform_scope: 'both', public_replies: [''], ai_enabled: false, ai_max_chars: 300, ai_blocklist: [], dm_delay_minutes: 0 } },
-    trigger_new_conversation: { title: '✨ Nueva conversación', inputs: 0, outputs: 1, defaultData: { platform_scope: 'both' } },
-    trigger_story_reply:      { title: '📖 Respuesta a historia', inputs: 0, outputs: 1, defaultData: { keywords: [], platform_scope: 'instagram' } },
-    trigger_ad_message:       { title: '📢 Anuncio "Enviar mensaje"', inputs: 0, outputs: 1, defaultData: { keywords: [], platform_scope: 'both' } },
-    message:                  { title: '💬 Mensaje',            inputs: 1, outputs: 1, defaultData: { text: '' } },
-    ai:                       { title: '🤖 Respuesta IA',       inputs: 1, outputs: 1, defaultData: { max_chars: 500 } },
-    image:                    { title: '🖼️ Imagen',             inputs: 1, outputs: 1, defaultData: { url: '' } },
-    card:                     { title: '🃏 Tarjeta CTA',        inputs: 1, outputs: 1, defaultData: { title: '', subtitle: '', image_url: '', buttons: [{ title: 'Ver más', url: '' }] } },
-    carousel:                 { title: '🎠 Carrusel',           inputs: 1, outputs: 1, defaultData: { items: [{ title: '', subtitle: '', image_url: '', button_title: 'Ver más', button_url: '' }] } },
-    quick_replies:            { title: '🔘 Botones',            inputs: 1, outputs: 2, defaultData: { text: '', options: ['Sí', 'No'] } },
-    question:                 { title: '📝 Pregunta (lead)',    inputs: 1, outputs: 1, defaultData: { text: '', field: 'email', validate: 'email', retry_text: '' } },
-    csat:                     { title: '⭐ Encuesta CSAT',       inputs: 1, outputs: 5, defaultData: { text: '¿Cómo calificarías tu experiencia?' } },
-    condition:                { title: '🔀 Condición',          inputs: 1, outputs: 2, defaultData: { field: 'email', op: 'exists', value: '' } },
-    hours:                    { title: '⏰ Horario',            inputs: 1, outputs: 2, defaultData: { start: '09:00', end: '18:00', days: [1, 2, 3, 4, 5] } },
-    ab_split:                 { title: '🎲 Test A/B',           inputs: 1, outputs: 2, defaultData: { percent_a: 50 } },
-    tag:                      { title: '🏷️ Etiqueta',           inputs: 1, outputs: 1, defaultData: { tag: '' } },
-    notify:                   { title: '📣 Avisar al equipo',   inputs: 1, outputs: 1, defaultData: { email: '', subject: 'Nuevo lead capturado' } },
-    delay:                    { title: '⏱️ Espera',             inputs: 1, outputs: 1, defaultData: { minutes: 5 } },
-    handoff:                  { title: '🙋 Pasar a humano',     inputs: 1, outputs: 0, defaultData: { text: '' } },
+    trigger_keyword:          { title: 'Palabra clave', icon: 'target',      inputs: 0, outputs: 1, defaultData: { keywords: [], platform_scope: 'both' } },
+    trigger_comment:          { title: 'Comentario en post', icon: 'bubble', inputs: 0, outputs: 1, defaultData: { keywords: [], platform_scope: 'both', public_replies: [''], ai_enabled: false, ai_max_chars: 300, ai_blocklist: [], dm_delay_minutes: 0 } },
+    trigger_new_conversation: { title: 'Nueva conversación', icon: 'sparkles', inputs: 0, outputs: 1, defaultData: { platform_scope: 'both' } },
+    trigger_story_reply:      { title: 'Respuesta a historia', icon: 'book', inputs: 0, outputs: 1, defaultData: { keywords: [], platform_scope: 'instagram' } },
+    trigger_ad_message:       { title: 'Anuncio "Enviar mensaje"', icon: 'megaphone', inputs: 0, outputs: 1, defaultData: { keywords: [], platform_scope: 'both' } },
+    message:                  { title: 'Mensaje', icon: 'message',            inputs: 1, outputs: 1, defaultData: { text: '' } },
+    ai:                       { title: 'Respuesta IA', icon: 'bot',       inputs: 1, outputs: 1, defaultData: { max_chars: 500 } },
+    image:                    { title: 'Imagen', icon: 'image',             inputs: 1, outputs: 1, defaultData: { url: '' } },
+    card:                     { title: 'Tarjeta CTA', icon: 'idCard',        inputs: 1, outputs: 1, defaultData: { title: '', subtitle: '', image_url: '', buttons: [{ title: 'Ver más', url: '' }] } },
+    carousel:                 { title: 'Carrusel', icon: 'gallery',           inputs: 1, outputs: 1, defaultData: { items: [{ title: '', subtitle: '', image_url: '', button_title: 'Ver más', button_url: '' }] } },
+    quick_replies:            { title: 'Botones', icon: 'buttons',            inputs: 1, outputs: 2, defaultData: { text: '', options: ['Sí', 'No'] } },
+    question:                 { title: 'Pregunta (lead)', icon: 'pencil',    inputs: 1, outputs: 1, defaultData: { text: '', field: 'email', validate: 'email', retry_text: '' } },
+    csat:                     { title: 'Encuesta CSAT', icon: 'star',       inputs: 1, outputs: 5, defaultData: { text: '¿Cómo calificarías tu experiencia?' } },
+    condition:                { title: 'Condición', icon: 'split',          inputs: 1, outputs: 2, defaultData: { field: 'email', op: 'exists', value: '' } },
+    hours:                    { title: 'Horario', icon: 'clock',            inputs: 1, outputs: 2, defaultData: { start: '09:00', end: '18:00', days: [1, 2, 3, 4, 5] } },
+    ab_split:                 { title: 'Test A/B', icon: 'dice',           inputs: 1, outputs: 2, defaultData: { percent_a: 50 } },
+    tag:                      { title: 'Etiqueta', icon: 'tag',           inputs: 1, outputs: 1, defaultData: { tag: '' } },
+    notify:                   { title: 'Avisar al equipo', icon: 'bell',   inputs: 1, outputs: 1, defaultData: { email: '', subject: 'Nuevo lead capturado' } },
+    delay:                    { title: 'Espera', icon: 'timer',             inputs: 1, outputs: 1, defaultData: { minutes: 5 } },
+    handoff:                  { title: 'Pasar a humano', icon: 'hand',     inputs: 1, outputs: 0, defaultData: { text: '' } },
   };
 
   const CONDITION_OPS = { exists: 'tiene dato', contains: 'contiene', equals: 'es igual a' };
@@ -56,14 +56,22 @@ const FlowBuilder = (() => {
     return '';
   }
 
-  function nodeHtml(type, data) {
+  function nodeTitleHtml(type) {
     const def = NODE_DEFS[type];
-    return `<div class="df-node-box"><div class="df-node-title">${def.title}</div><div class="df-node-sub" data-preview>${previewText(type, data)}</div></div>`;
+    return `${Icons.svg(def.icon, 'w-4 h-4')}<span>${def.title}</span>`;
+  }
+
+  function nodeHtml(type, data) {
+    return `<div class="df-node-box"><div class="df-node-title">${nodeTitleHtml(type)}</div><div class="df-node-sub" data-preview>${previewText(type, data)}</div></div>`;
   }
 
   function updatePreviewDom(nodeId, type, data) {
     const el = document.querySelector(`#node-${nodeId} [data-preview]`);
     if (el) el.textContent = previewText(type, data);
+    // Los flujos guardados traen el HTML del nodo de cuando se crearon: se refresca
+    // el título para que todos los nodos se vean con el diseño actual (icono + texto).
+    const titleEl = document.querySelector(`#node-${nodeId} .df-node-title`);
+    if (titleEl && NODE_DEFS[type]) titleEl.innerHTML = nodeTitleHtml(type);
   }
 
   function setStatusText(text) {

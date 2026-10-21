@@ -17,9 +17,9 @@ const RendicionDashboard = (() => {
   function money(n) { return n ? '$' + Number(n).toLocaleString('es-CO') : '$0'; }
 
   function healthBadge(health) {
-    if (health === 'verde') return '🟢';
-    if (health === 'amarillo') return '🟡';
-    if (health === 'rojo') return '🔴';
+    if (health === 'verde') return '<span class="inline-block w-2.5 h-2.5 rounded-full align-middle" style="background:#10b981"></span>';
+    if (health === 'amarillo') return '<span class="inline-block w-2.5 h-2.5 rounded-full align-middle" style="background:#f59e0b"></span>';
+    if (health === 'rojo') return '<span class="inline-block w-2.5 h-2.5 rounded-full align-middle" style="background:#ef4444"></span>';
     return '—';
   }
 
@@ -78,7 +78,7 @@ const RendicionDashboard = (() => {
     improvement: 'Problemas y mejoras que las CM identificaron en su gestión o en los procesos de IDeaz. Cada rendición exige mínimo 3.',
     score: 'Puntaje de 0 a 100 por CM (promedio de sus cuentas). Pesos: satisfacción del cliente 25, gestión 15, cumplimiento 10, producción 10, comercial 10, calidad 10, fidelización 8, conocimiento del cliente 7, transparencia de riesgo 5. Si el cliente no ha respondido la encuesta, el peso de satisfacción se reparte entre las demás categorías. Semáforo: verde desde 80, amarillo desde 60, rojo por debajo de 60. Haz clic en una CM para filtrar sus cuentas.',
     accounts: 'Una fila por rendición enviada. "Score" lo calcula el sistema (ver Score del CM); "Salud" es el semáforo de ese score. Haz clic en una fila para abrir la rendición completa.',
-    contrast: 'Compara las piezas que la CM dice haber generado con las registradas en Aprobaciones en el mismo trimestre. 🟢 coincide (diferencia hasta 2), 🟡 revisar (hasta 5), 🔴 diferencia grande (más de 5).',
+    contrast: 'Compara las piezas que la CM dice haber generado con las registradas en Aprobaciones en el mismo trimestre. Verde: coincide (diferencia hasta 2); amarillo: revisar (hasta 5); rojo: diferencia grande (más de 5).',
   };
 
   const STAT_HELP = {
@@ -96,9 +96,9 @@ const RendicionDashboard = (() => {
     'Satisfacción promedio': 'Promedio de la calificación general (1 a 5) que dieron los clientes en la encuesta. Solo encuestas respondidas.',
     'Encuestas respondidas': 'Clientes que ya contestaron la encuesta de satisfacción del trimestre.',
     'Encuestas pendientes': 'Clientes a los que se les generó el link pero aún no responden. Conviene hacerles seguimiento.',
-    '🟢 Saludables': 'Cuentas que la CM calificó como estables y con cliente contento. Es la percepción de la CM, distinta al semáforo del score.',
-    '🟡 Requieren atención': 'Cuentas con señales a vigilar según la CM: demoras, cambios de ánimo del cliente o riesgos incipientes.',
-    '🔴 En riesgo': 'Cuentas que la CM considera en riesgo real de perderse o con un conflicto serio. Prioridad para la dirección.',
+    'Saludables': 'Cuentas que la CM calificó como estables y con cliente contento. Es la percepción de la CM, distinta al semáforo del score.',
+    'Requieren atención': 'Cuentas con señales a vigilar según la CM: demoras, cambios de ánimo del cliente o riesgos incipientes.',
+    'En riesgo': 'Cuentas que la CM considera en riesgo real de perderse o con un conflicto serio. Prioridad para la dirección.',
     'Cuentas con riesgo reportado': 'Cuentas donde la CM marcó que existe un riesgo que IDeaz debe conocer, sin importar su color de salud.',
     'Mejoras registradas este periodo': 'Oportunidades de mejora con problema descrito, sumadas de todas las rendiciones enviadas.',
   };
@@ -124,11 +124,13 @@ const RendicionDashboard = (() => {
     });
   }
 
-  function statCard(label, value, sub) {
-    return `<div class="bg-slate-900 border border-slate-700 rounded-xl p-4">
-      <p class="text-xs text-slate-500 mb-1">${esc(label)}${helpIcon(STAT_HELP[label])}</p>
-      <p class="text-2xl font-black text-slate-100">${value}</p>
-      ${sub ? `<p class="text-xs text-slate-500 mt-1">${sub}</p>` : ''}
+  // dotColor (opcional): punto de color antes de la etiqueta (semáforo de salud)
+  function statCard(label, value, sub, dotColor) {
+    const dot = dotColor ? `<span class="inline-block w-2.5 h-2.5 rounded-full align-middle mr-1.5" style="background:${dotColor}"></span>` : '';
+    return `<div class="bento-card">
+      <p class="bento-label mb-1">${dot}${esc(label)}${helpIcon(STAT_HELP[label])}</p>
+      <p class="text-3xl font-extrabold text-slate-100 mt-1">${value}</p>
+      ${sub ? `<p class="text-xs text-slate-400 mt-1">${sub}</p>` : ''}
     </div>`;
   }
 
@@ -163,9 +165,9 @@ const RendicionDashboard = (() => {
     ].join('');
 
     document.getElementById('dash-risk').innerHTML = [
-      statCard('🟢 Saludables', fmt(data.risk.verde || 0)),
-      statCard('🟡 Requieren atención', fmt(data.risk.amarillo || 0)),
-      statCard('🔴 En riesgo', fmt(data.risk.rojo || 0)),
+      statCard('Saludables', fmt(data.risk.verde || 0), '', '#10b981'),
+      statCard('Requieren atención', fmt(data.risk.amarillo || 0), '', '#f59e0b'),
+      statCard('En riesgo', fmt(data.risk.rojo || 0), '', '#ef4444'),
       statCard('Cuentas con riesgo reportado', fmt(data.risk.with_risk_count)),
     ].join('');
 
@@ -417,9 +419,9 @@ const RendicionDashboard = (() => {
   function diffBadge(reportedGenerated, real) {
     if (!real) return '<span class="text-slate-600 text-xs">Sin datos en Aprobaciones</span>';
     const diff = Math.abs(reportedGenerated - real.generated);
-    if (diff <= 2) return '<span class="text-emerald-400 text-xs font-semibold">🟢 coincide</span>';
-    if (diff <= 5) return '<span class="text-amber-400 text-xs font-semibold">🟡 revisar</span>';
-    return '<span class="text-red-400 text-xs font-semibold">🔴 diferencia grande</span>';
+    if (diff <= 2) return '<span class="text-emerald-400 text-xs font-semibold inline-flex items-center gap-1.5"><span class="inline-block w-2.5 h-2.5 rounded-full align-middle" style="background:#10b981"></span>coincide</span>';
+    if (diff <= 5) return '<span class="text-amber-400 text-xs font-semibold inline-flex items-center gap-1.5"><span class="inline-block w-2.5 h-2.5 rounded-full align-middle" style="background:#f59e0b"></span>revisar</span>';
+    return '<span class="text-red-400 text-xs font-semibold inline-flex items-center gap-1.5"><span class="inline-block w-2.5 h-2.5 rounded-full align-middle" style="background:#ef4444"></span>diferencia grande</span>';
   }
 
   function renderProductionCheck(accounts) {
@@ -544,7 +546,7 @@ const RendicionDashboard = (() => {
     }
     const btns = [];
     if (survey && survey.link_generated) {
-      btns.push(`<span class="text-amber-400 font-semibold text-sm">🔗 Link enviado — pendiente de respuesta</span>`);
+      btns.push(`<span class="text-amber-400 font-semibold text-sm inline-flex items-center gap-1.5">${Icons.svg('link')}Link enviado — pendiente de respuesta</span>`);
       btns.push(`<button id="survey-regenerate-btn" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">Regenerar</button>`);
       btns.push(`<button id="survey-revoke-btn" class="bg-slate-800 hover:bg-red-900/40 border border-red-700/50 text-red-400 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">Revocar</button>`);
     } else {

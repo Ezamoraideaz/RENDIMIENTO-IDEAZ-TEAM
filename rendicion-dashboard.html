@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script>if(localStorage.getItem('ideaz_theme')==='light')document.documentElement.classList.add('light');</script>
+  <script>try{if(localStorage.getItem('ideaz_theme')!=='dark')document.documentElement.classList.add('light');}catch(e){document.documentElement.classList.add('light');}</script>
   <title>Dashboard de Rendición – IDEAZ</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/main.css?v=20261021">
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans">
 
@@ -19,18 +19,18 @@
 
     <div class="flex items-start justify-between mb-6 flex-wrap gap-4">
       <div class="min-w-0">
-        <h1 class="text-xl sm:text-2xl font-black text-slate-100">📈 Dashboard de Rendición</h1>
+        <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-100">Dashboard de Rendición</h1>
         <p class="text-slate-400 text-sm mt-1">Gestión, producción, comercial, satisfacción y riesgo — consolidado por trimestre</p>
       </div>
-      <div class="flex gap-2">
-        <select id="f-quarter" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"></select>
-        <select id="f-client" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500"></select>
+      <div class="flex flex-wrap gap-2">
+        <label class="ui-field" title="Trimestre"><span data-icon="calendar"></span><select id="f-quarter" class="ui-select"></select><span data-icon="chevron" class="ui-field-end"></span></label>
+        <label class="ui-field" title="Cliente"><span data-icon="users"></span><select id="f-client" class="ui-select"></select><span data-icon="chevron" class="ui-field-end"></span></label>
       </div>
     </div>
 
     <!-- Encuesta al cliente -->
-    <div class="bg-slate-900 border border-slate-700 rounded-xl p-4 mb-6">
-      <h2 data-help-key="survey" class="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-3">✅ Encuesta de satisfacción al cliente</h2>
+    <div class="bento-card mb-6">
+      <h2 data-help-key="survey" class="bento-label mb-3">Encuesta de satisfacción al cliente</h2>
       <p id="survey-context" class="text-xs text-slate-500 mb-3"></p>
       <div id="survey-box"><p class="text-xs text-slate-500">Selecciona un cliente y un trimestre arriba.</p></div>
     </div>
@@ -38,77 +38,77 @@
     <div id="dash-notice" class="hidden bg-amber-900/20 border border-amber-700/40 text-amber-300 text-sm rounded-xl p-3 mb-6"></div>
 
     <!-- Recordatorios por correo (cron diario) -->
-    <div class="bg-slate-900 border border-slate-700 rounded-xl p-4 mb-6">
-      <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-1">📧 Recordatorios por correo</h2>
+    <div class="bento-card mb-8">
+      <h2 class="bento-label mb-1 inline-flex items-center gap-1.5"><span data-icon="mail" data-size="w-3.5 h-3.5"></span>Recordatorios por correo</h2>
       <p class="text-xs text-slate-500 mb-3">Se envían solos con el Cron Job diario (7 días y 1 día antes de cerrar el trimestre). Prueba acá que el envío funcione en tu hosting antes de agendarlo — no manda nada al equipo, solo a la dirección que pongas.</p>
       <div class="flex flex-wrap gap-2">
-        <input id="reminder-test-email" type="email" placeholder="tu-correo@dominio.com" class="flex-1 min-w-[220px] bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
-        <button id="reminder-test-btn" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 px-4 py-2 rounded-lg text-sm font-semibold transition-colors">Enviar correo de prueba</button>
+        <label class="ui-field flex-1 min-w-[220px]"><span data-icon="mail"></span><input id="reminder-test-email" type="email" placeholder="tu-correo@dominio.com" class="ui-input"></label>
+        <button id="reminder-test-btn" class="ui-chip">Enviar correo de prueba</button>
       </div>
     </div>
 
     <!-- Gestión -->
-    <h2 data-help-key="management" class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Gestión</h2>
-    <div id="dash-management" class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6"></div>
+    <h2 data-help-key="management" class="bento-label mb-3">Gestión</h2>
+    <div id="dash-management" class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8"></div>
 
     <!-- Producción -->
-    <h2 data-help-key="production" class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Producción</h2>
-    <div id="dash-production" class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6"></div>
+    <h2 data-help-key="production" class="bento-label mb-3">Producción</h2>
+    <div id="dash-production" class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8"></div>
 
     <!-- Comercial -->
-    <h2 data-help-key="commercial" class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Comercial</h2>
-    <div id="dash-commercial" class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6"></div>
+    <h2 data-help-key="commercial" class="bento-label mb-3">Comercial</h2>
+    <div id="dash-commercial" class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8"></div>
 
     <!-- Pipeline de oportunidades (edición en línea del estado/valor) -->
-    <h2 data-help-key="pipeline" class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Pipeline de oportunidades</h2>
-    <div id="pipeline-wrap" class="border border-slate-800 rounded-lg overflow-hidden overflow-x-auto mb-6">
+    <h2 data-help-key="pipeline" class="bento-label mb-3">Pipeline de oportunidades</h2>
+    <div id="pipeline-wrap" class="bento-card !p-0 overflow-hidden overflow-x-auto mb-8">
       <p class="text-slate-500 text-sm p-4">Cargando…</p>
     </div>
 
     <!-- Cliente -->
-    <h2 data-help-key="client" class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Cliente</h2>
-    <div id="dash-client" class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6"></div>
+    <h2 data-help-key="client" class="bento-label mb-3">Cliente</h2>
+    <div id="dash-client" class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8"></div>
 
     <!-- Respuestas completas de las encuestas de satisfacción -->
     <div class="flex items-center justify-between gap-3 mb-2">
-      <h2 data-help-key="responses" class="text-sm font-semibold text-slate-400 uppercase tracking-wider">Respuestas de los clientes</h2>
+      <h2 data-help-key="responses" class="bento-label">Respuestas de los clientes</h2>
       <button id="survey-csv-btn" type="button" disabled
-        class="shrink-0 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        title="Descarga en CSV las respuestas que se ven abajo (respeta los filtros de cliente y trimestre)">⬇️ Descargar CSV</button>
+        class="ui-chip shrink-0"
+        title="Descarga en CSV las respuestas que se ven abajo (respeta los filtros de cliente y trimestre)"><span data-icon="download"></span>Descargar CSV</button>
     </div>
-    <div id="survey-responses-wrap" class="border border-slate-800 rounded-lg mb-6">
+    <div id="survey-responses-wrap" class="bento-card !p-0 mb-8">
       <p class="text-slate-500 text-sm p-4">Cargando…</p>
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
       <div>
-        <h2 data-help-key="risk" class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Riesgo</h2>
+        <h2 data-help-key="risk" class="bento-label mb-3">Riesgo</h2>
         <div id="dash-risk" class="grid grid-cols-2 gap-4"></div>
       </div>
       <div>
-        <h2 data-help-key="improvement" class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Mejora</h2>
+        <h2 data-help-key="improvement" class="bento-label mb-3">Mejora</h2>
         <div id="dash-improvement" class="grid grid-cols-1 gap-4"></div>
       </div>
     </div>
 
     <!-- Score / ranking de CMs -->
-    <h2 data-help-key="score" class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Score del Community Manager</h2>
-    <div id="cm-ranking-wrap" class="border border-slate-800 rounded-lg overflow-hidden overflow-x-auto mb-6">
+    <h2 data-help-key="score" class="bento-label mb-3">Score del Community Manager</h2>
+    <div id="cm-ranking-wrap" class="bento-card !p-0 overflow-hidden overflow-x-auto mb-8">
       <p class="text-slate-500 text-sm p-4">Cargando…</p>
     </div>
 
     <!-- Cuentas -->
-    <h2 data-help-key="accounts" class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Cuentas</h2>
-    <div id="accounts-wrap" class="border border-slate-800 rounded-lg overflow-hidden overflow-x-auto mb-6">
+    <h2 data-help-key="accounts" class="bento-label mb-3">Cuentas</h2>
+    <div id="accounts-wrap" class="bento-card !p-0 overflow-hidden overflow-x-auto mb-8">
       <p class="text-slate-500 text-sm p-4">Cargando…</p>
     </div>
 
     <!-- Contraste con Aprobaciones: lo que reporta la CM vs. lo real -->
     <div class="flex items-center justify-between mb-2">
-      <h2 data-help-key="contrast" class="text-sm font-semibold text-slate-400 uppercase tracking-wider">Contraste con Aprobaciones — lo reportado vs. lo real</h2>
+      <h2 data-help-key="contrast" class="bento-label">Contraste con Aprobaciones — lo reportado vs. lo real</h2>
     </div>
     <p class="text-xs text-slate-500 mb-2">"Real" sale del módulo Aprobaciones (piezas con fecha real de creación/decisión). Si un cliente no usa Aprobaciones para todo su contenido, esta comparación no aplica — úsala como pista, no como verdad absoluta.</p>
-    <div id="production-check-wrap" class="border border-slate-800 rounded-lg overflow-hidden overflow-x-auto mb-6">
+    <div id="production-check-wrap" class="bento-card !p-0 overflow-hidden overflow-x-auto mb-8">
       <p class="text-slate-500 text-sm p-4">Cargando…</p>
     </div>
 
@@ -116,10 +116,10 @@
 </main>
 
 <script src="js/session.js"></script>
-<script src="js/sidebar.js?v=20260915"></script>
+<script src="js/sidebar.js?v=20261021"></script>
 <script src="js/utils.js?v=20260915"></script>
-<script src="js/rendicionSchema.js?v=20261007"></script>
-<script src="js/rendicionDashboard.js?v=20261007e"></script>
+<script src="js/rendicionSchema.js?v=20261021"></script>
+<script src="js/rendicionDashboard.js?v=20261021"></script>
 <script>
   Session.ready.then(() => {
     Sidebar.init('rendicion-dashboard');

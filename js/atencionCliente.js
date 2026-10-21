@@ -113,7 +113,7 @@ const AtencionCliente = (() => {
       return;
     }
     wrap.innerHTML = clients.map((c) => `
-      <div class="bg-slate-900 border border-slate-700 rounded-xl p-4 hover:border-indigo-500 transition-colors cursor-pointer" onclick="AtencionCliente.openClient(${c.id})">
+      <div class="bento-card is-hoverable cursor-pointer" onclick="AtencionCliente.openClient(${c.id})">
         <div class="flex items-center gap-3 mb-2">
           ${_clientAvatar(c)}
           <div class="min-w-0 flex-1">
@@ -153,15 +153,15 @@ const AtencionCliente = (() => {
       { key: 'cuentas', label: 'Cuentas conectadas' },
       { key: 'flujos', label: 'Flujos' },
       { key: 'conversaciones', label: 'Conversaciones' },
-      { key: 'leads', label: '🧾 Leads de Ads' },
-      { key: 'organicos', label: '📋 Leads Orgánicos' },
-      { key: 'briefs', label: '📝 Briefs' },
-      { key: 'contexto', label: '🧠 Contexto IA' },
+      { key: 'leads', label: 'Leads de Ads', icon: 'file' },
+      { key: 'organicos', label: 'Leads Orgánicos', icon: 'list' },
+      { key: 'briefs', label: 'Briefs', icon: 'pencil' },
+      { key: 'contexto', label: 'Contexto IA', icon: 'sparkles' },
     ];
     const tabBtns = tabs.map((t, i) => `
       <button onclick="AtencionCliente._switchTab('${t.key}')" data-tab="${t.key}"
         class="ac-tab whitespace-nowrap px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${i === 0 ? 'text-indigo-300 border-indigo-500' : 'text-slate-400 border-transparent hover:text-slate-200'}">
-        ${t.label}</button>`).join('');
+        ${t.icon ? Icons.svg(t.icon, 'w-4 h-4 inline -mt-0.5 mr-1') : ''}${t.label}</button>`).join('');
 
     document.body.insertAdjacentHTML('beforeend', `
       <div id="client-modal-overlay" onclick="AtencionCliente._overlayClose(event)" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
@@ -170,7 +170,7 @@ const AtencionCliente = (() => {
             <div class="flex items-center gap-3 min-w-0">
               <div class="flex items-center gap-1 flex-shrink-0">
                 <button onclick="AtencionCliente.triggerClientLogoUpload()" title="Subir logo desde tu equipo" id="client-modal-logo" class="p-0 border-0 bg-transparent cursor-pointer hover:opacity-80 transition-opacity">${_clientAvatar(activeClient, 40)}</button>
-                <button onclick="AtencionCliente.editClientLogoLink()" title="O pegar un link de imagen" class="text-slate-500 hover:text-slate-300 text-xs leading-none px-0.5">🔗</button>
+                <button onclick="AtencionCliente.editClientLogoLink()" title="O pegar un link de imagen" class="text-slate-500 hover:text-slate-300 text-xs leading-none px-0.5">${Icons.svg('link', 'w-3.5 h-3.5 inline -mt-0.5')}</button>
               </div>
               <input type="file" id="client-logo-file-input" accept=".png,.jpg,.jpeg,.webp,.svg" style="display:none">
               <h2 class="font-bold text-slate-100 text-lg truncate">${_esc(activeClient.name)}</h2>
@@ -218,7 +218,7 @@ const AtencionCliente = (() => {
   // brief-publico.html) — por eso el archivo se guarda en backend/public/uploads/
   // (pública) y no en backend/storage/ (bloqueada). Dos formas de cargarlo:
   // subiendo un archivo directo (click en el avatar) o pegando un link ya
-  // hosteado en otro lado (el 🔗 de al lado, flujo original vía clients.php PUT).
+  // hosteado en otro lado (el botón de enlace de al lado, flujo original vía clients.php PUT).
 
   function _applyClientLogoUpdate(logoUrl) {
     activeClient.logo_url = logoUrl;
@@ -303,7 +303,7 @@ const AtencionCliente = (() => {
     panel.innerHTML = `
       <p class="text-sm text-slate-400 mb-3">
         Contá acá lo básico del negocio de este cliente (servicios, horarios, precios, tono
-        de voz). Lo usa cualquier nodo "🤖 Respuesta IA" de sus flujos y la opción "Responder
+        de voz). Lo usa cualquier nodo "Respuesta IA" de sus flujos y la opción "Responder
         con IA" del disparador de comentarios, para que la IA responda con información real
         en vez de inventar datos.
       </p>
@@ -352,7 +352,7 @@ const AtencionCliente = (() => {
           <div class="flex items-center gap-2 flex-shrink-0">
             <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full ${f.status === 'active' ? 'bg-emerald-500/15 text-emerald-400' : f.status === 'paused' ? 'bg-amber-500/15 text-amber-400' : 'bg-slate-700 text-slate-400'}">${_esc(f.status)}</span>
             <button onclick="event.stopPropagation(); AtencionCliente.toggleFlowStatus(${f.id}, '${f.status}')" title="${f.status === 'active' ? 'Pausar' : 'Activar'}" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 px-2 py-1 rounded-lg text-xs transition-colors">${f.status === 'active' ? '⏸' : '▶'}</button>
-            <button onclick="event.stopPropagation(); AtencionCliente.duplicateFlow(${f.id})" title="Duplicar como borrador" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 px-2 py-1 rounded-lg text-xs transition-colors">📋</button>
+            <button onclick="event.stopPropagation(); AtencionCliente.duplicateFlow(${f.id})" title="Duplicar como borrador" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 px-2 py-1 rounded-lg text-xs transition-colors">${Icons.svg('copy', 'w-3.5 h-3.5 inline -mt-0.5')}</button>
           </div>
         </div>`).join('');
       panel.innerHTML = `
@@ -408,7 +408,7 @@ const AtencionCliente = (() => {
 
   function windowBadge(conv) {
     if (conv.status === 'handed_off') {
-      return { label: '🙋 Con humano', cls: 'bg-sky-500/15 text-sky-400' };
+      return { label: 'Con humano', cls: 'bg-sky-500/15 text-sky-400' };
     }
     if ((conv.pending_followups || 0) > 0) {
       return { label: 'Requiere seguimiento manual', cls: 'bg-amber-500/15 text-amber-400' };
@@ -440,7 +440,7 @@ const AtencionCliente = (() => {
         let tags = [];
         try { tags = JSON.parse(conv.state_vars || '{}').tags || []; } catch (_) { /* ignorar */ }
         const tagsHtml = tags.length
-          ? `<div class="flex flex-wrap gap-1 mt-1">${tags.map((t) => `<span class="text-[9px] font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 px-1.5 py-0.5 rounded-full">🏷️ ${_esc(String(t))}</span>`).join('')}</div>`
+          ? `<div class="flex flex-wrap gap-1 mt-1">${tags.map((t) => `<span class="text-[9px] font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 px-1.5 py-0.5 rounded-full">${Icons.svg('tag', 'w-3 h-3 inline -mt-0.5')} ${_esc(String(t))}</span>`).join('')}</div>`
           : '';
         return `<div class="flex items-center justify-between bg-slate-800/60 border border-slate-700/60 rounded-lg px-4 py-3 cursor-pointer hover:border-indigo-500" onclick="AtencionCliente.openConversationThread(${conv.id})">
           <div class="min-w-0">
@@ -471,9 +471,9 @@ const AtencionCliente = (() => {
       // Origen del mensaje: DM normal vs. comentario/postback — para no confundir
       // una respuesta pública/privada de comentario con un mensaje directo.
       const MSG_TYPE_LABEL = {
-        comment_reply: '💭 Comentario',
-        private_reply: '💭 Respuesta a comentario',
-        postback: '👆 Botón',
+        comment_reply: 'Comentario',
+        private_reply: 'Respuesta a comentario',
+        postback: 'Botón',
       };
       const bubbles = data.messages.map((m) => {
         const mine = m.direction === 'out';
@@ -496,8 +496,8 @@ const AtencionCliente = (() => {
       // Datos de lead capturados por el flujo (nodos "Pregunta") + ficha del contacto.
       // Las etiquetas del flujo van aparte (tagsHtml), más visibles, justo bajo el título.
       const leadChips = [];
-      if (data.conversation.contact_email) leadChips.push(`✉️ ${_esc(data.conversation.contact_email)}`);
-      if (data.conversation.contact_phone) leadChips.push(`📞 ${_esc(data.conversation.contact_phone)}`);
+      if (data.conversation.contact_email) leadChips.push(`${Icons.svg('mail', 'w-3 h-3 inline -mt-0.5')} ${_esc(data.conversation.contact_email)}`);
+      if (data.conversation.contact_phone) leadChips.push(`${Icons.svg('phone', 'w-3 h-3 inline -mt-0.5')} ${_esc(data.conversation.contact_phone)}`);
       let tags = [];
       let csat = null;
       try {
@@ -512,10 +512,10 @@ const AtencionCliente = (() => {
         ? `<div class="flex flex-wrap gap-1.5 mb-2">${leadChips.map((c) => `<span class="text-[10px] font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 px-2 py-0.5 rounded-full">${c}</span>`).join('')}</div>`
         : '';
       const tagsHtml = tags.length
-        ? `<div class="flex flex-wrap gap-1.5 mb-2">${tags.map((t) => `<span class="text-[11px] font-semibold bg-indigo-500/15 border border-indigo-500/40 text-indigo-300 px-2 py-0.5 rounded-full">🏷️ ${_esc(String(t))}</span>`).join('')}${csat ? `<span class="text-[11px] font-semibold bg-amber-500/15 border border-amber-500/40 text-amber-300 px-2 py-0.5 rounded-full">⭐ CSAT ${csat}/5</span>` : ''}</div>`
-        : (csat ? `<div class="mb-2"><span class="text-[11px] font-semibold bg-amber-500/15 border border-amber-500/40 text-amber-300 px-2 py-0.5 rounded-full">⭐ CSAT ${csat}/5</span></div>` : '');
+        ? `<div class="flex flex-wrap gap-1.5 mb-2">${tags.map((t) => `<span class="text-[11px] font-semibold bg-indigo-500/15 border border-indigo-500/40 text-indigo-300 px-2 py-0.5 rounded-full">${Icons.svg('tag', 'w-3 h-3 inline -mt-0.5')} ${_esc(String(t))}</span>`).join('')}${csat ? `<span class="text-[11px] font-semibold bg-amber-500/15 border border-amber-500/40 text-amber-300 px-2 py-0.5 rounded-full">${Icons.svg('star', 'w-3 h-3 inline -mt-0.5')} CSAT ${csat}/5</span>` : ''}</div>`
+        : (csat ? `<div class="mb-2"><span class="text-[11px] font-semibold bg-amber-500/15 border border-amber-500/40 text-amber-300 px-2 py-0.5 rounded-full">${Icons.svg('star', 'w-3 h-3 inline -mt-0.5')} CSAT ${csat}/5</span></div>` : '');
       const handoffBanner = data.conversation.status === 'handed_off'
-        ? `<div class="bg-sky-500/10 border border-sky-500/30 rounded-lg px-3 py-2 text-xs text-sky-300 mb-2">🙋 Conversación transferida a humano — el bot está pausado aquí; responde tú desde abajo.</div>`
+        ? `<div class="bg-sky-500/10 border border-sky-500/30 rounded-lg px-3 py-2 text-xs text-sky-300 mb-2">${Icons.svg('hand', 'w-3.5 h-3.5 inline -mt-0.5')} Conversación transferida a humano — el bot está pausado aquí; responde tú desde abajo.</div>`
         : '';
 
       thread.innerHTML = `
@@ -700,7 +700,7 @@ const AtencionCliente = (() => {
 
     const rulesHtml = rules.map((r) => `
       <div class="flex items-center justify-between bg-slate-800/60 border border-slate-700/60 rounded-lg px-3 py-2 text-xs">
-        <span class="text-slate-300">${r.campaign_name ? 'Campaña contiene "' + _esc(r.campaign_name) + '"' : 'Cualquier campaña'}${r.tag ? ' · 🏷️ ' + _esc(r.tag) : ''}${r.notify_email ? ' · ✉️ ' + _esc(r.notify_email) : ''}</span>
+        <span class="text-slate-300">${r.campaign_name ? 'Campaña contiene "' + _esc(r.campaign_name) + '"' : 'Cualquier campaña'}${r.tag ? ' · ' + Icons.svg('tag', 'w-3 h-3 inline -mt-0.5') + ' ' + _esc(r.tag) : ''}${r.notify_email ? ' · ' + Icons.svg('mail', 'w-3 h-3 inline -mt-0.5') + ' ' + _esc(r.notify_email) : ''}</span>
         <button onclick="AtencionCliente.deleteAdLeadRule(${r.id}, '${form.form_id}')" class="text-red-400 hover:text-red-300">✕</button>
       </div>`).join('');
 
@@ -776,8 +776,8 @@ const AtencionCliente = (() => {
               <p class="text-sm font-semibold">${_esc(lead.name || 'Sin nombre')}</p>
               <span class="text-[10px] text-slate-500">${lead.lead_created_at ? new Date(lead.lead_created_at).toLocaleString('es-MX') : ''}</span>
             </div>
-            <p class="text-xs text-slate-400 mb-2">${lead.email ? '✉️ ' + _esc(lead.email) + '  ' : ''}${lead.phone ? '📞 ' + _esc(lead.phone) : ''}</p>
-            ${lead.tag ? `<span class="text-[10px] font-semibold bg-indigo-500/15 border border-indigo-500/40 text-indigo-300 px-2 py-0.5 rounded-full inline-block mb-2">🏷️ ${_esc(lead.tag)}</span>` : ''}
+            <p class="text-xs text-slate-400 mb-2">${lead.email ? Icons.svg('mail', 'w-3 h-3 inline -mt-0.5') + ' ' + _esc(lead.email) + '  ' : ''}${lead.phone ? Icons.svg('phone', 'w-3 h-3 inline -mt-0.5') + ' ' + _esc(lead.phone) : ''}</p>
+            ${lead.tag ? `<span class="text-[10px] font-semibold bg-indigo-500/15 border border-indigo-500/40 text-indigo-300 px-2 py-0.5 rounded-full inline-block mb-2">${Icons.svg('tag', 'w-3 h-3 inline -mt-0.5')} ${_esc(lead.tag)}</span>` : ''}
             <div class="flex flex-wrap gap-1.5 mt-1">${chips}</div>
           </div>`;
       }).join('');
@@ -851,7 +851,7 @@ const AtencionCliente = (() => {
     const emails = notifyData.emails || [];
     return `
       <details class="bg-slate-900 border border-slate-700 rounded-lg mb-3 overflow-hidden">
-        <summary class="px-4 py-3 cursor-pointer select-none text-sm font-semibold text-slate-200 hover:bg-slate-800/60">📥 Importar leads</summary>
+        <summary class="px-4 py-3 cursor-pointer select-none text-sm font-semibold text-slate-200 hover:bg-slate-800/60">${Icons.svg('download', 'w-4 h-4 inline -mt-0.5 mr-1')}Importar leads</summary>
         <div class="px-4 pb-4 pt-1">
           <div class="flex items-center justify-between gap-2 mb-2">
             <p class="text-xs text-slate-500">Sube un Excel (.xlsx) o CSV para sumar leads a este cliente.</p>
@@ -867,7 +867,7 @@ const AtencionCliente = (() => {
       </details>
 
       <details class="bg-slate-900 border border-slate-700 rounded-lg mb-3 overflow-hidden">
-        <summary class="px-4 py-3 cursor-pointer select-none text-sm font-semibold text-slate-200 hover:bg-slate-800/60">✍️ Agregar leads a mano</summary>
+        <summary class="px-4 py-3 cursor-pointer select-none text-sm font-semibold text-slate-200 hover:bg-slate-800/60">${Icons.svg('pencil', 'w-4 h-4 inline -mt-0.5 mr-1')}Agregar leads a mano</summary>
         <div class="px-4 pb-4 pt-1">
           <p class="text-xs text-slate-500 mb-2">Cargá uno o varios leads a mano — usá "+ Fila" para agregar varios de una vez y "Guardar" al terminar.</p>
           <datalist id="organic-leads-source-suggestions">${ORGANIC_LEAD_SOURCE_SUGGESTIONS.map((s) => `<option value="${_esc(s)}">`).join('')}</datalist>
@@ -880,7 +880,7 @@ const AtencionCliente = (() => {
       </details>
 
       <details class="bg-slate-900 border border-slate-700 rounded-lg mb-3 overflow-hidden">
-        <summary class="px-4 py-3 cursor-pointer select-none text-sm font-semibold text-slate-200 hover:bg-slate-800/60">✉️ Notificar por correo <span id="organic-leads-notify-count" class="text-slate-500 font-normal">(${emails.length})</span></summary>
+        <summary class="px-4 py-3 cursor-pointer select-none text-sm font-semibold text-slate-200 hover:bg-slate-800/60">${Icons.svg('mail', 'w-4 h-4 inline -mt-0.5 mr-1')}Notificar por correo <span id="organic-leads-notify-count" class="text-slate-500 font-normal">(${emails.length})</span></summary>
         <div class="px-4 pb-4 pt-1">
           <div id="organic-leads-notify-list" class="flex flex-col gap-1.5 mb-2">${renderOrganicLeadsNotifyList(emails)}</div>
           <form id="organic-leads-notify-form" class="flex gap-2">
@@ -891,7 +891,7 @@ const AtencionCliente = (() => {
       </details>
 
       <details class="bg-slate-900 border border-slate-700 rounded-lg mb-4 overflow-hidden">
-        <summary class="px-4 py-3 cursor-pointer select-none text-sm font-semibold text-slate-200 hover:bg-slate-800/60">🔗 Link público de solo lectura <span id="organic-leads-share-status" class="text-slate-500 font-normal">${shareData.link_generated ? '· activo' : ''}</span></summary>
+        <summary class="px-4 py-3 cursor-pointer select-none text-sm font-semibold text-slate-200 hover:bg-slate-800/60">${Icons.svg('link', 'w-4 h-4 inline -mt-0.5 mr-1')}Link público de solo lectura <span id="organic-leads-share-status" class="text-slate-500 font-normal">${shareData.link_generated ? '· activo' : ''}</span></summary>
         <div class="px-4 pb-4 pt-1">
           <div id="organic-leads-share-box">${renderOrganicLeadsShareBox(shareData.link_generated)}</div>
         </div>
@@ -903,7 +903,7 @@ const AtencionCliente = (() => {
   function renderOrganicLeadsNotifyList(emails) {
     return emails.map((e) => `
       <div class="flex items-center justify-between bg-slate-800/60 border border-slate-700/60 rounded-lg px-3 py-1.5 text-xs">
-        <span class="text-slate-300">✉️ ${_esc(e.email)}</span>
+        <span class="text-slate-300">${Icons.svg('mail', 'w-3 h-3 inline -mt-0.5')} ${_esc(e.email)}</span>
         <button onclick="AtencionCliente.removeOrganicLeadNotifyEmail(${e.id})" class="text-red-400 hover:text-red-300">✕</button>
       </div>`).join('') || '<p class="text-xs text-slate-600">Sin correos todavía — el import se guarda igual, solo sin avisar a nadie.</p>';
   }
@@ -928,7 +928,7 @@ const AtencionCliente = (() => {
         <div class="flex gap-2">
           <input type="text" id="organic-leads-share-url" readonly value="${_esc(url)}" onclick="this.select()"
             class="flex-1 min-w-0 bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-300">
-          <button type="button" id="organic-leads-copy-link-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-xs font-semibold flex-shrink-0">📋 Copiar</button>
+          <button type="button" id="organic-leads-copy-link-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-xs font-semibold flex-shrink-0">${Icons.svg('copy', 'w-3.5 h-3.5 inline -mt-0.5 mr-1')}Copiar</button>
         </div>
       </div>
       ${renderOrganicLeadsShareBox(true)}`;
@@ -1255,7 +1255,7 @@ const AtencionCliente = (() => {
       return `<span class="text-emerald-400 font-semibold">✅ Completado${date ? ' el ' + date : ''}${brief.filled_by_name ? ' — ' + _esc(brief.filled_by_name) : ''}</span>`;
     }
     if (brief.link_generated) {
-      return `<span class="text-amber-400 font-semibold">🔗 Link enviado — pendiente de respuesta</span>`;
+      return `<span class="text-amber-400 font-semibold">${Icons.svg('link', 'w-3.5 h-3.5 inline -mt-0.5')} Link enviado — pendiente de respuesta</span>`;
     }
     return `<span class="text-slate-500">Sin generar</span>`;
   }
@@ -1294,7 +1294,7 @@ const AtencionCliente = (() => {
         <div class="flex gap-2">
           <input type="text" id="brief-share-url-${type}" readonly value="${_esc(url)}" onclick="this.select()"
             class="flex-1 min-w-0 bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-300">
-          <button type="button" onclick="AtencionCliente._copyBriefLink('${type}')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-xs font-semibold flex-shrink-0">📋 Copiar</button>
+          <button type="button" onclick="AtencionCliente._copyBriefLink('${type}')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-xs font-semibold flex-shrink-0">${Icons.svg('copy', 'w-3.5 h-3.5 inline -mt-0.5 mr-1')}Copiar</button>
         </div>
       </div>
       ${renderBriefShareBox(type)}`;
@@ -1386,7 +1386,7 @@ const AtencionCliente = (() => {
         const links = files.map((f) => `
           <a href="${API}/api/brief_attachment.php?client_id=${activeClient.id}&brief_type=${type}&file=${encodeURIComponent(f.stored_name)}"
              class="text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg px-2.5 py-1.5 text-indigo-300 inline-flex items-center gap-1">
-             📎 ${_esc(f.original_name)} <span class="text-slate-500">(${_briefFileSize(f.size)})</span>
+             ${Icons.svg('clip', 'w-3.5 h-3.5 inline -mt-0.5')} ${_esc(f.original_name)} <span class="text-slate-500">(${_briefFileSize(f.size)})</span>
           </a>`).join('');
         return `<div class="py-2 border-b border-slate-800/60"><p class="text-xs text-slate-500 mb-1.5">${_esc(label)}</p><div class="flex flex-wrap gap-2">${links}</div></div>`;
       }

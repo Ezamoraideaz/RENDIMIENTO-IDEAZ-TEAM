@@ -125,6 +125,7 @@ const Aprobaciones = (() => {
     boardEl.textContent = c.trello_board_id ? `vinculado (${c.trello_board_id})` : 'sin vincular';
     sheetEl.textContent = c.sheet_id ? `vinculado (${c.sheet_id})` : 'sin vincular';
     if (approvalEl) approvalEl.textContent = c.drive_approval_folder_id ? `vinculada (${c.drive_approval_folder_id})` : 'sin vincular';
+    [boardEl, sheetEl, approvalEl].forEach((el) => { if (el) el.title = el.textContent; });
     autoBtn.disabled = !c.trello_board_id || !c.sheet_id;
     autoBtn.title = !c.trello_board_id
       ? 'Vincula primero el tablero de Trello'
@@ -199,23 +200,31 @@ const Aprobaciones = (() => {
 
     list.innerHTML = batches.map((b) => {
       const linkBadge = b.link_generated
-        ? (b.completed_at ? '<span class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">Completada</span>'
-          : '<span class="text-xs px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-400">Link enviado</span>')
-        : '<span class="text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-400">Sin link</span>';
+        ? (b.completed_at ? '<span class="bento-pill bg-emerald-500/15 text-emerald-400">Completada</span>'
+          : '<span class="bento-pill bg-indigo-500/15 text-indigo-400">Link enviado</span>')
+        : '<span class="bento-pill bg-slate-700 text-slate-400">Sin link</span>';
+      const approved = Math.max(0, b.item_count - (b.pending_count || 0) - (b.changes_count || 0));
+      const pct = b.item_count > 0 ? Math.round(approved / b.item_count * 100) : 0;
       return `
-        <div class="bg-slate-900 border border-slate-700 rounded-xl p-4 hover:border-indigo-500 transition-colors cursor-pointer"
-             onclick="Aprobaciones.openBatchModal(${b.id})">
-          <div class="flex items-center justify-between gap-3 flex-wrap">
+        <div class="bento-card is-hoverable cursor-pointer" onclick="Aprobaciones.openBatchModal(${b.id})">
+          <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
               <h3 class="font-bold text-slate-100 truncate">${esc(b.label)}</h3>
-              <p class="text-xs text-slate-500">${b.item_count} pieza${b.item_count !== 1 ? 's' : ''} · creada ${fmtDate(b.created_at)}</p>
+              <p class="text-xs text-slate-400 mt-0.5">creada ${fmtDate(b.created_at)}</p>
             </div>
-            <div class="flex items-center gap-2 flex-shrink-0">
-              ${b.pending_count > 0 ? `<span class="text-xs px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400">${b.pending_count} pendiente${b.pending_count !== 1 ? 's' : ''}</span>` : ''}
-              ${b.changes_count > 0 ? `<span class="text-xs px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400">${b.changes_count} con cambios</span>` : ''}
-              ${linkBadge}
+            <div class="flex-shrink-0">${linkBadge}</div>
+          </div>
+          <div class="flex items-end justify-between gap-3 mt-4">
+            <div>
+              <div class="text-3xl font-extrabold text-slate-100 leading-none">${b.item_count}</div>
+              <div class="text-xs text-slate-400 mt-1">pieza${b.item_count !== 1 ? 's' : ''}</div>
+            </div>
+            <div class="flex flex-wrap justify-end gap-1.5">
+              ${b.pending_count > 0 ? `<span class="bento-pill bg-amber-500/15 text-amber-400">${b.pending_count} pendiente${b.pending_count !== 1 ? 's' : ''}</span>` : ''}
+              ${b.changes_count > 0 ? `<span class="bento-pill bg-rose-500/15 text-rose-400">${b.changes_count} con cambios</span>` : ''}
             </div>
           </div>
+          <div class="bento-track mt-3" title="${pct}% sin pendientes ni cambios"><div class="bg-emerald-500" style="width:${pct}%"></div></div>
         </div>`;
     }).join('');
   }
@@ -278,7 +287,11 @@ const Aprobaciones = (() => {
         listEl.innerHTML = '<p class="text-xs text-slate-500">Todavía no hay actividad registrada.</p>';
         return;
       }
-      const EVENT_LABEL = { opened: '🔗 Abrió el link', identified: '🪪 Se identificó', decision: '✅ Decidió' };
+      const EVENT_LABEL = {
+        opened: `${Icons.svg('link', 'w-3.5 h-3.5')}Abrió el link`,
+        identified: `${Icons.svg('idCard', 'w-3.5 h-3.5')}Se identificó`,
+        decision: `${Icons.svg('check', 'w-3.5 h-3.5')}Decidió`,
+      };
       listEl.innerHTML = rows.map((r) => {
         const who = r.reviewer_name ? esc(r.reviewer_name) + (r.reviewer_role ? ` · ${esc(r.reviewer_role)}` : '') : 'Sin identificar';
         let detail = '';
@@ -290,7 +303,7 @@ const Aprobaciones = (() => {
         return `
           <div class="bg-slate-800/60 border border-slate-700/60 rounded-lg p-2.5">
             <div class="flex items-center justify-between gap-2">
-              <span class="text-xs font-semibold text-slate-200">${EVENT_LABEL[r.event_type] || r.event_type}</span>
+              <span class="text-xs font-semibold text-slate-200 inline-flex items-center gap-1.5">${EVENT_LABEL[r.event_type] || r.event_type}</span>
               <span class="text-[10px] text-slate-500 whitespace-nowrap">${fmtDateTime(r.created_at)}</span>
             </div>
             <p class="text-xs text-slate-300 mt-0.5">${who}</p>
@@ -336,9 +349,8 @@ const Aprobaciones = (() => {
     if (!client || !client.trello_board_id) {
       return '';
     }
-    return `<button type="button" onclick="Aprobaciones.openAutoModal(${b.id})"
-      class="text-xs px-2 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold whitespace-nowrap">
-      ⚡ Agregar desde Enviado
+    return `<button type="button" onclick="Aprobaciones.openAutoModal(${b.id})" class="ui-chip ui-chip-success">
+      ${Icons.svg('zap')}Agregar desde Enviado
     </button>`;
   }
 
@@ -383,7 +395,7 @@ const Aprobaciones = (() => {
           <div class="flex items-center gap-2 flex-shrink-0">
             <span class="text-xs px-2 py-0.5 rounded-full ${statusCls}">${statusLbl}</span>
             ${item.status === 'changes_requested' ? `<button onclick="Aprobaciones.resendForReview(${item.id})" class="text-xs px-2 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-semibold" title="Ya se corrigió — volver a mandarla al cliente">Reenviar a revisión</button>` : ''}
-            ${item.status === 'pending' ? `<button onclick="Aprobaciones.deleteItem(${item.id})" class="text-slate-500 hover:text-rose-400 text-xs" title="Eliminar pieza">🗑</button>` : ''}
+            ${item.status === 'pending' ? `<button onclick="Aprobaciones.deleteItem(${item.id})" class="text-slate-500 hover:text-rose-400" title="Eliminar pieza">${Icons.svg('trash')}</button>` : ''}
           </div>
         </div>
         ${item.caption ? `<p class="text-xs text-slate-400 mt-2 line-clamp-2">${esc(item.caption)}</p>` : ''}
@@ -530,7 +542,7 @@ const Aprobaciones = (() => {
   }
 
   // ── Generar tanda automática ─────────────────────────────────────────────
-  // batchId: si viene (desde el botón "⚡ Agregar desde Enviado" dentro de una
+  // batchId: si viene (desde el botón "Agregar desde Enviado" dentro de una
   // tanda ya existente), las piezas marcadas se agregan a esa tanda en vez de
   // crear una nueva — ver autoCreateBatch().
   function openAutoModal(batchId) {

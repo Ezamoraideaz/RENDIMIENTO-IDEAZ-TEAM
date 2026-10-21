@@ -483,9 +483,9 @@ const Rendicion = (() => {
   // ---- Lista de rendiciones ---------------------------------------------
 
   function healthBadge(health) {
-    if (health === 'verde') return '<span class="text-emerald-400">🟢</span>';
-    if (health === 'amarillo') return '<span class="text-amber-400">🟡</span>';
-    if (health === 'rojo') return '<span class="text-red-400">🔴</span>';
+    if (health === 'verde') return '<span class="inline-block w-2.5 h-2.5 rounded-full align-middle" style="background:#10b981"></span>';
+    if (health === 'amarillo') return '<span class="inline-block w-2.5 h-2.5 rounded-full align-middle" style="background:#f59e0b"></span>';
+    if (health === 'rojo') return '<span class="inline-block w-2.5 h-2.5 rounded-full align-middle" style="background:#ef4444"></span>';
     return '<span class="text-slate-600">—</span>';
   }
 
