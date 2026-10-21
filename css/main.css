@@ -119,6 +119,9 @@ html.light .text-fuchsia-200, html.light .text-fuchsia-300 { color: #a21caf !imp
 html.light .text-pink-200, html.light .text-pink-300 { color: #be185d !important; } html.light .text-pink-400 { color: #db2777 !important; }
 html.light .text-lime-200, html.light .text-lime-300 { color: #4d7c0f !important; } html.light .text-lime-400 { color: #65a30d !important; }
 
+/* Fondos de acento muy oscuros (pensados para tema oscuro) → tono suave en tema claro */
+html.light .bg-indigo-950 { background-color: #eef2ff !important; }
+
 /* Scrollbars finos */
 * { scrollbar-width: thin; scrollbar-color: var(--s4) transparent; }
 ::-webkit-scrollbar { width: 8px; height: 8px; }

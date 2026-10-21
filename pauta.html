@@ -35,43 +35,31 @@
   <div class="p-6 max-w-7xl mx-auto">
 
     <!-- Header -->
-    <div class="flex items-start justify-between mb-6 flex-wrap gap-4">
-      <div>
-        <h1 class="text-2xl font-black text-slate-100">💰 Monitor de Pauta Digital</h1>
-        <p class="text-slate-400 text-sm mt-1">Seguimiento de presupuesto por cliente y plataforma en tiempo real</p>
-      </div>
+    <div class="mb-4">
+      <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-100">Monitor de Pauta Digital</h1>
+      <p class="text-slate-400 text-sm mt-1">Seguimiento de presupuesto por cliente y plataforma en tiempo real</p>
+    </div>
 
-      <!-- Controls -->
+    <!-- Controles (barra fija) -->
+    <div class="ui-toolbar sticky top-[3.25rem] md:top-0 z-30 -mx-6 px-6 py-3 mb-6">
       <div class="flex items-center gap-2 flex-wrap">
         <!-- Quick buttons -->
-        <button id="btn-this" onclick="PautaMonitor.setThisMonth(); PautaMonitor.loadData()"
-          class="bg-indigo-600 text-white font-semibold px-3 py-2 rounded-lg text-sm transition-colors">
-          Este mes
-        </button>
-        <button id="btn-last" onclick="PautaMonitor.setLastMonth(); PautaMonitor.loadData()"
-          class="bg-slate-800 text-slate-300 border border-slate-600 font-semibold px-3 py-2 rounded-lg text-sm transition-colors">
-          Mes anterior
-        </button>
+        <button id="btn-this" onclick="PautaMonitor.setThisMonth(); PautaMonitor.loadData()" class="ui-chip bg-indigo-600 text-white">Este mes</button>
+        <button id="btn-last" onclick="PautaMonitor.setLastMonth(); PautaMonitor.loadData()" class="ui-chip bg-slate-800 text-slate-300">Mes anterior</button>
 
         <!-- Date range -->
-        <input type="date" id="p-from" onchange="PautaMonitor._markQuick('custom')"
-          class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+        <label class="ui-field" title="Desde"><input type="date" id="p-from" onchange="PautaMonitor._markQuick('custom')" class="ui-input" style="padding:0 .6rem 0 .9rem"></label>
         <span class="text-slate-500 text-sm">→</span>
-        <input type="date" id="p-to" onchange="PautaMonitor._markQuick('custom')"
-          class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+        <label class="ui-field" title="Hasta"><input type="date" id="p-to" onchange="PautaMonitor._markQuick('custom')" class="ui-input" style="padding:0 .6rem 0 .9rem"></label>
 
         <!-- Refresh -->
-        <button id="p-refresh" onclick="PautaMonitor.loadData(true)"
-          class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-2 rounded-lg text-sm transition-colors whitespace-nowrap flex items-center gap-2">
+        <button id="p-refresh" onclick="PautaMonitor.loadData(true)" class="ui-chip">
           <span id="p-spinner" style="display:none" class="w-3.5 h-3.5 border-2 border-slate-600 border-t-indigo-400 rounded-full animate-spin"></span>
-          ↻ Actualizar
+          <span data-icon="refresh"></span>Actualizar
         </button>
 
         <!-- Add client -->
-        <button onclick="PautaMonitor.openClientModal()"
-          class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-3 py-2 rounded-lg text-sm transition-colors whitespace-nowrap">
-          + Cliente
-        </button>
+        <button onclick="PautaMonitor.openClientModal()" class="ui-chip ui-chip-primary"><span data-icon="plus"></span>Cliente</button>
       </div>
     </div>
 
@@ -87,8 +75,8 @@
         <span class="w-2.5 h-2.5 rounded-full bg-red-500 inline-block"></span> Ritmo diario excedido (+20%) o presupuesto superado
       </span>
       <span class="ml-auto flex items-center gap-3">
-        <span>⚡ = gasto diario elevado</span>
-        <span>🔴 = presupuesto en riesgo</span>
+        <span class="inline-flex items-center gap-1"><span data-icon="zap" data-size="w-3 h-3"></span>= gasto diario elevado</span>
+        <span class="inline-flex items-center gap-1"><span class="inline-block w-2 h-2 rounded-full bg-red-500 align-middle"></span> = presupuesto en riesgo</span>
         <span>✓ = ritmo normal</span>
       </span>
     </div>
@@ -98,13 +86,13 @@
       <span class="text-xs text-slate-500 mr-1">Filtrar:</span>
       <button id="f-period-label"
         onclick="PautaMonitor.toggleFilter('period')"
-        class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-700 text-slate-400 text-xs hover:border-slate-500 transition-colors select-none">
+        class="ui-chip border-slate-700 text-slate-400 select-none">
         <span id="f-period-dot" class="w-2 h-2 rounded-full bg-slate-600 flex-shrink-0"></span>
         Con pauta en el período
       </button>
       <button id="f-now-label"
         onclick="PautaMonitor.toggleFilter('now')"
-        class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-700 text-slate-400 text-xs hover:border-slate-500 transition-colors select-none">
+        class="ui-chip border-slate-700 text-slate-400 select-none">
         <span id="f-now-dot" class="w-2 h-2 rounded-full bg-slate-600 flex-shrink-0"></span>
         Solo activos ahora
       </button>
@@ -120,7 +108,7 @@
 <script src="js/session.js"></script>
 <script src="js/storage.js?v=20260630"></script>
 <script src="js/sidebar.js?v=20261021"></script>
-<script src="js/pauta.js?v=20260630"></script>
+<script src="js/pauta.js?v=20261021"></script>
 <script src="js/alarm.js?v=20260630"></script>
 <script>
   Session.ready.then(() => {

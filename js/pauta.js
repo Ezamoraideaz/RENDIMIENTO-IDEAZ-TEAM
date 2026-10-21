@@ -261,7 +261,7 @@ const PautaMonitor = (() => {
     const areaPath = `${linePath} L ${pts[pts.length-1].x} ${H} L 0 ${H} Z`;
     const gradId   = 'sg' + color.replace('#', '');
     const dots     = pts.map(p =>
-      `<circle cx="${p.x}" cy="${p.y}" r="2.5" fill="${color}" stroke="#0f172a" stroke-width="1.5">
+      `<circle cx="${p.x}" cy="${p.y}" r="2.5" fill="${color}" style="stroke:var(--s1)" stroke-width="1.5">
         <title>${p.date}  $${_fmt(p.v)}</title>
       </circle>`
     ).join('');
@@ -379,7 +379,7 @@ const PautaMonitor = (() => {
     if (_clients.length === 0) {
       container.innerHTML = `
         <div class="col-span-full flex flex-col items-center justify-center py-24 text-slate-500 gap-3">
-          <div class="text-5xl">💰</div>
+          <div class="w-14 h-14 rounded-2xl bg-indigo-500/15 text-indigo-400 grid place-items-center">${Icons.svg('wallet', 'w-7 h-7')}</div>
           <p class="text-sm">No hay clientes configurados.</p>
           <button onclick="PautaMonitor.openClientModal()" class="mt-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
             + Agregar primer cliente
@@ -463,7 +463,7 @@ const PautaMonitor = (() => {
     const pctNum = globalBudget > 0 ? (globalSpend / globalBudget * 100).toFixed(1)    : '—';
     const dailyPaceHtml = globalDaily > 0 ? `
       <span class="text-xs ${_alertColors[paceAlert].text} border ${_alertColors[paceAlert].badge} rounded px-1.5 py-0.5 ml-2">
-        ${paceAlert === 'ok' ? '✓' : paceAlert === 'warn' ? '⚡' : '🔴'}
+        ${paceAlert === 'ok' ? '✓' : paceAlert === 'warn' ? `${Icons.svg('zap', 'w-3 h-3 inline -mt-0.5')}` : '<span class="inline-block w-2 h-2 rounded-full bg-red-500 align-middle"></span>'}
         $${_fmt(globalActualDaily)}/día vs $${_fmt(globalDaily)}/día meta
       </span>` : '';
 
@@ -475,7 +475,7 @@ const PautaMonitor = (() => {
       </div>` : '';
 
     return `
-    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 flex flex-col gap-4">
+    <div class="bento-card flex flex-col gap-4">
       <!-- Client header -->
       <div class="flex items-start justify-between gap-2">
         <div>
@@ -487,11 +487,11 @@ const PautaMonitor = (() => {
         </div>
         <div class="flex items-center gap-2 flex-shrink-0">
           <button onclick="PautaMonitor.openBrandModal('${client.id}')" title="Ver detalle de campañas"
-            class="text-xs font-semibold text-indigo-400 hover:text-indigo-300 border border-indigo-600/50 hover:border-indigo-400 px-2.5 py-1 rounded-lg transition-colors">
-            📊 Detalle
+            class="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-400 hover:text-indigo-300 border border-indigo-600/50 hover:border-indigo-400 px-2.5 py-1 rounded-full transition-colors">
+            ${Icons.svg('chart', 'w-3.5 h-3.5')}Detalle
           </button>
           <button onclick="PautaMonitor.openClientModal('${client.id}')" title="Editar cliente"
-            class="text-slate-500 hover:text-slate-300 text-lg leading-none transition-colors">⚙</button>
+            class="text-slate-500 hover:text-slate-300 transition-colors">${Icons.svg('settings', 'w-5 h-5')}</button>
         </div>
       </div>
 
@@ -524,7 +524,7 @@ const PautaMonitor = (() => {
   }
 
   function _renderPlatformRow(plat, spend, budget, dailyB, days, status, errMsg, dailyArr = [], currency = '') {
-    const meta  = PLATFORMS.find(p => p.key === plat.platform) || { label: plat.platform, icon: '📡' };
+    const meta  = PLATFORMS.find(p => p.key === plat.platform) || { label: plat.platform, icon: Icons.svg('pulse', 'w-4 h-4 inline') };
     const accountId = _accountIdOf(plat) || '—';
 
     if (status === 'loading') {
@@ -551,7 +551,7 @@ const PautaMonitor = (() => {
 
     const paceTag = dailyB > 0 ? `
       <span class="border ${ac.badge} rounded px-1 py-0.5 ml-1">
-        ${paceAlert === 'ok' ? '✓' : paceAlert === 'warn' ? '⚡' : '🔴'} $${_fmt(actualDaily)}/d
+        ${paceAlert === 'ok' ? '✓' : paceAlert === 'warn' ? `${Icons.svg('zap', 'w-3 h-3 inline -mt-0.5')}` : '<span class="inline-block w-2 h-2 rounded-full bg-red-500 align-middle"></span>'} $${_fmt(actualDaily)}/d
       </span>` : '';
 
     const sparkHexColors = { ok: '#10b981', warn: '#eab308', over: '#ef4444' };
@@ -1219,11 +1219,11 @@ const PautaMonitor = (() => {
 
     return `
     <div class="flex flex-col gap-0">
-      ${row('TOF · F1', '📢', 'border-blue-500',    'text-blue-400 bg-blue-500/10',    tof, tofCPM > 0 ? `CPM $${_fmtShort(tofCPM)}` : '—', 'CPM', 0)}
+      ${row('TOF · F1', Icons.svg('megaphone', 'w-3.5 h-3.5 inline -mt-0.5'), 'border-blue-500',    'text-blue-400 bg-blue-500/10',    tof, tofCPM > 0 ? `CPM $${_fmtShort(tofCPM)}` : '—', 'CPM', 0)}
       ${arrow}
-      ${row('MOF · F2', '🎯', 'border-yellow-500',  'text-yellow-400 bg-yellow-500/10', mof, mofCPC > 0 ? `CPC $${_fmtShort(mofCPC)}` : '—', 'CPC', 24)}
+      ${row('MOF · F2', Icons.svg('target', 'w-3.5 h-3.5 inline -mt-0.5'), 'border-yellow-500',  'text-yellow-400 bg-yellow-500/10', mof, mofCPC > 0 ? `CPC $${_fmtShort(mofCPC)}` : '—', 'CPC', 24)}
       ${arrow}
-      ${row('BOF · F3', '💰', 'border-emerald-500', 'text-emerald-400 bg-emerald-500/10', bof, bofCPL > 0 ? `CPL $${_fmtShort(bofCPL)}` : '—', 'CPL', 48)}
+      ${row('BOF · F3', Icons.svg('wallet', 'w-3.5 h-3.5 inline -mt-0.5'), 'border-emerald-500', 'text-emerald-400 bg-emerald-500/10', bof, bofCPL > 0 ? `CPL $${_fmtShort(bofCPL)}` : '—', 'CPL', 48)}
     </div>`;
   }
 
@@ -1290,7 +1290,7 @@ const PautaMonitor = (() => {
           <div class="h-full bg-red-500 ${uBarW > 0 ? 'rounded-r-full' : ''}" style="width:${uBarW}%"></div>
         </div>
         <div class="flex justify-between text-xs mt-1 text-slate-600">
-          <span>✅ Calificados ${qBarW}%</span>
+          <span>Calificados ${qBarW}%</span>
           <span>❌ No calificados ${uBarW}%</span>
         </div>
       </div>` : ''}
@@ -1405,7 +1405,7 @@ const PautaMonitor = (() => {
     <div class="rounded-2xl border border-indigo-500/30 overflow-hidden">
       <div class="px-5 py-4 bg-indigo-950/40 flex items-center justify-between">
         <div class="flex items-center gap-2.5">
-          <span class="text-base">⚡</span>
+          <span class="text-amber-400">${Icons.svg('zap', 'w-4 h-4')}</span>
           <p class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Simulador de Presupuesto</p>
         </div>
         <span class="text-xs text-slate-400">Total fijo: <strong class="text-slate-200">$${_fmt(totalSpend)}</strong></span>
@@ -1566,10 +1566,10 @@ const PautaMonitor = (() => {
   };
 
   const _fatigueAdvice = {
-    critical: '🚨 Fatiga severa detectada. La audiencia está saturada — rota creativos de inmediato y considera ampliar el público objetivo.',
-    danger:   '⚠️ Señales claras de fatiga. Prepara nuevos creativos y revisa la segmentación. El rendimiento seguirá cayendo.',
-    warn:     '💡 Frecuencia en zona de alerta. Monitorea el CTR diariamente y ten creativos alternativos listos.',
-    ok:       '✅ La audiencia responde bien. Frecuencia y CTR dentro de rangos saludables para esta etapa.',
+    critical: 'Fatiga severa detectada. La audiencia está saturada — rota creativos de inmediato y considera ampliar el público objetivo.',
+    danger:   'Señales claras de fatiga. Prepara nuevos creativos y revisa la segmentación. El rendimiento seguirá cayendo.',
+    warn:     'Frecuencia en zona de alerta. Monitorea el CTR diariamente y ten creativos alternativos listos.',
+    ok:       'La audiencia responde bien. Frecuencia y CTR dentro de rangos saludables para esta etapa.',
     unknown:  '—',
   };
 
