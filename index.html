@@ -97,14 +97,14 @@
               <div class="text-[11px] text-slate-400">Dashboard</div>
             </div>
           </a>
-          <label class="ui-field flex-1 min-w-[170px] max-w-[280px]">
+          <label class="ui-field flex-1 min-w-[140px] max-w-[210px]">
             <span data-icon="search"></span>
             <input type="text" id="search-projects" class="ui-input" placeholder="Buscar proyecto…" oninput="applyFilters()">
           </label>
-          <div class="flex flex-wrap gap-1.5" id="type-chips">
-            <button type="button" class="ui-chip" data-type="" onclick="setTypeFilter('')">Todos</button>
-            <button type="button" class="ui-chip" data-type="retencion" onclick="setTypeFilter('retencion')"><span data-icon="repeat"></span>Retención</button>
-            <button type="button" class="ui-chip" data-type="unico" onclick="setTypeFilter('unico')"><span data-icon="package"></span>Único</button>
+          <div class="flex gap-1" id="type-chips">
+            <button type="button" class="ui-chip !px-3" data-type="" onclick="setTypeFilter('')">Todos</button>
+            <button type="button" class="ui-chip !px-3" data-type="retencion" onclick="setTypeFilter('retencion')"><span data-icon="repeat"></span>Retención</button>
+            <button type="button" class="ui-chip !px-3" data-type="unico" onclick="setTypeFilter('unico')"><span data-icon="package"></span>Único</button>
           </div>
           <select id="filter-type" class="hidden" onchange="applyFilters()" aria-hidden="true">
             <option value="">Todos los tipos</option>
@@ -121,18 +121,15 @@
             <select id="filter-workspace" class="ui-select" onchange="applyFilters()"><option value="">Todos los espacios</option></select>
             <span data-icon="chevron" class="ui-field-end"></span>
           </label>
-          <label class="ui-field">
-            <span data-icon="tag"></span>
-            <select id="filter-category" class="ui-select" onchange="applyFilters()"><option value="">Todas las categorías</option></select>
-            <span data-icon="chevron" class="ui-field-end"></span>
-          </label>
-          <button type="button" class="ui-chip" onclick="clearFilters()" id="btn-clear-filters" style="display:none"><span data-icon="x"></span>Limpiar</button>
-          <span id="filter-info" class="text-xs text-slate-400" style="display:none"></span>
-          <div class="ml-auto flex items-center gap-2">
-            <span id="bar-updated" class="text-[11px] text-slate-400 hidden xl:inline"></span>
-            <span id="boards-count-badge" class="ui-chip" style="cursor:default;color:#6366f1"></span>
+          <select id="filter-category" class="hidden" aria-hidden="true"><option value="">Todas las categorías</option></select>
+          <button type="button" class="ui-chip !px-2.5 min-[1700px]:!px-4" onclick="clearFilters()" id="btn-clear-filters" style="display:none" title="Limpiar filtros" aria-label="Limpiar filtros"><span data-icon="x"></span><span class="hidden min-[1700px]:inline">Limpiar</span></button>
+          <!-- "Mostrando X de Y": el conteo ya está en el título de Proyectos; se deja oculto para que applyFilters() siga funcionando -->
+          <span id="filter-info" class="hidden" style="display:none"></span>
+          <div class="ml-auto flex items-center gap-1.5">
+            <span id="bar-updated" class="text-[11px] text-slate-400 hidden min-[1700px]:inline"></span>
+            <span id="boards-count-badge" class="ui-chip hidden min-[1700px]:inline-flex" style="cursor:default;color:#6366f1"></span>
             <button type="button" class="ui-chip !px-0 w-9" onclick="Sidebar.toggleTheme()" data-theme-icon data-cls="w-4 h-4" title="Cambiar tema" aria-label="Cambiar tema"></button>
-            <button type="button" class="ui-chip ui-chip-primary" onclick="loadDashboard(true)"><span data-icon="refresh"></span>Actualizar</button>
+            <button type="button" class="ui-chip ui-chip-primary !px-2.5 min-[1700px]:!px-4" onclick="loadDashboard(true)" title="Actualizar datos de Trello" aria-label="Actualizar"><span data-icon="refresh"></span><span class="hidden min-[1700px]:inline">Actualizar</span></button>
           </div>
         </div>
       </div>
