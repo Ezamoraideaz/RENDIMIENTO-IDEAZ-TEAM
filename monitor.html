@@ -27,7 +27,7 @@
     <!-- Header -->
     <div class="flex items-start justify-between mb-6 flex-wrap gap-4">
       <div>
-        <h1 class="text-2xl font-black text-slate-100">🚨 Monitor de Faltas</h1>
+        <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-100">Monitor de Faltas</h1>
         <p class="text-slate-400 text-sm mt-1">Detección automática de violaciones al protocolo de Trello por miembro</p>
       </div>
       <div class="flex items-center gap-2 flex-wrap">
@@ -46,7 +46,7 @@
         </div>
         <button onclick="Monitor.refresh()"
           class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-2 rounded-lg text-sm transition-colors whitespace-nowrap">
-          ↻ Actualizar
+          <span data-icon="refresh" class="inline -mt-0.5 mr-1"></span>Actualizar
         </button>
       </div>
     </div>
@@ -63,7 +63,7 @@
     <div id="state-error" style="display:none">
       <div class="max-w-xl mx-auto mt-12 px-6">
         <div class="bg-slate-900 border border-red-500/30 rounded-2xl p-8 text-center">
-          <div class="text-4xl mb-3">⚠️</div>
+          <div class="w-14 h-14 mx-auto mb-3 rounded-2xl bg-red-500/15 text-red-400 grid place-items-center"><span data-icon="alert" data-size="w-7 h-7"></span></div>
           <h2 class="text-lg font-bold text-slate-100 mb-2">Error al cargar datos</h2>
           <p id="error-msg" class="text-slate-400 text-sm mb-4"></p>
           <button onclick="Monitor.refresh()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors">
@@ -111,7 +111,7 @@
 <script src="js/timeCalc.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/sidebar.js?v=20261026"></script>
-<script src="js/monitor.js"></script>
+<script src="js/monitor.js?v=20261027"></script>
 <script src="js/alarm.js"></script>
 <script>
   Session.ready.then(() => {

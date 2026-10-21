@@ -339,8 +339,8 @@ const Monitor = (() => {
                   </tr>`;
 
                 const notaBtn = `<button onclick="Monitor.toggleNotas('${panelId}')"
-                  style="margin-top:6px;display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:4px;font-size:0.68rem;font-weight:600;cursor:pointer;border:1px solid rgba(99,102,241,0.4);background:rgba(99,102,241,0.1);color:#a5b4fc">
-                  📝 ${notas.length > 0 ? notas.length + ' nota' + (notas.length > 1 ? 's' : '') : '+ Nota'}
+                  style="margin-top:6px;display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:4px;font-size:0.68rem;font-weight:600;cursor:pointer;border:1px solid rgba(99,102,241,0.4);background:rgba(99,102,241,0.1)" class="text-indigo-300">
+                  ${Icons.svg('pencil', 'w-3 h-3')} ${notas.length > 0 ? notas.length + ' nota' + (notas.length > 1 ? 's' : '') : '+ Nota'}
                 </button>`;
 
                 return `
