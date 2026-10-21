@@ -41,34 +41,43 @@
 <main class="ml-64 min-h-screen">
   <div class="p-6 max-w-4xl mx-auto">
 
-    <h1 class="text-2xl font-black text-slate-100 mb-6">⚙️ Configuración</h1>
+    <div class="mb-4">
+      <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-100">Configuración</h1>
+      <p class="text-slate-400 text-sm mt-1">Credenciales, equipo, carpetas de Drive, datos financieros y usuarios</p>
+    </div>
+
+    <!-- Accesos directos a las secciones visibles para este rol (los arma el script de abajo) -->
+    <div class="ui-toolbar sticky top-[3.25rem] md:top-0 z-30 -mx-6 px-6 py-3 mb-6">
+      <div id="config-nav" class="flex flex-wrap gap-1.5"></div>
+    </div>
 
     <!-- ALARMA MANUAL (solo admin/superadmin) -->
-    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4" id="section-alarm" style="display:none">
-      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">🔔 Alarma del equipo</h2>
+    <div class="bento-card mb-4 scroll-mt-24" id="section-alarm" style="display:none">
+      <h2 class="bento-label mb-4 inline-flex items-center gap-2.5"><span class="w-8 h-8 rounded-xl bg-indigo-500/15 text-indigo-400 grid place-items-center normal-case"><span data-icon="bell"></span></span>Alarma del equipo</h2>
       <p class="text-sm text-slate-400 mb-4">
         Envía el mismo aviso sonoro del recordatorio de las 5pm a todos los que estén logueados ahora mismo, en el momento que quieras (no reemplaza el recordatorio automático diario, se suma a este).
       </p>
       <button id="btn-send-alarm" onclick="sendTeamAlarm()"
-        class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors">
-        🔔 Enviar alarma a todo el equipo
+        class="ui-chip ui-chip-primary">
+        <span data-icon="bell"></span>Enviar alarma a todo el equipo
       </button>
     </div>
 
     <!-- TRELLO CREDENTIALS -->
-    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4" id="section-trello">
-      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">🔑 Credenciales de Trello</h2>
+    <div class="bento-card mb-4 scroll-mt-24" id="section-trello">
+      <h2 class="bento-label mb-4 inline-flex items-center gap-2.5"><span class="w-8 h-8 rounded-xl bg-indigo-500/15 text-indigo-400 grid place-items-center normal-case"><span data-icon="key"></span></span>Credenciales de Trello</h2>
       <div id="cred-status"></div>
 
       <div class="flex gap-3 p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-sm mb-4 flex-col items-start">
-        <strong class="text-slate-200">📋 Pasos para obtener tus credenciales:</strong>
+        <strong class="text-slate-200">Pasos para obtener tus credenciales:</strong>
         <ol class="list-decimal ml-5 leading-8 text-slate-300">
           <li>Abre en tu navegador: <code class="bg-white/10 px-1.5 py-0.5 rounded text-xs">https://trello.com/app-key</code> (debes estar con sesión iniciada en Trello)</li>
           <li>En esa página verás tu <strong>API Key</strong> — es una cadena de ~32 caracteres. Cópiala.</li>
           <li>En la misma página, haz clic en el enlace que dice <strong>"Token"</strong> (junto a la key) → aprueba el acceso → copia el token largo que aparece (~64 caracteres).</li>
         </ol>
         <div class="flex gap-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-sm w-full">
-          ⚠️ <strong>Error "invalid key"</strong>: asegúrate de copiar el <em>API Key</em> (no el "Secret"). El Key son ~32 caracteres alfanuméricos en minúsculas.
+          <span data-icon="alert" class="mt-0.5"></span>
+          <p><strong>Error "invalid key"</strong>: asegúrate de copiar el <em>API Key</em> (no el "Secret"). El Key son ~32 caracteres alfanuméricos en minúsculas.</p>
         </div>
       </div>
 
@@ -79,7 +88,7 @@
         </label>
         <div class="flex gap-2">
           <input id="inp-key" type="text" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 flex-1" placeholder="Pega aquí tu API Key" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-          <button class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-1.5 rounded-lg text-sm transition-colors flex-shrink-0 whitespace-nowrap" onclick="toggleVisibility('inp-key', this)">👁 Ver</button>
+          <button class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-1.5 rounded-lg text-sm transition-colors flex-shrink-0 whitespace-nowrap" onclick="toggleVisibility('inp-key', this)"><span data-icon="eye" class="inline -mt-0.5 mr-1"></span>Ver</button>
         </div>
         <div id="key-hint" class="text-xs text-slate-400 mt-1"></div>
       </div>
@@ -91,7 +100,7 @@
         </label>
         <div class="flex gap-2">
           <input id="inp-token" type="password" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 flex-1" placeholder="Pega aquí tu Token" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-          <button class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-1.5 rounded-lg text-sm transition-colors flex-shrink-0 whitespace-nowrap" onclick="toggleVisibility('inp-token', this)">👁 Ver</button>
+          <button class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-1.5 rounded-lg text-sm transition-colors flex-shrink-0 whitespace-nowrap" onclick="toggleVisibility('inp-token', this)"><span data-icon="eye" class="inline -mt-0.5 mr-1"></span>Ver</button>
         </div>
         <div id="token-hint" class="text-xs text-slate-400 mt-1"></div>
       </div>
@@ -109,12 +118,12 @@
     </div>
 
     <!-- EQUIPO -->
-    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4" id="section-team" style="display:none">
+    <div class="bento-card mb-4 scroll-mt-24" id="section-team" style="display:none">
       <div class="flex justify-between items-center mb-3">
-        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-0">👥 Equipo</h2>
+        <h2 class="bento-label mb-0 inline-flex items-center gap-2.5"><span class="w-8 h-8 rounded-xl bg-indigo-500/15 text-indigo-400 grid place-items-center normal-case"><span data-icon="users"></span></span>Equipo</h2>
         <div class="text-xs text-slate-400">Sueldos para calcular costos · Roles para el Monitor de Faltas</div>
       </div>
-      <div class="flex gap-3 p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-sm mb-4">
+      <div class="p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-sm mb-4">
         Costo = <strong class="text-slate-200">horas × (sueldo ÷ 160 h/mes)</strong>. Los roles permiten atribuir faltas correctamente en el Monitor.
       </div>
       <div class="overflow-x-auto rounded-xl border border-slate-700">
@@ -138,19 +147,19 @@
     </div>
 
     <!-- GOOGLE DRIVE -->
-    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4" id="section-drive" style="display:none">
+    <div class="bento-card mb-4 scroll-mt-24" id="section-drive" style="display:none">
       <div class="flex justify-between items-center mb-3">
-        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-0">📁 Google Drive</h2>
+        <h2 class="bento-label mb-0 inline-flex items-center gap-2.5"><span class="w-8 h-8 rounded-xl bg-indigo-500/15 text-indigo-400 grid place-items-center normal-case"><span data-icon="folder"></span></span>Google Drive</h2>
         <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">✓ Conectado (cuenta de servicio)</span>
       </div>
 
-      <div class="flex gap-3 p-4 rounded-xl bg-slate-800/50 border border-slate-700 text-slate-400 text-xs mb-4 leading-relaxed">
+      <div class="p-4 rounded-xl bg-slate-800/50 border border-slate-700 text-slate-400 text-xs mb-4 leading-relaxed">
         La conexión con Drive la maneja el servidor con una cuenta de servicio compartida — nadie necesita conectar su cuenta de Google ni reconectarla. Para que una carpeta funcione acá, compártela con el email de esa cuenta de servicio (ver <code class="bg-slate-700 px-1.5 py-0.5 rounded text-slate-200">CLAUDE.md</code>, sección Puesta en marcha).
       </div>
 
       <!-- CREAR CARPETAS -->
       <div id="section-drive-creator" class="mt-4 pt-4 border-t border-slate-700">
-        <h3 class="text-sm font-semibold text-slate-300 mb-1">📂 Crear estructura de carpetas</h3>
+        <h3 class="text-sm font-bold text-slate-200 mb-1">Crear estructura de carpetas</h3>
         <p class="text-xs text-slate-500 mb-4">Crea año / mes / POST #1…N sin errores de escritura. Solo se crean las carpetas que no existen.</p>
         <div class="grid grid-cols-4 gap-3 mb-4">
           <div>
@@ -200,12 +209,12 @@
     </div>
 
     <!-- PROJECTS FINANCIAL DATA -->
-    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4" id="section-projects" style="display:none">
+    <div class="bento-card mb-4 scroll-mt-24" id="section-projects" style="display:none">
       <div class="flex justify-between items-center mb-3 flex-wrap gap-2">
-        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-0">💰 Datos Financieros por Proyecto</h2>
-        <button class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-1.5 rounded-lg text-sm transition-colors" onclick="autoDetectAllPeriods()" title="Detecta el mes/año desde el nombre del tablero">🗓 Auto-detectar periodos</button>
+        <h2 class="bento-label mb-0 inline-flex items-center gap-2.5"><span class="w-8 h-8 rounded-xl bg-indigo-500/15 text-indigo-400 grid place-items-center normal-case"><span data-icon="wallet"></span></span>Datos financieros por proyecto</h2>
+        <button class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 font-medium px-3 py-1.5 rounded-lg text-sm transition-colors" onclick="autoDetectAllPeriods()" title="Detecta el mes/año desde el nombre del tablero"><span data-icon="calendar" class="inline -mt-0.5 mr-1"></span>Auto-detectar periodos</button>
       </div>
-      <div class="flex gap-3 p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-sm mb-4">
+      <div class="p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-sm mb-4">
         Si tienes tableros con el mismo nombre, usa <strong class="text-slate-200">Cliente / Etiqueta</strong> (ej: "Empresa ABC") para difernciarlos con un badge de color, y <strong class="text-slate-200">Alias</strong> para renombrarlos en el dashboard sin tocar Trello.
       </div>
 
@@ -222,7 +231,7 @@
               <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Ingresos</th>
               <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Horas Estim.</th>
               <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Moneda</th>
-              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">📁 Carpeta ARTES (Drive ID)</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Carpeta ARTES (Drive ID)</th>
             </tr>
           </thead>
           <tbody id="projects-table-body" class="divide-y divide-slate-700/50">
@@ -232,16 +241,17 @@
       </div>
       <div class="mt-4">
         <button class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors" onclick="saveAllFinancial()">
-          💾 Guardar datos financieros
+          <span data-icon="save" class="inline -mt-0.5 mr-1"></span>Guardar datos financieros
         </button>
       </div>
     </div>
 
     <!-- USUARIOS (solo superadmin) -->
-    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4" id="section-users" style="display:none">
-      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">🔐 Usuarios</h2>
+    <div class="bento-card mb-4 scroll-mt-24" id="section-users" style="display:none">
+      <h2 class="bento-label mb-4 inline-flex items-center gap-2.5"><span class="w-8 h-8 rounded-xl bg-indigo-500/15 text-indigo-400 grid place-items-center normal-case"><span data-icon="lock"></span></span>Usuarios</h2>
       <div class="flex gap-3 p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-sm mb-5">
-        Cada persona entra con su email y contraseña en <strong class="text-slate-200">login.html</strong>. El rol define qué páginas ve. Las URLs de acceso antiguas (<code class="bg-white/10 px-1 rounded">?access=</code>) ya no funcionan.
+        <span data-icon="lock" class="mt-0.5"></span>
+        <p>Cada persona entra con su email y contraseña en <strong class="text-slate-200">login.html</strong>. El rol define qué páginas ve. Las URLs de acceso antiguas (<code class="bg-white/10 px-1 rounded">?access=</code>) ya no funcionan.</p>
       </div>
 
       <!-- Lista de usuarios -->
@@ -307,8 +317,8 @@
     </div>
 
     <!-- CACHE -->
-    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4" id="section-cache">
-      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">⚡ Caché de Trello</h2>
+    <div class="bento-card mb-4 scroll-mt-24" id="section-cache">
+      <h2 class="bento-label mb-3 inline-flex items-center gap-2.5"><span class="w-8 h-8 rounded-xl bg-indigo-500/15 text-indigo-400 grid place-items-center normal-case"><span data-icon="database"></span></span>Caché de Trello</h2>
       <p class="text-sm text-slate-400 mb-3">
         Los datos de Trello se guardan temporalmente en este navegador (tableros 30 min · tarjetas/acciones 20 min) para reducir las llamadas a la API. Si necesitas ver cambios recientes, limpia el caché o usa el botón <strong class="text-slate-200">↻ Actualizar</strong> del dashboard.
       </p>
@@ -316,8 +326,8 @@
     </div>
 
     <!-- DANGER ZONE -->
-    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-5" id="section-danger">
-      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">⚠️ Zona Peligrosa</h2>
+    <div class="bento-card scroll-mt-24" id="section-danger" style="border-color:rgba(239,68,68,.35)">
+      <h2 class="bento-label mb-3 inline-flex items-center gap-2.5"><span class="w-8 h-8 rounded-xl bg-rose-500/15 text-rose-400 grid place-items-center normal-case"><span data-icon="alert"></span></span>Zona peligrosa</h2>
       <p class="text-sm text-slate-400 mb-3">Estas acciones borran datos guardados en este navegador (los datos financieros y credenciales ya viven en la base de datos) y no se pueden deshacer.</p>
       <div class="flex gap-2 flex-wrap">
         <button class="bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 font-medium px-3 py-1.5 rounded-lg text-sm transition-colors" onclick="clearTime()">Borrar registros de tiempo</button>
@@ -394,10 +404,10 @@
     const inp = document.getElementById(inputId);
     if (inp.type === 'password') {
       inp.type = 'text';
-      btn.textContent = '🙈 Ocultar';
+      btn.innerHTML = `${Icons.svg('eyeOff', 'w-4 h-4 inline -mt-0.5 mr-1')}Ocultar`;
     } else {
       inp.type = 'password';
-      btn.textContent = '👁 Ver';
+      btn.innerHTML = `${Icons.svg('eye', 'w-4 h-4 inline -mt-0.5 mr-1')}Ver`;
     }
   }
 
@@ -406,7 +416,7 @@
     const hint = document.getElementById(hintId);
     if (!val) { hint.textContent = ''; return; }
     if (val.length < minLen || val.length > maxLen) {
-      hint.innerHTML = `<span style="color:#f59e0b">⚠️ Longitud inusual: ${val.length} caracteres (esperado ~${minLen}-${maxLen})</span>`;
+      hint.innerHTML = `<span style="color:#f59e0b">⚠ Longitud inusual: ${val.length} caracteres (esperado ~${minLen}-${maxLen})</span>`;
     } else {
       hint.innerHTML = `<span style="color:#10b981">✓ ${label} tiene ${val.length} caracteres — luce correcto</span>`;
     }
@@ -437,8 +447,8 @@
 
   function showConnectedStatus() {
     document.getElementById('cred-status').innerHTML = `
-      <div class="flex gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm mb-4">
-        ✅ Conectado a Trello — credenciales guardadas en la base de datos (compartidas con todo el equipo)
+      <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm mb-4">
+        ✓ Conectado a Trello — credenciales guardadas en la base de datos (compartidas con todo el equipo)
       </div>`;
   }
 
@@ -448,7 +458,7 @@
     const resultEl = document.getElementById('cred-result');
 
     if (!key || !token) {
-      resultEl.innerHTML = '<div class="flex gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-sm">Por favor ingresa API Key y Token.</div>';
+      resultEl.innerHTML = '<div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-sm">Por favor ingresa API Key y Token.</div>';
       return;
     }
 
@@ -461,8 +471,8 @@
       TrelloCache.invalidateAll();
       document.getElementById('btn-clear-cred').style.display = 'inline-flex';
       resultEl.innerHTML = `
-        <div class="flex gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm">
-          ✅ Conectado como <strong>${me.fullName}</strong> (@${me.username})
+        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm">
+          ✓ Conectado como <strong>${me.fullName}</strong> (@${me.username})
         </div>`;
       showConnectedStatus();
       loadTrelloData();
@@ -480,7 +490,7 @@
         tip = `<br><br><strong>Causa probable:</strong> El <strong>Token</strong> expiró o fue revocado. En <code>trello.com/app-key</code> haz clic en "Token" de nuevo para generar uno nuevo.`;
       }
       resultEl.innerHTML = `
-        <div class="flex gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
+        <div class="p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
           ❌ <strong>Error de conexión:</strong> ${msg}${tip}
         </div>`;
     }
@@ -591,13 +601,13 @@
         <tr class="hover:bg-slate-800/30 transition-colors">
           <td class="px-4 py-3">
             <div class="font-semibold text-sm text-slate-100">${b.name}</div>
-            <div class="text-xs text-slate-400">${wsName ? `🏢 ${wsName}` : b.id.slice(0,8) + '…'}</div>
+            <div class="text-xs text-slate-400">${wsName ? wsName : b.id.slice(0,8) + '…'}</div>
           </td>
           <td class="px-4 py-3">
             <select class="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500" style="width:160px" id="type-${b.id}">
               <option value="" ${!pd.type ? 'selected' : ''}>Auto-detectar</option>
-              <option value="retencion" ${pd.type==='retencion' ? 'selected' : ''}>♻️ Retención mensual</option>
-              <option value="unico"     ${pd.type==='unico'     ? 'selected' : ''}>📦 Proyecto único</option>
+              <option value="retencion" ${pd.type==='retencion' ? 'selected' : ''}>Retención mensual</option>
+              <option value="unico"     ${pd.type==='unico'     ? 'selected' : ''}>Proyecto único</option>
             </select>
             <div class="text-xs text-slate-500 mt-1">Detectado: ${Utils.typeLabel(Utils.resolveType(pd.type, wsName, b.name))}</div>
           </td>
@@ -670,7 +680,7 @@
     table.querySelector('thead tr').innerHTML = `
       <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Proyecto</th>
       <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Tipo</th>
-      <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">📁 Carpeta ARTES (Drive ID)</th>`;
+      <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Carpeta ARTES (Drive ID)</th>`;
     const tbody = document.getElementById('projects-table-body');
     if (allBoards.length === 0) {
       tbody.innerHTML = '<tr><td colspan="3" class="text-slate-400 px-4 py-3">No se encontraron tableros.</td></tr>';
@@ -683,13 +693,13 @@
         <tr class="hover:bg-slate-800/30 transition-colors">
           <td class="px-4 py-3">
             <div class="font-semibold text-sm text-slate-100">${pd.alias || b.name}</div>
-            <div class="text-xs text-slate-400">${wsName ? `🏢 ${wsName}` : b.id.slice(0,8) + '…'}</div>
+            <div class="text-xs text-slate-400">${wsName ? wsName : b.id.slice(0,8) + '…'}</div>
           </td>
           <td class="px-4 py-3">
             <select class="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500" style="width:160px" id="type-${b.id}">
               <option value="" ${!pd.type ? 'selected' : ''}>Auto-detectar</option>
-              <option value="retencion" ${pd.type==='retencion' ? 'selected' : ''}>♻️ Retención mensual</option>
-              <option value="unico"     ${pd.type==='unico'     ? 'selected' : ''}>📦 Proyecto único</option>
+              <option value="retencion" ${pd.type==='retencion' ? 'selected' : ''}>Retención mensual</option>
+              <option value="unico"     ${pd.type==='unico'     ? 'selected' : ''}>Proyecto único</option>
             </select>
           </td>
           <td class="px-4 py-3">
@@ -809,8 +819,8 @@
 
     const rootFolderId = DriveAPI.getFolderForBoard(boardId);
     if (!rootFolderId) {
-      result.innerHTML = `<div class="flex gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-sm">
-        ⚠️ Este proyecto no tiene Carpeta ARTES configurada. Agrégala en la tabla de proyectos de abajo.
+      result.innerHTML = `<div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-sm">
+        ⚠ Este proyecto no tiene Carpeta ARTES configurada. Agrégala en la tabla de proyectos de abajo.
       </div>`;
       return;
     }
@@ -829,15 +839,15 @@
       const nc = r.created.length;
       const ns = r.skipped.length;
       result.innerHTML = `
-        <div class="flex gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm mb-3">
-          ✅ <strong>${nc} carpeta${nc !== 1 ? 's' : ''} creada${nc !== 1 ? 's' : ''}</strong>${ns > 0 ? ` · ${ns} ya existían` : ''}
+        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm mb-3">
+          ✓ <strong>${nc} carpeta${nc !== 1 ? 's' : ''} creada${nc !== 1 ? 's' : ''}</strong>${ns > 0 ? ` · ${ns} ya existían` : ''}
         </div>
         ${nc > 0 ? `<div class="text-xs text-slate-400">
           <div class="font-semibold text-slate-300 mb-1">Creadas:</div>
-          ${r.created.map(n => `<div class="ml-2 py-0.5">📁 ${n}</div>`).join('')}
+          ${r.created.map(n => `<div class="ml-2 py-0.5 flex items-center gap-1.5">${Icons.svg('folder', 'w-3.5 h-3.5')}${n}</div>`).join('')}
         </div>` : ''}`;
     } catch (e) {
-      result.innerHTML = `<div class="flex gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
+      result.innerHTML = `<div class="p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
         ❌ ${e.message}
       </div>`;
     }
@@ -846,12 +856,12 @@
   // ---- Usuarios (solo superadmin) ----
 
   const USER_ROLES = [
-    { value: 'admin',         label: '🛠 Administrador — todo excepto gestión de usuarios' },
-    { value: 'agenda_full',   label: '📅 Agenda completa — todos los filtros disponibles' },
-    { value: 'agenda_member', label: '👤 Agenda bloqueada — solo ve sus propias tareas' },
-    { value: 'cm',            label: '🎨 CM — Drive + Carpetas + Agenda + Monitor (solo sus fallas)' },
-    { value: 'agent',         label: '💬 Agente — solo Atención al Cliente' },
-    { value: 'superadmin',    label: '👑 Superadministrador — control total' },
+    { value: 'admin',         label: 'Administrador — todo excepto gestión de usuarios' },
+    { value: 'agenda_full',   label: 'Agenda completa — todos los filtros disponibles' },
+    { value: 'agenda_member', label: 'Agenda bloqueada — solo ve sus propias tareas' },
+    { value: 'cm',            label: 'CM — Drive + Carpetas + Agenda + Monitor (solo sus fallas)' },
+    { value: 'agent',         label: 'Agente — solo Atención al Cliente' },
+    { value: 'superadmin',    label: 'Superadministrador — control total' },
   ];
   // Roles que requieren vincularse a un miembro de Trello (bloquean su vista al Monitor/Agenda a ese miembro)
   const ROLES_WITH_MEMBER_LINK = ['agenda_member', 'cm'];
@@ -932,9 +942,9 @@
         </td>
         <td class="px-4 py-3 whitespace-nowrap">
           <button onclick="resetUserPassword(${u.id})" title="Cambiar contraseña"
-            class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 px-2 py-1 rounded-lg text-xs transition-colors">🔑</button>
+            class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 px-2 py-1 rounded-lg text-xs transition-colors">${Icons.svg('key', 'w-3.5 h-3.5')}</button>
           <button onclick="resendPasswordReset(${u.id})" title="Enviar correo de recuperación"
-            class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 px-2 py-1 rounded-lg text-xs transition-colors">✉️</button>
+            class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 px-2 py-1 rounded-lg text-xs transition-colors">${Icons.svg('mail', 'w-3.5 h-3.5')}</button>
           ${isMe ? '' : `<button onclick="updateUser(${u.id}, { active: ${inactive ? 1 : 0} })" title="${inactive ? 'Activar' : 'Desactivar'}"
             class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 px-2 py-1 rounded-lg text-xs transition-colors">${inactive ? '▶' : '⏸'}</button>`}
         </td>
@@ -1028,6 +1038,38 @@
       Utils.showToast(e.message, 'error');
     }
   }
+</script>
+<script>
+  // Barra de accesos directos: un chip por sección visible para el rol actual.
+  // Las secciones se muestran/ocultan desde el script de la página según el rol,
+  // así que se observa su atributo style y la barra se rearma sola.
+  (function () {
+    const SECTIONS = [
+      ['section-alarm', 'bell', 'Alarma'], ['section-trello', 'key', 'Trello'], ['section-team', 'users', 'Equipo'],
+      ['section-drive', 'folder', 'Drive'], ['section-projects', 'wallet', 'Financiero'], ['section-users', 'lock', 'Usuarios'],
+      ['section-cache', 'database', 'Caché'], ['section-danger', 'alert', 'Zona peligrosa'],
+    ];
+    function build() {
+      const nav = document.getElementById('config-nav');
+      if (!nav) return;
+      nav.innerHTML = SECTIONS
+        .filter(([id]) => { const el = document.getElementById(id); return el && getComputedStyle(el).display !== 'none'; })
+        .map(([id, icon, label]) => `<a href="#${id}" class="ui-chip" style="text-decoration:none">${Icons.svg(icon)}${label}</a>`)
+        .join('');
+    }
+    const observer = new MutationObserver(build);
+    SECTIONS.forEach(([id]) => {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el, { attributes: true, attributeFilter: ['style'] });
+    });
+    document.getElementById('config-nav').addEventListener('click', (e) => {
+      const a = e.target.closest('a[href^="#"]');
+      if (!a) return;
+      e.preventDefault();
+      document.querySelector(a.getAttribute('href'))?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    build();
+  })();
 </script>
 </body>
 </html>
