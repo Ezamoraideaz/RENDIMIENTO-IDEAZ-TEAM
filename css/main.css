@@ -133,6 +133,9 @@ html.light .text-lime-200, html.light .text-lime-300 { color: #4d7c0f !important
 .ui-chip:hover { border-color:#6366f1; }
 .ui-chip.is-on, .ui-chip-primary { background:var(--accent); border-color:var(--accent); color:#fff; }
 .ui-chip-primary:hover { background:#6366f1; }
+.ui-chip-success { background:#059669; border-color:#059669; color:#fff; }
+.ui-chip-success:hover { background:#10b981; border-color:#10b981; }
+.ui-chip:disabled { opacity:.45; cursor:not-allowed; }
 /* Campo con icono dentro (izquierda) y flechita (derecha) */
 .ui-field { position:relative; display:inline-flex; align-items:center; height:2.25rem; }
 .ui-field > svg { position:absolute; left:.75rem; pointer-events:none; color:var(--mut); }

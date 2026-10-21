@@ -35,45 +35,58 @@
   <div class="p-6 max-w-6xl mx-auto">
 
     <!-- Header -->
-    <div class="flex items-start justify-between mb-6 flex-wrap gap-4">
-      <div>
-        <h1 class="text-2xl font-black text-slate-100">✅ Aprobaciones</h1>
-        <p class="text-slate-400 text-sm mt-1">Arma tandas de contenido, genera el link de revisión y sigue el feedback del cliente</p>
+    <div class="mb-4">
+      <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-100">Aprobaciones</h1>
+      <p class="text-slate-400 text-sm mt-1">Arma tandas de contenido, genera el link de revisión y sigue el feedback del cliente</p>
+    </div>
+
+    <!-- Controles (barra fija) -->
+    <div class="ui-toolbar sticky top-[3.25rem] md:top-0 z-30 -mx-6 px-6 py-3 mb-6">
+      <div class="flex items-center gap-2 flex-wrap">
+        <label class="ui-field min-w-[240px]">
+          <span data-icon="users"></span>
+          <select id="ap-client-select" class="ui-select">
+            <option value="">Cargando clientes…</option>
+          </select>
+          <span data-icon="chevron" class="ui-field-end"></span>
+        </label>
+        <button id="ap-auto-batch-btn" class="ui-chip ui-chip-success" disabled><span data-icon="zap"></span>Generar tanda automática</button>
+        <button id="ap-new-batch-btn" class="ui-chip ui-chip-primary" disabled><span data-icon="plus"></span>Nueva tanda</button>
+        <span id="ap-count" class="ml-auto text-xs font-semibold text-slate-400"></span>
       </div>
     </div>
 
-    <!-- Controles -->
-    <div class="flex items-center gap-3 mb-3 flex-wrap">
-      <select id="ap-client-select"
-        class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 min-w-[220px]">
-        <option value="">Cargando clientes…</option>
-      </select>
-      <button id="ap-auto-batch-btn"
-        class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-3 py-2 rounded-lg text-sm transition-colors whitespace-nowrap" disabled>
-        ⚡ Generar tanda automática
-      </button>
-      <button id="ap-new-batch-btn"
-        class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-3 py-2 rounded-lg text-sm transition-colors whitespace-nowrap" disabled>
-        + Nueva tanda
-      </button>
-      <span id="ap-count" class="ml-auto text-xs text-slate-500"></span>
-    </div>
-    <div class="flex items-center gap-2 mb-6 text-xs text-slate-500 flex-wrap">
-      <span>Tablero de Trello:</span>
-      <span id="ap-board-status" class="font-semibold text-slate-400">—</span>
-      <button id="ap-link-board-btn" class="text-indigo-400 hover:text-indigo-300 font-semibold">Vincular / cambiar</button>
-      <span class="text-slate-700">·</span>
-      <span>Google Sheet (parrilla):</span>
-      <span id="ap-sheet-status" class="font-semibold text-slate-400">—</span>
-      <button id="ap-link-sheet-btn" class="text-indigo-400 hover:text-indigo-300 font-semibold" style="display:none">Vincular / cambiar</button>
-      <span class="text-slate-700">·</span>
-      <span>Carpeta "Para aprobación":</span>
-      <span id="ap-approval-folder-status" class="font-semibold text-slate-400">—</span>
-      <button id="ap-link-approval-folder-btn" class="text-indigo-400 hover:text-indigo-300 font-semibold">Vincular / cambiar</button>
+    <!-- Conexiones del cliente -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-8">
+      <div class="bento-card !p-4 flex items-start gap-3">
+        <div class="w-9 h-9 rounded-xl bg-indigo-500/15 text-indigo-400 grid place-items-center flex-shrink-0"><span data-icon="kanban"></span></div>
+        <div class="min-w-0 flex-1">
+          <div class="bento-label">Tablero de Trello</div>
+          <div id="ap-board-status" class="text-sm font-bold text-slate-100 truncate mt-0.5">—</div>
+          <button id="ap-link-board-btn" class="text-xs text-indigo-400 hover:text-indigo-300 font-semibold mt-1">Vincular / cambiar</button>
+        </div>
+      </div>
+      <div class="bento-card !p-4 flex items-start gap-3">
+        <div class="w-9 h-9 rounded-xl bg-emerald-500/15 text-emerald-400 grid place-items-center flex-shrink-0"><span data-icon="sheet"></span></div>
+        <div class="min-w-0 flex-1">
+          <div class="bento-label">Google Sheet (parrilla)</div>
+          <div id="ap-sheet-status" class="text-sm font-bold text-slate-100 truncate mt-0.5">—</div>
+          <button id="ap-link-sheet-btn" class="text-xs text-indigo-400 hover:text-indigo-300 font-semibold mt-1" style="display:none">Vincular / cambiar</button>
+        </div>
+      </div>
+      <div class="bento-card !p-4 flex items-start gap-3">
+        <div class="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-400 grid place-items-center flex-shrink-0"><span data-icon="folder"></span></div>
+        <div class="min-w-0 flex-1">
+          <div class="bento-label">Carpeta "Para aprobación"</div>
+          <div id="ap-approval-folder-status" class="text-sm font-bold text-slate-100 truncate mt-0.5">—</div>
+          <button id="ap-link-approval-folder-btn" class="text-xs text-indigo-400 hover:text-indigo-300 font-semibold mt-1">Vincular / cambiar</button>
+        </div>
+      </div>
     </div>
 
     <!-- Lista de tandas -->
-    <div id="ap-batches-list" class="space-y-3"></div>
+    <h2 class="bento-label mb-3">Tandas</h2>
+    <div id="ap-batches-list" class="grid grid-cols-1 lg:grid-cols-2 gap-4"></div>
     <div id="ap-empty" class="text-center py-16 text-slate-500 text-sm" style="display:none">
       Este cliente todavía no tiene tandas. Crea la primera con "+ Nueva tanda".
     </div>
@@ -119,7 +132,7 @@
     <!-- Actividad: bitácora de quién abrió el link y qué decidió (material probatorio) -->
     <details class="bg-slate-800/40 border border-slate-700 rounded-lg mb-5" id="ap-activity-details">
       <summary class="px-4 py-3 text-sm font-semibold text-slate-300 cursor-pointer select-none flex items-center justify-between">
-        <span>🕓 Actividad</span>
+        <span class="inline-flex items-center gap-2"><span data-icon="clock"></span>Actividad</span>
         <span id="ap-activity-count" class="text-xs font-normal text-slate-500"></span>
       </summary>
       <div id="ap-activity-list" class="p-4 pt-0 space-y-2 max-h-72 overflow-y-auto"></div>
@@ -222,7 +235,7 @@
 <script src="js/cache.js?v=20260728"></script>
 <script src="js/api.js?v=20260728"></script>
 <script src="js/drive.js?v=20260805"></script>
-<script src="js/aprobaciones.js?v=20260728"></script>
+<script src="js/aprobaciones.js?v=20261021"></script>
 <script>
   Session.ready.then(() => {
     Sidebar.init('aprobaciones');
