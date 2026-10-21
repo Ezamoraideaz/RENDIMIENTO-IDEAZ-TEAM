@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script>if(localStorage.getItem('ideaz_theme')==='light')document.documentElement.classList.add('light');</script>
+  <script>try{if(localStorage.getItem('ideaz_theme')!=='dark')document.documentElement.classList.add('light');}catch(e){document.documentElement.classList.add('light');}</script>
   <title>Dashboard de Rendición – IDEAZ</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/main.css?v=20261021">
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans">
 
@@ -116,7 +116,7 @@
 </main>
 
 <script src="js/session.js"></script>
-<script src="js/sidebar.js?v=20260915"></script>
+<script src="js/sidebar.js?v=20261021"></script>
 <script src="js/utils.js?v=20260915"></script>
 <script src="js/rendicionSchema.js?v=20261007"></script>
 <script src="js/rendicionDashboard.js?v=20261007e"></script>
