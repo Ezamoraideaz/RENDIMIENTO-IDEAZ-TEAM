@@ -1376,7 +1376,11 @@ const PautaMonitor = (() => {
       </div>` : '';
 
     // Contenido de paneles (con estados vacíos amigables)
-    const fatigueHtml = _renderFatigue(detailData) || _emptyPanel('No hay datos de frecuencia de Meta Ads en este período. El detector de fatiga requiere campañas activas en Meta.');
+    const daily       = _clientDaily(client, from, to);
+    const quickHtml   = _renderQuickMonitor(detailData, daily);
+    const fatigueHtml = _renderFatigue(detailData) || (quickHtml
+      ? '<p class="text-xs text-slate-500">Detector de fatiga: sin datos de frecuencia de Meta Ads en este período.</p>'
+      : _emptyPanel('No hay campañas con actividad en este período para diagnosticar.'));
     const simHtml     = _renderSimulator(stages, totalSpend, totLeads, qualified) || _emptyPanel('Se necesita inversión registrada en el período para simular la redistribución de presupuesto.');
     const campHtml    = _renderCampaignList(stages) || _emptyPanel('No se encontraron campañas activas en este período.');
 
@@ -1452,11 +1456,13 @@ const PautaMonitor = (() => {
           </div>
 
           <div id="bm-panel-leads" class="bm-panel flex flex-col gap-4" style="display:none">
-            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Calidad de leads</p>
+            ${_renderLeadsTrend(daily)}
+            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mt-2">Calidad de leads</p>
             ${_renderLeadQuality(totLeads, qualified, unqual, qualRate, cpl, cpql, client.id, from, to, apiLeads)}
           </div>
 
-          <div id="bm-panel-diagnostico" class="bm-panel" style="display:none">
+          <div id="bm-panel-diagnostico" class="bm-panel flex flex-col gap-6" style="display:none">
+            ${quickHtml}
             ${fatigueHtml}
           </div>
 
@@ -1724,6 +1730,261 @@ const PautaMonitor = (() => {
         if (hint) hint.innerHTML = `<span class="text-red-400">No se pudo revocar: ${_esc(e.message)}</span>`;
       }
     }
+  }
+
+  // ── Leads por día del cliente (pestaña Leads + Diagnóstico) ───────────────
+  // Reutiliza el gasto diario que ya cargó la vista general (_spend): no hace llamadas nuevas.
+  // Rellena con 0 los días del rango sin datos (hasta hoy) para que los huecos se vean.
+  function _clientDaily(client, from, to) {
+    const map = {};
+    for (const plat of (client.platforms || [])) {
+      if (!plat.enabled) continue;
+      const accountId = _accountIdOf(plat);
+      if (!accountId) continue;
+      const r = _spend[_spendKey(plat.platform, accountId, from, to)];
+      if (!r || r.error) continue;
+      for (const d of (r.daily_data || [])) {
+        const e = map[d.date] || (map[d.date] = { date: d.date, spend: 0, leads: 0, by: {} });
+        e.spend += Number(d.spend) || 0;
+        e.leads += Number(d.leads) || 0;
+        e.by[plat.platform] = (e.by[plat.platform] || 0) + (Number(d.leads) || 0);
+      }
+    }
+    const today = _isoDate(new Date()), end = to < today ? to : today, out = [];
+    for (const d = new Date(from + 'T12:00:00'); _isoDate(d) <= end; d.setDate(d.getDate() + 1)) {
+      const k = _isoDate(d);
+      out.push(map[k] || { date: k, spend: 0, leads: 0, by: {} });
+    }
+    return out;
+  }
+
+  const _leadPlatColors = { meta: '#6366f1', google: '#f59e0b' };
+
+  // Comportamiento de adquisición: barras apiladas por plataforma, línea de acumulado,
+  // promedio, y lectura rápida (mejor día, días sin leads, últimos 7 vs. 7 anteriores).
+  function _renderLeadsTrend(daily) {
+    const total = daily.reduce((a, d) => a + d.leads, 0);
+    if (!daily.length || total <= 0) {
+      return `<div class="rounded-xl border border-dashed border-slate-700 px-4 py-6 text-center text-xs text-slate-500">
+        Las plataformas no reportan leads en este período (o la vista general aún no termina de cargar).</div>`;
+    }
+    const n = daily.length, W = 600, H = 150, top = 8;
+    const max   = Math.max(...daily.map(d => d.leads), 1);
+    const slot  = W / n, bw = Math.max(2, slot * (n > 40 ? 0.8 : 0.66));
+    const plats = [...new Set(daily.flatMap(d => Object.keys(d.by).filter(p => d.by[p] > 0)))];
+    const best  = daily.reduce((a, d) => d.leads > a.leads ? d : a, daily[0]);
+    const avg   = total / n;
+    const spend = daily.reduce((a, d) => a + d.spend, 0);
+    const yOf   = v => H - v / max * (H - top);
+
+    let cum = 0;
+    const pts = [], line = [];
+    const bars = daily.map((d, i) => {
+      const x = i * slot + (slot - bw) / 2;
+      cum += d.leads;
+      line.push(`${i ? 'L' : 'M'}${(x + bw / 2).toFixed(1)} ${(H - 2 - cum / total * (H - top - 2)).toFixed(1)}`);
+      pts.push([d.date, Math.round(d.leads * 10) / 10, +(yOf(d.leads) / H).toFixed(4)]);
+      if (d.leads <= 0) return `<rect x="${x.toFixed(1)}" y="${H - 1.5}" width="${bw.toFixed(1)}" height="1.5" fill="#334155"/>`;
+      let y = H, s = '';
+      const parts = plats.length ? plats.map(p => [p, d.by[p] || 0]) : [['otro', d.leads]];
+      for (const [p, v] of parts) {
+        if (v <= 0) continue;
+        const h = v / max * (H - top);
+        y -= h;
+        s += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" fill="${_leadPlatColors[p] || '#94a3b8'}"${d.date === best.date ? ' stroke="#10b981" stroke-width="2" vector-effect="non-scaling-stroke"' : ''}/>`;
+      }
+      return s;
+    }).join('');
+
+    const every  = Math.max(1, Math.ceil(n / 8));
+    const dayLbl = iso => new Date(iso + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
+    const labels = daily.map((d, i) => `<span class="flex-1 text-center text-[10px] text-slate-500 whitespace-nowrap overflow-visible">${i % every === 0 ? dayLbl(d.date) : ''}</span>`).join('');
+    const sparkData = _esc(JSON.stringify({ c: '#6366f1', b: 1, h: H, u: 'leads', p: pts }));
+
+    // Lectura rápida. Hoy va incompleto: las comparaciones de ritmo usan solo días cerrados.
+    const today  = _isoDate(new Date());
+    const closed = daily[n - 1].date === today ? daily.slice(0, -1) : daily;
+    const sum = arr => arr.reduce((a, d) => a + d.leads, 0);
+    let wow = null;
+    if (closed.length >= 14) {
+      const last7 = sum(closed.slice(-7)), prev7 = sum(closed.slice(-14, -7));
+      wow = prev7 > 0 ? (last7 - prev7) / prev7 * 100 : null;
+    }
+    const zeroDays = closed.filter(d => d.leads <= 0).length;
+    let streak = 0;
+    for (let i = closed.length - 1; i >= 0 && closed[i].leads <= 0; i--) streak++;
+
+    const stat = (label, value, sub = '', cls = 'text-slate-100') => `
+      <div class="bg-slate-800/60 border border-slate-700/60 rounded-xl px-3 py-2.5">
+        <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">${label}</div>
+        <div class="text-base font-black ${cls} mt-1 leading-none">${value}</div>
+        ${sub ? `<div class="text-[11px] text-slate-400 mt-1">${sub}</div>` : ''}
+      </div>`;
+    const legend = plats.map(p => `<span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm" style="background:${_leadPlatColors[p] || '#94a3b8'}"></span>${p === 'meta' ? 'Meta' : p === 'google' ? 'Google' : _esc(p)}</span>`).join('');
+
+    return `
+    <div class="rounded-2xl border border-slate-700 bg-slate-800/30 p-4 sm:p-5">
+      <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
+        <div>
+          <p class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Comportamiento de adquisición</p>
+          <p class="text-[11px] text-slate-500 mt-0.5">Leads por día según las plataformas (formularios, píxel y conversaciones en Meta; conversiones en Google)</p>
+        </div>
+        <div class="flex items-center gap-3 text-[11px] text-slate-400">
+          ${legend}
+          <span class="inline-flex items-center gap-1.5"><span class="w-3 border-t-2 border-emerald-400"></span>Acumulado</span>
+          <span class="inline-flex items-center gap-1.5"><span class="w-3 border-t border-dashed border-slate-400"></span>Promedio</span>
+        </div>
+      </div>
+      <div class="spark" data-spark="${sparkData}" style="position:relative;padding:8px 0;margin:-8px 0;cursor:crosshair">
+        <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none" style="display:block">
+          ${bars}
+          <line x1="0" x2="${W}" y1="${yOf(avg).toFixed(1)}" y2="${yOf(avg).toFixed(1)}" stroke="#94a3b8" stroke-dasharray="4 4" stroke-width="1" vector-effect="non-scaling-stroke" opacity=".7"/>
+          <path d="${line.join(' ')}" fill="none" stroke="#34d399" stroke-width="2" vector-effect="non-scaling-stroke" opacity=".9"/>
+        </svg>
+      </div>
+      <div class="flex mt-1.5">${labels}</div>
+      <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-4">
+        ${stat('Leads plataforma', _fmtNum(total), `${(avg).toFixed(1)}/día en promedio`)}
+        ${stat('Mejor día', dayLbl(best.date), `${Math.round(best.leads)} leads`, 'text-emerald-400')}
+        ${stat('CPL plataforma', spend > 0 ? '$' + _fmtShort(spend / total) : '—', 'inversión / leads', 'text-indigo-300')}
+        ${stat('Días sin leads', zeroDays, streak >= 2 ? `⚠ ${streak} días seguidos al cierre` : `de ${closed.length} días cerrados`, streak >= 2 ? 'text-red-400' : zeroDays > 0 ? 'text-yellow-400' : 'text-slate-100')}
+        ${stat('Últimos 7 días', wow == null ? '—' : `${wow > 0 ? '▲' : '▼'} ${Math.abs(wow).toFixed(0)}%`, wow == null ? 'necesita 14 días cerrados' : 'vs. 7 días anteriores', wow == null ? 'text-slate-400' : wow >= 0 ? 'text-emerald-400' : wow <= -20 ? 'text-red-400' : 'text-yellow-400')}
+      </div>
+    </div>`;
+  }
+
+  // ── Monitoreo rápido (pestaña Diagnóstico) ────────────────────────────────
+  // Cinco chequeos sobre el período del monitor, ordenados por urgencia. Las campañas TOF
+  // (alcance/reconocimiento) no se juzgan por leads: su objetivo no es convertir.
+  function _renderQuickMonitor(detailData, daily) {
+    const camps = Object.entries(detailData)
+      .filter(([, d]) => !d.error && Array.isArray(d.campaigns))
+      .flatMap(([platform, d]) => d.campaigns.map(c => ({ ...c, platform, stage: c.stage || _detectStage(c.name) })))
+      .filter(c => (c.spend || 0) > 0 || (c.impressions || 0) > 0);
+    if (!camps.length) return '';
+
+    const totSpend = camps.reduce((a, c) => a + (c.spend || 0), 0);
+    const totLeads = camps.reduce((a, c) => a + (c.leads || 0), 0);
+    const acctCpl  = totLeads > 0 ? totSpend / totLeads : 0;
+    const convCamps = camps.filter(c => c.stage !== 'tof');
+    const money = v => '$' + _fmtShort(v);
+    const item = (c, right, rightCls = 'text-slate-300') => `
+      <li class="flex items-center justify-between gap-3 text-xs py-1">
+        ${_campaignTitle(c, 'truncate text-slate-200 min-w-0')}
+        <span class="flex-shrink-0 font-semibold ${rightCls}">${right}</span>
+      </li>`;
+    const checks = [];
+
+    // 1. Gasto sin resultados
+    const minSpend = acctCpl > 0 ? acctCpl : totSpend * 0.1;
+    const noLeads = convCamps.filter(c => (c.leads || 0) <= 0 && (c.spend || 0) >= minSpend).sort((a, b) => b.spend - a.spend);
+    const wasted = noLeads.reduce((a, c) => a + c.spend, 0);
+    checks.push({
+      icon: '🕳️', title: 'Gasto sin resultados',
+      level: noLeads.length ? (wasted >= totSpend * 0.2 ? 'bad' : 'warn') : 'ok',
+      headline: noLeads.length ? `${money(wasted)} sin leads (${(wasted / Math.max(totSpend, 1) * 100).toFixed(0)}% de la inversión)` : 'Toda campaña de conversión con gasto relevante trae leads',
+      items: noLeads.slice(0, 3).map(c => item(c, money(c.spend), 'text-red-400')),
+      action: noLeads.length ? `Gastaron más de un CPL (${money(minSpend)}) sin leads: revisa formulario, píxel o segmentación, o pausa.` : '',
+    });
+
+    // 2. CPL por campaña vs. promedio de la cuenta
+    const withCpl = convCamps.filter(c => (c.leads || 0) > 0 && (c.spend || 0) > 0).map(c => ({ ...c, cpl: c.spend / c.leads, ratio: c.spend / c.leads / acctCpl }));
+    const expensive = withCpl.filter(c => c.ratio >= 1.5).sort((a, b) => b.ratio - a.ratio);
+    const cheap     = withCpl.filter(c => c.ratio <= 0.7 && c.leads >= 3).sort((a, b) => a.ratio - b.ratio);
+    checks.push({
+      icon: '⚖️', title: 'CPL vs. promedio',
+      level: !acctCpl ? 'na' : expensive.length ? (expensive[0].ratio >= 2.5 ? 'bad' : 'warn') : 'ok',
+      headline: !acctCpl ? 'Sin leads en el período para comparar' : `CPL de la cuenta ${money(acctCpl)}${expensive.length ? ` · ${expensive.length} campaña${expensive.length > 1 ? 's' : ''} muy por encima` : ' · ninguna campaña se dispara'}`,
+      items: [
+        ...expensive.slice(0, 2).map(c => item(c, `${money(c.cpl)} · ${c.ratio.toFixed(1)}×`, 'text-red-400')),
+        ...cheap.slice(0, 1).map(c => item(c, `${money(c.cpl)} · escalar`, 'text-emerald-400')),
+      ],
+      action: expensive.length ? 'Más de 1,5× el CPL promedio: baja presupuesto o rota creativos.' + (cheap.length ? ' La campaña en verde es candidata a recibir más presupuesto.' : '') : cheap.length ? 'La campaña en verde convierte barato: candidata a escalar.' : '',
+    });
+
+    // 3. Caída de leads (días cerrados: hoy va incompleto)
+    const today  = _isoDate(new Date());
+    const closed = daily.length && daily[daily.length - 1].date === today ? daily.slice(0, -1) : daily;
+    const dropCheck = { icon: '📉', title: 'Caída de leads', level: 'na', headline: 'Se necesitan al menos 7 días cerrados', items: [], action: '' };
+    if (closed.length >= 7 && closed.some(d => d.leads > 0)) {
+      const last3 = closed.slice(-3), base = closed.slice(-10, -3);
+      const avgLast = last3.reduce((a, d) => a + d.leads, 0) / last3.length;
+      const avgBase = base.length ? base.reduce((a, d) => a + d.leads, 0) / base.length : 0;
+      const last2Zero = closed.slice(-2).every(d => d.leads <= 0) && closed.slice(-2).some(d => d.spend > 0);
+      const drop = avgBase > 0 ? (avgBase - avgLast) / avgBase * 100 : 0;
+      dropCheck.level = last2Zero || drop >= 40 ? 'bad' : drop >= 20 ? 'warn' : 'ok';
+      dropCheck.headline = last2Zero ? 'Los 2 últimos días cerrados sin leads, con gasto activo'
+        : `Últimos 3 días: ${avgLast.toFixed(1)}/día vs. ${avgBase.toFixed(1)}/día los 7 anteriores${drop >= 1 ? ` (▼ ${drop.toFixed(0)}%)` : drop <= -1 ? ` (▲ ${(-drop).toFixed(0)}%)` : ''}`;
+      dropCheck.action = dropCheck.level === 'ok' ? '' : 'Revisa si algo cambió: anuncios rechazados, formulario caído, presupuesto agotado o temporada.';
+    }
+    checks.push(dropCheck);
+
+    // 4. Anuncios que no enganchan (CTR bajo con volumen suficiente). En TOF (alcance) un CTR
+    //    menor es normal: el umbral baja a 0,5%.
+    const ctrMin = c => c.stage === 'tof' ? 0.5 : 0.8;
+    const lowCtr = camps.filter(c => (c.impressions || 0) >= 2000)
+      .map(c => ({ ...c, ctrv: c.clicks / c.impressions * 100 }))
+      .filter(c => c.ctrv < ctrMin(c)).sort((a, b) => a.ctrv / ctrMin(a) - b.ctrv / ctrMin(b));
+    checks.push({
+      icon: '🎨', title: 'Anuncios que no enganchan',
+      level: lowCtr.length ? (lowCtr.some(c => c.ctrv < ctrMin(c) / 2) ? 'bad' : 'warn') : 'ok',
+      headline: lowCtr.length ? `${lowCtr.length} campaña${lowCtr.length > 1 ? 's' : ''} con CTR bajo (mín. 0,8%; 0,5% en TOF)` : 'Ninguna campaña con volumen tiene CTR bajo',
+      items: lowCtr.slice(0, 3).map(c => item(c, `CTR ${c.ctrv.toFixed(2)}%`, c.ctrv < ctrMin(c) / 2 ? 'text-red-400' : 'text-yellow-400')),
+      action: lowCtr.length ? 'Cambia el gancho de los primeros segundos, el texto principal o la audiencia.' : '',
+    });
+
+    // 5. Reparto de la inversión: campañas que se llevan mucho presupuesto y aportan pocos leads
+    const unbalanced = totLeads > 0 ? convCamps.map(c => ({ ...c, sShare: c.spend / totSpend * 100, lShare: (c.leads || 0) / totLeads * 100 }))
+      .filter(c => c.sShare >= 20 && c.lShare < c.sShare / 2).sort((a, b) => (b.sShare - b.lShare) - (a.sShare - a.lShare)) : [];
+    const topLead = totLeads > 0 ? [...camps].sort((a, b) => (b.leads || 0) - (a.leads || 0))[0] : null;
+    const topShare = topLead ? (topLead.leads || 0) / totLeads * 100 : 0;
+    const dependent = camps.length > 1 && topShare >= 70;
+    checks.push({
+      icon: '🧩', title: 'Reparto de la inversión',
+      level: totLeads <= 0 ? 'na' : unbalanced.length ? 'warn' : dependent ? 'warn' : 'ok',
+      headline: totLeads <= 0 ? 'Sin leads en el período para comparar'
+        : unbalanced.length ? `${unbalanced.length} campaña${unbalanced.length > 1 ? 's' : ''} con mucha inversión y pocos leads`
+        : dependent ? `${topShare.toFixed(0)}% de los leads depende de una sola campaña` : 'La inversión está alineada con los resultados',
+      items: unbalanced.length
+        ? unbalanced.slice(0, 3).map(c => item(c, `${c.sShare.toFixed(0)}% gasto · ${c.lShare.toFixed(0)}% leads`, 'text-yellow-400'))
+        : dependent ? [item(topLead, `${topShare.toFixed(0)}% de los leads`, 'text-yellow-400')] : [],
+      action: unbalanced.length ? 'Mueve presupuesto hacia las campañas que convierten mejor (usa el Simulador).'
+        : dependent ? 'Si esa campaña se fatiga o la rechazan, caen todos los leads: prepara una alternativa.' : '',
+    });
+
+    const cfg = {
+      bad:  { pill: 'Revisar',   cls: 'bg-red-500/15 text-red-300 border-red-500/40',          card: 'border-red-500/40' },
+      warn: { pill: 'Atención',  cls: 'bg-yellow-500/15 text-yellow-300 border-yellow-500/40', card: 'border-yellow-500/30' },
+      ok:   { pill: 'OK',        cls: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40', card: 'border-slate-700' },
+      na:   { pill: 'Sin datos', cls: 'bg-slate-700/40 text-slate-400 border-slate-600',        card: 'border-slate-700' },
+    };
+    const order = { bad: 0, warn: 1, ok: 2, na: 3 };
+    checks.sort((a, b) => order[a.level] - order[b.level]);
+    const greens = checks.filter(c => c.level === 'ok').length;
+    const alerts = checks.filter(c => c.level === 'bad' || c.level === 'warn').length;
+
+    return `
+    <div class="flex flex-col gap-3">
+      <div class="flex items-center justify-between gap-3 flex-wrap">
+        <p class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Monitoreo rápido</p>
+        <div class="flex items-center gap-1.5">
+          ${checks.map(c => `<span title="${_esc(c.title)}" class="w-2.5 h-2.5 rounded-full ${c.level === 'bad' ? 'bg-red-500' : c.level === 'warn' ? 'bg-yellow-400' : c.level === 'ok' ? 'bg-emerald-500' : 'bg-slate-600'}"></span>`).join('')}
+          <span class="text-xs text-slate-400 ml-1.5">${alerts ? `${alerts} alerta${alerts > 1 ? 's' : ''} · ` : ''}${greens} de ${checks.length} en verde</span>
+        </div>
+      </div>
+      <div class="grid md:grid-cols-2 gap-3">
+        ${checks.map((c, i) => `
+        <div class="rounded-xl border ${cfg[c.level].card} bg-slate-800/40 p-4 ${i === 0 && c.level === 'bad' ? 'md:col-span-2' : ''}">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-sm font-bold text-slate-100"><span class="mr-1.5">${c.icon}</span>${c.title}</p>
+            <span class="text-[11px] font-bold border rounded-full px-2 py-0.5 ${cfg[c.level].cls}">${cfg[c.level].pill}</span>
+          </div>
+          <p class="text-xs text-slate-300 mt-2 leading-snug">${c.headline}</p>
+          ${c.items.length ? `<ul class="mt-2 divide-y divide-slate-700/60">${c.items.join('')}</ul>` : ''}
+          ${c.action ? `<p class="text-[11px] text-slate-400 mt-2 leading-snug">→ ${c.action}</p>` : ''}
+        </div>`).join('')}
+      </div>
+    </div>`;
   }
 
   function _emptyPanel(msg) {
