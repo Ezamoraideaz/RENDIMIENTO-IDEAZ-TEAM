@@ -702,6 +702,7 @@ const PautaMonitor = (() => {
     // Las marcas que requieren atención (pago/presupuesto) van primero
     const rank = c => { const a = _clientAttention(c); return a.some(x => x.level === 'danger') ? 0 : a.length ? 1 : 2; };
     visible = [...visible].sort((a, b) => rank(a) - rank(b));
+    _brandNavIds = visible.map(c => c.id);   // orden de navegación entre marcas en el detalle
     _renderPayCount();
 
     if (countEl) {
@@ -1268,44 +1269,143 @@ const PautaMonitor = (() => {
     };
   }
 
-  async function openBrandModal(clientId) {
+  // ── Navegación entre marcas dentro del detalle ────────────────────────────
+  // Flechas, puntos y teclado (← →) recorren las marcas en el mismo orden y con los mismos
+  // filtros que las tarjetas. Se conserva la pestaña abierta al saltar, y el detalle de cada
+  // marca se guarda 5 min para que ir y volver sea instantáneo.
+  let _brandNavIds  = [];
+  let _brandCurrent = null;
+  let _brandTab     = 'resumen';
+  let _brandSeq     = 0;
+  const _detailCache = {};
+
+  function _brandNavList() {
+    return _brandNavIds.length ? _brandNavIds : _clients.map(c => c.id);
+  }
+
+  function _brandNav(step) {
+    const ids = _brandNavList();
+    if (ids.length < 2) return;
+    const i = Math.max(0, ids.indexOf(_brandCurrent));
+    openBrandModal(ids[(i + step + ids.length) % ids.length], step);
+  }
+
+  function _brandNavHtml(clientId) {
+    const ids = _brandNavList();
+    if (ids.length < 2) return '';
+    const i = Math.max(0, ids.indexOf(clientId)), n = ids.length;
+    const nameOf = id => _clients.find(c => c.id === id)?.name || '';
+    const prev = ids[(i - 1 + n) % n], next = ids[(i + 1) % n];
+    // Con muchas marcas se muestra una ventana de puntos alrededor de la actual
+    const MAXD = 15;
+    let start = 0, end = n;
+    if (n > MAXD) { start = Math.min(Math.max(0, i - Math.floor(MAXD / 2)), n - MAXD); end = start + MAXD; }
+    const dots = ids.slice(start, end).map((id, k) => {
+      const active = start + k === i;
+      return `<button onclick="PautaMonitor._brandGoto('${id}')" title="${_esc(nameOf(id))}" aria-label="${_esc(nameOf(id))}"
+        class="h-1.5 rounded-full transition-all ${active ? 'w-5 bg-indigo-400' : 'w-1.5 bg-slate-600 hover:bg-slate-400'}"></button>`;
+    }).join('');
+    const arrow = (step, id, ch) => `<button onclick="PautaMonitor._brandNav(${step})" title="${step < 0 ? 'Anterior' : 'Siguiente'}: ${_esc(nameOf(id))} (${step < 0 ? '←' : '→'})"
+      class="w-7 h-7 rounded-full border border-slate-700 text-slate-300 hover:text-white hover:border-indigo-400 hover:bg-indigo-500/10 grid place-items-center text-base leading-none transition-colors">${ch}</button>`;
+    return `
+      <div class="flex items-center gap-2">
+        ${arrow(-1, prev, '‹')}
+        <div class="flex items-center gap-1">${start > 0 ? '<span class="text-slate-600 text-[10px]">…</span>' : ''}${dots}${end < n ? '<span class="text-slate-600 text-[10px]">…</span>' : ''}</div>
+        ${arrow(1, next, '›')}
+        <span class="text-[11px] text-slate-500 tabular-nums ml-0.5">${i + 1}/${n}</span>
+      </div>`;
+  }
+
+  function _brandGoto(id) {
+    if (id === _brandCurrent) return;
+    const ids = _brandNavList();
+    openBrandModal(id, ids.indexOf(id) > ids.indexOf(_brandCurrent) ? 1 : -1);
+  }
+
+  // Flechas grandes a los costados del popup (pantallas anchas)
+  function _brandSideArrows(clientId) {
+    const ids = _brandNavList();
+    if (ids.length < 2) return '';
+    const i = Math.max(0, ids.indexOf(clientId)), n = ids.length;
+    const nameOf = id => _clients.find(c => c.id === id)?.name || '';
+    const btn = (step, side) => `
+      <button onclick="event.stopPropagation(); PautaMonitor._brandNav(${step})" title="${_esc(nameOf(ids[(i + step + n) % n]))}"
+        class="hidden xl:grid absolute ${side} top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-slate-900/90 border border-slate-600 text-slate-200 text-2xl place-items-center hover:border-indigo-400 hover:text-white hover:scale-105 transition z-10">${step < 0 ? '‹' : '›'}</button>`;
+    return btn(-1, 'left-6') + btn(1, 'right-6');
+  }
+
+  function _initBrandKeys() {
+    if (window.__brandKeysReady) return;
+    window.__brandKeysReady = true;
+    document.addEventListener('keydown', e => {
+      if (!document.getElementById('brand-modal-overlay')) return;
+      if (e.target.closest && e.target.closest('input, textarea, select, [contenteditable]')) return;
+      if (e.key === 'ArrowRight') { e.preventDefault(); _brandNav(1); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); _brandNav(-1); }
+      else if (e.key === 'Escape') closeBrandModal();
+    });
+  }
+
+  async function openBrandModal(clientId, dir = 0) {
     const client = _clients.find(c => c.id === clientId);
     if (!client) return;
     const { from, to } = _dateRange();
     if (!from || !to) { alert('Selecciona un período primero.'); return; }
+    _initBrandKeys();
+    if (!dir) _brandTab = 'resumen';   // abrir desde una tarjeta empieza en Resumen; saltar entre marcas conserva la pestaña
+    _brandCurrent = clientId;
+    const seq = ++_brandSeq;           // si se salta rápido varias marcas, solo se pinta la última
 
-    document.body.insertAdjacentHTML('beforeend', `
-      <div id="brand-modal-overlay" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-5xl max-h-[92vh] overflow-hidden shadow-2xl">
-          <div class="px-6 py-4 border-b border-slate-700 flex items-center justify-between">
-            <h2 class="font-bold text-slate-100 text-lg">${_esc(client.name)}</h2>
-            <button onclick="PautaMonitor.closeBrandModal()" class="text-slate-400 hover:text-slate-100 text-2xl leading-none">×</button>
-          </div>
-          <div class="flex flex-col items-center justify-center py-28 text-slate-400 gap-4">
-            <div class="animate-spin w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full"></div>
-            <span class="text-sm">Cargando campañas…</span>
-          </div>
-        </div>
-      </div>`);
+    const cacheKey = `${clientId}:${from}:${to}`;
+    const cached = _detailCache[cacheKey];
+    let detailData = cached && Date.now() - cached.ts < 300000 ? cached.data : null;
 
-    const detailData = {};
-    const calls = [];
-    for (const plat of (client.platforms || [])) {
-      if (!plat.enabled) continue;
-      const accountId = _accountIdOf(plat);
-      if (!accountId) continue;
-      const detailPlat = plat.platform === 'google' ? 'google_detail'
-                       : plat.platform === 'meta'   ? 'meta_detail' : null;
-      if (!detailPlat) continue;
-      calls.push(
-        _fetchDetailMerged(detailPlat, accountId, from, to)
-          .then(data => { detailData[plat.platform] = data; })
-      );
+    if (!detailData) {
+      document.getElementById('brand-modal-overlay')?.remove();
+      document.body.insertAdjacentHTML('beforeend', `
+        <div id="brand-modal-overlay" onclick="PautaMonitor._brandOverlayClose(event)" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+          ${_brandSideArrows(clientId)}
+          <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-5xl max-h-[92vh] overflow-hidden shadow-2xl">
+            <div class="px-6 py-4 border-b border-slate-700 flex items-center justify-between gap-4">
+              <h2 class="font-bold text-slate-100 text-lg truncate">${_esc(client.name)}</h2>
+              <div class="flex items-center gap-3">${_brandNavHtml(clientId)}
+                <button onclick="PautaMonitor.closeBrandModal()" class="text-slate-400 hover:text-slate-100 text-2xl leading-none">×</button></div>
+            </div>
+            <div class="flex flex-col items-center justify-center py-28 text-slate-400 gap-4">
+              <div class="animate-spin w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full"></div>
+              <span class="text-sm">Cargando campañas…</span>
+            </div>
+          </div>
+        </div>`);
+
+      detailData = {};
+      const calls = [];
+      for (const plat of (client.platforms || [])) {
+        if (!plat.enabled) continue;
+        const accountId = _accountIdOf(plat);
+        if (!accountId) continue;
+        const detailPlat = plat.platform === 'google' ? 'google_detail'
+                         : plat.platform === 'meta'   ? 'meta_detail' : null;
+        if (!detailPlat) continue;
+        calls.push(
+          _fetchDetailMerged(detailPlat, accountId, from, to)
+            .then(data => { detailData[plat.platform] = data; })
+        );
+      }
+      await Promise.all(calls);
+      if (!Object.values(detailData).some(d => d.error)) _detailCache[cacheKey] = { ts: Date.now(), data: detailData };
+      if (seq !== _brandSeq) return;   // el usuario ya saltó a otra marca
     }
-    await Promise.all(calls);
 
     document.getElementById('brand-modal-overlay')?.remove();
     _renderBrandModal(client, detailData, from, to);
+    if (_brandTab !== 'resumen') _switchBrandTab(_brandTab);
+
+    // Entrada deslizada hacia el lado de la navegación
+    const box = document.querySelector('#brand-modal-overlay > div:last-child');
+    if (box && dir && box.animate && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      box.animate([{ opacity: 0, transform: `translateX(${dir * 48}px)` }, { opacity: 1, transform: 'none' }], { duration: 240, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    }
   }
 
   function _detectStage(name) {
@@ -1407,6 +1507,7 @@ const PautaMonitor = (() => {
     document.body.insertAdjacentHTML('beforeend', `
     <div id="brand-modal-overlay" onclick="PautaMonitor._brandOverlayClose(event)"
       class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+      ${_brandSideArrows(client.id)}
       <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
 
         <!-- Header -->
@@ -1420,7 +1521,9 @@ const PautaMonitor = (() => {
             </div>
             <p class="text-xs text-slate-500 mt-1">${from} → ${to}</p>
           </div>
-          <div class="flex items-center gap-2 flex-shrink-0">
+          <div class="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
+            ${_brandNavHtml(client.id)}
+            <span class="w-px h-5 bg-slate-700 mx-1 hidden sm:block"></span>
             ${platBadges}
             <button onclick="PautaMonitor.closeBrandModal()" class="ml-1 text-slate-400 hover:text-slate-100 text-2xl leading-none">×</button>
           </div>
@@ -1483,6 +1586,7 @@ const PautaMonitor = (() => {
   }
 
   function _switchBrandTab(key) {
+    _brandTab = key;
     document.querySelectorAll('#brand-modal-overlay .bm-panel').forEach(el => {
       el.style.display = (el.id === 'bm-panel-' + key) ? '' : 'none';
     });
@@ -2613,6 +2717,8 @@ const PautaMonitor = (() => {
     openBrandModal,
     closeBrandModal,
     _brandOverlayClose,
+    _brandNav,
+    _brandGoto,
     _switchBrandTab,
     _saveLeadInput,
     _updateSimulation,

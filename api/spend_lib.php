@@ -649,3 +649,158 @@ function getGoogleAccountStatus(string $customer_id, bool $debug = false): array
         'billing_url'  => 'https://ads.google.com/aw/billing/summary',
     ];
 }
+
+// ─── CONTENIDOS DESTACADOS (reporte del cliente) ─────────────────────────────
+// Los anuncios con más resultados del período, con su creativo para previsualizarlos.
+// Nunca devuelven el nombre interno del anuncio: el cliente ve el texto y la imagen publicados.
+
+function firstNonEmpty(...$values): string {
+    foreach ($values as $v) {
+        if (is_string($v) && trim($v) !== '') return $v;
+    }
+    return '';
+}
+
+// Imagen, textos y formato de un AdCreative de Meta. Cada tipo de anuncio guarda la imagen
+// en un lugar distinto (imagen suelta, video, carrusel o creativo dinámico).
+function metaAdCreativeInfo(array $cr): array {
+    $oss    = $cr['object_story_spec'] ?? [];
+    $link   = $oss['link_data'] ?? [];
+    $vid    = $oss['video_data'] ?? [];
+    $afs    = $cr['asset_feed_spec'] ?? [];
+    $slides = [];
+    foreach ($link['child_attachments'] ?? [] as $ch) {
+        if (!empty($ch['picture'])) $slides[] = $ch['picture'];
+        if (count($slides) >= 8) break;
+    }
+    $isVideo = ($cr['object_type'] ?? '') === 'VIDEO' || !empty($vid) || !empty($afs['videos']) || !empty($cr['video_id']);
+
+    $permalink = (string)($cr['instagram_permalink_url'] ?? '');
+    if ($permalink === '' && !empty($cr['effective_object_story_id']) && strpos($cr['effective_object_story_id'], '_') !== false) {
+        [$pageId, $postId] = explode('_', $cr['effective_object_story_id'], 2);
+        $permalink = "https://www.facebook.com/{$pageId}/posts/{$postId}";
+    }
+
+    return [
+        'format'    => $isVideo ? 'video' : (count($slides) > 1 ? 'carousel' : 'image'),
+        'image'     => firstNonEmpty($cr['image_url'] ?? '', $vid['image_url'] ?? '', $link['picture'] ?? '', $slides[0] ?? '',
+                                     $afs['videos'][0]['thumbnail_url'] ?? '', $afs['images'][0]['url'] ?? '', $cr['thumbnail_url'] ?? ''),
+        'slides'    => count($slides) > 1 ? $slides : [],
+        'title'     => firstNonEmpty($cr['title'] ?? '', $link['name'] ?? '', $vid['title'] ?? '', $afs['titles'][0]['text'] ?? ''),
+        'text'      => firstNonEmpty($cr['body'] ?? '', $link['message'] ?? '', $vid['message'] ?? '', $afs['bodies'][0]['text'] ?? ''),
+        'permalink' => $permalink,
+    ];
+}
+
+// Top de anuncios de Meta por leads (y luego clics) en el período, con su creativo.
+function getMetaTopAds(string $account_id, string $date_from, string $date_to, int $limit = 6): array {
+    if (!defined('META_ACCESS_TOKEN') || META_ACCESS_TOKEN === 'YOUR_META_SYSTEM_USER_TOKEN_HERE') {
+        return ['error' => 'Meta Access Token no configurado'];
+    }
+    $token = META_ACCESS_TOKEN;
+    $url = sprintf(
+        'https://graph.facebook.com/%s/%s/insights?level=ad&fields=%s&time_range=%s&limit=200',
+        META_GRAPH_VERSION,
+        urlencode($account_id),
+        urlencode('ad_id,spend,impressions,clicks,reach,actions'),
+        urlencode(json_encode(['since' => $date_from, 'until' => $date_to]))
+    );
+    $res = metaGraphGetAll($url, $token);
+    if (isset($res['curl_error'])) return ['error' => $res['curl_error']];
+    if (isset($res['raw']['error'])) return ['error' => $res['raw']['error']['message'] ?? 'Error Meta API'];
+
+    $ads = [];
+    foreach ($res['rows'] as $row) {
+        $impr = (int)($row['impressions'] ?? 0);
+        if ($impr <= 0 || empty($row['ad_id'])) continue;
+        $ads[] = [
+            'id'          => (string)$row['ad_id'],
+            'platform'    => 'meta',
+            'spend'       => round((float)($row['spend'] ?? 0), 2),
+            'impressions' => $impr,
+            'clicks'      => (int)($row['clicks'] ?? 0),
+            'reach'       => (int)($row['reach'] ?? 0),
+            'leads'       => metaLeadsFromActions($row['actions'] ?? []),
+        ];
+    }
+    usort($ads, fn($a, $b) => [$b['leads'], $b['clicks']] <=> [$a['leads'], $a['clicks']]);
+    $ads = array_slice($ads, 0, $limit);
+    if (!$ads) return ['ads' => []];
+
+    // Creativos de todos en una sola llamada. Primero se piden miniaturas grandes; si la
+    // expansión con parámetros no es aceptada, se repite sin ellos.
+    $crFields = 'thumbnail_url,image_url,title,body,object_type,video_id,instagram_permalink_url,effective_object_story_id,object_story_spec,asset_feed_spec';
+    $ids = implode(',', array_column($ads, 'id'));
+    $byId = [];
+    foreach (["creative.thumbnail_width(720).thumbnail_height(720){{$crFields}}", "creative{{$crFields}}"] as $fields) {
+        $d = metaGraphGet(sprintf('https://graph.facebook.com/%s/?ids=%s&fields=%s', META_GRAPH_VERSION, urlencode($ids), urlencode($fields)), $token);
+        if (!isset($d['error'])) { $byId = $d; break; }
+    }
+    foreach ($ads as &$ad) {
+        $ad += metaAdCreativeInfo($byId[$ad['id']]['creative'] ?? []);
+    }
+    unset($ad);
+    return ['ads' => $ads];
+}
+
+// Vista previa oficial del anuncio (iframe de Meta con el anuncio tal como se ve en el feed, incluido el video).
+function metaAdPreviewUrl(string $adId): string {
+    if (!defined('META_ACCESS_TOKEN')) return '';
+    $d = metaGraphGet(sprintf('https://graph.facebook.com/%s/%s/previews?ad_format=MOBILE_FEED_STANDARD', META_GRAPH_VERSION, urlencode($adId)), META_ACCESS_TOKEN);
+    $body = (string)($d['data'][0]['body'] ?? '');
+    if ($body !== '' && preg_match('/src="([^"]+)"/', $body, $m)) {
+        $src = html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5);
+        return strpos($src, 'https://') === 0 ? $src : '';
+    }
+    return '';
+}
+
+// Top de anuncios de búsqueda de Google (responsivos) por conversiones y clics, con títulos y descripciones.
+function getGoogleTopAds(string $customer_id, string $date_from, string $date_to, int $limit = 3): array {
+    if (!defined('GOOGLE_DEVELOPER_TOKEN') || !defined('GOOGLE_MCC_ID')) return ['error' => 'Google Ads no configurado'];
+    $token = getGoogleAccessToken();
+    if (isset($token['error'])) return ['error' => $token['error']];
+    $cid = preg_replace('/[^0-9]/', '', $customer_id);
+
+    $res = googleAdsSearch($cid,
+        "SELECT ad_group_ad.ad.id, ad_group_ad.ad.final_urls,
+                ad_group_ad.ad.responsive_search_ad.headlines, ad_group_ad.ad.responsive_search_ad.descriptions,
+                metrics.impressions, metrics.clicks, metrics.conversions, metrics.cost_micros
+         FROM ad_group_ad
+         WHERE segments.date BETWEEN '{$date_from}' AND '{$date_to}'
+           AND ad_group_ad.ad.type = 'RESPONSIVE_SEARCH_AD'
+           AND metrics.impressions > 0", $token['access_token']);
+    if (isset($res['error'])) return ['error' => $res['error']];
+
+    $byAd = [];
+    foreach ($res['results'] as $row) {
+        $ad = $row['adGroupAd']['ad'] ?? [];
+        $id = (string)($ad['id'] ?? '');
+        if ($id === '') continue;
+        if (!isset($byAd[$id])) {
+            $finalUrl = (string)($ad['finalUrls'][0] ?? '');
+            $byAd[$id] = [
+                'platform'     => 'google',
+                'format'       => 'search',
+                'headlines'    => array_slice(array_values(array_filter(array_map(fn($h) => (string)($h['text'] ?? ''), $ad['responsiveSearchAd']['headlines'] ?? []))), 0, 3),
+                'descriptions' => array_slice(array_values(array_filter(array_map(fn($h) => (string)($h['text'] ?? ''), $ad['responsiveSearchAd']['descriptions'] ?? []))), 0, 2),
+                'domain'       => preg_replace('/^www\./', '', (string)parse_url($finalUrl, PHP_URL_HOST)),
+                'cost_micros'  => 0, 'impressions' => 0, 'clicks' => 0, 'leads' => 0.0,
+            ];
+        }
+        $m = $row['metrics'] ?? [];
+        $byAd[$id]['cost_micros'] += (int)($m['costMicros'] ?? 0);
+        $byAd[$id]['impressions'] += (int)($m['impressions'] ?? 0);
+        $byAd[$id]['clicks']      += (int)($m['clicks'] ?? 0);
+        $byAd[$id]['leads']       += (float)($m['conversions'] ?? 0);
+    }
+    $ads = array_values(array_filter($byAd, fn($a) => $a['headlines']));
+    foreach ($ads as &$a) {
+        $a['spend'] = round($a['cost_micros'] / 1000000, 2);
+        $a['leads'] = round($a['leads'], 1);
+        unset($a['cost_micros']);
+    }
+    unset($a);
+    usort($ads, fn($a, $b) => [$b['leads'], $b['clicks']] <=> [$a['leads'], $a['clicks']]);
+    return ['ads' => array_slice($ads, 0, $limit)];
+}
