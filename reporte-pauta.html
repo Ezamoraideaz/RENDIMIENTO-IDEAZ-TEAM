@@ -27,9 +27,9 @@
       src: url('/wp-content/uploads/2026/10/Rota-Regular.ttf') format('truetype'), url('https://marketingdigitalideaz.com/wp-content/uploads/2026/10/Rota-Regular.ttf') format('truetype'); }
 
     html { background: #050505; scroll-behavior: smooth; }
-    body { font-family: 'Rota', system-ui, sans-serif; font-weight: 300; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { font-family: 'Rota', system-ui, sans-serif; font-weight: 400; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .display { font-family: 'Coolvetica', system-ui, sans-serif; font-weight: 400; line-height: .92; letter-spacing: -.005em; }
-    .grad-text { background: linear-gradient(90deg, #8b8b8b 0%, #fff 38%, #fff 70%, #c9c9c9 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .grad-text { background: linear-gradient(90deg, #c4c4c4 0%, #fff 32%, #fff 70%, #e2e2e2 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
     .brand-text { background: linear-gradient(90deg, #B06DF2, #02DAB7); -webkit-background-clip: text; background-clip: text; color: transparent; }
     .outline-num { font-family: 'Coolvetica', sans-serif; color: transparent; -webkit-text-stroke: 1.5px rgba(255,255,255,.18); line-height: .8; }
 
@@ -75,7 +75,7 @@
     .in .grow { transform: scaleX(1); }
     .pop { opacity: 0; transform: scale(.4); transition: opacity .5s, transform .5s cubic-bezier(.3,1.6,.5,1); }
     .in .pop { opacity: 1; transform: none; }
-    .sw { opacity: .16; transition: opacity .35s ease, color .35s ease; }
+    .sw { opacity: .3; transition: opacity .35s ease, color .35s ease; }
     .sw.on { opacity: 1; }
     .sw.hl.on { color: #02DAB7; }
     .col:hover .tip, .col:focus .tip { opacity: 1; transform: translate(-50%, -6px); }
@@ -113,7 +113,7 @@
   <div id="state-loading" class="min-h-screen flex flex-col items-center justify-center gap-5 relative overflow-hidden">
     <div class="glow glow-purple drift w-[520px] h-[520px] -top-40 -right-32"></div>
     <img src="https://marketingdigitalideaz.com/wp-content/uploads/2026/10/logo.webp" alt="IDEAZ" class="w-20 animate-pulse relative">
-    <p class="text-sm text-white/60 tracking-[.2em] uppercase relative">Preparando tu reporte</p>
+    <p class="text-sm text-white/80 tracking-[.2em] uppercase relative">Preparando tu reporte</p>
   </div>
 
   <div id="state-error" style="display:none" class="min-h-screen flex items-center justify-center p-6 relative overflow-hidden">
@@ -121,7 +121,7 @@
     <div class="card text-center max-w-md p-10 relative">
       <img src="https://marketingdigitalideaz.com/wp-content/uploads/2026/10/logo.webp" alt="IDEAZ" class="w-14 mx-auto mb-5">
       <h1 class="display text-3xl">Este reporte ya no está disponible</h1>
-      <p class="text-white/60 text-sm mt-3">El link pudo haber sido revocado o estar incompleto. Pide uno nuevo a tu equipo de IDEAZ.</p>
+      <p class="text-white/80 text-sm mt-3">El link pudo haber sido revocado o estar incompleto. Pide uno nuevo a tu equipo de IDEAZ.</p>
     </div>
   </div>
 
@@ -160,10 +160,10 @@
           <span id="mode-badge" class="inline-flex items-center gap-2 text-xs px-3.5 py-1.5 rounded-full border border-white/20 bg-white/5"></span>
           <span id="hero-period" class="pill-teal text-xs sm:text-sm px-4 py-1.5 text-white"></span>
         </div>
-        <p class="hero-in text-white/70 tracking-[.35em] uppercase text-xs sm:text-sm mt-8" style="animation-delay:.2s">Reporte de pauta digital</p>
+        <p class="hero-in text-white/85 tracking-[.35em] uppercase text-xs sm:text-sm mt-8" style="animation-delay:.2s">Reporte de pauta digital</p>
         <h1 id="hero-title" class="display text-[2.9rem] leading-[.95] sm:text-7xl lg:text-[6.2rem] mt-3 max-w-4xl"></h1>
-        <p id="hero-lead" class="hero-in text-lg sm:text-2xl text-white/75 mt-7 max-w-2xl leading-snug" style="animation-delay:.9s"></p>
-        <div class="hero-in mt-12 flex items-center gap-4 text-white/50 text-xs tracking-[.25em] uppercase" style="animation-delay:1.2s">
+        <p id="hero-lead" class="hero-in text-lg sm:text-2xl text-white/90 mt-7 max-w-2xl leading-snug" style="animation-delay:.9s"></p>
+        <div class="hero-in mt-12 flex items-center gap-4 text-white/70 text-xs tracking-[.25em] uppercase" style="animation-delay:1.2s">
           <span class="relative block w-px h-12 bg-white/15 overflow-hidden"><span class="scroll-line absolute inset-0 bg-gradient-to-b from-brand-purple to-brand-teal"></span></span>
           Desliza para ver la historia
         </div>
@@ -179,8 +179,8 @@
         <div id="hero-delta" class="rv mt-10"></div>
         <figure id="team-msg" style="display:none" class="rv card mt-14 p-7 sm:p-9 max-w-3xl" data-rv="zoom">
           <p class="text-brand-purple text-xs tracking-[.3em] uppercase">Un mensaje de tu equipo</p>
-          <blockquote id="team-msg-text" class="text-lg sm:text-xl text-white/85 mt-3 leading-relaxed whitespace-pre-line"></blockquote>
-          <figcaption class="flex items-center gap-3 mt-5 text-sm text-white/50">
+          <blockquote id="team-msg-text" class="text-lg sm:text-xl text-white/90 mt-3 leading-relaxed whitespace-pre-line"></blockquote>
+          <figcaption class="flex items-center gap-3 mt-5 text-sm text-white/70">
             <img src="https://marketingdigitalideaz.com/wp-content/uploads/2026/10/logo.webp" alt="" class="w-8">Equipo IDEAZ
           </figcaption>
         </figure>
@@ -195,7 +195,7 @@
         <div class="rv card p-12 text-center">
           <p class="text-5xl">🌱</p>
           <h2 class="display text-3xl sm:text-4xl mt-4 grad-text">Aún no hay actividad en este período</h2>
-          <p class="text-white/60 mt-3">Cuando tus campañas empiecen a circular, aquí verás cómo avanzan día a día.</p>
+          <p class="text-white/80 mt-3">Cuando tus campañas empiecen a circular, aquí verás cómo avanzan día a día.</p>
         </div>
       </div>
 
@@ -208,16 +208,16 @@
           <img src="https://marketingdigitalideaz.com/wp-content/uploads/2026/10/logo.webp" alt="" class="w-16 mx-auto">
           <p class="text-brand-teal text-xs sm:text-sm tracking-[.3em] uppercase mt-8">Lo que viene</p>
           <h2 class="display text-5xl sm:text-7xl mt-3 grad-text">La historia sigue</h2>
-          <p class="text-white/70 text-lg mt-5 max-w-2xl mx-auto leading-relaxed" id="epilogue-text">Cada semana revisamos creativos, audiencias y presupuesto para que cada peso invertido rinda más.</p>
+          <p class="text-white/85 text-lg mt-5 max-w-2xl mx-auto leading-relaxed" id="epilogue-text">Cada semana revisamos creativos, audiencias y presupuesto para que cada peso invertido rinda más.</p>
           <div class="flex flex-wrap justify-center gap-3 mt-9">
             <a id="wa-cta" href="#" target="_blank" rel="noopener" class="pill inline-flex items-center gap-2 px-7 py-3 text-sm">Conversemos sobre estos resultados</a>
-            <button onclick="printReport()" class="inline-flex items-center gap-2 px-7 py-3 text-sm rounded-full border border-white/25 text-white/80 hover:border-brand-teal hover:text-white transition-colors">Descargar presentación</button>
+            <button onclick="printReport()" class="inline-flex items-center gap-2 px-7 py-3 text-sm rounded-full border border-white/25 text-white/90 hover:border-brand-teal hover:text-white transition-colors">Descargar presentación</button>
           </div>
-          <p class="text-white/40 text-sm mt-10 tracking-[.2em]">#WORK WITH <span class="text-brand-purple">💜</span></p>
+          <p class="text-white/60 text-sm mt-10 tracking-[.2em]">#WORK WITH <span class="text-brand-purple">💜</span></p>
         </div>
       </section>
       <div class="hr-glow max-w-5xl mx-auto"></div>
-      <p id="footer-note" class="text-center text-xs text-white/40 px-6 py-8"></p>
+      <p id="footer-note" class="text-center text-xs text-white/60 px-6 py-8"></p>
     </main>
   </div>
 
@@ -341,7 +341,7 @@
     function deltaChip(delta, invert) {
       if (delta == null || !isFinite(delta) || Math.abs(delta) < 1) return '';
       const good = invert ? delta < 0 : delta > 0;
-      const cls = good ? 'bg-brand-teal/15 text-brand-teal border-brand-teal/40' : 'bg-white/5 text-white/60 border-white/15';
+      const cls = good ? 'bg-brand-teal/15 text-brand-teal border-brand-teal/40' : 'bg-white/5 text-white/80 border-white/15';
       return `<span class="inline-flex items-center gap-1 whitespace-nowrap flex-shrink-0 text-[11px] font-normal px-2.5 py-0.5 rounded-full border ${cls}">${delta > 0 ? '▲' : '▼'} ${Math.abs(delta).toFixed(0)}%</span>`;
     }
 
@@ -351,8 +351,8 @@
         <div class="${anim ? 'rv ' : ''}card p-5 sm:p-6" style="--i:${i}">
           <div class="flex items-center justify-between gap-2"><span class="text-2xl">${icon}</span>${chip || ''}</div>
           <p class="display text-4xl sm:text-[2.6rem] mt-4 grad-text"><span ${anim ? `data-count="${value}" data-fmt="${fmt}"` : ''}>${fmtBy(fmt, value)}</span></p>
-          <p class="text-[11px] uppercase tracking-[.18em] text-white/50 mt-2">${label}</p>
-          <p class="text-xs text-white/60 mt-2 leading-snug">${sub}</p>
+          <p class="text-[11px] uppercase tracking-[.18em] text-white/70 mt-2">${label}</p>
+          <p class="text-sm text-white/80 mt-2 leading-snug">${sub}</p>
         </div>`;
     }
 
@@ -386,7 +386,7 @@
         <div class="${anim ? 'rv ' : ''}card p-6 text-center" data-rv="zoom" style="--i:${i}">
           ${ringHTML(g, anim)}
           <h3 class="display text-xl mt-4">${g.title}${g.done ? ' <span class="text-brand-teal">✓</span>' : ''}</h3>
-          <p class="text-xs text-white/60 mt-1.5 leading-snug">${g.note}</p>
+          <p class="text-sm text-white/80 mt-1.5 leading-snug">${g.note}</p>
         </div>`;
     }
 
@@ -407,11 +407,11 @@
             <div class="bar w-full rounded-t-[4px]" style="height:${h}%;${bg};transition-delay:${Math.min(i * 18, 650)}ms"></div>
           </div>`;
       }).join('');
-      const labels = days.map((x, i) => `<div class="flex-1 text-center text-[10px] text-white/40 whitespace-nowrap overflow-visible">${i % every === 0 ? dateShort(x.date) : ''}</div>`).join('');
+      const labels = days.map((x, i) => `<div class="flex-1 text-center text-[11px] text-white/60 whitespace-nowrap overflow-visible">${i % every === 0 ? dateShort(x.date) : ''}</div>`).join('');
       return `
         <div class="relative ${height} pt-6">
           <div class="flex items-end ${gap} h-full border-b border-white/15">${cols}</div>
-          <div class="absolute left-0 right-0 border-t border-dashed border-white/35 pointer-events-none z-[5]" style="bottom:${m.avg / max * 100}%"><span class="absolute left-0 -top-6 text-[10px] text-white/70 bg-ink/80 border border-white/15 rounded-full px-2 py-0.5">promedio ${dec(m.avg)}/día</span></div>
+          <div class="absolute left-0 right-0 border-t border-dashed border-white/35 pointer-events-none z-[5]" style="bottom:${m.avg / max * 100}%"><span class="absolute left-0 -top-6 text-[11px] text-white/85 bg-ink/80 border border-white/15 rounded-full px-2 py-0.5">promedio ${dec(m.avg)}/día</span></div>
         </div>
         <div class="flex ${gap} mt-2">${labels}</div>`;
     }
@@ -430,13 +430,13 @@
       return `
         <div class="flex flex-col sm:flex-row sm:items-center gap-6">
           <div class="sm:w-1/2">
-            <p class="text-[11px] uppercase tracking-[.25em] text-brand-teal">Dato curioso</p>
+            <p class="text-xs uppercase tracking-[.22em] text-brand-teal">Dato curioso</p>
             <p class="display text-2xl mt-2">Los <span class="brand-text">${WEEKDAYS[w.top]}</span> son tu mejor día${w.ratio >= 1.15 ? `: llegan ${((w.ratio - 1) * 100).toFixed(0)}% más interesados que el promedio` : ''}.</p>
           </div>
           <div class="sm:w-1/2 flex items-end gap-2 h-20">
             ${order.map(k => `<div class="flex-1 flex flex-col items-center gap-1.5 h-full justify-end">
               <div class="bar w-full rounded" style="height:${Math.max(6, w.avgs[k] / maxAvg * 100)}%;background:${k === w.top ? 'linear-gradient(180deg,#02DAB7,#02DAB755)' : 'rgba(176,109,242,.28)'}"></div>
-              <span class="text-[10px] ${k === w.top ? 'text-brand-teal' : 'text-white/40'}">${WEEKDAYS[k].slice(0, 2).toUpperCase()}</span>
+              <span class="text-[11px] ${k === w.top ? 'text-brand-teal' : 'text-white/60'}">${WEEKDAYS[k].slice(0, 2).toUpperCase()}</span>
             </div>`).join('')}
           </div>
         </div>`;
@@ -453,10 +453,10 @@
       ];
       const steps = [rate(t.clicks, t.impressions), rate(t.leads, t.clicks)];
       return rows.map(([label, val, unit, w, bg], i) => `
-        ${i > 0 && steps[i - 1] ? `<div class="flex items-center gap-2 pl-4 py-1.5 text-xs text-white/50"><span class="text-brand-teal">↓</span>${steps[i - 1]} ${i === 1 ? 'hizo clic' : 'de los clics se convirtió en contacto'}</div>` : i > 0 ? '<div class="h-3"></div>' : ''}
+        ${i > 0 && steps[i - 1] ? `<div class="flex items-center gap-2 pl-4 py-1.5 text-xs text-white/70"><span class="text-brand-teal">↓</span>${steps[i - 1]} ${i === 1 ? 'hizo clic' : 'de los clics se convirtió en contacto'}</div>` : i > 0 ? '<div class="h-3"></div>' : ''}
         <div class="${anim ? 'grow ' : ''}rounded-2xl px-5 py-4 flex items-center justify-between gap-3" style="width:${w}%;min-width:250px;max-width:100%;background:${bg};transition-delay:${i * 180}ms">
-          <span class="text-sm text-white/85 whitespace-nowrap">${label}</span>
-          <span class="display text-2xl whitespace-nowrap">${val} <span class="font-body text-xs text-white/70">${unit}</span></span>
+          <span class="text-sm text-white/90 whitespace-nowrap">${label}</span>
+          <span class="display text-2xl whitespace-nowrap">${val} <span class="font-body text-xs text-white/85">${unit}</span></span>
         </div>`).join('');
     }
 
@@ -469,11 +469,11 @@
             ${d.platforms.length > 1 && p.leads > 0 ? `<span class="text-xs text-brand-teal border border-brand-teal/40 bg-brand-teal/10 rounded-full px-3 py-1">${Math.round(p.leads / totalLeads * 100)}% de los interesados</span>` : ''}
           </div>
           <div class="grid grid-cols-3 gap-3 mt-6 text-center">
-            <div><p class="display text-2xl">${short(p.impressions)}</p><p class="text-[10px] text-white/45 uppercase tracking-[.15em] mt-1">Vistas</p></div>
-            <div><p class="display text-2xl">${nf(p.clicks)}</p><p class="text-[10px] text-white/45 uppercase tracking-[.15em] mt-1">Clics</p></div>
-            <div><p class="display text-2xl text-brand-teal">${nf(p.leads)}</p><p class="text-[10px] text-white/45 uppercase tracking-[.15em] mt-1">Interesados</p></div>
+            <div><p class="display text-2xl">${short(p.impressions)}</p><p class="text-[11px] text-white/65 uppercase tracking-[.15em] mt-1">Vistas</p></div>
+            <div><p class="display text-2xl">${nf(p.clicks)}</p><p class="text-[11px] text-white/65 uppercase tracking-[.15em] mt-1">Clics</p></div>
+            <div><p class="display text-2xl text-brand-teal">${nf(p.leads)}</p><p class="text-[11px] text-white/65 uppercase tracking-[.15em] mt-1">Interesados</p></div>
           </div>
-          <p class="text-xs text-white/55 mt-6 pt-4 border-t border-white/10">Inversión: <span class="text-white">${money(p.spend)} ${esc(p.currency)}</span></p>
+          <p class="text-xs text-white/75 mt-6 pt-4 border-t border-white/10">Inversión: <span class="text-white">${money(p.spend)} ${esc(p.currency)}</span></p>
         </div>`).join('');
     }
 
@@ -489,14 +489,14 @@
       const maxM = Math.max(...list.map(metricOf), 1);
       return list.map((c, i) => `
         <div class="${anim ? 'rv ' : ''}card px-5 py-4 flex items-center gap-4" data-rv="left" style="--i:${i}">
-          <span class="${anim ? 'pop ' : ''}w-10 h-10 rounded-full grid place-items-center display text-base flex-shrink-0 ${i === 0 ? 'bg-brand-teal/15 text-brand-teal border border-brand-teal/50' : 'bg-white/5 text-white/60 border border-white/10'}">${i === 0 ? '🏆' : i + 1}</span>
+          <span class="${anim ? 'pop ' : ''}w-10 h-10 rounded-full grid place-items-center display text-base flex-shrink-0 ${i === 0 ? 'bg-brand-teal/15 text-brand-teal border border-brand-teal/50' : 'bg-white/5 text-white/80 border border-white/10'}">${i === 0 ? '🏆' : i + 1}</span>
           <div class="min-w-0 flex-1">
             <p class="text-sm text-white truncate" title="${esc(c.name)}">${esc(c.name)}</p>
             <div class="h-1.5 bg-white/10 rounded-full mt-2.5 overflow-hidden"><div class="${anim ? 'grow ' : ''}h-full rounded-full" style="width:${metricOf(c) / maxM * 100}%;background:${i === 0 ? 'linear-gradient(90deg,#B06DF2,#02DAB7)' : '#B06DF2'};transition-delay:${200 + i * 120}ms"></div></div>
           </div>
           <div class="text-right flex-shrink-0 w-20">
             <p class="display text-2xl ${byClicks ? 'text-white' : 'text-brand-teal'}">${nf(metricOf(c))}</p>
-            <p class="text-[10px] text-white/45 uppercase tracking-[.12em]">${byClicks ? 'clics' : 'interesados'}</p>
+            <p class="text-[11px] text-white/65 uppercase tracking-[.12em]">${byClicks ? 'clics' : 'interesados'}</p>
           </div>
         </div>`).join('');
     }
@@ -508,7 +508,7 @@
             <span class="rv outline-num absolute -top-6 sm:-top-14 right-0 text-[6rem] sm:text-[13rem] select-none pointer-events-none" data-rv="right">${String(num).padStart(2, '0')}</span>
             <p class="rv relative text-brand-teal text-xs sm:text-sm tracking-[.3em] uppercase">Capítulo ${num} · ${eyebrow}</p>
             <h2 class="rv relative display text-[2.6rem] sm:text-6xl mt-3 grad-text max-w-3xl" style="--i:1">${title}</h2>
-            <p class="rv relative text-white/70 text-lg sm:text-xl mt-5 max-w-2xl leading-relaxed" style="--i:2">${intro}</p>
+            <p class="rv relative text-white/85 text-lg sm:text-xl mt-5 max-w-2xl leading-relaxed" style="--i:2">${intro}</p>
           </div>
           ${body}
         </section>`;
@@ -550,7 +550,7 @@
       $('summary-text').innerHTML = seg.map(([w, hl]) => `<span class="sw${hl ? ' hl' : ''}">${esc(w)}</span>`).join(' ').replace(/ <span class="sw">\.<\/span>/, '.');
 
       $('hero-delta').innerHTML = m.leadsDelta != null && Math.abs(m.leadsDelta) >= 1
-        ? `<span class="inline-flex flex-wrap items-center gap-2 text-sm">${deltaChip(m.leadsDelta, false)}<span class="text-white/60">${m.leadsDelta > 0 ? 'más' : 'menos'} interesados que entre el ${dateShort(m.prev.from)} y el ${dateShort(m.prev.to)}</span></span>`
+        ? `<span class="inline-flex flex-wrap items-center gap-2 text-sm">${deltaChip(m.leadsDelta, false)}<span class="text-white/80">${m.leadsDelta > 0 ? 'más' : 'menos'} interesados que entre el ${dateShort(m.prev.from)} y el ${dateShort(m.prev.to)}</span></span>`
         : '';
       $('team-msg').style.display = d.link.message ? '' : 'none';
       $('team-msg-text').textContent = d.link.message || '';
@@ -582,14 +582,14 @@
         `<div class="grid md:grid-cols-5 gap-4 mt-12">
           <div class="rv card md:col-span-3 p-8 sm:p-10 overflow-hidden" data-rv="left">
             <div class="glow glow-purple w-80 h-80 -top-24 -right-24"></div>
-            <p class="relative text-[11px] uppercase tracking-[.25em] text-white/50">Apariciones de tus anuncios</p>
+            <p class="relative text-xs uppercase tracking-[.22em] text-white/70">Apariciones de tus anuncios</p>
             <p class="relative display text-7xl sm:text-8xl mt-4 grad-text"><span data-count="${t.impressions}" data-fmt="short">${short(t.impressions)}</span></p>
-            ${stadiums >= 1 ? `<p class="relative text-white/70 mt-6 leading-relaxed">Si cada aparición fuera una persona, llenaríamos el <span class="text-white">Estadio Metropolitano</span> de Barranquilla <span class="text-brand-teal">${stadiums >= 2 ? `${nf(stadiums)} veces` : 'una vez'}</span>.</p>${stadiumViz}` : `<p class="relative text-white/70 mt-6">Cada aparición es una oportunidad de que tu marca quede en la mente de alguien.</p>`}
+            ${stadiums >= 1 ? `<p class="relative text-white/85 mt-6 leading-relaxed">Si cada aparición fuera una persona, llenaríamos el <span class="text-white">Estadio Metropolitano</span> de Barranquilla <span class="text-brand-teal">${stadiums >= 2 ? `${nf(stadiums)} veces` : 'una vez'}</span>.</p>${stadiumViz}` : `<p class="relative text-white/85 mt-6">Cada aparición es una oportunidad de que tu marca quede en la mente de alguien.</p>`}
           </div>
           <div class="rv card md:col-span-2 p-8 flex flex-col justify-center" data-rv="right" style="--i:1">
-            <p class="text-[11px] uppercase tracking-[.25em] text-white/50">Por día, en promedio</p>
+            <p class="text-xs uppercase tracking-[.22em] text-white/70">Por día, en promedio</p>
             <p class="display text-5xl mt-3">${short(t.impressions / d.period.days)}</p>
-            <p class="text-white/60 text-sm mt-3">vistas diarias durante ${plural(d.period.days, 'día', 'días')} de campaña activa.</p>
+            <p class="text-white/80 text-sm mt-3">vistas diarias durante ${plural(d.period.days, 'día', 'días')} de campaña activa.</p>
           </div>
         </div>`));
 
@@ -600,11 +600,11 @@
           `<div class="grid md:grid-cols-5 gap-4 mt-12 items-stretch">
             <div class="rv card md:col-span-2 p-8 text-center flex flex-col justify-center" data-rv="zoom">
               ${ringHTML({ pct: Math.min(100, m.ctr * 100), big: `${dec(m.ctr, 2)}%`, done: m.ctr >= 1 }, true, 'w-40 h-40')}
-              <p class="text-[11px] uppercase tracking-[.25em] text-white/50 mt-5">Tasa de clics (CTR)</p>
-              <p class="text-white/65 text-sm mt-2">${m.ctr >= 1 ? 'Por encima del 1%: tu mensaje conecta.' : 'Seguimos probando creativos para subirla.'}</p>
+              <p class="text-xs uppercase tracking-[.22em] text-white/70 mt-5">Tasa de clics (CTR)</p>
+              <p class="text-white/80 text-sm mt-2">${m.ctr >= 1 ? 'Por encima del 1%: tu mensaje conecta.' : 'Seguimos probando creativos para subirla.'}</p>
             </div>
             <div class="rv card md:col-span-3 p-6 sm:p-8 flex flex-col justify-center" data-rv="right" style="--i:1">
-              <p class="text-[11px] uppercase tracking-[.25em] text-white/50 mb-5">El embudo completo</p>
+              <p class="text-xs uppercase tracking-[.22em] text-white/70 mb-5">El embudo completo</p>
               ${funnelHTML(m, true)}
             </div>
           </div>`));
@@ -616,8 +616,8 @@
         const chartCard = m.dailyLeads > 0 ? `
           <div class="rv card p-5 sm:p-8 mt-4" style="--i:1">
             <div class="flex flex-wrap items-baseline justify-between gap-2 mb-2">
-              <p class="text-[11px] uppercase tracking-[.25em] text-white/50">Interesados por día</p>
-              <p class="text-xs text-white/55">Mejor día: <span class="text-brand-teal">${dateLong(m.best.date)} · ${nf(m.best.leads)}</span></p>
+              <p class="text-xs uppercase tracking-[.22em] text-white/70">Interesados por día</p>
+              <p class="text-xs text-white/75">Mejor día: <span class="text-brand-teal">${dateLong(m.best.date)} · ${nf(m.best.leads)}</span></p>
             </div>
             ${chartHTML(m, innerWidth < 640 ? 4 : 7, 'h-56')}
             ${w ? `<div class="mt-8 pt-6 border-t border-white/10">${weekdayHTML(w)}</div>` : ''}
@@ -626,19 +626,19 @@
           `${plural(t.leads, 'persona', 'personas')} te ${Math.round(t.leads) === 1 ? 'escribió o dejó sus datos' : 'escribieron o dejaron sus datos'}. Es como si alguien levantara la mano <span class="text-brand-teal">${cadence(d.period.days, t.leads)}</span>.`,
           `<div class="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mt-12">
             <div class="rv card p-7 col-span-2 sm:col-span-1" data-rv="left">
-              <p class="text-[11px] uppercase tracking-[.25em] text-white/50">Personas interesadas</p>
+              <p class="text-xs uppercase tracking-[.22em] text-white/70">Personas interesadas</p>
               <p class="display text-7xl mt-3 brand-text"><span data-count="${t.leads}" data-fmt="n">${nf(t.leads)}</span></p>
               <div class="mt-3">${deltaChip(m.leadsDelta, false)}</div>
             </div>
             <div class="rv card p-7" style="--i:1">
-              <p class="text-[11px] uppercase tracking-[.25em] text-white/50">Ritmo diario</p>
+              <p class="text-xs uppercase tracking-[.22em] text-white/70">Ritmo diario</p>
               <p class="display text-5xl mt-3">${dec(m.avg)}</p>
-              <p class="text-white/60 text-sm mt-2">interesados al día, con resultados en ${m.days.filter(x => x.leads > 0).length} de ${m.days.length} días.</p>
+              <p class="text-white/80 text-sm mt-2">interesados al día, con resultados en ${m.days.filter(x => x.leads > 0).length} de ${m.days.length} días.</p>
             </div>
             <div class="rv card p-7" data-rv="right" style="--i:2">
-              <p class="text-[11px] uppercase tracking-[.25em] text-white/50">Costo por interesado</p>
+              <p class="text-xs uppercase tracking-[.22em] text-white/70">Costo por interesado</p>
               <p class="display text-5xl mt-3">${m.cpl > 0 ? money(m.cpl) : '—'}</p>
-              <p class="text-white/60 text-sm mt-2 flex flex-wrap items-center gap-2">${m.cpl > 0 ? `${esc(cur)} en promedio ${deltaChip(m.cplDelta, true)}` : 'Varias monedas: ver por plataforma'}</p>
+              <p class="text-white/80 text-sm mt-2 flex flex-wrap items-center gap-2">${m.cpl > 0 ? `${esc(cur)} en promedio ${deltaChip(m.cplDelta, true)}` : 'Varias monedas: ver por plataforma'}</p>
             </div>
           </div>
           ${chartCard}`));
@@ -657,7 +657,7 @@
         ch.push(chapter(++n, 'Detrás de escena', 'Dónde trabajó tu inversión',
           `Las plataformas que movieron tu marca y las campañas que ${byClicks ? 'más clics generaron' : 'más interesados trajeron'}.`,
           `${d.platforms.length ? `<div class="grid gap-4 mt-12 ${d.platforms.length > 1 ? 'sm:grid-cols-2' : ''}">${platformsHTML(d, true)}</div>` : ''}
-           ${list.length ? `<p class="rv text-[11px] uppercase tracking-[.25em] text-white/50 mt-14 mb-4">Las protagonistas</p><div class="space-y-3">${campaignsHTML(d, true)}</div>` : ''}`));
+           ${list.length ? `<p class="rv text-xs uppercase tracking-[.22em] text-white/70 mt-14 mb-4">Las protagonistas</p><div class="space-y-3">${campaignsHTML(d, true)}</div>` : ''}`));
       }
 
       $('story').innerHTML = ch.join('');
@@ -683,21 +683,21 @@
           <img src="${LOGO_FULL}" alt="IDEAZ" class="h-12 w-auto self-start">
           <div>
             <span class="pill-teal text-sm px-5 py-1.5">${period}</span>
-            <p class="text-white/60 tracking-[.35em] uppercase text-sm mt-8">Reporte de pauta digital${m.live ? ' · tiempo real' : ''}</p>
+            <p class="text-white/80 tracking-[.35em] uppercase text-sm mt-8">Reporte de pauta digital${m.live ? ' · tiempo real' : ''}</p>
             <h1 class="display text-[5.4rem] mt-3 max-w-[10in] leading-[.95]">${d.link.title ? `<span class="grad-text">${esc(d.link.title)}</span>` : `<span class="grad-text">Así le fue a</span> <span class="brand-text">${name}</span> <span class="grad-text">con su pauta digital</span>`}</h1>
           </div>
-          <p class="text-white/45 text-sm">Preparado por IDEAZ Marketing Agency</p>
+          <p class="text-white/65 text-sm">Preparado por IDEAZ Marketing Agency</p>
         </div>` });
 
       if (!m.hasActivity) {
-        slides.push({ html: `<div class="h-full flex flex-col items-center justify-center text-center"><p class="text-6xl">🌱</p><h2 class="display text-5xl mt-6 grad-text">Aún no hay actividad en este período</h2><p class="text-white/60 text-lg mt-4">Cuando tus campañas empiecen a circular, aquí verás cómo avanzan día a día.</p></div>` });
+        slides.push({ html: `<div class="h-full flex flex-col items-center justify-center text-center"><p class="text-6xl">🌱</p><h2 class="display text-5xl mt-6 grad-text">Aún no hay actividad en este período</h2><p class="text-white/80 text-lg mt-4">Cuando tus campañas empiecen a circular, aquí verás cómo avanzan día a día.</p></div>` });
       } else {
         // Resumen
         slides.push({ html: `
           ${head('En pocas palabras', 'El resumen del período')}
-          <p class="text-2xl text-white/80 mt-6 max-w-[11in] leading-snug">${$('summary-text').textContent}</p>
+          <p class="text-2xl text-white/90 mt-6 max-w-[11in] leading-snug">${$('summary-text').textContent}</p>
           <div class="grid grid-cols-4 gap-4 mt-10">${kpisHTML(d, m, false)}</div>
-          ${d.link.message ? `<p class="mt-8 text-white/70 text-base border-l-2 border-brand-purple pl-4 max-w-[11in] whitespace-pre-line">${esc(d.link.message)}</p>` : ''}` });
+          ${d.link.message ? `<p class="mt-8 text-white/85 text-base border-l-2 border-brand-purple pl-4 max-w-[11in] whitespace-pre-line">${esc(d.link.message)}</p>` : ''}` });
 
         // Alcance e interés
         if (t.impressions > 0) {
@@ -705,14 +705,14 @@
             ${head('Alcance e interés', 'Te vieron y se interesaron')}
             <div class="grid grid-cols-5 gap-6 mt-10">
               <div class="card col-span-2 p-8">
-                <p class="text-[11px] uppercase tracking-[.25em] text-white/50">Apariciones de tus anuncios</p>
+                <p class="text-xs uppercase tracking-[.22em] text-white/70">Apariciones de tus anuncios</p>
                 <p class="display text-7xl mt-3 grad-text">${short(t.impressions)}</p>
-                <p class="text-white/70 mt-5 leading-relaxed">${m.stadiums >= 1 ? `Llenaríamos el Estadio Metropolitano <span class="text-brand-teal">${m.stadiums >= 2 ? `${nf(m.stadiums)} veces` : 'una vez'}</span>.` : `Unas ${short(t.impressions / d.period.days)} vistas al día.`}</p>
+                <p class="text-white/85 mt-5 leading-relaxed">${m.stadiums >= 1 ? `Llenaríamos el Estadio Metropolitano <span class="text-brand-teal">${m.stadiums >= 2 ? `${nf(m.stadiums)} veces` : 'una vez'}</span>.` : `Unas ${short(t.impressions / d.period.days)} vistas al día.`}</p>
                 ${m.stadiums >= 1 ? `<p class="text-xl mt-3 tracking-wider">${'🏟️'.repeat(Math.min(12, Math.floor(m.stadiums)))}${m.stadiums > 12 ? ` <span class="display text-brand-teal">+${nf(m.stadiums - 12)}</span>` : ''}</p>` : ''}
-                ${t.clicks > 0 ? `<p class="text-white/70 mt-5 leading-relaxed">1 de cada <span class="text-white">${nf(m.oneIn)}</span> personas hizo clic (CTR ${dec(m.ctr, 2)}%).</p>` : ''}
+                ${t.clicks > 0 ? `<p class="text-white/85 mt-5 leading-relaxed">1 de cada <span class="text-white">${nf(m.oneIn)}</span> personas hizo clic (CTR ${dec(m.ctr, 2)}%).</p>` : ''}
               </div>
               <div class="card col-span-3 p-8 flex flex-col justify-center">
-                <p class="text-[11px] uppercase tracking-[.25em] text-white/50 mb-5">El embudo completo</p>
+                <p class="text-xs uppercase tracking-[.22em] text-white/70 mb-5">El embudo completo</p>
                 ${funnelHTML(m, false)}
               </div>
             </div>` });
@@ -725,12 +725,12 @@
             ${head('Resultados', 'Y dieron el paso')}
             <div class="grid grid-cols-4 gap-6 mt-8">
               <div class="space-y-4">
-                <div class="card p-5"><p class="text-[10px] uppercase tracking-[.2em] text-white/50">Interesados</p><p class="display text-5xl mt-2 brand-text">${nf(t.leads)}</p><p class="text-xs text-white/55 mt-1">Uno ${cadence(d.period.days, t.leads)}</p></div>
-                <div class="card p-5"><p class="text-[10px] uppercase tracking-[.2em] text-white/50">Mejor día</p><p class="display text-3xl mt-2">${dateShort(m.best.date)}</p><p class="text-xs text-brand-teal mt-1">${plural(m.best.leads, 'interesado', 'interesados')}</p></div>
-                ${m.cpl > 0 ? `<div class="card p-5"><p class="text-[10px] uppercase tracking-[.2em] text-white/50">Costo por interesado</p><p class="display text-3xl mt-2">${money(m.cpl)}</p><p class="text-xs text-white/55 mt-1">${cur}</p></div>` : ''}
+                <div class="card p-5"><p class="text-[11px] uppercase tracking-[.2em] text-white/70">Interesados</p><p class="display text-5xl mt-2 brand-text">${nf(t.leads)}</p><p class="text-xs text-white/75 mt-1">Uno ${cadence(d.period.days, t.leads)}</p></div>
+                <div class="card p-5"><p class="text-[11px] uppercase tracking-[.2em] text-white/70">Mejor día</p><p class="display text-3xl mt-2">${dateShort(m.best.date)}</p><p class="text-xs text-brand-teal mt-1">${plural(m.best.leads, 'interesado', 'interesados')}</p></div>
+                ${m.cpl > 0 ? `<div class="card p-5"><p class="text-[11px] uppercase tracking-[.2em] text-white/70">Costo por interesado</p><p class="display text-3xl mt-2">${money(m.cpl)}</p><p class="text-xs text-white/75 mt-1">${cur}</p></div>` : ''}
               </div>
               <div class="card col-span-3 p-7">
-                <p class="text-[11px] uppercase tracking-[.25em] text-white/50">Interesados por día · promedio ${dec(m.avg)}/día</p>
+                <p class="text-xs uppercase tracking-[.22em] text-white/70">Interesados por día · promedio ${dec(m.avg)}/día</p>
                 ${chartHTML(m, 10, w ? 'h-[2.3in]' : 'h-[3.6in]')}
                 ${w ? `<div class="mt-5 pt-4 border-t border-white/10">${weekdayHTML(w)}</div>` : ''}
               </div>
@@ -742,7 +742,7 @@
           slides.push({ html: `
             <div class="h-full flex flex-col justify-center">
               ${head('Objetivos', 'Lo que nos propusimos')}
-              <p class="text-xl text-white/70 mt-4">${goalsLine(m)}</p>
+              <p class="text-xl text-white/85 mt-4">${goalsLine(m)}</p>
               <div class="grid grid-cols-${m.goals.length} gap-6 mt-10 max-w-[${m.goals.length * 3}in]">${m.goals.map(g => goalCard(g, false)).join('')}</div>
             </div>` });
         }
@@ -754,7 +754,7 @@
             ${head('Detrás de escena', 'Dónde trabajó tu inversión')}
             <div class="grid grid-cols-2 gap-8 mt-8">
               <div class="space-y-4">${platformsHTML(d, false)}</div>
-              <div>${list.length ? `<p class="text-[11px] uppercase tracking-[.25em] text-white/50 mb-3">Campañas con más ${byClicks ? 'clics' : 'interesados'}</p><div class="space-y-2.5">${campaignsHTML(d, false)}</div>` : ''}</div>
+              <div>${list.length ? `<p class="text-xs uppercase tracking-[.22em] text-white/70 mb-3">Campañas con más ${byClicks ? 'clics' : 'interesados'}</p><div class="space-y-2.5">${campaignsHTML(d, false)}</div>` : ''}</div>
             </div>` });
         }
       }
@@ -765,8 +765,8 @@
           <img src="${LOGO}" alt="" class="w-24">
           <p class="text-brand-teal text-sm tracking-[.3em] uppercase mt-10">Lo que viene</p>
           <h2 class="display text-[5rem] mt-3 grad-text">La historia sigue</h2>
-          <p class="text-white/70 text-xl mt-5 max-w-[8in] leading-relaxed">Cada semana revisamos creativos, audiencias y presupuesto para que cada peso invertido rinda más. Estamos a un mensaje de distancia.</p>
-          <p class="text-white/40 text-sm mt-10 tracking-[.2em]">#WORK WITH 💜 · marketingdigitalideaz.com</p>
+          <p class="text-white/85 text-xl mt-5 max-w-[8in] leading-relaxed">Cada semana revisamos creativos, audiencias y presupuesto para que cada peso invertido rinda más. Estamos a un mensaje de distancia.</p>
+          <p class="text-white/60 text-sm mt-10 tracking-[.2em]">#WORK WITH 💜 · marketingdigitalideaz.com</p>
         </div>` });
 
       const total = slides.length;
@@ -776,9 +776,9 @@
           <div class="glow glow-teal w-[5in] h-[5in] -bottom-[3in] -left-[1.5in]"></div>
           <div class="relative h-full px-[.75in] ${s.cover ? 'py-[.6in]' : 'pt-[.55in] pb-[.9in]'}">${s.html}</div>
           ${s.cover ? '' : `
-          <div class="absolute bottom-[.3in] left-[.75in] right-[.75in] flex items-center justify-between text-xs text-white/40">
+          <div class="absolute bottom-[.3in] left-[.75in] right-[.75in] flex items-center justify-between text-xs text-white/60">
             <span class="flex items-center gap-3"><img src="${LOGO}" alt="" class="h-5">${name} · ${period}</span>
-            <span class="display text-sm text-white/50">${String(i + 1).padStart(2, '0')} / ${String(total).padStart(2, '0')}</span>
+            <span class="display text-sm text-white/70">${String(i + 1).padStart(2, '0')} / ${String(total).padStart(2, '0')}</span>
           </div>`}
         </section>`).join('');
     }
