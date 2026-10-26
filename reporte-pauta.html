@@ -4,269 +4,556 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#050505">
   <title>Reporte de pauta — IDEAZ</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="icon" href="https://marketingdigitalideaz.com/wp-content/uploads/2026/04/favi.png">
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: {
+        colors: { ink: '#050505', brand: { purple: '#B06DF2', teal: '#02DAB7', indigo: '#4A3AFF' } },
+        fontFamily: { display: ['Coolvetica', 'system-ui', 'sans-serif'], body: ['Rota', 'system-ui', 'sans-serif'] },
+      } },
+    };
+  </script>
   <style>
-    body { font-family: 'Inter', system-ui, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .hero { background: radial-gradient(1200px 500px at 85% -10%, rgba(129,140,248,.55), transparent 60%), radial-gradient(900px 400px at 0% 110%, rgba(236,72,153,.28), transparent 60%), #0f172a; }
-    .reveal { opacity: 0; transform: translateY(18px); transition: opacity .7s ease, transform .7s ease; }
-    .reveal.in { opacity: 1; transform: none; }
-    .bar { transform-origin: bottom; transform: scaleY(0); transition: transform .8s cubic-bezier(.2,.8,.2,1); }
+    /* Misma identidad que marketingdigitalideaz.com: tipografías del home (servidas por el mismo dominio;
+       si el dashboard vive en otro host se usa la URL absoluta), fondo negro, violeta #B06DF2 y turquesa #02DAB7. */
+    @font-face { font-family: 'Coolvetica'; font-weight: 400; font-display: swap;
+      src: url('/wp-content/uploads/2026/10/coolvetica-rg.ttf') format('truetype'), url('https://marketingdigitalideaz.com/wp-content/uploads/2026/10/coolvetica-rg.ttf') format('truetype'); }
+    @font-face { font-family: 'Rota'; font-weight: 300; font-display: swap;
+      src: url('/wp-content/uploads/2026/10/Rota-Light.ttf') format('truetype'), url('https://marketingdigitalideaz.com/wp-content/uploads/2026/10/Rota-Light.ttf') format('truetype'); }
+    @font-face { font-family: 'Rota'; font-weight: 400; font-display: swap;
+      src: url('/wp-content/uploads/2026/10/Rota-Regular.ttf') format('truetype'), url('https://marketingdigitalideaz.com/wp-content/uploads/2026/10/Rota-Regular.ttf') format('truetype'); }
+
+    html { background: #050505; scroll-behavior: smooth; }
+    body { font-family: 'Rota', system-ui, sans-serif; font-weight: 300; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .display { font-family: 'Coolvetica', system-ui, sans-serif; font-weight: 400; line-height: .92; letter-spacing: -.005em; }
+    .grad-text { background: linear-gradient(90deg, #8b8b8b 0%, #fff 38%, #fff 70%, #c9c9c9 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .brand-text { background: linear-gradient(90deg, #B06DF2, #02DAB7); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .outline-num { font-family: 'Coolvetica', sans-serif; color: transparent; -webkit-text-stroke: 1.5px rgba(255,255,255,.18); line-height: .8; }
+
+    /* Tarjetas del home: fondo oscuro degradado y borde de luz violeta → turquesa */
+    .card { position: relative; background: linear-gradient(160deg, #161616 0%, #080808 100%); border-radius: 25px; }
+    .card::before { content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
+      background: linear-gradient(140deg, rgba(176,109,242,.75), rgba(255,255,255,.07) 38%, rgba(255,255,255,.04) 62%, rgba(2,218,183,.55));
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+    .pill { border: 1px solid #fff; border-radius: 25px; background: linear-gradient(90deg, rgba(217,217,217,0) 0%, rgba(255,255,255,.6) 100%); color: #fff; transition: box-shadow .25s, transform .25s; }
+    .pill:hover { box-shadow: 0 0 22px rgba(176,109,242,.55); transform: translateY(-1px); }
+    .pill-teal { border: 1px solid #02DAB7; border-radius: 25px; background: linear-gradient(90deg, rgba(2,218,183,0) 0%, rgba(2,218,183,.85) 100%); }
+    .glass { background: rgba(10,10,10,.55); border: 1px solid rgba(255,255,255,.14); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+    .glow { position: absolute; border-radius: 9999px; pointer-events: none; }
+    .glow-purple { background: radial-gradient(closest-side, rgba(176,109,242,.55), rgba(176,109,242,0)); }
+    .glow-teal { background: radial-gradient(closest-side, rgba(2,218,183,.35), rgba(2,218,183,0)); }
+    .glow-indigo { background: radial-gradient(closest-side, rgba(74,58,255,.45), rgba(74,58,255,0)); }
+    .hr-glow { height: 1px; background: linear-gradient(90deg, transparent, rgba(176,109,242,.6), rgba(2,218,183,.4), transparent); }
+
+    /* ── Animaciones ── */
+    @keyframes drift { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(40px,-30px) scale(1.08); } }
+    @keyframes wordIn { from { transform: translateY(110%); } to { transform: none; } }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+    @keyframes scrollHint { 0% { transform: scaleY(0); transform-origin: top; } 45% { transform: scaleY(1); transform-origin: top; } 55% { transform: scaleY(1); transform-origin: bottom; } 100% { transform: scaleY(0); transform-origin: bottom; } }
+    .drift { animation: drift 14s ease-in-out infinite; }
+    .wm { display: inline-block; overflow: hidden; vertical-align: top; padding-bottom: .08em; margin-bottom: -.08em; }
+    .w { display: inline-block; animation: wordIn 1s cubic-bezier(.2,.8,.2,1) both; }
+    .hero-in { animation: fadeUp .9s cubic-bezier(.2,.8,.2,1) both; }
+    .scroll-line { animation: scrollHint 2.2s ease-in-out infinite; }
+
+    /* Entrada al aparecer en pantalla y salida al dejarla (hacia arriba o de vuelta abajo) */
+    .rv { opacity: 0; transform: translateY(46px); filter: blur(6px);
+      transition: opacity .9s cubic-bezier(.2,.7,.2,1), transform .9s cubic-bezier(.2,.7,.2,1), filter .9s ease;
+      transition-delay: calc(var(--i, 0) * 110ms); }
+    .rv[data-rv="left"] { transform: translateX(-60px); }
+    .rv[data-rv="right"] { transform: translateX(60px); }
+    .rv[data-rv="zoom"] { transform: scale(.9); }
+    .rv.up { transform: translateY(-46px); transition-delay: 0ms; }
+    .rv.in { opacity: 1; transform: none; filter: none; }
+    .bar { transform-origin: bottom; transform: scaleY(0); transition: transform .9s cubic-bezier(.2,.8,.2,1); }
     .in .bar { transform: scaleY(1); }
-    .ring { transition: stroke-dashoffset 1.2s cubic-bezier(.2,.8,.2,1); }
-    .chapter { font-size: .7rem; letter-spacing: .16em; }
+    .ring { transition: stroke-dashoffset 1.4s cubic-bezier(.2,.8,.2,1); }
+    .grow { transform-origin: left; transform: scaleX(0); transition: transform 1.1s cubic-bezier(.2,.8,.2,1); }
+    .in .grow { transform: scaleX(1); }
+    .pop { opacity: 0; transform: scale(.4); transition: opacity .5s, transform .5s cubic-bezier(.3,1.6,.5,1); }
+    .in .pop { opacity: 1; transform: none; }
+    .sw { opacity: .16; transition: opacity .35s ease, color .35s ease; }
+    .sw.on { opacity: 1; }
+    .sw.hl.on { color: #02DAB7; }
     .col:hover .tip, .col:focus .tip { opacity: 1; transform: translate(-50%, -6px); }
     .tip { opacity: 0; transform: translate(-50%, 0); transition: opacity .15s, transform .15s; }
-    #state-content.busy main, #state-content.busy header .hero-body { opacity: .45; pointer-events: none; transition: opacity .2s; }
+    #screen.busy main, #screen.busy #hero-body { opacity: .4; pointer-events: none; transition: opacity .2s; }
+    select option { color: #111; }
+
     @media (prefers-reduced-motion: reduce) {
-      .reveal, .bar, .ring { transition: none !important; }
+      .rv, .bar, .ring, .grow, .pop, .sw { transition: none !important; }
+      .drift, .w, .hero-in, .scroll-line { animation: none !important; }
     }
-    @page { margin: 10mm; }
+
+    /* ── PDF: presentación horizontal 16:9 (13,333 × 7,5 in, como una diapositiva de PowerPoint) ── */
+    #deck { display: none; }
+    @page { size: 13.333in 7.5in; margin: 0; }
     @media print {
-      .no-print { display: none !important; }
-      .reveal { opacity: 1 !important; transform: none !important; }
+      html, body { background: #050505 !important; }
+      #screen, #progress, #state-loading, #state-error { display: none !important; }
+      #deck { display: block; }
+      .slide { width: 13.333in; height: 7.5in; position: relative; overflow: hidden; background: #050505; color: #fff;
+        break-after: page; page-break-after: always; }
+      .slide:last-child { break-after: auto; page-break-after: auto; }
       .bar { transform: none !important; }
-      .ring { transition: none !important; }
-      section, .avoid-break { break-inside: avoid; }
-      body { background: #fff; }
-      main { margin-top: 1.5rem !important; }
+      .grow { transform: none !important; }
     }
   </style>
 </head>
-<body class="bg-slate-50 text-slate-800">
+<body class="bg-ink text-white antialiased">
 
   <!-- Portal público de solo lectura (sin login): el token viaja en ?t= y el backend lo valida por su hash.
        A propósito NO incluye js/session.js ni el resto del JS del dashboard (igual que leads-cliente.html). -->
 
-  <div id="state-loading" class="min-h-screen flex flex-col items-center justify-center gap-4 hero text-slate-300">
-    <div class="w-10 h-10 border-2 border-indigo-300 border-t-transparent rounded-full animate-spin"></div>
-    <p class="text-sm">Preparando tu reporte…</p>
+  <div id="progress" class="fixed top-0 left-0 h-[3px] z-50 bg-gradient-to-r from-brand-purple to-brand-teal" style="width:0"></div>
+
+  <div id="state-loading" class="min-h-screen flex flex-col items-center justify-center gap-5 relative overflow-hidden">
+    <div class="glow glow-purple drift w-[520px] h-[520px] -top-40 -right-32"></div>
+    <img src="https://marketingdigitalideaz.com/wp-content/uploads/2026/10/logo.webp" alt="IDEAZ" class="w-20 animate-pulse relative">
+    <p class="text-sm text-white/60 tracking-[.2em] uppercase relative">Preparando tu reporte</p>
   </div>
 
-  <div id="state-error" style="display:none" class="min-h-screen flex items-center justify-center p-6">
-    <div class="text-center max-w-sm">
-      <p class="text-4xl mb-3">🔒</p>
-      <h1 class="text-lg font-bold mb-1">Este reporte ya no está disponible</h1>
-      <p class="text-slate-500 text-sm">El link pudo haber sido revocado o estar incompleto. Pide uno nuevo a tu equipo de IDEAZ.</p>
+  <div id="state-error" style="display:none" class="min-h-screen flex items-center justify-center p-6 relative overflow-hidden">
+    <div class="glow glow-purple w-[520px] h-[520px] -top-40 -left-32"></div>
+    <div class="card text-center max-w-md p-10 relative">
+      <img src="https://marketingdigitalideaz.com/wp-content/uploads/2026/10/logo.webp" alt="IDEAZ" class="w-14 mx-auto mb-5">
+      <h1 class="display text-3xl">Este reporte ya no está disponible</h1>
+      <p class="text-white/60 text-sm mt-3">El link pudo haber sido revocado o estar incompleto. Pide uno nuevo a tu equipo de IDEAZ.</p>
     </div>
   </div>
 
-  <div id="state-content" style="display:none">
+  <div id="screen" style="display:none">
+
+    <!-- Barra flotante, como el menú del home -->
+    <nav class="fixed top-4 inset-x-0 z-40 px-4">
+      <div class="glass max-w-5xl mx-auto rounded-full pl-5 pr-2 py-2 flex items-center justify-between gap-3">
+        <img src="https://marketingdigitalideaz.com/wp-content/uploads/2026/10/logo_ideaz.webp" alt="IDEAZ Marketing Agency" class="h-7 sm:h-8 w-auto">
+        <div class="flex items-center gap-2">
+          <label id="range-wrap" style="display:none" class="flex items-center">
+            <span class="sr-only">Período</span>
+            <select id="range-select" class="bg-white/5 hover:bg-white/10 border border-white/20 text-white text-xs rounded-full px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-purple/60 cursor-pointer">
+              <option value="month">Este mes</option>
+              <option value="last30">Últimos 30 días</option>
+              <option value="prev_month">Mes anterior</option>
+            </select>
+          </label>
+          <button onclick="printReport()" class="pill inline-flex items-center gap-1.5 text-xs px-4 sm:px-5 py-2 whitespace-nowrap">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg>
+            <span>PDF<span class="hidden sm:inline"> presentación</span></span>
+          </button>
+        </div>
+      </div>
+    </nav>
 
     <!-- PORTADA -->
-    <header class="hero text-white">
-      <div class="max-w-5xl mx-auto px-6 pt-7 pb-20">
-        <div class="flex items-center justify-between gap-3 flex-wrap">
-          <span class="text-sm font-black tracking-[.3em] text-indigo-200">IDEAZ</span>
-          <div class="flex items-center gap-2 no-print">
-            <label id="range-wrap" style="display:none" class="flex items-center gap-2 text-xs text-indigo-100/80">
-              <span class="hidden sm:inline">Ver</span>
-              <select id="range-select" class="bg-white/10 hover:bg-white/15 border border-white/20 text-white text-xs font-semibold rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-white/40 cursor-pointer">
-                <option value="month" class="text-slate-900">Este mes</option>
-                <option value="last30" class="text-slate-900">Últimos 30 días</option>
-                <option value="prev_month" class="text-slate-900">Mes anterior</option>
-              </select>
-            </label>
-            <button onclick="printReport()" class="inline-flex items-center gap-1.5 bg-white text-slate-900 hover:bg-indigo-50 text-xs font-bold rounded-lg px-4 py-2 transition-colors shadow-lg shadow-black/20">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16"/></svg>Descargar PDF
-            </button>
-          </div>
+    <header class="relative min-h-[100svh] flex items-end overflow-hidden">
+      <div class="glow glow-purple drift w-[760px] h-[760px] -top-56 -right-40" data-speed=".25"></div>
+      <div class="glow glow-indigo drift w-[620px] h-[620px] top-1/3 -left-60" data-speed=".12" style="animation-delay:-5s"></div>
+      <div class="glow glow-teal drift w-[420px] h-[420px] bottom-0 right-1/4" data-speed=".35" style="animation-delay:-9s"></div>
+      <div class="absolute inset-0 pointer-events-none opacity-[.07]" style="background-image:linear-gradient(rgba(255,255,255,.6) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.6) 1px,transparent 1px);background-size:64px 64px;mask-image:radial-gradient(ellipse at 50% 40%,#000 20%,transparent 75%);-webkit-mask-image:radial-gradient(ellipse at 50% 40%,#000 20%,transparent 75%)"></div>
+
+      <div id="hero-body" class="relative max-w-5xl w-full mx-auto px-6 pb-16 sm:pb-20 pt-32">
+        <div class="hero-in flex flex-wrap items-center gap-3" style="animation-delay:.1s">
+          <span id="mode-badge" class="inline-flex items-center gap-2 text-xs px-3.5 py-1.5 rounded-full border border-white/20 bg-white/5"></span>
+          <span id="hero-period" class="pill-teal text-xs sm:text-sm px-4 py-1.5 text-white"></span>
         </div>
-        <div class="hero-body mt-14">
-          <span id="mode-badge" class="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1 rounded-full bg-white/10 border border-white/20"></span>
-          <h1 id="hero-title" class="text-4xl sm:text-6xl font-black leading-[1.05] mt-5 max-w-3xl tracking-tight"></h1>
-          <p id="hero-period" class="text-indigo-200/80 text-sm font-semibold mt-4 uppercase tracking-wider"></p>
-          <p id="hero-story" class="text-indigo-50 text-lg sm:text-xl mt-3 max-w-2xl leading-relaxed"></p>
-          <div id="hero-delta" class="mt-5"></div>
-          <p id="hero-msg" class="mt-7 max-w-2xl text-indigo-50 bg-white/10 border border-white/15 rounded-2xl px-5 py-4 text-sm leading-relaxed whitespace-pre-line" style="display:none"></p>
+        <p class="hero-in text-white/70 tracking-[.35em] uppercase text-xs sm:text-sm mt-8" style="animation-delay:.2s">Reporte de pauta digital</p>
+        <h1 id="hero-title" class="display text-[2.9rem] leading-[.95] sm:text-7xl lg:text-[6.2rem] mt-3 max-w-4xl"></h1>
+        <p id="hero-lead" class="hero-in text-lg sm:text-2xl text-white/75 mt-7 max-w-2xl leading-snug" style="animation-delay:.9s"></p>
+        <div class="hero-in mt-12 flex items-center gap-4 text-white/50 text-xs tracking-[.25em] uppercase" style="animation-delay:1.2s">
+          <span class="relative block w-px h-12 bg-white/15 overflow-hidden"><span class="scroll-line absolute inset-0 bg-gradient-to-b from-brand-purple to-brand-teal"></span></span>
+          Desliza para ver la historia
         </div>
       </div>
     </header>
 
-    <main class="max-w-5xl mx-auto px-6 -mt-10 pb-16 space-y-16">
+    <main class="relative">
+
+      <!-- PRÓLOGO: el resumen se va iluminando palabra por palabra al hacer scroll -->
+      <section id="summary" class="relative max-w-5xl mx-auto px-6 py-24 sm:py-36">
+        <p class="rv text-brand-teal text-xs sm:text-sm tracking-[.3em] uppercase mb-6">En pocas palabras</p>
+        <p id="summary-text" class="text-3xl sm:text-5xl leading-[1.12] sm:leading-[1.1] font-light"></p>
+        <div id="hero-delta" class="rv mt-10"></div>
+        <figure id="team-msg" style="display:none" class="rv card mt-14 p-7 sm:p-9 max-w-3xl" data-rv="zoom">
+          <p class="text-brand-purple text-xs tracking-[.3em] uppercase">Un mensaje de tu equipo</p>
+          <blockquote id="team-msg-text" class="text-lg sm:text-xl text-white/85 mt-3 leading-relaxed whitespace-pre-line"></blockquote>
+          <figcaption class="flex items-center gap-3 mt-5 text-sm text-white/50">
+            <img src="https://marketingdigitalideaz.com/wp-content/uploads/2026/10/logo.webp" alt="" class="w-8">Equipo IDEAZ
+          </figcaption>
+        </figure>
+      </section>
 
       <!-- Cifras clave -->
-      <section class="reveal">
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4" id="kpi-grid"></div>
+      <section class="max-w-5xl mx-auto px-6">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4" id="kpi-grid"></div>
       </section>
 
-      <div id="empty-state" style="display:none" class="bg-white rounded-3xl border border-slate-200 p-10 text-center">
-        <p class="text-4xl">🌱</p>
-        <h2 class="text-xl font-black mt-2">Aún no hay actividad en este período</h2>
-        <p class="text-slate-500 text-sm mt-1">Cuando tus campañas empiecen a circular, aquí verás cómo avanzan día a día.</p>
-      </div>
-
-      <div id="story" class="space-y-16">
-        <!-- Capítulo: objetivos -->
-        <section class="reveal" id="goals-section">
-          <p class="chapter font-bold text-indigo-600 uppercase" data-chapter></p>
-          <h2 class="text-2xl sm:text-3xl font-black mt-1 tracking-tight">Los objetivos de este período</h2>
-          <p class="text-slate-500 mt-1 mb-6 text-sm">Lo que nos propusimos y hasta dónde llegamos.</p>
-          <div class="flex flex-wrap justify-center gap-4" id="goals-grid"></div>
-        </section>
-
-        <!-- Capítulo: leads por día -->
-        <section class="reveal" id="daily-section">
-          <p class="chapter font-bold text-indigo-600 uppercase" data-chapter></p>
-          <h2 class="text-2xl sm:text-3xl font-black mt-1 tracking-tight">Cada día llegaron personas nuevas</h2>
-          <p class="text-slate-500 mt-1 mb-6 text-sm" id="daily-sub"></p>
-          <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 sm:p-7">
-            <div id="daily-chart"></div>
-            <div id="weekday-insight" class="mt-6 pt-5 border-t border-slate-100"></div>
-          </div>
-        </section>
-
-        <!-- Capítulo: recorrido -->
-        <section class="reveal" id="journey-section">
-          <p class="chapter font-bold text-indigo-600 uppercase" data-chapter></p>
-          <h2 class="text-2xl sm:text-3xl font-black mt-1 tracking-tight">El recorrido de tu cliente ideal</h2>
-          <p class="text-slate-500 mt-1 mb-6 text-sm">Primero que te conozcan, luego que se interesen y finalmente que te escriban.</p>
-          <div class="grid md:grid-cols-3 gap-4" id="journey-grid"></div>
-        </section>
-
-        <!-- Capítulo: plataformas -->
-        <section class="reveal" id="plat-section">
-          <p class="chapter font-bold text-indigo-600 uppercase" data-chapter></p>
-          <h2 class="text-2xl sm:text-3xl font-black mt-1 tracking-tight">Dónde trabajó tu inversión</h2>
-          <div class="grid sm:grid-cols-2 gap-4 mt-6" id="plat-grid"></div>
-        </section>
-
-        <!-- Capítulo: campañas -->
-        <section class="reveal" id="camp-section">
-          <p class="chapter font-bold text-indigo-600 uppercase" data-chapter></p>
-          <h2 class="text-2xl sm:text-3xl font-black mt-1 tracking-tight">Las campañas que más aportaron</h2>
-          <div class="mt-6 space-y-3" id="camp-list"></div>
-        </section>
-      </div>
-
-      <!-- Cierre -->
-      <section class="reveal avoid-break">
-        <div class="hero text-white rounded-3xl p-8 sm:p-10 text-center">
-          <p class="text-3xl">✨</p>
-          <h2 class="text-2xl sm:text-3xl font-black mt-2">Seguimos optimizando para ti</h2>
-          <p class="text-indigo-100/80 mt-2 text-sm max-w-xl mx-auto leading-relaxed">Cada semana revisamos creativos, audiencias y presupuesto para que cada peso invertido rinda más. Si quieres conversar sobre estos resultados, estamos a un mensaje de distancia.</p>
+      <div id="empty-state" style="display:none" class="max-w-5xl mx-auto px-6 mt-16">
+        <div class="rv card p-12 text-center">
+          <p class="text-5xl">🌱</p>
+          <h2 class="display text-3xl sm:text-4xl mt-4 grad-text">Aún no hay actividad en este período</h2>
+          <p class="text-white/60 mt-3">Cuando tus campañas empiecen a circular, aquí verás cómo avanzan día a día.</p>
         </div>
-        <p id="footer-note" class="text-center text-xs text-slate-400 mt-6"></p>
+      </div>
+
+      <div id="story"></div>
+
+      <!-- EPÍLOGO -->
+      <section class="relative max-w-5xl mx-auto px-6 pt-28 pb-16 overflow-visible">
+        <div class="glow glow-purple w-[640px] h-[640px] -bottom-40 left-1/2 -translate-x-1/2"></div>
+        <div class="rv relative text-center" data-rv="zoom">
+          <img src="https://marketingdigitalideaz.com/wp-content/uploads/2026/10/logo.webp" alt="" class="w-16 mx-auto">
+          <p class="text-brand-teal text-xs sm:text-sm tracking-[.3em] uppercase mt-8">Lo que viene</p>
+          <h2 class="display text-5xl sm:text-7xl mt-3 grad-text">La historia sigue</h2>
+          <p class="text-white/70 text-lg mt-5 max-w-2xl mx-auto leading-relaxed" id="epilogue-text">Cada semana revisamos creativos, audiencias y presupuesto para que cada peso invertido rinda más.</p>
+          <div class="flex flex-wrap justify-center gap-3 mt-9">
+            <a id="wa-cta" href="#" target="_blank" rel="noopener" class="pill inline-flex items-center gap-2 px-7 py-3 text-sm">Conversemos sobre estos resultados</a>
+            <button onclick="printReport()" class="inline-flex items-center gap-2 px-7 py-3 text-sm rounded-full border border-white/25 text-white/80 hover:border-brand-teal hover:text-white transition-colors">Descargar presentación</button>
+          </div>
+          <p class="text-white/40 text-sm mt-10 tracking-[.2em]">#WORK WITH <span class="text-brand-purple">💜</span></p>
+        </div>
       </section>
+      <div class="hr-glow max-w-5xl mx-auto"></div>
+      <p id="footer-note" class="text-center text-xs text-white/40 px-6 py-8"></p>
     </main>
   </div>
 
+  <!-- Versión para PDF: diapositivas horizontales que solo existen al imprimir -->
+  <div id="deck"></div>
+
   <script>
     const API = 'backend/public/pauta_report_public.php';
+    const LOGO = 'https://marketingdigitalideaz.com/wp-content/uploads/2026/10/logo.webp';
+    const LOGO_FULL = 'https://marketingdigitalideaz.com/wp-content/uploads/2026/10/logo_ideaz.webp';
+    const WA_PHONE = '573014288985';   // WhatsApp comercial del home de IDEAZ
+    const STADIUM = 46000;             // aforo aproximado del Estadio Metropolitano de Barranquilla
     const token = new URLSearchParams(location.search).get('t') || '';
-    const STAGE_ORDER = ['tof', 'mof', 'bof'];
     const WEEKDAYS = ['domingos', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábados'];
+    const PURPLE = '#B06DF2', TEAL = '#02DAB7';
 
     const $ = id => document.getElementById(id);
     const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const nf = n => Math.round(n || 0).toLocaleString('es-CO');
-    const short = n => n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, '') + ' M' : n >= 1e4 ? (n / 1e3).toFixed(1).replace(/\.0$/, '') + ' mil' : nf(n);
+    const dec = (n, d = 1) => (n || 0).toLocaleString('es-CO', { maximumFractionDigits: d });
+    const short = n => n >= 1e6 ? dec(n / 1e6) + ' M' : n >= 1e4 ? dec(n / 1e3) + ' mil' : nf(n);
     const money = n => '$' + Math.round(n || 0).toLocaleString('es-CO');
     const dateLong = d => new Date(d + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' });
     const dateShort = d => new Date(d + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
     const fmtBy = (fmt, v) => fmt === 'short' ? short(v) : fmt === 'money' ? money(v) : nf(v);
     const pctDelta = (now, before) => before > 0 ? (now - before) / before * 100 : null;
     const plural = (n, one, many) => `${nf(n)} ${Math.round(n) === 1 ? one : many}`;
+    const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     let firstLoad = true;
 
     async function load(range) {
-      const content = $('state-content');
-      if (!firstLoad) content.classList.add('busy');
+      const screen = $('screen');
+      if (!firstLoad) screen.classList.add('busy');
       try {
         const res = await fetch(`${API}?t=${encodeURIComponent(token)}&range=${encodeURIComponent(range || 'month')}`);
         if (!res.ok) throw new Error('status ' + res.status);
-        render(await res.json());
+        const d = await res.json();
+        const m = metrics(d);
+        renderScreen(d, m);
+        renderDeck(d, m);
         $('state-loading').style.display = 'none';
-        content.style.display = '';
-        requestAnimationFrame(observe);
+        screen.style.display = '';
+        requestAnimationFrame(() => { observe(); onScroll(); });
       } catch (e) {
         if (firstLoad) {
           $('state-loading').style.display = 'none';
           $('state-error').style.display = '';
         } else {
-          alertInline('No pudimos actualizar el período. Intenta de nuevo en un momento.');
+          $('footer-note').innerHTML = '<span class="text-red-400">No pudimos actualizar el período. Intenta de nuevo en un momento.</span>';
         }
       } finally {
-        content.classList.remove('busy');
+        screen.classList.remove('busy');
         firstLoad = false;
       }
     }
 
-    function alertInline(msg) {
-      $('footer-note').innerHTML = `<span class="text-red-500 font-semibold">${esc(msg)}</span>`;
+    // ── Cifras derivadas: una sola fuente para la página y para la presentación ──
+    function metrics(d) {
+      const t = d.totals, prev = d.previous, days = d.daily || [];
+      const dailyLeads = days.reduce((a, x) => a + x.leads, 0);   // misma fuente que el período anterior
+      const prevCpl = prev && prev.leads > 0 ? prev.spend / prev.leads : 0;
+      const cplNow = dailyLeads > 0 && t.spend ? t.spend / dailyLeads : 0;
+      const best = days.length ? days.reduce((a, x) => x.leads > a.leads ? x : a, days[0]) : null;
+      const m = {
+        t, prev, days, dailyLeads, best,
+        live: d.link.mode === 'live',
+        leadsDelta: prev ? pctDelta(dailyLeads, prev.leads) : null,
+        cpl: t.leads > 0 && t.spend ? t.spend / t.leads : 0,
+        cplDelta: prevCpl > 0 && cplNow > 0 ? pctDelta(cplNow, prevCpl) : null,
+        ctr: t.impressions > 0 ? t.clicks / t.impressions * 100 : 0,
+        oneIn: t.clicks > 0 ? Math.round(t.impressions / t.clicks) : 0,
+        avg: days.length ? dailyLeads / days.length : 0,
+        hasActivity: (t.spend || 0) > 0 || t.impressions > 0 || t.leads > 0,
+        stadiums: t.impressions / STADIUM,
+      };
+      m.goals = goalsOf(d, m);
+      return m;
     }
 
-    // Animaciones al entrar en pantalla (y estado final inmediato si el navegador no soporta el observador)
-    function observe() {
-      const finish = el => {
-        el.classList.add('in');
-        el.querySelectorAll('[data-ring]').forEach(r => { r.style.strokeDashoffset = r.dataset.ring; });
-        el.querySelectorAll('[data-count]').forEach(countUp);
-      };
-      if (!('IntersectionObserver' in window)) { document.querySelectorAll('.reveal').forEach(finish); return; }
-      // El observador siempre responde una primera vez por cada sección al empezar a observarla.
-      // Si no lo hace (algunos navegadores embebidos o vistas previas), se muestra todo: un
-      // reporte en blanco es mucho peor que uno sin animación.
-      let alive = false;
-      const io = new IntersectionObserver(es => {
-        alive = true;
-        es.forEach(e => { if (e.isIntersecting) { finish(e.target); io.unobserve(e.target); } });
-      }, { threshold: .12 });
-      document.querySelectorAll('.reveal').forEach(el => { el.classList.remove('in'); io.observe(el); });
-      setTimeout(() => { if (!alive) { io.disconnect(); document.querySelectorAll('.reveal').forEach(finish); } }, 1500);
+    // Ritmo humano de llegada: "una persona cada 4 horas"
+    function cadence(days, leads) {
+      if (!(leads > 0)) return '';
+      const hrs = days * 24 / leads;
+      if (hrs < 1) return `cada ${Math.max(1, Math.round(hrs * 60))} minutos`;
+      if (hrs < 48) return `cada ${dec(hrs, hrs < 10 ? 1 : 0)} horas`;
+      return `cada ${Math.round(hrs / 24)} días`;
     }
 
-    function countUp(el) {
-      const target = +el.dataset.count, fmt = el.dataset.fmt;
-      if (matchMedia('(prefers-reduced-motion: reduce)').matches) { el.textContent = fmtBy(fmt, target); return; }
-      const t0 = performance.now(), dur = 1200;
-      const step = t => {
-        const p = Math.min(1, (t - t0) / dur);
-        el.textContent = fmtBy(fmt, target * (1 - Math.pow(1 - p, 3)));
-        if (p < 1) requestAnimationFrame(step);
-      };
-      requestAnimationFrame(step);
+    function goalsOf(d, m) {
+      const { t, live, ctr, leadsDelta, prev } = m, goals = [];
+      if (d.link.lead_goal) {
+        const p = t.leads / d.link.lead_goal * 100;
+        goals.push({ title: 'Meta de interesados', pct: p, big: `${Math.round(p)}%`, done: p >= 100,
+          note: p >= 100 ? `¡Meta cumplida! ${nf(t.leads)} de ${nf(d.link.lead_goal)} 🎉` : `${nf(t.leads)} de ${nf(d.link.lead_goal)}.${live ? ' Seguimos sumando.' : ''}` });
+      }
+      if (t.budget > 0 && t.spend != null) {
+        const p = t.spend / t.budget * 100;
+        goals.push({ title: 'Presupuesto ejecutado', pct: p, big: `${Math.round(p)}%`, done: p >= 90 && p <= 105,
+          note: p > 105 ? 'Invertimos por encima de lo planeado para aprovechar la demanda.' : p >= 90 ? 'Se ejecutó tal como se planeó.' : live ? 'Avanza según el plan del período.' : `${money(t.budget - t.spend)} quedaron sin invertir.` });
+      }
+      if (t.impressions > 0) {
+        goals.push({ title: 'Interés de la audiencia', pct: Math.min(100, ctr * 100), big: `${dec(ctr)}%`, done: ctr >= 1,
+          note: ctr >= 1 ? 'Más del 1% hizo clic: un mensaje que conecta.' : 'Probamos nuevos creativos para subir el interés.' });
+      }
+      if (leadsDelta != null && leadsDelta >= 1) {
+        goals.push({ title: 'Crecimiento', pct: 100, big: `+${leadsDelta.toFixed(0)}%`, done: true,
+          note: `Más interesados que entre el ${dateShort(prev.from)} y el ${dateShort(prev.to)}.` });
+      }
+      return goals;
+    }
+
+    function goalsLine(m) {
+      const done = m.goals.filter(g => g.done).length;
+      return done
+        ? `Cumplimos <span class="text-brand-teal">${done} de ${m.goals.length}</span> objetivos del período${done === m.goals.length ? '. Todos en verde.' : ', y seguimos trabajando en el resto.'}`
+        : 'Las metas del período y hasta dónde llegamos.';
     }
 
     // Chip de variación vs. período anterior. invert = true cuando bajar es bueno (costo por interesado).
-    function deltaChip(delta, invert, dark) {
+    function deltaChip(delta, invert) {
       if (delta == null || !isFinite(delta) || Math.abs(delta) < 1) return '';
       const good = invert ? delta < 0 : delta > 0;
-      const cls = dark
-        ? (good ? 'bg-emerald-400/20 text-emerald-200 border-emerald-300/30' : 'bg-white/10 text-indigo-100 border-white/20')
-        : (good ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200');
-      return `<span class="inline-flex items-center gap-1 whitespace-nowrap flex-shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full border ${cls}">${delta > 0 ? '▲' : '▼'} ${Math.abs(delta).toFixed(0)}%</span>`;
+      const cls = good ? 'bg-brand-teal/15 text-brand-teal border-brand-teal/40' : 'bg-white/5 text-white/60 border-white/15';
+      return `<span class="inline-flex items-center gap-1 whitespace-nowrap flex-shrink-0 text-[11px] font-normal px-2.5 py-0.5 rounded-full border ${cls}">${delta > 0 ? '▲' : '▼'} ${Math.abs(delta).toFixed(0)}%</span>`;
     }
 
-    function render(d) {
-      const t = d.totals, cur = d.currency, live = d.link.mode === 'live';
-      const dailyLeads = d.daily.reduce((a, x) => a + x.leads, 0);   // misma fuente que el período anterior
-      const prev = d.previous;
-      const leadsDelta = prev ? pctDelta(dailyLeads, prev.leads) : null;
-      const cpl = t.leads > 0 && t.spend ? t.spend / t.leads : 0;
-      const prevCpl = prev && prev.leads > 0 ? prev.spend / prev.leads : 0;
-      const cplNow = dailyLeads > 0 && t.spend ? t.spend / dailyLeads : 0;
-      const cplDelta = prevCpl > 0 && cplNow > 0 ? pctDelta(cplNow, prevCpl) : null;
-      const ctr = t.impressions > 0 ? t.clicks / t.impressions * 100 : 0;
-      const hasActivity = (t.spend || 0) > 0 || t.impressions > 0 || t.leads > 0;
+    // ── Piezas reutilizables (anim = versión en pantalla; sin anim = estado final para el PDF) ──
+    function kpiCard(icon, label, value, fmt, sub, chip, anim, i) {
+      return `
+        <div class="${anim ? 'rv ' : ''}card p-5 sm:p-6" style="--i:${i}">
+          <div class="flex items-center justify-between gap-2"><span class="text-2xl">${icon}</span>${chip || ''}</div>
+          <p class="display text-4xl sm:text-[2.6rem] mt-4 grad-text"><span ${anim ? `data-count="${value}" data-fmt="${fmt}"` : ''}>${fmtBy(fmt, value)}</span></p>
+          <p class="text-[11px] uppercase tracking-[.18em] text-white/50 mt-2">${label}</p>
+          <p class="text-xs text-white/60 mt-2 leading-snug">${sub}</p>
+        </div>`;
+    }
 
-      // ── Portada ──
+    function kpisHTML(d, m, anim) {
+      const { t, ctr, cpl, cplDelta, leadsDelta } = m, cur = d.currency;
+      return kpiCard('👀', 'Veces que te vieron', t.impressions, 'short', 'Apariciones de tus anuncios', '', anim, 0) +
+        kpiCard('👆', 'Clics', t.clicks, 'n', `${dec(ctr, 2)}% de quienes te vieron quiso saber más`, '', anim, 1) +
+        kpiCard('🙋', 'Personas interesadas', t.leads, 'n', 'Dejaron sus datos o te escribieron', deltaChip(leadsDelta, false), anim, 2) +
+        (cpl > 0
+          ? kpiCard('💡', 'Costo por interesado', cpl, 'money', cplDelta != null && cplDelta < -1 ? 'Cada interesado salió más barato que antes' : `Promedio en ${esc(cur) || 'el período'}`, deltaChip(cplDelta, true), anim, 3)
+          : kpiCard('💰', 'Inversión', t.spend || 0, 'money', t.spend != null ? (cur || '') : 'Varias monedas, ver por plataforma', '', anim, 3));
+    }
+
+    function ringHTML(g, anim, size = 'w-28 h-28') {
+      const r = 44, c = 2 * Math.PI * r, p = Math.max(0, Math.min(100, g.pct));
+      const color = g.done ? TEAL : PURPLE, final = (c * (1 - p / 100)).toFixed(2);
+      return `
+        <div class="relative ${size} mx-auto">
+          <svg viewBox="0 0 100 100" class="w-full h-full -rotate-90">
+            <circle cx="50" cy="50" r="${r}" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="7"/>
+            <circle class="ring" cx="50" cy="50" r="${r}" fill="none" stroke="${color}" stroke-width="7" stroke-linecap="round"
+              ${anim ? `style="filter:drop-shadow(0 0 6px ${color}88)"` : ''} stroke-dasharray="${c.toFixed(2)}"
+              stroke-dashoffset="${anim ? c.toFixed(2) : final}" ${anim ? `data-ring="${final}" data-full="${c.toFixed(2)}"` : ''}/>
+          </svg>
+          <div class="absolute inset-0 grid place-items-center"><span class="display text-2xl">${g.big}</span></div>
+        </div>`;
+    }
+
+    function goalCard(g, anim, i) {
+      return `
+        <div class="${anim ? 'rv ' : ''}card p-6 text-center" data-rv="zoom" style="--i:${i}">
+          ${ringHTML(g, anim)}
+          <h3 class="display text-xl mt-4">${g.title}${g.done ? ' <span class="text-brand-teal">✓</span>' : ''}</h3>
+          <p class="text-xs text-white/60 mt-1.5 leading-snug">${g.note}</p>
+        </div>`;
+    }
+
+    // Barras en HTML (nítidas a cualquier ancho y en el PDF)
+    function chartHTML(m, labelsCount, height) {
+      const days = m.days, max = Math.max(...days.map(x => x.leads), 1);
+      const every = Math.max(1, Math.ceil(days.length / labelsCount));
+      const gap = days.length > 45 ? 'gap-px' : days.length > 20 ? 'gap-[3px]' : 'gap-1.5';
+      const cols = days.map((x, i) => {
+        const h = x.leads > 0 ? Math.max(4, x.leads / max * 100) : 1.5;
+        const isBest = x.date === m.best.date;
+        const bg = isBest ? 'background:linear-gradient(180deg,#02DAB7,#02DAB766);box-shadow:0 0 18px #02DAB766'
+          : x.leads > 0 ? 'background:linear-gradient(180deg,#B06DF2,#4A3AFF88)' : 'background:rgba(255,255,255,.1)';
+        return `
+          <div class="col relative flex-1 h-full flex flex-col justify-end items-center outline-none" tabindex="0">
+            <span class="tip pointer-events-none absolute left-1/2 z-10 whitespace-nowrap bg-white text-ink text-[11px] rounded-full px-3 py-1 shadow-lg" style="bottom:calc(${h}% + 6px)">${dateShort(x.date)} · ${plural(x.leads, 'interesado', 'interesados')}</span>
+            ${isBest ? `<span class="absolute display text-sm text-brand-teal" style="bottom:calc(${h}% + 4px)">${nf(x.leads)}</span>` : ''}
+            <div class="bar w-full rounded-t-[4px]" style="height:${h}%;${bg};transition-delay:${Math.min(i * 18, 650)}ms"></div>
+          </div>`;
+      }).join('');
+      const labels = days.map((x, i) => `<div class="flex-1 text-center text-[10px] text-white/40 whitespace-nowrap overflow-visible">${i % every === 0 ? dateShort(x.date) : ''}</div>`).join('');
+      return `
+        <div class="relative ${height} pt-6">
+          <div class="flex items-end ${gap} h-full border-b border-white/15">${cols}</div>
+          <div class="absolute left-0 right-0 border-t border-dashed border-white/35 pointer-events-none z-[5]" style="bottom:${m.avg / max * 100}%"><span class="absolute left-0 -top-6 text-[10px] text-white/70 bg-ink/80 border border-white/15 rounded-full px-2 py-0.5">promedio ${dec(m.avg)}/día</span></div>
+        </div>
+        <div class="flex ${gap} mt-2">${labels}</div>`;
+    }
+
+    // Día de la semana con más interesados (solo con al menos dos semanas de datos para que signifique algo)
+    function weekdayInfo(m) {
+      if (m.days.length < 14) return null;
+      const sums = Array(7).fill(0), counts = Array(7).fill(0);
+      m.days.forEach(x => { const k = new Date(x.date + 'T12:00:00').getDay(); sums[k] += x.leads; counts[k]++; });
+      const avgs = sums.map((s, k) => counts[k] ? s / counts[k] : 0);
+      const top = avgs.indexOf(Math.max(...avgs));
+      return { avgs, top, ratio: m.avg > 0 ? avgs[top] / m.avg : 1 };
+    }
+    function weekdayHTML(w) {
+      const order = [1, 2, 3, 4, 5, 6, 0], maxAvg = Math.max(...w.avgs, 0.01);
+      return `
+        <div class="flex flex-col sm:flex-row sm:items-center gap-6">
+          <div class="sm:w-1/2">
+            <p class="text-[11px] uppercase tracking-[.25em] text-brand-teal">Dato curioso</p>
+            <p class="display text-2xl mt-2">Los <span class="brand-text">${WEEKDAYS[w.top]}</span> son tu mejor día${w.ratio >= 1.15 ? `: llegan ${((w.ratio - 1) * 100).toFixed(0)}% más interesados que el promedio` : ''}.</p>
+          </div>
+          <div class="sm:w-1/2 flex items-end gap-2 h-20">
+            ${order.map(k => `<div class="flex-1 flex flex-col items-center gap-1.5 h-full justify-end">
+              <div class="bar w-full rounded" style="height:${Math.max(6, w.avgs[k] / maxAvg * 100)}%;background:${k === w.top ? 'linear-gradient(180deg,#02DAB7,#02DAB755)' : 'rgba(176,109,242,.28)'}"></div>
+              <span class="text-[10px] ${k === w.top ? 'text-brand-teal' : 'text-white/40'}">${WEEKDAYS[k].slice(0, 2).toUpperCase()}</span>
+            </div>`).join('')}
+          </div>
+        </div>`;
+    }
+
+    // Embudo Vistas → Clics → Interesados con la tasa de paso entre cada escalón
+    function funnelHTML(m, anim) {
+      const { t } = m;
+      const rate = (a, b) => b > 0 && a / b <= 1 ? `${dec(a / b * 100, 1)}%` : '';
+      const rows = [
+        ['Te vieron', short(t.impressions), 'vistas', 100, 'rgba(255,255,255,.14)'],
+        ['Hicieron clic', nf(t.clicks), 'clics', 74, 'linear-gradient(90deg,#4A3AFF,#B06DF2)'],
+        ['Te escribieron', nf(t.leads), 'interesados', 50, 'linear-gradient(90deg,#B06DF2,#02DAB7)'],
+      ];
+      const steps = [rate(t.clicks, t.impressions), rate(t.leads, t.clicks)];
+      return rows.map(([label, val, unit, w, bg], i) => `
+        ${i > 0 && steps[i - 1] ? `<div class="flex items-center gap-2 pl-4 py-1.5 text-xs text-white/50"><span class="text-brand-teal">↓</span>${steps[i - 1]} ${i === 1 ? 'hizo clic' : 'de los clics se convirtió en contacto'}</div>` : i > 0 ? '<div class="h-3"></div>' : ''}
+        <div class="${anim ? 'grow ' : ''}rounded-2xl px-5 py-4 flex items-center justify-between gap-3" style="width:${w}%;min-width:250px;max-width:100%;background:${bg};transition-delay:${i * 180}ms">
+          <span class="text-sm text-white/85 whitespace-nowrap">${label}</span>
+          <span class="display text-2xl whitespace-nowrap">${val} <span class="font-body text-xs text-white/70">${unit}</span></span>
+        </div>`).join('');
+    }
+
+    function platformsHTML(d, anim) {
+      const totalLeads = Math.max(1, d.platforms.reduce((a, p) => a + p.leads, 0));
+      return d.platforms.map((p, i) => `
+        <div class="${anim ? 'rv ' : ''}card p-6" data-rv="${i % 2 ? 'right' : 'left'}" style="--i:${i}">
+          <div class="flex items-center justify-between gap-2">
+            <h3 class="display text-2xl">${esc(p.label)}</h3>
+            ${d.platforms.length > 1 && p.leads > 0 ? `<span class="text-xs text-brand-teal border border-brand-teal/40 bg-brand-teal/10 rounded-full px-3 py-1">${Math.round(p.leads / totalLeads * 100)}% de los interesados</span>` : ''}
+          </div>
+          <div class="grid grid-cols-3 gap-3 mt-6 text-center">
+            <div><p class="display text-2xl">${short(p.impressions)}</p><p class="text-[10px] text-white/45 uppercase tracking-[.15em] mt-1">Vistas</p></div>
+            <div><p class="display text-2xl">${nf(p.clicks)}</p><p class="text-[10px] text-white/45 uppercase tracking-[.15em] mt-1">Clics</p></div>
+            <div><p class="display text-2xl text-brand-teal">${nf(p.leads)}</p><p class="text-[10px] text-white/45 uppercase tracking-[.15em] mt-1">Interesados</p></div>
+          </div>
+          <p class="text-xs text-white/55 mt-6 pt-4 border-t border-white/10">Inversión: <span class="text-white">${money(p.spend)} ${esc(p.currency)}</span></p>
+        </div>`).join('');
+    }
+
+    function topCampaigns(d) {
+      const withLeads = d.campaigns.filter(c => c.leads > 0).slice(0, 5);
+      const byClicks = !withLeads.length;
+      const list = byClicks ? d.campaigns.filter(c => c.clicks > 0).sort((a, b) => b.clicks - a.clicks).slice(0, 5) : withLeads;
+      return { list, byClicks };
+    }
+    function campaignsHTML(d, anim) {
+      const { list, byClicks } = topCampaigns(d);
+      const metricOf = c => byClicks ? c.clicks : c.leads;
+      const maxM = Math.max(...list.map(metricOf), 1);
+      return list.map((c, i) => `
+        <div class="${anim ? 'rv ' : ''}card px-5 py-4 flex items-center gap-4" data-rv="left" style="--i:${i}">
+          <span class="${anim ? 'pop ' : ''}w-10 h-10 rounded-full grid place-items-center display text-base flex-shrink-0 ${i === 0 ? 'bg-brand-teal/15 text-brand-teal border border-brand-teal/50' : 'bg-white/5 text-white/60 border border-white/10'}">${i === 0 ? '🏆' : i + 1}</span>
+          <div class="min-w-0 flex-1">
+            <p class="text-sm text-white truncate" title="${esc(c.name)}">${esc(c.name)}</p>
+            <div class="h-1.5 bg-white/10 rounded-full mt-2.5 overflow-hidden"><div class="${anim ? 'grow ' : ''}h-full rounded-full" style="width:${metricOf(c) / maxM * 100}%;background:${i === 0 ? 'linear-gradient(90deg,#B06DF2,#02DAB7)' : '#B06DF2'};transition-delay:${200 + i * 120}ms"></div></div>
+          </div>
+          <div class="text-right flex-shrink-0 w-20">
+            <p class="display text-2xl ${byClicks ? 'text-white' : 'text-brand-teal'}">${nf(metricOf(c))}</p>
+            <p class="text-[10px] text-white/45 uppercase tracking-[.12em]">${byClicks ? 'clics' : 'interesados'}</p>
+          </div>
+        </div>`).join('');
+    }
+
+    function chapter(num, eyebrow, title, intro, body, extraCls = '') {
+      return `
+        <section class="chapter relative max-w-5xl mx-auto px-6 pt-28 sm:pt-36 ${extraCls}">
+          <div class="relative">
+            <span class="rv outline-num absolute -top-6 sm:-top-14 right-0 text-[6rem] sm:text-[13rem] select-none pointer-events-none" data-rv="right">${String(num).padStart(2, '0')}</span>
+            <p class="rv relative text-brand-teal text-xs sm:text-sm tracking-[.3em] uppercase">Capítulo ${num} · ${eyebrow}</p>
+            <h2 class="rv relative display text-[2.6rem] sm:text-6xl mt-3 grad-text max-w-3xl" style="--i:1">${title}</h2>
+            <p class="rv relative text-white/70 text-lg sm:text-xl mt-5 max-w-2xl leading-relaxed" style="--i:2">${intro}</p>
+          </div>
+          ${body}
+        </section>`;
+    }
+
+    // ── Pantalla ──
+    function renderScreen(d, m) {
+      const { t, live } = m, cur = d.currency;
+      const name = d.client.name;
+
       $('mode-badge').innerHTML = live
-        ? '<span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span></span> En tiempo real'
+        ? '<span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-teal opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-brand-teal"></span></span> En tiempo real'
         : '📅 Reporte del período';
-      $('hero-title').textContent = d.link.title || `Así le fue a ${d.client.name} con su pauta digital`;
-      $('hero-period').textContent = `${dateLong(d.period.from)} – ${dateLong(d.period.to)} · ${plural(d.period.days, 'día', 'días')}`;
-      $('hero-story').innerHTML = hasActivity
-        ? `${t.spend ? `Con <strong class="text-white">${money(t.spend)} ${esc(cur)}</strong> invertidos, tu` : 'Tu'} marca apareció <strong class="text-white">${short(t.impressions)} veces</strong> frente a tu audiencia y <strong class="text-white">${plural(t.leads, 'persona', 'personas')}</strong> ${Math.round(t.leads) === 1 ? 'mostró' : 'mostraron'} interés en lo que ofreces.`
+      $('hero-period').textContent = `${dateLong(d.period.from)} – ${dateLong(d.period.to)}`;
+
+      // Título con entrada palabra por palabra; en el título por defecto el nombre del cliente va en degradado de marca
+      const parts = d.link.title ? [[d.link.title, 'grad-text']] : [['Así le fue a', 'grad-text'], [name, 'brand-text'], ['con su pauta digital', 'grad-text']];
+      let wi = 0;
+      $('hero-title').innerHTML = parts.map(([txt, cls]) => txt.split(/\s+/).filter(Boolean)
+        .map(w => `<span class="wm"><span class="w ${cls}" style="animation-delay:${.3 + wi++ * .08}s">${esc(w)}</span></span>`).join(' ')).join(' ');
+      $('hero-lead').innerHTML = m.hasActivity
+        ? `${plural(d.period.days, 'día', 'días')} de campañas contados como una historia: quién te vio, quién se interesó y quién dio el paso.`
         : 'Este período todavía no registra actividad en tus campañas.';
-      $('hero-delta').innerHTML = leadsDelta != null && Math.abs(leadsDelta) >= 1
-        ? `<span class="inline-flex items-center gap-2 text-sm">${deltaChip(leadsDelta, false, true)}<span class="text-indigo-100/80">${leadsDelta > 0 ? 'más' : 'menos'} interesados que en los ${plural(d.period.days, 'día', 'días')} anteriores</span></span>`
+      document.title = `Reporte de pauta — ${name}`;
+
+      // Prólogo: frases con las cifras resaltadas (hl) que se encienden al hacer scroll
+      const seg = [];
+      const say = (txt, hl) => txt.split(/\s+/).filter(Boolean).forEach(w => seg.push([w, hl]));
+      if (m.hasActivity) {
+        say(`En ${plural(d.period.days, 'día', 'días')}, tu marca apareció`); say(`${short(t.impressions)} veces`, true); say('frente a tu audiencia.');
+        if (t.clicks > 0) { say(nf(t.clicks), true); say(`${t.clicks === 1 ? 'persona hizo' : 'personas hicieron'} clic para conocerte`); }
+        if (t.leads > 0) { say(t.clicks > 0 ? 'y' : 'Y'); say(nf(t.leads), true); say('dieron el paso: te escribieron o dejaron sus datos.'); }
+        else if (t.clicks > 0) say('.');
+        if (m.leadsDelta != null && m.leadsDelta >= 1) { say('Eso es'); say(`${m.leadsDelta.toFixed(0)}% más`, true); say('que en el período anterior.'); }
+        if (t.spend) { say('Todo con una inversión de'); say(`${money(t.spend)} ${cur}.`, true); }
+      } else {
+        say('Este período tus campañas aún no registran actividad. En cuanto empiecen a circular,'); say('aquí verás la historia completa.', true);
+      }
+      $('summary-text').innerHTML = seg.map(([w, hl]) => `<span class="sw${hl ? ' hl' : ''}">${esc(w)}</span>`).join(' ').replace(/ <span class="sw">\.<\/span>/, '.');
+
+      $('hero-delta').innerHTML = m.leadsDelta != null && Math.abs(m.leadsDelta) >= 1
+        ? `<span class="inline-flex flex-wrap items-center gap-2 text-sm">${deltaChip(m.leadsDelta, false)}<span class="text-white/60">${m.leadsDelta > 0 ? 'más' : 'menos'} interesados que entre el ${dateShort(m.prev.from)} y el ${dateShort(m.prev.to)}</span></span>`
         : '';
-      $('hero-msg').style.display = d.link.message ? '' : 'none';
-      $('hero-msg').textContent = d.link.message || '';
-      document.title = `Reporte de pauta — ${d.client.name}`;
+      $('team-msg').style.display = d.link.message ? '' : 'none';
+      $('team-msg-text').textContent = d.link.message || '';
 
       if (live) {
         $('range-wrap').style.display = '';
@@ -275,209 +562,290 @@
         sel.onchange = () => load(sel.value);
       }
 
-      // ── Cifras clave ──
-      const kpi = (icon, label, value, fmt, sub, accent, chip = '') => `
-        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 avoid-break">
-          <div class="flex items-center justify-between"><div class="w-9 h-9 rounded-xl grid place-items-center text-lg ${accent}">${icon}</div>${chip}</div>
-          <p class="text-3xl font-black mt-3 tracking-tight"><span data-count="${value}" data-fmt="${fmt}">${fmtBy(fmt, value)}</span></p>
-          <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400 mt-1">${label}</p>
-          <p class="text-xs text-slate-500 mt-1.5 leading-snug">${sub}</p>
-        </div>`;
-      $('kpi-grid').innerHTML =
-        kpi('👀', 'Veces que te vieron', t.impressions, 'short', 'Apariciones de tus anuncios', 'bg-indigo-50') +
-        kpi('👆', 'Clics', t.clicks, 'n', `${ctr.toFixed(2)}% de quienes te vieron quiso saber más`, 'bg-sky-50') +
-        kpi('🙋', 'Personas interesadas', t.leads, 'n', 'Dejaron sus datos o te escribieron', 'bg-emerald-50', deltaChip(leadsDelta, false)) +
-        (cpl > 0
-          ? kpi('💡', 'Costo por interesado', cpl, 'money', cplDelta != null && cplDelta < -1 ? 'Cada interesado salió más barato que antes' : `Promedio en ${esc(cur) || 'el período'}`, 'bg-amber-50', deltaChip(cplDelta, true))
-          : kpi('💰', 'Inversión', t.spend || 0, 'money', t.spend != null ? (cur || '') : 'Varias monedas, ver por plataforma', 'bg-amber-50'));
-
-      $('empty-state').style.display = hasActivity ? 'none' : '';
-      $('story').style.display = hasActivity ? '' : 'none';
-      if (!hasActivity) { footer(d); return; }
-
-      // ── Objetivos ──
-      const goals = [];
-      if (d.link.lead_goal) {
-        const p = t.leads / d.link.lead_goal * 100;
-        goals.push({ title: 'Meta de interesados', pct: p, big: `${Math.round(p)}%`, done: p >= 100,
-          note: p >= 100 ? `¡Meta cumplida! ${nf(t.leads)} de ${nf(d.link.lead_goal)} 🎉` : `${nf(t.leads)} de ${nf(d.link.lead_goal)}. ${live ? 'Seguimos sumando.' : ''}` });
-      }
-      if (t.budget > 0 && t.spend != null) {
-        const p = t.spend / t.budget * 100;
-        goals.push({ title: 'Presupuesto ejecutado', pct: p, big: `${Math.round(p)}%`, done: p >= 90 && p <= 105,
-          note: p > 105 ? 'Invertimos por encima de lo planeado para aprovechar la demanda.' : p >= 90 ? 'Se ejecutó tal como se planeó.' : live ? 'Avanza según el plan del período.' : `${money(t.budget - t.spend)} quedaron sin invertir.` });
-      }
-      goals.push({ title: 'Interés de la audiencia', pct: Math.min(100, ctr * 100), big: `${ctr.toFixed(1)}%`, done: ctr >= 1,
-        note: ctr >= 1 ? 'Tus anuncios superan el 1% de clics, señal de un mensaje que conecta.' : 'Estamos probando nuevos creativos para subir el interés.' });
-      if (leadsDelta != null && leadsDelta >= 1) {
-        goals.push({ title: 'Crecimiento vs. antes', pct: 100, big: `+${leadsDelta.toFixed(0)}%`, done: true,
-          note: `Más interesados que entre el ${dateShort(prev.from)} y el ${dateShort(prev.to)}.` });
-      }
-      $('goals-grid').innerHTML = goals.map(ring).join('');
-
-      renderDaily(d);
-
-      // ── Recorrido ──
-      const S = d.stages || {};
-      const defs = {
-        tof: ['Te conocieron', '🌱', 'Campañas de alcance y reconocimiento', s => `${short(s.impressions)} vistas`],
-        mof: ['Se interesaron', '🔥', 'Campañas de consideración', s => plural(s.clicks, 'clic', 'clics')],
-        bof: ['Dieron el paso', '🎯', 'Campañas de conversión', s => plural(s.leads, 'interesado', 'interesados')],
-      };
-      const steps = STAGE_ORDER.filter(k => S[k]);
-      $('journey-section').style.display = steps.length ? '' : 'none';
-      $('journey-grid').className = `grid gap-4 ${steps.length === 3 ? 'md:grid-cols-3' : steps.length === 2 ? 'md:grid-cols-2' : ''}`;
-      $('journey-grid').innerHTML = steps.map((k, i) => {
-        const [title, ico, desc, metric] = defs[k];
-        return `
-        <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 relative overflow-hidden avoid-break">
-          <span class="absolute -right-1 -top-5 text-8xl font-black text-slate-100 select-none">${i + 1}</span>
-          <p class="text-3xl relative">${ico}</p>
-          <h3 class="text-lg font-black mt-2 relative">${title}</h3>
-          <p class="text-xs text-slate-500 relative">${desc}</p>
-          <p class="text-2xl font-black text-indigo-600 mt-4 relative">${metric(S[k])}</p>
-        </div>`;
-      }).join('');
-
-      // ── Plataformas ──
-      $('plat-section').style.display = d.platforms.length ? '' : 'none';
-      const totalLeads = Math.max(1, d.platforms.reduce((a, p) => a + p.leads, 0));
-      $('plat-grid').className = `grid gap-4 mt-6 ${d.platforms.length > 1 ? 'sm:grid-cols-2' : ''}`;
-      $('plat-grid').innerHTML = d.platforms.map(p => `
-        <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 avoid-break">
-          <div class="flex items-center justify-between gap-2">
-            <h3 class="font-black text-lg">${esc(p.label)}</h3>
-            ${d.platforms.length > 1 && p.leads > 0 ? `<span class="text-xs font-bold text-indigo-600 bg-indigo-50 rounded-full px-2.5 py-1">${Math.round(p.leads / totalLeads * 100)}% de los interesados</span>` : ''}
-          </div>
-          <div class="grid grid-cols-3 gap-3 mt-5 text-center">
-            <div><p class="text-xl font-black">${short(p.impressions)}</p><p class="text-[11px] text-slate-400 font-semibold uppercase">Vistas</p></div>
-            <div><p class="text-xl font-black">${nf(p.clicks)}</p><p class="text-[11px] text-slate-400 font-semibold uppercase">Clics</p></div>
-            <div><p class="text-xl font-black text-emerald-600">${nf(p.leads)}</p><p class="text-[11px] text-slate-400 font-semibold uppercase">Interesados</p></div>
-          </div>
-          <p class="text-xs text-slate-500 mt-5 border-t border-slate-100 pt-3">Inversión: <strong class="text-slate-700">${money(p.spend)} ${esc(p.currency)}</strong></p>
-        </div>`).join('');
-
-      // ── Campañas destacadas ──
-      const camps = d.campaigns.filter(c => c.leads > 0).slice(0, 5);
-      const byClicks = !camps.length;
-      const list = byClicks ? d.campaigns.filter(c => c.clicks > 0).sort((a, b) => b.clicks - a.clicks).slice(0, 5) : camps;
-      $('camp-section').style.display = list.length ? '' : 'none';
-      const metricOf = c => byClicks ? c.clicks : c.leads;
-      const maxM = Math.max(...list.map(metricOf), 1);
-      $('camp-list').innerHTML = list.map((c, i) => `
-        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex items-center gap-4 avoid-break">
-          <span class="w-9 h-9 rounded-full grid place-items-center font-black text-sm flex-shrink-0 ${i === 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}">${i === 0 ? '🏆' : i + 1}</span>
-          <div class="min-w-0 flex-1">
-            <p class="font-bold text-sm truncate" title="${esc(c.name)}">${esc(c.name)}</p>
-            <div class="h-1.5 bg-slate-100 rounded-full mt-2 overflow-hidden"><div class="h-full ${i === 0 ? 'bg-amber-400' : 'bg-indigo-500'} rounded-full" style="width:${metricOf(c) / maxM * 100}%"></div></div>
-          </div>
-          <div class="text-right flex-shrink-0 w-20">
-            <p class="font-black ${byClicks ? 'text-sky-600' : 'text-emerald-600'}">${nf(metricOf(c))}</p>
-            <p class="text-[11px] text-slate-400">${byClicks ? 'clics' : 'interesados'}</p>
-          </div>
-        </div>`).join('');
-
-      // Numeración de capítulos según los que quedaron visibles
-      let n = 0;
-      document.querySelectorAll('#story section').forEach(sec => {
-        const label = sec.querySelector('[data-chapter]');
-        if (sec.style.display !== 'none' && label) label.textContent = `Capítulo ${++n}`;
-      });
+      $('kpi-grid').innerHTML = kpisHTML(d, m, true);
+      $('empty-state').style.display = m.hasActivity ? 'none' : '';
+      $('wa-cta').href = `https://api.whatsapp.com/send?phone=${WA_PHONE}&text=${encodeURIComponent(`Hola IDEAZ, vi el reporte de pauta de ${name} y me gustaría conversar sobre los resultados.`)}`;
       footer(d);
+      if (!m.hasActivity) { $('story').innerHTML = ''; return; }
+
+      // ── Capítulos (solo los que tienen datos; se numeran en orden) ──
+      const ch = [];
+      let n = 0;
+
+      // 1 · Te vieron
+      const stadiums = m.stadiums;
+      const stadiumViz = stadiums >= 1
+        ? `<div class="flex flex-wrap gap-1.5 mt-5">${Array.from({ length: Math.min(Math.floor(stadiums), 24) }, (_, i) => `<span class="pop text-2xl" style="transition-delay:${300 + i * 60}ms">🏟️</span>`).join('')}${stadiums > 24 ? `<span class="pop display text-2xl text-brand-teal self-center ml-1" style="transition-delay:1.8s">+${nf(stadiums - 24)}</span>` : ''}</div>`
+        : '';
+      ch.push(chapter(++n, 'Alcance', 'Primero, te vieron',
+        `Tus anuncios aparecieron <span class="text-white">${short(t.impressions)} veces</span> en las pantallas de tu audiencia, unas <span class="text-white">${short(t.impressions / d.period.days)} al día</span>.`,
+        `<div class="grid md:grid-cols-5 gap-4 mt-12">
+          <div class="rv card md:col-span-3 p-8 sm:p-10 overflow-hidden" data-rv="left">
+            <div class="glow glow-purple w-80 h-80 -top-24 -right-24"></div>
+            <p class="relative text-[11px] uppercase tracking-[.25em] text-white/50">Apariciones de tus anuncios</p>
+            <p class="relative display text-7xl sm:text-8xl mt-4 grad-text"><span data-count="${t.impressions}" data-fmt="short">${short(t.impressions)}</span></p>
+            ${stadiums >= 1 ? `<p class="relative text-white/70 mt-6 leading-relaxed">Si cada aparición fuera una persona, llenaríamos el <span class="text-white">Estadio Metropolitano</span> de Barranquilla <span class="text-brand-teal">${stadiums >= 2 ? `${nf(stadiums)} veces` : 'una vez'}</span>.</p>${stadiumViz}` : `<p class="relative text-white/70 mt-6">Cada aparición es una oportunidad de que tu marca quede en la mente de alguien.</p>`}
+          </div>
+          <div class="rv card md:col-span-2 p-8 flex flex-col justify-center" data-rv="right" style="--i:1">
+            <p class="text-[11px] uppercase tracking-[.25em] text-white/50">Por día, en promedio</p>
+            <p class="display text-5xl mt-3">${short(t.impressions / d.period.days)}</p>
+            <p class="text-white/60 text-sm mt-3">vistas diarias durante ${plural(d.period.days, 'día', 'días')} de campaña activa.</p>
+          </div>
+        </div>`));
+
+      // 2 · Se interesaron
+      if (t.clicks > 0) {
+        ch.push(chapter(++n, 'Interés', 'Luego, se interesaron',
+          `De cada <span class="text-white">${nf(m.oneIn)} personas</span> que vieron tu anuncio, <span class="text-white">una hizo clic</span> para saber más. En total, ${plural(t.clicks, 'clic', 'clics')}.`,
+          `<div class="grid md:grid-cols-5 gap-4 mt-12 items-stretch">
+            <div class="rv card md:col-span-2 p-8 text-center flex flex-col justify-center" data-rv="zoom">
+              ${ringHTML({ pct: Math.min(100, m.ctr * 100), big: `${dec(m.ctr, 2)}%`, done: m.ctr >= 1 }, true, 'w-40 h-40')}
+              <p class="text-[11px] uppercase tracking-[.25em] text-white/50 mt-5">Tasa de clics (CTR)</p>
+              <p class="text-white/65 text-sm mt-2">${m.ctr >= 1 ? 'Por encima del 1%: tu mensaje conecta.' : 'Seguimos probando creativos para subirla.'}</p>
+            </div>
+            <div class="rv card md:col-span-3 p-6 sm:p-8 flex flex-col justify-center" data-rv="right" style="--i:1">
+              <p class="text-[11px] uppercase tracking-[.25em] text-white/50 mb-5">El embudo completo</p>
+              ${funnelHTML(m, true)}
+            </div>
+          </div>`));
+      }
+
+      // 3 · Te escribieron
+      if (t.leads > 0 || m.dailyLeads > 0) {
+        const w = weekdayInfo(m);
+        const chartCard = m.dailyLeads > 0 ? `
+          <div class="rv card p-5 sm:p-8 mt-4" style="--i:1">
+            <div class="flex flex-wrap items-baseline justify-between gap-2 mb-2">
+              <p class="text-[11px] uppercase tracking-[.25em] text-white/50">Interesados por día</p>
+              <p class="text-xs text-white/55">Mejor día: <span class="text-brand-teal">${dateLong(m.best.date)} · ${nf(m.best.leads)}</span></p>
+            </div>
+            ${chartHTML(m, innerWidth < 640 ? 4 : 7, 'h-56')}
+            ${w ? `<div class="mt-8 pt-6 border-t border-white/10">${weekdayHTML(w)}</div>` : ''}
+          </div>` : '';
+        ch.push(chapter(++n, 'Resultados', 'Y dieron el paso',
+          `${plural(t.leads, 'persona', 'personas')} te ${Math.round(t.leads) === 1 ? 'escribió o dejó sus datos' : 'escribieron o dejaron sus datos'}. Es como si alguien levantara la mano <span class="text-brand-teal">${cadence(d.period.days, t.leads)}</span>.`,
+          `<div class="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mt-12">
+            <div class="rv card p-7 col-span-2 sm:col-span-1" data-rv="left">
+              <p class="text-[11px] uppercase tracking-[.25em] text-white/50">Personas interesadas</p>
+              <p class="display text-7xl mt-3 brand-text"><span data-count="${t.leads}" data-fmt="n">${nf(t.leads)}</span></p>
+              <div class="mt-3">${deltaChip(m.leadsDelta, false)}</div>
+            </div>
+            <div class="rv card p-7" style="--i:1">
+              <p class="text-[11px] uppercase tracking-[.25em] text-white/50">Ritmo diario</p>
+              <p class="display text-5xl mt-3">${dec(m.avg)}</p>
+              <p class="text-white/60 text-sm mt-2">interesados al día, con resultados en ${m.days.filter(x => x.leads > 0).length} de ${m.days.length} días.</p>
+            </div>
+            <div class="rv card p-7" data-rv="right" style="--i:2">
+              <p class="text-[11px] uppercase tracking-[.25em] text-white/50">Costo por interesado</p>
+              <p class="display text-5xl mt-3">${m.cpl > 0 ? money(m.cpl) : '—'}</p>
+              <p class="text-white/60 text-sm mt-2 flex flex-wrap items-center gap-2">${m.cpl > 0 ? `${esc(cur)} en promedio ${deltaChip(m.cplDelta, true)}` : 'Varias monedas: ver por plataforma'}</p>
+            </div>
+          </div>
+          ${chartCard}`));
+      }
+
+      // 4 · Metas
+      if (m.goals.length) {
+        ch.push(chapter(++n, 'Objetivos', 'Lo que nos propusimos',
+          goalsLine(m),
+          `<div class="grid grid-cols-2 lg:grid-cols-${Math.min(4, m.goals.length)} gap-4 mt-12">${m.goals.map((g, i) => goalCard(g, true, i)).join('')}</div>`));
+      }
+
+      // 5 · Detrás de escena
+      const { list, byClicks } = topCampaigns(d);
+      if (d.platforms.length || list.length) {
+        ch.push(chapter(++n, 'Detrás de escena', 'Dónde trabajó tu inversión',
+          `Las plataformas que movieron tu marca y las campañas que ${byClicks ? 'más clics generaron' : 'más interesados trajeron'}.`,
+          `${d.platforms.length ? `<div class="grid gap-4 mt-12 ${d.platforms.length > 1 ? 'sm:grid-cols-2' : ''}">${platformsHTML(d, true)}</div>` : ''}
+           ${list.length ? `<p class="rv text-[11px] uppercase tracking-[.25em] text-white/50 mt-14 mb-4">Las protagonistas</p><div class="space-y-3">${campaignsHTML(d, true)}</div>` : ''}`));
+      }
+
+      $('story').innerHTML = ch.join('');
     }
 
     function footer(d) {
       $('footer-note').textContent = `Actualizado el ${new Date(d.generated_at).toLocaleString('es-CO', { dateStyle: 'long', timeStyle: 'short' })}` +
-        (d.partial ? ' · Algunas plataformas no respondieron a tiempo; las cifras pueden estar incompletas.' : '') + ' · Preparado por IDEAZ';
+        (d.partial ? ' · Algunas plataformas no respondieron a tiempo; las cifras pueden estar incompletas.' : '') + ' · Preparado por IDEAZ Marketing Agency';
     }
 
-    function ring(g) {
-      const r = 44, c = 2 * Math.PI * r, p = Math.max(0, Math.min(100, g.pct));
-      const color = g.done ? '#10b981' : '#6366f1';
-      return `
-        <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6 text-center avoid-break w-[calc(50%-.5rem)] lg:w-[calc(25%-.75rem)] min-w-[140px] flex-1 max-w-xs">
-          <div class="relative w-24 h-24 sm:w-28 sm:h-28 mx-auto">
-            <svg viewBox="0 0 100 100" class="w-full h-full -rotate-90">
-              <circle cx="50" cy="50" r="${r}" fill="none" stroke="#eef2f7" stroke-width="9"/>
-              <circle class="ring" cx="50" cy="50" r="${r}" fill="none" stroke="${color}" stroke-width="9" stroke-linecap="round"
-                stroke-dasharray="${c.toFixed(2)}" stroke-dashoffset="${c.toFixed(2)}" data-ring="${(c * (1 - p / 100)).toFixed(2)}"/>
-            </svg>
-            <div class="absolute inset-0 grid place-items-center"><span class="text-lg sm:text-xl font-black">${g.big}</span></div>
+    // ── Presentación para PDF (16:9). Cada diapositiva = una página horizontal ──
+    function renderDeck(d, m) {
+      const { t } = m, name = esc(d.client.name), cur = esc(d.currency);
+      const period = `${dateLong(d.period.from)} – ${dateLong(d.period.to)}`;
+      const head = (eyebrow, title) => `
+        <p class="text-brand-teal text-sm tracking-[.3em] uppercase">${eyebrow}</p>
+        <h2 class="display text-[3.4rem] mt-2 grad-text">${title}</h2>`;
+      const slides = [];
+
+      // Portada
+      slides.push({ cover: true, html: `
+        <div class="h-full flex flex-col justify-between">
+          <img src="${LOGO_FULL}" alt="IDEAZ" class="h-12 w-auto self-start">
+          <div>
+            <span class="pill-teal text-sm px-5 py-1.5">${period}</span>
+            <p class="text-white/60 tracking-[.35em] uppercase text-sm mt-8">Reporte de pauta digital${m.live ? ' · tiempo real' : ''}</p>
+            <h1 class="display text-[5.4rem] mt-3 max-w-[10in] leading-[.95]">${d.link.title ? `<span class="grad-text">${esc(d.link.title)}</span>` : `<span class="grad-text">Así le fue a</span> <span class="brand-text">${name}</span> <span class="grad-text">con su pauta digital</span>`}</h1>
           </div>
-          <h3 class="font-black mt-3">${g.title}${g.done ? ' <span class="text-emerald-500">✓</span>' : ''}</h3>
-          <p class="text-xs text-slate-500 mt-1 leading-snug">${g.note}</p>
-        </div>`;
+          <p class="text-white/45 text-sm">Preparado por IDEAZ Marketing Agency</p>
+        </div>` });
+
+      if (!m.hasActivity) {
+        slides.push({ html: `<div class="h-full flex flex-col items-center justify-center text-center"><p class="text-6xl">🌱</p><h2 class="display text-5xl mt-6 grad-text">Aún no hay actividad en este período</h2><p class="text-white/60 text-lg mt-4">Cuando tus campañas empiecen a circular, aquí verás cómo avanzan día a día.</p></div>` });
+      } else {
+        // Resumen
+        slides.push({ html: `
+          ${head('En pocas palabras', 'El resumen del período')}
+          <p class="text-2xl text-white/80 mt-6 max-w-[11in] leading-snug">${$('summary-text').textContent}</p>
+          <div class="grid grid-cols-4 gap-4 mt-10">${kpisHTML(d, m, false)}</div>
+          ${d.link.message ? `<p class="mt-8 text-white/70 text-base border-l-2 border-brand-purple pl-4 max-w-[11in] whitespace-pre-line">${esc(d.link.message)}</p>` : ''}` });
+
+        // Alcance e interés
+        if (t.impressions > 0) {
+          slides.push({ html: `
+            ${head('Alcance e interés', 'Te vieron y se interesaron')}
+            <div class="grid grid-cols-5 gap-6 mt-10">
+              <div class="card col-span-2 p-8">
+                <p class="text-[11px] uppercase tracking-[.25em] text-white/50">Apariciones de tus anuncios</p>
+                <p class="display text-7xl mt-3 grad-text">${short(t.impressions)}</p>
+                <p class="text-white/70 mt-5 leading-relaxed">${m.stadiums >= 1 ? `Llenaríamos el Estadio Metropolitano <span class="text-brand-teal">${m.stadiums >= 2 ? `${nf(m.stadiums)} veces` : 'una vez'}</span>.` : `Unas ${short(t.impressions / d.period.days)} vistas al día.`}</p>
+                ${m.stadiums >= 1 ? `<p class="text-xl mt-3 tracking-wider">${'🏟️'.repeat(Math.min(12, Math.floor(m.stadiums)))}${m.stadiums > 12 ? ` <span class="display text-brand-teal">+${nf(m.stadiums - 12)}</span>` : ''}</p>` : ''}
+                ${t.clicks > 0 ? `<p class="text-white/70 mt-5 leading-relaxed">1 de cada <span class="text-white">${nf(m.oneIn)}</span> personas hizo clic (CTR ${dec(m.ctr, 2)}%).</p>` : ''}
+              </div>
+              <div class="card col-span-3 p-8 flex flex-col justify-center">
+                <p class="text-[11px] uppercase tracking-[.25em] text-white/50 mb-5">El embudo completo</p>
+                ${funnelHTML(m, false)}
+              </div>
+            </div>` });
+        }
+
+        // Resultados día a día
+        if (m.dailyLeads > 0) {
+          const w = weekdayInfo(m);
+          slides.push({ html: `
+            ${head('Resultados', 'Y dieron el paso')}
+            <div class="grid grid-cols-4 gap-6 mt-8">
+              <div class="space-y-4">
+                <div class="card p-5"><p class="text-[10px] uppercase tracking-[.2em] text-white/50">Interesados</p><p class="display text-5xl mt-2 brand-text">${nf(t.leads)}</p><p class="text-xs text-white/55 mt-1">Uno ${cadence(d.period.days, t.leads)}</p></div>
+                <div class="card p-5"><p class="text-[10px] uppercase tracking-[.2em] text-white/50">Mejor día</p><p class="display text-3xl mt-2">${dateShort(m.best.date)}</p><p class="text-xs text-brand-teal mt-1">${plural(m.best.leads, 'interesado', 'interesados')}</p></div>
+                ${m.cpl > 0 ? `<div class="card p-5"><p class="text-[10px] uppercase tracking-[.2em] text-white/50">Costo por interesado</p><p class="display text-3xl mt-2">${money(m.cpl)}</p><p class="text-xs text-white/55 mt-1">${cur}</p></div>` : ''}
+              </div>
+              <div class="card col-span-3 p-7">
+                <p class="text-[11px] uppercase tracking-[.25em] text-white/50">Interesados por día · promedio ${dec(m.avg)}/día</p>
+                ${chartHTML(m, 10, w ? 'h-[2.3in]' : 'h-[3.6in]')}
+                ${w ? `<div class="mt-5 pt-4 border-t border-white/10">${weekdayHTML(w)}</div>` : ''}
+              </div>
+            </div>` });
+        }
+
+        // Metas
+        if (m.goals.length) {
+          slides.push({ html: `
+            <div class="h-full flex flex-col justify-center">
+              ${head('Objetivos', 'Lo que nos propusimos')}
+              <p class="text-xl text-white/70 mt-4">${goalsLine(m)}</p>
+              <div class="grid grid-cols-${m.goals.length} gap-6 mt-10 max-w-[${m.goals.length * 3}in]">${m.goals.map(g => goalCard(g, false)).join('')}</div>
+            </div>` });
+        }
+
+        // Detrás de escena
+        const { list, byClicks } = topCampaigns(d);
+        if (d.platforms.length || list.length) {
+          slides.push({ html: `
+            ${head('Detrás de escena', 'Dónde trabajó tu inversión')}
+            <div class="grid grid-cols-2 gap-8 mt-8">
+              <div class="space-y-4">${platformsHTML(d, false)}</div>
+              <div>${list.length ? `<p class="text-[11px] uppercase tracking-[.25em] text-white/50 mb-3">Campañas con más ${byClicks ? 'clics' : 'interesados'}</p><div class="space-y-2.5">${campaignsHTML(d, false)}</div>` : ''}</div>
+            </div>` });
+        }
+      }
+
+      // Cierre
+      slides.push({ cover: true, html: `
+        <div class="h-full flex flex-col items-center justify-center text-center">
+          <img src="${LOGO}" alt="" class="w-24">
+          <p class="text-brand-teal text-sm tracking-[.3em] uppercase mt-10">Lo que viene</p>
+          <h2 class="display text-[5rem] mt-3 grad-text">La historia sigue</h2>
+          <p class="text-white/70 text-xl mt-5 max-w-[8in] leading-relaxed">Cada semana revisamos creativos, audiencias y presupuesto para que cada peso invertido rinda más. Estamos a un mensaje de distancia.</p>
+          <p class="text-white/40 text-sm mt-10 tracking-[.2em]">#WORK WITH 💜 · marketingdigitalideaz.com</p>
+        </div>` });
+
+      const total = slides.length;
+      $('deck').innerHTML = slides.map((s, i) => `
+        <section class="slide">
+          <div class="glow glow-purple w-[7in] h-[7in] -top-[3in] -right-[2.5in]"></div>
+          <div class="glow glow-teal w-[5in] h-[5in] -bottom-[3in] -left-[1.5in]"></div>
+          <div class="relative h-full px-[.75in] ${s.cover ? 'py-[.6in]' : 'pt-[.55in] pb-[.9in]'}">${s.html}</div>
+          ${s.cover ? '' : `
+          <div class="absolute bottom-[.3in] left-[.75in] right-[.75in] flex items-center justify-between text-xs text-white/40">
+            <span class="flex items-center gap-3"><img src="${LOGO}" alt="" class="h-5">${name} · ${period}</span>
+            <span class="display text-sm text-white/50">${String(i + 1).padStart(2, '0')} / ${String(total).padStart(2, '0')}</span>
+          </div>`}
+        </section>`).join('');
     }
 
-    function renderDaily(d) {
-      const days = d.daily, total = days.reduce((a, x) => a + x.leads, 0);
-      $('daily-section').style.display = total > 0 ? '' : 'none';
-      if (total <= 0) return;
-
-      const best = days.reduce((a, x) => x.leads > a.leads ? x : a, days[0]);
-      const avg = total / days.length;
-      const active = days.filter(x => x.leads > 0).length;
-      $('daily-sub').innerHTML = `En promedio <strong class="text-slate-700">${avg.toFixed(1)}</strong> interesados al día, con resultados en <strong class="text-slate-700">${active} de ${days.length}</strong> días. El mejor fue el <strong class="text-slate-700">${dateLong(best.date)}</strong>, con <strong class="text-emerald-600">${nf(best.leads)}</strong>.`;
-
-      // Barras en HTML (nítidas a cualquier ancho y en el PDF); etiquetas de fecha cada ~7 días
-      const max = Math.max(...days.map(x => x.leads), 1);
-      const every = Math.max(1, Math.ceil(days.length / (innerWidth < 640 ? 4 : 7)));
-      const cols = days.map((x, i) => {
-        const h = x.leads > 0 ? Math.max(4, x.leads / max * 100) : 1.5;
-        const isBest = x.date === best.date;
-        return `
-          <div class="col relative flex-1 h-full flex flex-col justify-end items-center outline-none" tabindex="0">
-            <span class="tip pointer-events-none absolute left-1/2 z-10 whitespace-nowrap bg-slate-900 text-white text-[11px] font-semibold rounded-lg px-2.5 py-1.5 shadow-lg" style="bottom:calc(${h}% + 6px)">${dateShort(x.date)} · ${plural(x.leads, 'interesado', 'interesados')}</span>
-            ${isBest ? `<span class="absolute text-[11px] font-black text-emerald-600" style="bottom:calc(${h}% + 4px)">${nf(x.leads)}</span>` : ''}
-            <div class="bar w-full rounded-t-md ${isBest ? 'bg-emerald-500' : x.leads > 0 ? 'bg-indigo-400 hover:bg-indigo-500' : 'bg-slate-200'}" style="height:${h}%;transition-delay:${Math.min(i * 18, 650)}ms"></div>
-          </div>`;
-      }).join('');
-      const labels = days.map((x, i) => `<div class="flex-1 text-center text-[10px] text-slate-400 font-semibold whitespace-nowrap overflow-visible">${i % every === 0 ? dateShort(x.date) : ''}</div>`).join('');
-      const gap = days.length > 45 ? 'gap-px' : days.length > 20 ? 'gap-0.5' : 'gap-1.5';
-      $('daily-chart').innerHTML = `
-        <div class="relative h-52 pt-6">
-          <div class="flex items-end ${gap} h-full border-b border-slate-200">${cols}</div>
-          <div class="absolute left-0 right-0 border-t-2 border-dashed border-slate-400/50 pointer-events-none z-[5]" style="bottom:${avg / max * 100}%"><span class="absolute left-0 -top-5 text-[10px] font-bold text-slate-500 bg-white/90 rounded px-1.5 py-0.5 shadow-sm">promedio ${avg.toFixed(1)}/día</span></div>
-        </div>
-        <div class="flex ${gap} mt-2">${labels}</div>`;
-
-      // Día de la semana con más interesados (solo si hay al menos dos semanas de datos para que signifique algo)
-      const wd = $('weekday-insight');
-      if (days.length < 14) { wd.style.display = 'none'; return; }
-      const sums = Array(7).fill(0), counts = Array(7).fill(0);
-      days.forEach(x => { const k = new Date(x.date + 'T12:00:00').getDay(); sums[k] += x.leads; counts[k]++; });
-      const avgs = sums.map((s, k) => counts[k] ? s / counts[k] : 0);
-      const top = avgs.indexOf(Math.max(...avgs));
-      const ratio = avg > 0 ? avgs[top] / avg : 1;
-      wd.style.display = '';
-      const order = [1, 2, 3, 4, 5, 6, 0];
-      const maxAvg = Math.max(...avgs, 0.01);
-      wd.innerHTML = `
-        <div class="flex flex-col sm:flex-row sm:items-center gap-5">
-          <div class="sm:w-1/2">
-            <p class="text-xs font-bold uppercase tracking-wider text-indigo-600">Dato curioso</p>
-            <p class="text-base font-bold mt-1">Los <span class="text-indigo-600">${WEEKDAYS[top]}</span> son tu mejor día${ratio >= 1.15 ? `: llegan ${((ratio - 1) * 100).toFixed(0)}% más interesados que el promedio` : ''}.</p>
-          </div>
-          <div class="sm:w-1/2 flex items-end gap-2 h-16">
-            ${order.map(k => `<div class="flex-1 flex flex-col items-center gap-1 h-full justify-end">
-              <div class="w-full rounded ${k === top ? 'bg-indigo-500' : 'bg-indigo-100'}" style="height:${Math.max(6, avgs[k] / maxAvg * 100)}%"></div>
-              <span class="text-[10px] font-bold ${k === top ? 'text-indigo-600' : 'text-slate-400'}">${WEEKDAYS[k].slice(0, 2).toUpperCase()}</span>
-            </div>`).join('')}
-          </div>
-        </div>`;
+    // ── Animaciones: entrada al aparecer, salida al dejar la pantalla ──
+    let io;
+    function enter(el) {
+      el.classList.remove('up');
+      el.classList.add('in');
+      el.querySelectorAll('[data-ring]').forEach(r => { r.style.strokeDashoffset = r.dataset.ring; });
+      el.querySelectorAll('[data-count]').forEach(c => { if (!c.dataset.done) { c.dataset.done = '1'; countUp(c); } });
+    }
+    function leave(el, above) {
+      el.classList.remove('in');
+      el.classList.toggle('up', above);
+      el.querySelectorAll('[data-ring]').forEach(r => { r.style.strokeDashoffset = r.dataset.full; });
+    }
+    function observe() {
+      const els = [...document.querySelectorAll('#screen .rv')];
+      if (io) io.disconnect();
+      if (reduceMotion() || !('IntersectionObserver' in window)) { els.forEach(enter); return; }
+      // El observador siempre responde una primera vez por cada elemento al empezar a observarlo.
+      // Si no lo hace (algunos navegadores embebidos o vistas previas), se muestra todo: un
+      // reporte en blanco es mucho peor que uno sin animación.
+      let alive = false;
+      io = new IntersectionObserver(es => {
+        alive = true;
+        es.forEach(e => e.isIntersecting ? enter(e.target) : leave(e.target, e.boundingClientRect.top < 0));
+      }, { threshold: .12, rootMargin: '0px 0px -6% 0px' });
+      els.forEach(el => { el.classList.remove('in', 'up'); io.observe(el); });
+      setTimeout(() => { if (!alive) { io.disconnect(); els.forEach(enter); } }, 1500);
     }
 
-    // PDF: las secciones fuera de pantalla nunca llegaron a animarse; se fuerza el estado final
-    // (anillos llenos, contadores en su valor real, barras visibles) antes de imprimir.
-    function finalizeForPrint() {
-      document.querySelectorAll('.reveal').forEach(el => {
-        el.classList.add('in');
-        el.querySelectorAll('[data-ring]').forEach(r => { r.style.transition = 'none'; r.style.strokeDashoffset = r.dataset.ring; });
-        el.querySelectorAll('[data-count]').forEach(c => { c.textContent = fmtBy(c.dataset.fmt, +c.dataset.count); });
-      });
+    function countUp(el) {
+      const target = +el.dataset.count, fmt = el.dataset.fmt;
+      if (reduceMotion()) { el.textContent = fmtBy(fmt, target); return; }
+      const t0 = performance.now(), dur = 1400;
+      const step = now => {
+        const p = Math.min(1, (now - t0) / dur);
+        el.textContent = fmtBy(fmt, target * (1 - Math.pow(1 - p, 3)));
+        if (p < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
     }
-    function printReport() { finalizeForPrint(); setTimeout(() => window.print(), 50); }
-    window.addEventListener('beforeprint', finalizeForPrint);
+
+    // Scroll: barra de progreso, parallax de los brillos, la portada se aleja y el resumen se enciende palabra por palabra
+    let ticking = false;
+    function onScroll() {
+      ticking = false;
+      const y = scrollY, vh = innerHeight;
+      $('progress').style.width = `${Math.min(100, y / Math.max(1, document.documentElement.scrollHeight - vh) * 100)}%`;
+      if (reduceMotion()) { document.querySelectorAll('.sw').forEach(s => s.classList.add('on')); return; }
+      document.querySelectorAll('[data-speed]').forEach(el => { el.style.translate = `0 ${y * +el.dataset.speed}px`; });
+      const hero = $('hero-body');
+      if (y < vh * 1.2) { hero.style.opacity = Math.max(0, 1 - y / (vh * .75)); hero.style.transform = `translateY(${y * .25}px)`; }
+      const sum = $('summary'), words = sum.querySelectorAll('.sw');
+      if (words.length) {
+        const r = sum.getBoundingClientRect();
+        const p = Math.max(0, Math.min(1, (vh * .82 - r.top) / (r.height * .65)));
+        const on = Math.ceil(p * words.length);
+        words.forEach((w, i) => w.classList.toggle('on', i < on));
+      }
+    }
+    addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(onScroll); } }, { passive: true });
+    addEventListener('resize', () => requestAnimationFrame(onScroll));
+
+    function printReport() { window.print(); }
 
     if (!token) { $('state-loading').style.display = 'none'; $('state-error').style.display = ''; }
     else load('month');
