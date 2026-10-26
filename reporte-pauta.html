@@ -97,7 +97,7 @@
     @page { size: 13.333in 7.5in; margin: 0; }
     @media print {
       html, body { background: #050505 !important; }
-      #screen, #progress, #state-loading, #state-error { display: none !important; }
+      #screen, #progress, #state-loading, #state-error, #viewer { display: none !important; }
       #deck { display: block; }
       .slide { width: 13.333in; height: 7.5in; position: relative; overflow: hidden; background: #050505; color: #fff;
         break-after: page; page-break-after: always; }
@@ -225,6 +225,14 @@
     </main>
   </div>
 
+  <!-- Visor de contenidos: imagen, carrusel o vista previa oficial del anuncio (Meta) / anuncio de búsqueda (Google) -->
+  <div id="viewer" class="fixed inset-0 z-[60] items-center justify-center p-3 sm:p-8" style="display:none" role="dialog" aria-modal="true" aria-label="Vista previa del anuncio">
+    <div class="absolute inset-0 bg-black/85 backdrop-blur-md" onclick="closeViewer()"></div>
+    <button onclick="stepViewer(-1)" id="viewer-prev" class="absolute left-2 sm:left-6 top-1/2 -translate-y-1/2 z-10 w-11 h-11 rounded-full glass grid place-items-center text-xl hover:border-brand-purple" aria-label="Anterior">‹</button>
+    <button onclick="stepViewer(1)" id="viewer-next" class="absolute right-2 sm:right-6 top-1/2 -translate-y-1/2 z-10 w-11 h-11 rounded-full glass grid place-items-center text-xl hover:border-brand-purple" aria-label="Siguiente">›</button>
+    <div id="viewer-box" class="relative card w-full max-w-4xl max-h-[92vh] overflow-y-auto"></div>
+  </div>
+
   <!-- Versión para PDF: diapositivas horizontales que solo existen al imprimir -->
   <div id="deck"></div>
 
@@ -260,6 +268,7 @@
         const res = await fetch(`${API}?t=${encodeURIComponent(token)}&range=${encodeURIComponent(range || 'month')}`);
         if (!res.ok) throw new Error('status ' + res.status);
         const d = await res.json();
+        window.__report = d;
         const m = metrics(d);
         renderScreen(d, m);
         renderDeck(d, m);
@@ -505,6 +514,197 @@
         </div>`).join('');
     }
 
+    // ── Contenidos destacados ──
+    // CONTENT es la lista que recorre el visor: primero Meta (la estrella es la 0), luego Google.
+    let CONTENT = [], VIEW = { i: 0, mode: 'image' };
+    const PLAY = '<span class="absolute inset-0 grid place-items-center"><span class="w-14 h-14 rounded-full bg-black/55 border border-white/60 grid place-items-center backdrop-blur-sm transition-transform group-hover:scale-110"><svg class="w-6 h-6 ml-1" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg></span></span>';
+
+    function contentTitle(c) {
+      if (c.platform === 'google') return (c.headlines || [])[0] || 'Anuncio en Google';
+      if (c.title) return c.title;
+      const t = (c.text || '').replace(/\s+/g, ' ').trim();
+      return t ? (t.length > 70 ? t.slice(0, 68).replace(/\s\S*$/, '') + '…' : t) : 'Tu anuncio en Meta';
+    }
+    function contentStory(c, t) {
+      const ctr = c.impressions > 0 ? c.clicks / c.impressions * 100 : 0;
+      if (c.leads > 0 && t.leads > 0) {
+        const p = Math.round(c.leads / t.leads * 100);
+        return `Trajo <span class="text-brand-teal">${plural(c.leads, 'interesado', 'interesados')}</span>${p >= 5 ? `: el ${p}% de todos los del período` : ''}.`;
+      }
+      if (c.clicks > 0) return `<span class="text-brand-teal">${plural(c.clicks, 'persona', 'personas')}</span> ${c.clicks === 1 ? 'hizo' : 'hicieron'} clic para saber más (CTR ${dec(ctr, 2)}%).`;
+      return `Apareció <span class="text-brand-teal">${short(c.impressions)} veces</span> frente a tu audiencia.`;
+    }
+    // Una etiqueta distinta para cada contenido de apoyo: el más llamativo, el de mayor alcance, el más rentable
+    function contentBadges(list) {
+      const badges = {}, used = new Set();
+      const pick = (label, score, ok = () => true) => {
+        let best = -1, bestV = -Infinity;
+        list.forEach((c, i) => { if (!used.has(i) && ok(c) && score(c) > bestV) { bestV = score(c); best = i; } });
+        if (best >= 0) { badges[best] = label; used.add(best); }
+      };
+      pick('🔥 Más llamativo', c => c.impressions >= 500 ? c.clicks / c.impressions : -1);
+      pick('📣 Mayor alcance', c => c.reach || c.impressions);
+      pick('💡 Mejor costo', c => -(c.spend / c.leads), c => c.leads > 0 && c.spend > 0);
+      return badges;
+    }
+    function metricsHTML(c, big) {
+      const ctr = c.impressions > 0 ? c.clicks / c.impressions * 100 : 0;
+      const cell = (v, l, cls = '') => `<div><p class="display ${big ? 'text-3xl' : 'text-xl'} ${cls}">${v}</p><p class="text-[11px] uppercase ${big ? 'tracking-[.15em]' : 'tracking-[.06em]'} text-white/65 mt-1">${l}</p></div>`;
+      return `<div class="grid grid-cols-3 gap-3 ${big ? 'mt-6' : 'mt-3'}">
+        ${cell(nf(c.leads), 'Interesados', 'text-brand-teal')}${cell(nf(c.clicks), 'Clics')}${cell(dec(ctr, 2) + '%', 'CTR')}</div>`;
+    }
+    function mediaHTML(c, i, cls, interactive = true) {
+      const badge = c.format === 'carousel' ? '<span class="absolute top-3 right-3 text-[11px] px-2.5 py-1 rounded-full bg-black/60 border border-white/30">◫ Carrusel</span>' : '';
+      const inner = `
+        ${c.image ? `<img src="${esc(c.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" class="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" onerror="this.remove()">` : '<span class="absolute inset-0 grid place-items-center text-5xl opacity-60">📣</span>'}
+        <span class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></span>
+        ${c.format === 'video' ? PLAY : ''}${badge}`;
+      const base = `group relative block w-full overflow-hidden ${cls}" style="background:linear-gradient(135deg,rgba(176,109,242,.35),rgba(2,218,183,.2))`;
+      return interactive
+        ? `<button type="button" onclick="openViewer(${i})" class="${base}" aria-label="Ver anuncio">${inner}<span class="absolute bottom-3 left-3 text-xs px-3 py-1 rounded-full bg-black/55 border border-white/30 opacity-90">${c.format === 'video' ? '▶ Ver video' : 'Ver anuncio'}</span></button>`
+        : `<div class="${base}">${inner}</div>`;
+    }
+    // Anuncio de búsqueda tal como aparece en Google
+    function googleMockHTML(c, large) {
+      return `
+        <div class="bg-white rounded-2xl ${large ? 'p-6' : 'p-4'} text-left" style="font-family:Arial,Helvetica,sans-serif">
+          <p class="text-[12px] text-[#202124]"><b>Patrocinado</b></p>
+          <p class="text-[13px] text-[#4d5156] mt-0.5 truncate">${esc(c.domain || 'tu sitio web')}</p>
+          <p class="${large ? 'text-[22px]' : 'text-[18px]'} leading-snug text-[#1a0dab] mt-1">${esc((c.headlines || []).join(' | '))}</p>
+          <p class="text-[13px] leading-snug text-[#4d5156] mt-1.5">${esc((c.descriptions || []).join(' '))}</p>
+        </div>`;
+    }
+
+    function contentChapterBody(d, m) {
+      const cm = (d.content && d.content.meta) || [], cg = (d.content && d.content.google) || [];
+      const t = m.t;
+      let html = '';
+      if (cm.length) {
+        const s = cm[0];
+        html += `
+          <div class="grid md:grid-cols-5 gap-8 md:gap-10 mt-12 items-center">
+            <div class="rv md:col-span-2 relative" data-rv="left">
+              <div class="glow glow-purple w-[460px] h-[460px] -top-16 -left-16"></div>
+              <div class="relative mx-auto max-w-[330px]">${mediaHTML(s, 0, 'aspect-[4/5] rounded-[28px] border border-white/20 shadow-2xl shadow-brand-purple/20')}</div>
+            </div>
+            <div class="rv md:col-span-3" data-rv="right" style="--i:1">
+              <span class="pill-teal text-xs px-3.5 py-1">🏆 La estrella del período</span>
+              <h3 class="display text-3xl sm:text-[2.6rem] mt-5 grad-text">${esc(contentTitle(s))}</h3>
+              ${s.text && s.title ? `<p class="text-white/75 mt-4 leading-relaxed line-clamp-3 whitespace-pre-line">${esc(s.text)}</p>` : ''}
+              <p class="text-lg sm:text-xl text-white mt-5">${contentStory(s, t)}</p>
+              ${metricsHTML(s, true)}
+              <div class="flex flex-wrap gap-3 mt-7">
+                <button onclick="openViewer(0)" class="pill px-6 py-2.5 text-sm">${s.format === 'video' ? '▶ Ver el video' : 'Ver el anuncio'}</button>
+                ${s.permalink ? `<a href="${esc(s.permalink)}" target="_blank" rel="noopener" class="px-6 py-2.5 text-sm rounded-full border border-white/25 text-white/85 hover:border-brand-teal hover:text-white transition-colors">Ver publicación ↗</a>` : ''}
+              </div>
+            </div>
+          </div>`;
+        const rest = cm.slice(1);
+        if (rest.length) {
+          const badges = contentBadges(rest);
+          html += `
+            <p class="rv text-xs uppercase tracking-[.22em] text-white/70 mt-16 mb-5">El elenco de apoyo</p>
+            <div class="grid grid-cols-2 md:grid-cols-${Math.min(rest.length, 5)} gap-3 sm:gap-4">
+              ${rest.map((c, k) => `
+              <div class="rv card p-3 flex flex-col" data-rv="zoom" style="--i:${k}">
+                ${mediaHTML(c, k + 1, 'aspect-square rounded-[18px]')}
+                <div class="px-1 pt-3 flex-1 flex flex-col">
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="display text-lg text-white/60">#${k + 2}</span>
+                    ${badges[k] ? `<span class="text-[11px] text-brand-teal border border-brand-teal/40 bg-brand-teal/10 rounded-full px-2 py-0.5 whitespace-nowrap">${badges[k]}</span>` : ''}
+                  </div>
+                  <p class="text-sm text-white/90 mt-2 line-clamp-2">${esc(contentTitle(c))}</p>
+                  <div class="mt-auto">${metricsHTML(c)}</div>
+                </div>
+              </div>`).join('')}
+            </div>`;
+        }
+      }
+      if (cg.length) {
+        html += `
+          <p class="rv text-xs uppercase tracking-[.22em] text-white/70 mt-16 mb-5">Así te encontraron en Google</p>
+          <div class="grid md:grid-cols-${Math.min(cg.length, 3)} gap-4">
+            ${cg.map((c, k) => `
+            <button type="button" onclick="openViewer(${cm.length + k})" class="rv card p-4 text-left flex flex-col justify-start hover:-translate-y-1 transition-transform" style="--i:${k}">
+              ${googleMockHTML(c)}
+              <p class="text-sm text-white/85 mt-4 px-1">${contentStory(c, t)}</p>
+              <div class="px-1">${metricsHTML(c)}</div>
+            </button>`).join('')}
+          </div>`;
+      }
+      return html;
+    }
+
+    // ── Visor ──
+    function openViewer(i) {
+      VIEW = { i, mode: CONTENT[i] && CONTENT[i].format === 'video' && CONTENT[i].preview ? 'preview' : 'image' };
+      const v = $('viewer');
+      v.style.display = 'flex';
+      document.documentElement.style.overflow = 'hidden';
+      renderViewer();
+      if (!reduceMotion()) $('viewer-box').animate([{ opacity: 0, transform: 'scale(.94) translateY(16px)' }, { opacity: 1, transform: 'none' }], { duration: 320, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    }
+    function closeViewer() {
+      const v = $('viewer');
+      if (v.style.display === 'none') return;
+      const done = () => { v.style.display = 'none'; $('viewer-box').innerHTML = ''; document.documentElement.style.overflow = ''; };
+      if (reduceMotion()) return done();
+      $('viewer-box').animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.95) translateY(10px)' }], { duration: 200, easing: 'ease-in' }).onfinish = done;
+    }
+    function stepViewer(dir) {
+      if (!CONTENT.length) return;
+      const i = (VIEW.i + dir + CONTENT.length) % CONTENT.length;
+      VIEW = { i, mode: CONTENT[i].format === 'video' && CONTENT[i].preview ? 'preview' : 'image' };
+      renderViewer();
+      if (!reduceMotion()) $('viewer-box').animate([{ opacity: 0, transform: `translateX(${dir * 40}px)` }, { opacity: 1, transform: 'none' }], { duration: 260, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    }
+    function viewerMode(mode) { VIEW.mode = mode; renderViewer(); }
+    function renderViewer() {
+      const c = CONTENT[VIEW.i];
+      if (!c) return;
+      const cur = window.__report;
+      const many = CONTENT.length > 1;
+      $('viewer-prev').style.display = $('viewer-next').style.display = many ? '' : 'none';
+      let media;
+      if (c.platform === 'google') {
+        media = `<div class="p-6 sm:p-8 grid place-items-center h-full">${googleMockHTML(c, true)}</div>`;
+      } else if (VIEW.mode === 'preview' && c.preview) {
+        media = `<div class="p-4 flex justify-center"><iframe src="${esc(c.preview)}" title="Vista previa del anuncio" class="w-full max-w-[360px] h-[620px] max-h-[70vh] rounded-2xl bg-white" scrolling="yes" loading="lazy"></iframe></div>`;
+      } else if (c.slides && c.slides.length > 1) {
+        media = `<div class="flex overflow-x-auto snap-x snap-mandatory gap-3 p-4">${c.slides.map(s => `<img src="${esc(s)}" alt="" referrerpolicy="no-referrer" class="snap-center flex-shrink-0 w-[85%] aspect-square object-cover rounded-2xl">`).join('')}</div>
+          <p class="text-center text-xs text-white/60 -mt-1 pb-3">Desliza para ver las ${c.slides.length} tarjetas →</p>`;
+      } else {
+        media = c.image
+          ? `<div class="p-4 grid place-items-center"><img src="${esc(c.image)}" alt="" referrerpolicy="no-referrer" class="max-h-[70vh] w-auto rounded-2xl"></div>`
+          : '<div class="p-16 grid place-items-center text-6xl opacity-60">📣</div>';
+      }
+      const toggle = c.platform === 'meta' && c.preview
+        ? `<div class="flex justify-center gap-2 pb-4">
+            <button onclick="viewerMode('image')" class="text-xs px-4 py-1.5 rounded-full border ${VIEW.mode === 'image' ? 'border-white bg-white/15' : 'border-white/25 text-white/70'}">${c.slides && c.slides.length > 1 ? 'Carrusel' : 'Imagen'}</button>
+            <button onclick="viewerMode('preview')" class="text-xs px-4 py-1.5 rounded-full border ${VIEW.mode === 'preview' ? 'border-white bg-white/15' : 'border-white/25 text-white/70'}">▶ Como lo vio tu audiencia</button>
+          </div>` : '';
+      $('viewer-box').innerHTML = `
+        <button onclick="closeViewer()" class="absolute top-3 right-3 z-10 w-9 h-9 rounded-full bg-black/50 border border-white/25 grid place-items-center hover:border-white" aria-label="Cerrar">✕</button>
+        <div class="grid md:grid-cols-2">
+          <div class="bg-black/40 md:rounded-l-[25px] flex flex-col justify-center">${media}${toggle}</div>
+          <div class="p-6 sm:p-8 flex flex-col">
+            <p class="text-xs uppercase tracking-[.22em] text-brand-teal">${VIEW.i === 0 && c.platform === 'meta' ? '🏆 La estrella del período' : `${c.platform === 'google' ? 'Google' : 'Meta'} · #${VIEW.i + 1} de ${CONTENT.length}`}</p>
+            <h3 class="display text-3xl mt-3 grad-text">${esc(contentTitle(c))}</h3>
+            ${c.platform === 'meta' && c.text ? `<p class="text-sm text-white/80 mt-4 leading-relaxed whitespace-pre-line max-h-48 overflow-y-auto pr-1">${esc(c.text)}</p>` : ''}
+            <p class="text-base text-white mt-5">${cur ? contentStory(c, cur.totals) : ''}</p>
+            ${metricsHTML(c, true)}
+            ${c.permalink ? `<a href="${esc(c.permalink)}" target="_blank" rel="noopener" class="pill self-start mt-8 px-6 py-2.5 text-sm">Ver publicación original ↗</a>` : ''}
+            ${many ? `<p class="text-xs text-white/50 mt-auto pt-8">Usa ← → para recorrer los contenidos · Esc para cerrar</p>` : ''}
+          </div>
+        </div>`;
+    }
+    addEventListener('keydown', e => {
+      if ($('viewer').style.display === 'none') return;
+      if (e.key === 'Escape') closeViewer();
+      else if (e.key === 'ArrowRight') stepViewer(1);
+      else if (e.key === 'ArrowLeft') stepViewer(-1);
+    });
+
     function chapter(num, eyebrow, title, intro, body, extraCls = '') {
       return `
         <section class="chapter relative max-w-5xl mx-auto px-6 pt-28 sm:pt-36 ${extraCls}">
@@ -648,14 +848,22 @@
           ${chartCard}`));
       }
 
-      // 4 · Metas
+      // 4 · Contenidos destacados
+      CONTENT = [...((d.content && d.content.meta) || []), ...((d.content && d.content.google) || [])];
+      if (CONTENT.length) {
+        ch.push(chapter(++n, 'Contenidos', 'Lo que más conectó',
+          'De todo lo que circuló en pauta, estos son los anuncios que más personas movieron. Toca cualquiera para verlo como lo vio tu audiencia.',
+          contentChapterBody(d, m)));
+      }
+
+      // 5 · Metas
       if (m.goals.length) {
         ch.push(chapter(++n, 'Objetivos', 'Lo que nos propusimos',
           goalsLine(m),
           `<div class="grid grid-cols-2 lg:grid-cols-${Math.min(4, m.goals.length)} gap-4 mt-12">${m.goals.map((g, i) => goalCard(g, true, i)).join('')}</div>`));
       }
 
-      // 5 · Detrás de escena
+      // 6 · Detrás de escena
       const { list, byClicks } = topCampaigns(d);
       if (d.platforms.length || list.length) {
         ch.push(chapter(++n, 'Detrás de escena', 'Dónde trabajó tu inversión',
@@ -739,6 +947,25 @@
                 ${w ? `<div class="mt-5 pt-4 border-t border-white/10">${weekdayHTML(w)}</div>` : ''}
               </div>
             </div>` });
+        }
+
+        // Contenidos destacados
+        const cm = (d.content && d.content.meta) || [], cg = (d.content && d.content.google) || [];
+        if (cm.length || cg.length) {
+          const metaCards = cm.slice(0, 4).map((c, k) => `
+            <div class="card p-3 flex flex-col">
+              ${mediaHTML(c, k, 'h-[2.9in] rounded-[18px]', false)}
+              <div class="px-1 pt-3">
+                <p class="text-xs text-brand-teal">${k === 0 ? '🏆 La estrella del período' : `#${k + 1}`}</p>
+                <p class="text-sm text-white/90 mt-1 line-clamp-1">${esc(contentTitle(c))}</p>
+                ${metricsHTML(c)}
+              </div>
+            </div>`).join('');
+          const googleCards = cg.slice(0, cm.length ? Math.max(0, 4 - cm.length) : 3).map(c => `
+            <div class="card p-4 flex flex-col justify-between">${googleMockHTML(c)}<div class="px-1">${metricsHTML(c)}</div></div>`).join('');
+          slides.push({ html: `
+            ${head('Contenidos', 'Lo que más conectó')}
+            <div class="grid grid-cols-${cm.length ? 4 : 3} gap-5 mt-8">${metaCards}${googleCards}</div>` });
         }
 
         // Metas

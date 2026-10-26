@@ -90,6 +90,7 @@ $budgets   = json_decode((string)$link['budgets'], true) ?: [];
 
 $daily      = [];   // date => [spend, leads]
 $campaigns  = [];
+$content    = ['meta' => [], 'google' => []];   // anuncios destacados con su creativo
 $platTotals = [];
 $currencies = [];
 $errors     = 0;
@@ -136,6 +137,10 @@ foreach ($platforms as $plat) {
             $daily[$d['date']]['spend'] += (float)$d['spend'];
             $daily[$d['date']]['leads'] += (float)($d['leads'] ?? 0);
         }
+
+        // Contenidos destacados: opcionales, si fallan el reporte sale igual (sin contarlo como parcial)
+        $topRes = $key === 'meta' ? getMetaTopAds($accId, $from, $to) : getGoogleTopAds($accId, $from, $to);
+        foreach ($topRes['ads'] ?? [] as $ad) $content[$key][] = $ad;
 
         if (!empty($detailRes['error'])) { $errors++; continue; }
         foreach ($detailRes['campaigns'] ?? [] as $c) {
@@ -184,6 +189,19 @@ $totals = [
 
 usort($campaigns, fn($a, $b) => [$b['leads'], $b['clicks']] <=> [$a['leads'], $a['clicks']]);
 
+// Contenidos: los mejores de todas las cuentas. La vista previa oficial de Meta (iframe) solo se
+// pide para los que quedan en el top. El id del anuncio no sale del servidor.
+$byResults = fn($a, $b) => [$b['leads'], $b['clicks']] <=> [$a['leads'], $a['clicks']];
+usort($content['meta'], $byResults);
+usort($content['google'], $byResults);
+$content['meta']   = array_slice($content['meta'], 0, 6);
+$content['google'] = array_slice($content['google'], 0, 3);
+foreach ($content['meta'] as &$ad) {
+    $ad['preview'] = metaAdPreviewUrl($ad['id']);
+    unset($ad['id']);
+}
+unset($ad);
+
 $out = json_encode([
     'client'       => ['name' => $link['client_name']],
     'link'         => [
@@ -204,6 +222,7 @@ $out = json_encode([
     'daily'        => $dailyOut,
     'stages'       => $stages,
     'campaigns'    => array_slice($campaigns, 0, 40),
+    'content'      => $content,
     'partial'      => $errors > 0,
     'generated_at' => (new DateTime('now', new DateTimeZone('America/Bogota')))->format('c'),
 ], JSON_UNESCAPED_UNICODE);
