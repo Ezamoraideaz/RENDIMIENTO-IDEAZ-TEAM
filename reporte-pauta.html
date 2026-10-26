@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Reporte de pauta — IDEAZ</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .hero { background: radial-gradient(1200px 500px at 85% -10%, rgba(129,140,248,.55), transparent 60%), radial-gradient(900px 400px at 0% 110%, rgba(236,72,153,.28), transparent 60%), #0f172a; }
+    .reveal { opacity: 0; transform: translateY(16px); transition: opacity .6s ease, transform .6s ease; }
+    .reveal.in { opacity: 1; transform: none; }
+    .bar { transform-origin: bottom; transform: scaleY(0); transition: transform .7s cubic-bezier(.2,.8,.2,1); }
+    .in .bar { transform: scaleY(1); }
+    .ring { transition: stroke-dashoffset 1.1s cubic-bezier(.2,.8,.2,1); }
+    .chapter { font-size: .7rem; letter-spacing: .14em; }
+    @media print {
+      .no-print { display: none !important; }
+      .reveal { opacity: 1 !important; transform: none !important; }
+      .bar { transform: none !important; }
+      section, .avoid-break { break-inside: avoid; }
+      body { background: #fff; }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+  <!-- Portal público de solo lectura (sin login): el token viaja en ?t= y el backend lo valida por su hash.
+       A propósito NO incluye js/session.js ni el resto del JS del dashboard (igual que leads-cliente.html). -->
+
+  <div id="state-loading" class="min-h-screen flex flex-col items-center justify-center gap-4 bg-slate-900 text-slate-300">
+    <div class="w-10 h-10 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
+    <p class="text-sm">Preparando tu reporte…</p>
+  </div>
+
+  <div id="state-error" style="display:none" class="min-h-screen flex items-center justify-center p-6">
+    <div class="text-center max-w-sm">
+      <p class="text-4xl mb-3">🔒</p>
+      <h1 class="text-lg font-bold mb-1">Este reporte ya no está disponible</h1>
+      <p class="text-slate-500 text-sm">El link pudo haber sido revocado o estar incompleto. Pide uno nuevo a tu equipo de IDEAZ.</p>
+    </div>
+  </div>
+
+  <div id="state-content" style="display:none">
+
+    <!-- HERO -->
+    <header class="hero text-white">
+      <div class="max-w-5xl mx-auto px-6 pt-8 pb-16">
+        <div class="flex items-center justify-between gap-3 flex-wrap">
+          <span class="text-sm font-black tracking-widest text-indigo-200">IDEAZ</span>
+          <div class="flex items-center gap-2 no-print">
+            <select id="range-select" style="display:none" class="bg-white/10 border border-white/20 text-white text-xs rounded-lg px-3 py-2 focus:outline-none">
+              <option value="month" class="text-slate-900">Este mes</option>
+              <option value="last30" class="text-slate-900">Últimos 30 días</option>
+              <option value="prev_month" class="text-slate-900">Mes anterior</option>
+            </select>
+            <button onclick="window.print()" class="bg-white text-slate-900 hover:bg-indigo-100 text-xs font-bold rounded-lg px-4 py-2 transition-colors">⬇ Descargar PDF</button>
+          </div>
+        </div>
+        <div class="mt-14">
+          <span id="mode-badge" class="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1 rounded-full bg-white/10 border border-white/20"></span>
+          <h1 id="hero-title" class="text-4xl sm:text-6xl font-black leading-tight mt-5 max-w-3xl"></h1>
+          <p id="hero-sub" class="text-indigo-100/80 text-lg mt-4 max-w-2xl"></p>
+          <p id="hero-msg" class="mt-6 max-w-2xl text-indigo-50 bg-white/10 border border-white/15 rounded-2xl px-5 py-4 text-sm leading-relaxed" style="display:none"></p>
+        </div>
+      </div>
+    </header>
+
+    <main class="max-w-5xl mx-auto px-6 -mt-8 pb-16 space-y-14">
+
+      <!-- Capítulo 1: lo que se logró -->
+      <section class="reveal">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4" id="kpi-grid"></div>
+      </section>
+
+      <!-- Capítulo 2: objetivos -->
+      <section class="reveal" id="goals-section">
+        <p class="chapter font-bold text-indigo-600 uppercase">Capítulo 1</p>
+        <h2 class="text-2xl sm:text-3xl font-black mt-1">Los objetivos de este período</h2>
+        <p class="text-slate-500 mt-1 mb-6 text-sm">Qué nos propusimos y cómo vamos.</p>
+        <div class="grid sm:grid-cols-3 gap-4" id="goals-grid"></div>
+      </section>
+
+      <!-- Capítulo 3: leads por día -->
+      <section class="reveal" id="daily-section">
+        <p class="chapter font-bold text-indigo-600 uppercase">Capítulo 2</p>
+        <h2 class="text-2xl sm:text-3xl font-black mt-1" id="daily-title">Cada día, personas nuevas te encontraron</h2>
+        <p class="text-slate-500 mt-1 mb-6 text-sm" id="daily-sub"></p>
+        <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 sm:p-7">
+          <div id="daily-chart"></div>
+        </div>
+      </section>
+
+      <!-- Capítulo 4: recorrido -->
+      <section class="reveal" id="journey-section">
+        <p class="chapter font-bold text-indigo-600 uppercase">Capítulo 3</p>
+        <h2 class="text-2xl sm:text-3xl font-black mt-1">El recorrido de tu cliente ideal</h2>
+        <p class="text-slate-500 mt-1 mb-6 text-sm">Primero que te conozcan, luego que se interesen y finalmente que te escriban.</p>
+        <div class="grid md:grid-cols-3 gap-4" id="journey-grid"></div>
+      </section>
+
+      <!-- Capítulo 5: plataformas -->
+      <section class="reveal" id="plat-section">
+        <p class="chapter font-bold text-indigo-600 uppercase">Capítulo 4</p>
+        <h2 class="text-2xl sm:text-3xl font-black mt-1">Dónde trabajó tu inversión</h2>
+        <div class="grid sm:grid-cols-2 gap-4 mt-6" id="plat-grid"></div>
+      </section>
+
+      <!-- Capítulo 6: campañas -->
+      <section class="reveal" id="camp-section">
+        <p class="chapter font-bold text-indigo-600 uppercase">Capítulo 5</p>
+        <h2 class="text-2xl sm:text-3xl font-black mt-1">Las campañas que más aportaron</h2>
+        <div class="mt-6 space-y-3" id="camp-list"></div>
+      </section>
+
+      <!-- Cierre -->
+      <section class="reveal avoid-break">
+        <div class="hero text-white rounded-3xl p-8 sm:p-10 text-center">
+          <p class="text-3xl">✨</p>
+          <h2 class="text-2xl sm:text-3xl font-black mt-2">Seguimos optimizando para ti</h2>
+          <p class="text-indigo-100/80 mt-2 text-sm max-w-xl mx-auto">Cada semana revisamos creativos, audiencias y presupuesto para que cada peso invertido rinda más. Si quieres conversar sobre estos resultados, estamos a un mensaje de distancia.</p>
+        </div>
+        <p id="footer-note" class="text-center text-xs text-slate-400 mt-6"></p>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const API = 'backend/public/pauta_report_public.php';
+    const token = new URLSearchParams(location.search).get('t') || '';
+    let currentRange = 'month';
+
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const nf = n => Math.round(n || 0).toLocaleString('es-CO');
+    const short = n => n >= 1e6 ? (n / 1e6).toFixed(1).replace('.0', '') + ' M' : n >= 1e4 ? (n / 1e3).toFixed(1).replace('.0', '') + ' mil' : nf(n);
+    const dateLong = d => new Date(d + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' });
+    const dateShort = d => new Date(d + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
+    let money = n => '$' + Math.round(n || 0).toLocaleString('es-CO');
+
+    async function load(range) {
+      currentRange = range || currentRange;
+      try {
+        const res = await fetch(`${API}?t=${encodeURIComponent(token)}&range=${encodeURIComponent(currentRange)}`);
+        if (!res.ok) throw new Error('status ' + res.status);
+        render(await res.json());
+        $('state-loading').style.display = 'none';
+        $('state-content').style.display = '';
+        requestAnimationFrame(observe);
+      } catch (e) {
+        $('state-loading').style.display = 'none';
+        $('state-error').style.display = '';
+      }
+    }
+
+    function observe() {
+      const io = new IntersectionObserver(es => es.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.classList.add('in');
+          e.target.querySelectorAll('[data-ring]').forEach(r => { r.style.strokeDashoffset = r.dataset.ring; });
+          e.target.querySelectorAll('[data-count]').forEach(countUp);
+          io.unobserve(e.target);
+        }
+      }), { threshold: .15 });
+      document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+    }
+
+    function countUp(el) {
+      const target = +el.dataset.count, fmt = el.dataset.fmt;
+      const t0 = performance.now(), dur = 1100;
+      const step = t => {
+        const p = Math.min(1, (t - t0) / dur), v = target * (1 - Math.pow(1 - p, 3));
+        el.textContent = fmt === 'short' ? short(v) : fmt === 'money' ? money(v) : nf(v);
+        if (p < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    }
+
+    function render(d) {
+      const t = d.totals, cur = d.currency;
+      money = n => '$' + Math.round(n || 0).toLocaleString('es-CO');
+      const live = d.link.mode === 'live';
+
+      // Hero
+      $('mode-badge').innerHTML = live
+        ? '<span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span></span> En tiempo real'
+        : '📅 Reporte cerrado';
+      $('hero-title').textContent = d.link.title || `Así le fue a ${d.client.name} con su pauta digital`;
+      $('hero-sub').textContent = `${dateLong(d.period.from)} – ${dateLong(d.period.to)} · ${d.period.days} día${d.period.days === 1 ? '' : 's'} de campañas`;
+      if (d.link.message) { $('hero-msg').textContent = d.link.message; $('hero-msg').style.display = ''; }
+      document.title = `Reporte de pauta — ${d.client.name}`;
+
+      const sel = $('range-select');
+      if (live) { sel.style.display = ''; sel.value = d.link.preset || 'month'; sel.onchange = () => load(sel.value); }
+
+      // KPIs
+      const ctr = t.impressions > 0 ? t.clicks / t.impressions * 100 : 0;
+      const cpl = t.leads > 0 && t.spend ? t.spend / t.leads : 0;
+      const kpi = (icon, label, value, fmt, sub, accent) => `
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 avoid-break">
+          <div class="w-9 h-9 rounded-xl grid place-items-center text-lg ${accent}">${icon}</div>
+          <p class="text-3xl font-black mt-3 tracking-tight"><span data-count="${value}" data-fmt="${fmt}">0</span></p>
+          <p class="text-xs font-bold uppercase tracking-wider text-slate-400 mt-1">${label}</p>
+          <p class="text-xs text-slate-500 mt-1.5 leading-snug">${sub}</p>
+        </div>`;
+      $('kpi-grid').innerHTML =
+        kpi('👀', 'Veces que te vieron', t.impressions, 'short', 'Tu marca apareció frente a tu audiencia', 'bg-indigo-50') +
+        kpi('👆', 'Clics a tu negocio', t.clicks, 'n', `${ctr.toFixed(2)}% de quienes te vieron quiso saber más`, 'bg-sky-50') +
+        kpi('🙋', 'Personas interesadas', t.leads, 'n', 'Dejaron sus datos o te escribieron', 'bg-emerald-50') +
+        (cpl > 0 ? kpi('💡', 'Costo por interesado', cpl, 'money', `Cada persona interesada costó ${money(cpl)} ${cur}`, 'bg-amber-50')
+                 : kpi('💰', 'Inversión', t.spend || 0, 'money', t.spend ? cur : 'Varias monedas', 'bg-amber-50'));
+
+      // Objetivos
+      const goals = [];
+      if (d.link.lead_goal) {
+        const p = t.leads / d.link.lead_goal * 100;
+        goals.push({ title: 'Meta de interesados', pct: p, big: `${nf(t.leads)} / ${nf(d.link.lead_goal)}`,
+          note: p >= 100 ? '¡Meta cumplida! 🎉 Superamos lo propuesto.' : `Vamos al ${Math.round(p)}% de la meta.` });
+      }
+      if (t.budget > 0 && t.spend != null) {
+        const p = t.spend / t.budget * 100;
+        goals.push({ title: 'Presupuesto ejecutado', pct: p, big: `${Math.round(p)}%`, ok: p >= 85 && p <= 105,
+          note: p > 105 ? 'Por encima de lo planeado.' : p >= 85 ? 'Inversión ejecutada tal como se planeó.' : 'Aún hay presupuesto disponible por invertir.' });
+      }
+      goals.push({ title: 'Interés de la audiencia', pct: ctr / 1 * 100, big: `${ctr.toFixed(2)}%`, ok: ctr >= 1, label: 'CTR',
+        note: ctr >= 1 ? 'Tus anuncios generan interés por encima de lo saludable (1%).' : 'Estamos probando nuevos creativos para subir el interés.' });
+      $('goals-grid').innerHTML = goals.map(g => ring(g)).join('');
+
+      // Leads por día
+      renderDaily(d);
+
+      // Recorrido
+      const S = d.stages || {};
+      const steps = [
+        ['tof', '1', 'Te conocieron', '🌱', 'Campañas de alcance y reconocimiento', s => `${short(s.impressions)} impresiones`],
+        ['mof', '2', 'Se interesaron', '🔥', 'Campañas de consideración', s => `${nf(s.clicks)} clics`],
+        ['bof', '3', 'Dieron el paso', '🎯', 'Campañas de conversión', s => `${nf(s.leads)} interesados`],
+      ].filter(([k]) => S[k]);
+      const other = S.other;
+      if (!steps.length && other) steps.push(['other', '★', 'Tus campañas', '🚀', 'Todas las campañas del período', s => `${nf(s.leads)} interesados · ${nf(s.clicks)} clics`]);
+      $('journey-section').style.display = steps.length ? '' : 'none';
+      $('journey-grid').innerHTML = steps.map(([k, n, title, ico, desc, metric]) => `
+        <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 relative overflow-hidden avoid-break">
+          <span class="absolute -right-2 -top-4 text-8xl font-black text-slate-100 select-none">${n}</span>
+          <p class="text-3xl relative">${ico}</p>
+          <h3 class="text-lg font-black mt-2 relative">${title}</h3>
+          <p class="text-xs text-slate-500 relative">${desc}</p>
+          <p class="text-2xl font-black text-indigo-600 mt-4 relative">${metric(S[k])}</p>
+        </div>`).join('');
+
+      // Plataformas
+      $('plat-section').style.display = d.platforms.length ? '' : 'none';
+      $('plat-grid').innerHTML = d.platforms.map(p => `
+        <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 avoid-break">
+          <div class="flex items-center justify-between">
+            <h3 class="font-black text-lg">${esc(p.label)}</h3>
+            <span class="text-xs font-bold text-slate-400">${esc(p.currency)}</span>
+          </div>
+          <div class="grid grid-cols-3 gap-3 mt-4 text-center">
+            <div><p class="text-xl font-black">${short(p.impressions)}</p><p class="text-[11px] text-slate-400 font-semibold uppercase">Vistas</p></div>
+            <div><p class="text-xl font-black">${nf(p.clicks)}</p><p class="text-[11px] text-slate-400 font-semibold uppercase">Clics</p></div>
+            <div><p class="text-xl font-black text-emerald-600">${nf(p.leads)}</p><p class="text-[11px] text-slate-400 font-semibold uppercase">Interesados</p></div>
+          </div>
+          <p class="text-xs text-slate-500 mt-4 border-t border-slate-100 pt-3">Inversión: <strong class="text-slate-700">${money(p.spend)} ${esc(p.currency)}</strong></p>
+        </div>`).join('');
+
+      // Campañas
+      const camps = d.campaigns.filter(c => c.leads > 0 || c.clicks > 0).slice(0, 5);
+      $('camp-section').style.display = camps.length ? '' : 'none';
+      const maxL = Math.max(...camps.map(c => c.leads), 1);
+      $('camp-list').innerHTML = camps.map((c, i) => `
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex items-center gap-4 avoid-break">
+          <span class="w-9 h-9 rounded-full grid place-items-center font-black text-sm flex-shrink-0 ${i === 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}">${i === 0 ? '🏆' : i + 1}</span>
+          <div class="min-w-0 flex-1">
+            <p class="font-bold text-sm truncate">${esc(c.name)}</p>
+            <div class="h-1.5 bg-slate-100 rounded-full mt-2 overflow-hidden"><div class="h-full bg-indigo-500 rounded-full" style="width:${c.leads / maxL * 100}%"></div></div>
+          </div>
+          <div class="text-right flex-shrink-0">
+            <p class="font-black text-emerald-600">${nf(c.leads)}</p>
+            <p class="text-[11px] text-slate-400">interesados</p>
+          </div>
+        </div>`).join('');
+
+      $('footer-note').textContent = `Actualizado el ${new Date(d.generated_at).toLocaleString('es-CO', { dateStyle: 'long', timeStyle: 'short' })}` +
+        (d.partial ? ' · Algunas plataformas no respondieron; las cifras pueden estar incompletas.' : '') + ' · Preparado por IDEAZ';
+    }
+
+    function ring(g) {
+      const r = 44, c = 2 * Math.PI * r, p = Math.max(0, Math.min(100, g.pct));
+      const done = g.ok ?? g.pct >= 100;
+      const color = done ? '#10b981' : '#6366f1';
+      return `
+        <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 text-center avoid-break">
+          <div class="relative w-32 h-32 mx-auto">
+            <svg viewBox="0 0 100 100" class="w-full h-full -rotate-90">
+              <circle cx="50" cy="50" r="${r}" fill="none" stroke="#e2e8f0" stroke-width="9"/>
+              <circle class="ring" cx="50" cy="50" r="${r}" fill="none" stroke="${color}" stroke-width="9" stroke-linecap="round"
+                stroke-dasharray="${c}" stroke-dashoffset="${c}" data-ring="${c * (1 - p / 100)}"/>
+            </svg>
+            <div class="absolute inset-0 grid place-items-center"><span class="text-xl font-black">${g.big}</span></div>
+          </div>
+          <h3 class="font-black mt-3">${g.title} ${done ? '<span class="text-emerald-500">✓</span>' : ''}</h3>
+          <p class="text-xs text-slate-500 mt-1 leading-snug">${g.note}</p>
+        </div>`;
+    }
+
+    function renderDaily(d) {
+      const days = d.daily, total = days.reduce((a, x) => a + x.leads, 0);
+      $('daily-section').style.display = total > 0 ? '' : 'none';
+      if (total <= 0) return;
+      const best = days.reduce((a, x) => x.leads > a.leads ? x : a, days[0]);
+      const avg = total / days.length;
+      $('daily-sub').innerHTML = `Promedio de <strong class="text-slate-700">${avg.toFixed(1)}</strong> interesados al día · tu mejor día fue el <strong class="text-slate-700">${dateLong(best.date)}</strong> con <strong class="text-slate-700">${nf(best.leads)}</strong>.`;
+      const max = Math.max(...days.map(x => x.leads), 1);
+      const W = 700, H = 200, pad = 22, gap = days.length > 45 ? 1 : 3;
+      const bw = (W - gap * (days.length - 1)) / days.length;
+      const bars = days.map((x, i) => {
+        const h = x.leads > 0 ? Math.max(3, x.leads / max * (H - pad)) : 2;
+        const isBest = x.date === best.date;
+        return `<g><rect class="bar" x="${(i * (bw + gap)).toFixed(1)}" y="${H - h}" width="${bw.toFixed(1)}" height="${h}" rx="3" fill="${isBest ? '#10b981' : '#818cf8'}" style="transition-delay:${Math.min(i * 15, 600)}ms"><title>${dateShort(x.date)}: ${nf(x.leads)} interesados</title></rect>${isBest ? `<text x="${(i * (bw + gap) + bw / 2).toFixed(1)}" y="${H - h - 6}" text-anchor="middle" font-size="12" font-weight="800" fill="#059669">${nf(x.leads)}</text>` : ''}</g>`;
+      }).join('');
+      const first = days[0].date, last = days[days.length - 1].date;
+      $('daily-chart').innerHTML = `
+        <svg viewBox="0 -4 ${W} ${H + 4}" width="100%" preserveAspectRatio="none" style="display:block;height:220px">
+          <line x1="0" x2="${W}" y1="${H}" y2="${H}" stroke="#e2e8f0"/>${bars}
+        </svg>
+        <div class="flex justify-between text-[11px] text-slate-400 mt-2 font-semibold"><span>${dateShort(first)}</span><span>${dateShort(last)}</span></div>`;
+    }
+
+    // Al imprimir/guardar PDF las secciones fuera de pantalla nunca llegaron a animarse:
+    // se fuerza el estado final (anillos llenos, contadores en su valor real, barras visibles).
+    window.addEventListener('beforeprint', () => {
+      document.querySelectorAll('.reveal').forEach(el => {
+        el.classList.add('in');
+        el.querySelectorAll('[data-ring]').forEach(r => { r.style.transition = 'none'; r.style.strokeDashoffset = r.dataset.ring; });
+        el.querySelectorAll('[data-count]').forEach(c => { const v = +c.dataset.count; c.textContent = c.dataset.fmt === 'short' ? short(v) : c.dataset.fmt === 'money' ? money(v) : nf(v); });
+      });
+    });
+
+    if (!token) { $('state-loading').style.display = 'none'; $('state-error').style.display = ''; }
+    else load('month');
+  </script>
+</body>
+</html>
