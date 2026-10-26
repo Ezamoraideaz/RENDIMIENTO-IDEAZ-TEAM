@@ -28,9 +28,13 @@
 
     html { background: #050505; scroll-behavior: smooth; }
     body { font-family: 'Rota', system-ui, sans-serif; font-weight: 400; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .display { font-family: 'Coolvetica', system-ui, sans-serif; font-weight: 400; line-height: .92; letter-spacing: -.005em; }
-    .grad-text { background: linear-gradient(90deg, #c4c4c4 0%, #fff 32%, #fff 70%, #e2e2e2 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
-    .brand-text { background: linear-gradient(90deg, #B06DF2, #02DAB7); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .display { font-family: 'Coolvetica', system-ui, sans-serif; font-weight: 400; line-height: 1; letter-spacing: -.005em; }
+    /* El texto con degradado solo se pinta dentro de su caja: el padding inferior deja espacio
+       para los trazos que bajan (g, j, p, q, y) y el margen negativo evita que cambie el espaciado. */
+    .grad-text { background: linear-gradient(90deg, #c4c4c4 0%, #fff 32%, #fff 70%, #e2e2e2 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
+      padding-bottom: .16em; margin-bottom: -.16em; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+    .brand-text { background: linear-gradient(90deg, #B06DF2, #02DAB7); -webkit-background-clip: text; background-clip: text; color: transparent;
+      padding-bottom: .16em; margin-bottom: -.16em; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
     .outline-num { font-family: 'Coolvetica', sans-serif; color: transparent; -webkit-text-stroke: 1.5px rgba(255,255,255,.18); line-height: .8; }
 
     /* Tarjetas del home: fondo oscuro degradado y borde de luz violeta → turquesa */
@@ -50,11 +54,11 @@
 
     /* ── Animaciones ── */
     @keyframes drift { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(40px,-30px) scale(1.08); } }
-    @keyframes wordIn { from { transform: translateY(110%); } to { transform: none; } }
+    @keyframes wordIn { from { transform: translateY(140%); } to { transform: none; } }
     @keyframes fadeUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
     @keyframes scrollHint { 0% { transform: scaleY(0); transform-origin: top; } 45% { transform: scaleY(1); transform-origin: top; } 55% { transform: scaleY(1); transform-origin: bottom; } 100% { transform: scaleY(0); transform-origin: bottom; } }
     .drift { animation: drift 14s ease-in-out infinite; }
-    .wm { display: inline-block; overflow: hidden; vertical-align: top; padding-bottom: .08em; margin-bottom: -.08em; }
+    .wm { display: inline-block; overflow: hidden; vertical-align: top; padding-bottom: .22em; margin-bottom: -.22em; }
     .w { display: inline-block; animation: wordIn 1s cubic-bezier(.2,.8,.2,1) both; }
     .hero-in { animation: fadeUp .9s cubic-bezier(.2,.8,.2,1) both; }
     .scroll-line { animation: scrollHint 2.2s ease-in-out infinite; }
@@ -161,7 +165,7 @@
           <span id="hero-period" class="pill-teal text-xs sm:text-sm px-4 py-1.5 text-white"></span>
         </div>
         <p class="hero-in text-white/85 tracking-[.35em] uppercase text-xs sm:text-sm mt-8" style="animation-delay:.2s">Reporte de pauta digital</p>
-        <h1 id="hero-title" class="display text-[2.9rem] leading-[.95] sm:text-7xl lg:text-[6.2rem] mt-3 max-w-4xl"></h1>
+        <h1 id="hero-title" class="display text-[2.9rem] leading-[1.02] sm:text-7xl lg:text-[6.2rem] mt-3 max-w-4xl"></h1>
         <p id="hero-lead" class="hero-in text-lg sm:text-2xl text-white/90 mt-7 max-w-2xl leading-snug" style="animation-delay:.9s"></p>
         <div class="hero-in mt-12 flex items-center gap-4 text-white/70 text-xs tracking-[.25em] uppercase" style="animation-delay:1.2s">
           <span class="relative block w-px h-12 bg-white/15 overflow-hidden"><span class="scroll-line absolute inset-0 bg-gradient-to-b from-brand-purple to-brand-teal"></span></span>
@@ -684,7 +688,7 @@
           <div>
             <span class="pill-teal text-sm px-5 py-1.5">${period}</span>
             <p class="text-white/80 tracking-[.35em] uppercase text-sm mt-8">Reporte de pauta digital${m.live ? ' · tiempo real' : ''}</p>
-            <h1 class="display text-[5.4rem] mt-3 max-w-[10in] leading-[.95]">${d.link.title ? `<span class="grad-text">${esc(d.link.title)}</span>` : `<span class="grad-text">Así le fue a</span> <span class="brand-text">${name}</span> <span class="grad-text">con su pauta digital</span>`}</h1>
+            <h1 class="display text-[5.4rem] mt-3 max-w-[10in] leading-[1.02]">${d.link.title ? `<span class="grad-text">${esc(d.link.title)}</span>` : `<span class="grad-text">Así le fue a</span> <span class="brand-text">${name}</span> <span class="grad-text">con su pauta digital</span>`}</h1>
           </div>
           <p class="text-white/65 text-sm">Preparado por IDEAZ Marketing Agency</p>
         </div>` });
