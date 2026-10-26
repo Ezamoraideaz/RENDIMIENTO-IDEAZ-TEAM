@@ -4,8 +4,9 @@ declare(strict_types=1);
 require_once __DIR__ . '/../bootstrap.php';
 
 // Links privados del reporte de pauta para el cliente final. Solo superadmin/admin
-// (mismos roles que gestionan los clientes de pauta). El token crudo solo se devuelve
-// al crearlo; en BD queda su hash. Lo consume backend/public/pauta_report_public.php.
+// (mismos roles que gestionan los clientes de pauta). El portal público valida por token_hash;
+// además se guarda el token cifrado (migration_024) para poder volver a copiar/reenviar el link.
+// Lo consume backend/public/pauta_report_public.php.
 
 $operator = require_login();
 if (!in_array($operator['role'], ['superadmin', 'admin'], true)) {
@@ -13,9 +14,10 @@ if (!in_array($operator['role'], ['superadmin', 'admin'], true)) {
 }
 $pdo = db();
 
-function valid_date(?string $d): bool
+function pauta_report_valid_date($d): bool
 {
-    return is_string($d) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) && checkdate((int)substr($d, 5, 2), (int)substr($d, 8, 2), (int)substr($d, 0, 4));
+    return is_string($d) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) === 1
+        && checkdate((int)substr($d, 5, 2), (int)substr($d, 8, 2), (int)substr($d, 0, 4));
 }
 
 try {
@@ -25,10 +27,28 @@ try {
             if ($clientId === '') {
                 json_error('client_id requerido', 400);
             }
-            $stmt = $pdo->prepare('SELECT id, mode, date_from, date_to, title, message, lead_goal, created_at
-                                   FROM pauta_report_links WHERE pauta_client_id = ? ORDER BY created_at DESC');
-            $stmt->execute([$clientId]);
-            json_response(['links' => $stmt->fetchAll()]);
+            $cols = 'id, mode, date_from, date_to, title, message, lead_goal, created_at';
+            try {
+                $stmt = $pdo->prepare("SELECT {$cols}, token_encrypted, token_iv FROM pauta_report_links WHERE pauta_client_id = ? ORDER BY created_at DESC");
+                $stmt->execute([$clientId]);
+            } catch (PDOException $e) {
+                // migration_024 aún no corrida: se listan sin token (no se pueden volver a copiar)
+                $stmt = $pdo->prepare("SELECT {$cols} FROM pauta_report_links WHERE pauta_client_id = ? ORDER BY created_at DESC");
+                $stmt->execute([$clientId]);
+            }
+            $links = [];
+            foreach ($stmt->fetchAll() as $row) {
+                $token = null;
+                if (!empty($row['token_encrypted']) && !empty($row['token_iv'])) {
+                    try { $token = decrypt_token($row['token_encrypted'], $row['token_iv']); } catch (Throwable $e) { $token = null; }
+                }
+                unset($row['token_encrypted'], $row['token_iv']);
+                $row['id']        = (int)$row['id'];
+                $row['lead_goal'] = $row['lead_goal'] !== null ? (int)$row['lead_goal'] : null;
+                $row['token']     = $token;
+                $links[] = $row;
+            }
+            json_response(['links' => $links]);
             break;
 
         case 'POST':
@@ -41,7 +61,7 @@ try {
                 $mode     = ($input['mode'] ?? '') === 'range' ? 'range' : 'live';
                 $title    = mb_substr(trim((string)($input['title'] ?? '')), 0, 190);
                 $message  = mb_substr(trim((string)($input['message'] ?? '')), 0, 1000);
-                $goal     = (int)($input['lead_goal'] ?? 0);
+                $goal     = max(0, (int)($input['lead_goal'] ?? 0));
                 $from     = $input['date_from'] ?? null;
                 $to       = $input['date_to'] ?? null;
 
@@ -54,7 +74,7 @@ try {
                     json_error('Cliente de pauta no encontrado', 404);
                 }
                 if ($mode === 'range') {
-                    if (!valid_date($from) || !valid_date($to) || $from > $to) {
+                    if (!pauta_report_valid_date($from) || !pauta_report_valid_date($to) || $from > $to) {
                         json_error('Para un reporte por rango indica fechas válidas (desde ≤ hasta)', 400);
                     }
                 } else {
@@ -62,9 +82,18 @@ try {
                 }
 
                 $rawToken = bin2hex(random_bytes(32));
-                $pdo->prepare('INSERT INTO pauta_report_links (pauta_client_id, token_hash, mode, date_from, date_to, title, message, lead_goal, created_by)
-                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-                    ->execute([$clientId, hash('sha256', $rawToken), $mode, $from, $to, $title, $message !== '' ? $message : null, $goal > 0 ? $goal : null, $operator['id']]);
+                $params = [$clientId, hash('sha256', $rawToken), $mode, $from, $to, $title, $message !== '' ? $message : null, $goal > 0 ? $goal : null, $operator['id']];
+                try {
+                    $enc = encrypt_token($rawToken);
+                    $pdo->prepare('INSERT INTO pauta_report_links (pauta_client_id, token_hash, mode, date_from, date_to, title, message, lead_goal, created_by, token_encrypted, token_iv)
+                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+                        ->execute(array_merge($params, [$enc['ciphertext'], $enc['iv']]));
+                } catch (Throwable $e) {
+                    // Sin migration_024 (o sin ENCRYPTION_KEY válida): el link funciona igual, solo que no se podrá volver a copiar.
+                    $pdo->prepare('INSERT INTO pauta_report_links (pauta_client_id, token_hash, mode, date_from, date_to, title, message, lead_goal, created_by)
+                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+                        ->execute($params);
+                }
                 json_response(['token' => $rawToken, 'id' => (int)$pdo->lastInsertId()]);
                 break;
             }

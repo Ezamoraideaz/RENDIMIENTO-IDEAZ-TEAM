@@ -387,6 +387,8 @@ CREATE TABLE IF NOT EXISTS pauta_report_links (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     pauta_client_id VARCHAR(32) NOT NULL,
     token_hash CHAR(64) NOT NULL,
+    token_encrypted TEXT NULL,
+    token_iv VARCHAR(32) NULL,
     mode ENUM('range','live') NOT NULL DEFAULT 'live',
     date_from DATE NULL,
     date_to DATE NULL,
