@@ -94,15 +94,35 @@ $platTotals = [];
 $currencies = [];
 $errors     = 0;
 
+// Período anterior de la misma duración (ej. 1–26 oct → 5–30 sep) para contar la historia en
+// contraste: "+18% más interesados que el período anterior". Solo se pide el gasto diario
+// (trae leads por día), no el detalle por campaña: una llamada extra por cuenta.
+$periodDays = (int)(new DateTime($from))->diff(new DateTime($to))->days + 1;
+$prevTo     = date('Y-m-d', strtotime($from . ' -1 day'));
+$prevFrom   = date('Y-m-d', strtotime($prevTo . ' -' . ($periodDays - 1) . ' days'));
+$prev       = ['spend' => 0.0, 'leads' => 0.0, 'ok' => true];
+
 $labels = ['meta' => 'Meta Ads', 'google' => 'Google Ads'];
 foreach ($platforms as $plat) {
     $key = $plat['platform'] ?? '';
     if (empty($plat['enabled']) || !isset($labels[$key])) continue;
-    $accountIds = array_filter(array_map('trim', explode(',', (string)($plat['account_id'] ?? $plat['customer_id'] ?? ''))));
+    // Igual que _accountIdOf() de js/pauta.js: el primer campo no vacío (un "" no debe tapar al siguiente).
+    $rawIds = '';
+    foreach (['account_id', 'customer_id', 'advertiser_id'] as $f) {
+        if (trim((string)($plat[$f] ?? '')) !== '') { $rawIds = (string)$plat[$f]; break; }
+    }
+    $accountIds = array_filter(array_map('trim', explode(',', $rawIds)));
 
     foreach ($accountIds as $accId) {
         $spendRes  = $key === 'meta' ? getMetaSpend($accId, $from, $to) : getGoogleSpend($accId, $from, $to);
         $detailRes = $key === 'meta' ? getMetaCampaignDetail($accId, $from, $to) : getGoogleCampaignDetail($accId, $from, $to);
+        $prevRes   = $key === 'meta' ? getMetaSpend($accId, $prevFrom, $prevTo) : getGoogleSpend($accId, $prevFrom, $prevTo);
+        if (empty($prevRes['error'])) {
+            $prev['spend'] += (float)($prevRes['total_spend'] ?? 0);
+            foreach ($prevRes['daily_data'] ?? [] as $d) $prev['leads'] += (float)($d['leads'] ?? 0);
+        } else {
+            $prev['ok'] = false;
+        }
         if (!empty($spendRes['error'])) { $errors++; continue; }
 
         if (!isset($platTotals[$key])) {
@@ -173,7 +193,11 @@ $out = json_encode([
         'lead_goal' => $link['lead_goal'] !== null ? (int)$link['lead_goal'] : null,
         'preset'    => $link['mode'] === 'live' ? $preset : null,
     ],
-    'period'       => ['from' => $from, 'to' => $to, 'days' => (int)(new DateTime($from))->diff(new DateTime($to))->days + 1],
+    'period'       => ['from' => $from, 'to' => $to, 'days' => $periodDays],
+    // Solo si todas las cuentas respondieron y hubo actividad: una comparación a medias contaría mal la historia.
+    'previous'     => ($prev['ok'] && !$mixed && ($prev['spend'] > 0 || $prev['leads'] > 0))
+        ? ['from' => $prevFrom, 'to' => $prevTo, 'spend' => round($prev['spend'], 2), 'leads' => round($prev['leads'], 1)]
+        : null,
     'currency'     => $mixed ? '' : (array_key_first($currencies) ?? ''),
     'totals'       => $totals,
     'platforms'    => array_values($platTotals),

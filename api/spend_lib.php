@@ -229,14 +229,18 @@ function metaGraphGetAll(string $url, string $token, bool $debug = false): array
     return ['http_code' => $http_code, 'raw' => $firstPage, 'rows' => $rows];
 }
 
-// Misma definición de "lead" que el detalle por campaña (getMetaCampaignDetail).
+// Definición única de "lead" en Meta (gasto diario, detalle por campaña y reporte del cliente).
+// "lead" ya es el total que Meta agrega de formularios instantáneos (lead_grouped) + píxel
+// (fb_pixel_lead): sumar los tres contaba el mismo lead dos o tres veces. Se toma el mayor entre
+// "lead" y la suma de sus partes (por si alguna cuenta no reporta el agregado) y se suman aparte
+// las conversaciones de mensajería iniciadas, que no forman parte de "lead".
 function metaLeadsFromActions(array $actions): int {
-    $types = ['lead', 'offsite_conversion.fb_pixel_lead', 'onsite_conversion.lead_grouped', 'onsite_conversion.messaging_conversation_started_7d'];
-    $n = 0;
+    $v = [];
     foreach ($actions as $act) {
-        if (in_array($act['action_type'] ?? '', $types, true)) $n += (int)($act['value'] ?? 0);
+        $v[$act['action_type'] ?? ''] = (int)($act['value'] ?? 0);
     }
-    return $n;
+    $forms = max($v['lead'] ?? 0, ($v['offsite_conversion.fb_pixel_lead'] ?? 0) + ($v['onsite_conversion.lead_grouped'] ?? 0));
+    return $forms + ($v['onsite_conversion.messaging_conversation_started_7d'] ?? 0);
 }
 
 function getMetaSpend(string $account_id, string $date_from, string $date_to, bool $debug = false): array {
@@ -341,17 +345,13 @@ function getMetaCampaignDetail(string $account_id, string $date_from, string $da
         return ['error' => $res['raw']['error']['message'] ?? 'Error Meta API', 'platform' => 'meta'];
     }
 
-    $leadActionTypes = ['lead', 'offsite_conversion.fb_pixel_lead', 'onsite_conversion.lead_grouped', 'onsite_conversion.messaging_conversation_started_7d'];
     $campaigns = [];
     $currency  = 'USD';
 
     foreach ($res['rows'] as $row) {
-        $leads    = 0;
+        $leads    = metaLeadsFromActions($row['actions'] ?? []);
         $messages = 0;
         foreach ($row['actions'] ?? [] as $act) {
-            if (in_array($act['action_type'], $leadActionTypes)) {
-                $leads += (int)($act['value'] ?? 0);
-            }
             if (strpos($act['action_type'], 'messaging') !== false || strpos($act['action_type'], 'message') !== false) {
                 $messages += (int)($act['value'] ?? 0);
             }

@@ -288,31 +288,42 @@ const PautaMonitor = (() => {
     </svg></div>`;
   }
 
-  // Barras de leads por día (tarjeta de cada cliente). Un <title> por barra da el tooltip nativo
-  // con fecha y cantidad. Los leads son los que reporta la plataforma (acciones de lead en Meta,
+  // Barras de leads por día (tarjeta de cada cliente), con el mismo hover "imán" que el gasto diario.
+  // Los leads son los que reporta la plataforma (formularios + píxel + conversaciones en Meta,
   // conversiones en Google) — no los que se capturan a mano en la pestaña Leads del detalle.
-  function _leadsBarChart(dailyArr) {
+  function _leadsBarChart(dailyArr, spend) {
     const total = dailyArr.reduce((a, d) => a + d.leads, 0);
     if (!dailyArr.length || total <= 0) return '';
     const max  = Math.max(...dailyArr.map(d => d.leads), 1);
     const best = dailyArr.reduce((a, d) => d.leads > a.leads ? d : a, dailyArr[0]);
     const avg  = total / dailyArr.length;
-    const W = 300, H = 56, gap = 2;
-    const bw = Math.max(2, (W - gap * (dailyArr.length - 1)) / dailyArr.length);
+    const cpl  = spend > 0 ? spend / total : 0;
+    const W = 300, H = 48, n = dailyArr.length;
+    const slot = W / n, bw = Math.max(1.5, slot * (n > 40 ? 0.85 : 0.7));
+    const pts = [];
     const bars = dailyArr.map((d, i) => {
-      const h = d.leads > 0 ? Math.max(2, d.leads / max * (H - 4)) : 1;
-      const x = i * (bw + gap);
-      const label = new Date(d.date + 'T12:00:00').toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'short' });
-      return `<rect x="${x.toFixed(1)}" y="${(H - h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="1.5" fill="${d.leads > 0 ? '#6366f1' : '#334155'}" opacity="${d.date === best.date ? 1 : 0.8}"><title>${label}: ${Math.round(d.leads)} lead${Math.round(d.leads) === 1 ? '' : 's'}</title></rect>`;
+      const h = d.leads > 0 ? Math.max(3, d.leads / max * (H - 4)) : 1.5;
+      const x = i * slot + (slot - bw) / 2;
+      pts.push([d.date, Math.round(d.leads), +((H - h) / H).toFixed(4)]);
+      return `<rect x="${x.toFixed(1)}" y="${(H - h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="1.5" fill="${d.date === best.date ? '#10b981' : d.leads > 0 ? '#6366f1' : '#475569'}"/>`;
     }).join('');
     const bestLabel = new Date(best.date + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
+    const sparkData = _esc(JSON.stringify({ c: '#6366f1', b: 1, h: H, u: 'leads', p: pts }));
+    const stat = (label, value, cls = 'text-slate-200') => `<span class="text-slate-500">${label} <strong class="${cls}">${value}</strong></span>`;
     return `
       <div class="border-t border-slate-800 pt-3">
-        <div class="flex items-baseline justify-between gap-2 mb-1.5">
+        <div class="flex items-center justify-between gap-2 mb-1.5">
           <span class="text-xs text-slate-500">Leads por día</span>
-          <span class="text-xs text-slate-400 text-right"><strong class="text-slate-200">${Math.round(total)}</strong> en total · prom. ${avg.toFixed(1)}/día · mejor día <strong class="text-indigo-300">${bestLabel} (${Math.round(best.leads)})</strong></span>
+          <span class="text-xs font-bold text-slate-100">${Math.round(total)} leads</span>
         </div>
-        <svg viewBox="0 0 ${W} ${H}" width="100%" height="56" preserveAspectRatio="none" style="display:block">${bars}</svg>
+        <div class="spark" data-spark="${sparkData}" style="position:relative;padding:8px 0;margin:-8px 0;cursor:crosshair">
+          <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none" style="display:block">${bars}</svg>
+        </div>
+        <div class="flex items-center gap-x-3 gap-y-1 flex-wrap text-[11px] mt-1.5">
+          ${stat('Prom.', avg.toFixed(1) + '/día')}
+          ${stat('Mejor día', `${bestLabel} · ${Math.round(best.leads)}`, 'text-emerald-400')}
+          ${cpl > 0 ? stat('CPL', '$' + _fmt(cpl), 'text-indigo-300') : ''}
+        </div>
       </div>`;
   }
 
@@ -358,17 +369,19 @@ const PautaMonitor = (() => {
       const r = el.getBoundingClientRect();
       const pts = el._sp.p;
       const t = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
-      const i = Math.round(t * (pts.length - 1));               // el día más cercano (imán)
-      const [date, spend, yRel] = pts[i];
-      const x = (i / (pts.length - 1)) * r.width;
-      const y = 8 + yRel * 40;                                   // 8px de margen + altura del SVG (40)
+      // Línea (gasto): puntos en los extremos de cada tramo. Barras (leads): el centro de cada barra.
+      const bar = !!el._sp.b, n = pts.length;
+      const i = bar ? Math.min(n - 1, Math.floor(t * n)) : Math.round(t * (n - 1));   // el día más cercano (imán)
+      const [date, val, yRel] = pts[i];
+      const x = bar ? (i + 0.5) / n * r.width : (i / (n - 1)) * r.width;
+      const y = 8 + yRel * (el._sp.h || 40);                    // 8px de margen + altura del SVG
 
       el._guide.style.display = el._dot.style.display = '';
       el._guide.style.left = x + 'px';
       el._dot.style.left = x + 'px';
       el._dot.style.top = y + 'px';
 
-      tip.innerHTML = `<span style="opacity:.7">${fmtDate(date)}</span>&nbsp; $${_fmt(spend)}`;
+      tip.innerHTML = `<span style="opacity:.7">${fmtDate(date)}</span>&nbsp; ${el._sp.u === 'leads' ? `${val} lead${val === 1 ? '' : 's'}` : '$' + _fmt(val)}`;
       tip.style.left = Math.min(innerWidth - 70, Math.max(70, r.left + x)) + 'px';
       tip.style.top = (r.top + y - 12) + 'px';
       tip.style.opacity = 1;
@@ -770,7 +783,7 @@ const PautaMonitor = (() => {
     const leadsDailyArr = Object.entries(leadsDailyMap)
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([date, leads]) => ({ date, leads }));
-    const leadsChartHtml = _leadsBarChart(leadsDailyArr);
+    const leadsChartHtml = _leadsBarChart(leadsDailyArr, globalSpend);
 
     const sparkHexColors = { ok: '#10b981', warn: '#eab308', over: '#ef4444' };
     const globalSparkHtml = globalDailyArr.length > 1 ? `
@@ -1482,50 +1495,70 @@ const PautaMonitor = (() => {
   // ── Reporte privado para el cliente (reporte-pauta.html?t=<token>) ─────────
   // Cada link es un token independiente: 'live' muestra siempre el período en curso (el cliente
   // puede alternar mes / 30 días / mes anterior); 'range' congela un período cerrado.
-  // El token crudo solo se ve al crearlo (en BD queda su hash), por eso se muestra una vez con botón de copiar.
-  let _reportClientId = null;
+  // El backend guarda el token cifrado (migration_024) para poder copiarlo/reenviarlo cuando sea;
+  // los links creados antes de esa migración solo se pueden revocar y recrear.
+  let _reportClientId   = null;
+  let _reportClientName = '';
+  let _reportLinks      = [];
+  let _reportNewId      = null;
 
   function _reportUrl(token) {
     return location.origin + location.pathname.replace(/[^/]*$/, '') + 'reporte-pauta.html?t=' + token;
   }
 
+  function _isoDate(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
   function _renderReportPanel(client, from, to) {
-    _reportClientId = client.id;
-    const field = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500';
+    _reportClientId   = client.id;
+    _reportClientName = client.name;
+    _reportNewId      = null;
+    const field = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500';
+    const modeCard = (mode, checked, icon, title, desc) => `
+      <label id="rp-opt-${mode}" class="flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-colors ${checked ? 'border-indigo-500 bg-indigo-500/10' : 'border-slate-700 hover:border-slate-500'}">
+        <input type="radio" name="rp-mode" value="${mode}" ${checked ? 'checked' : ''} class="sr-only" onchange="PautaMonitor._reportModeChange()">
+        <span class="text-xl leading-none mt-0.5">${icon}</span>
+        <span><strong class="text-sm text-slate-100">${title}</strong><span class="block text-xs text-slate-400 mt-0.5 leading-snug">${desc}</span></span>
+      </label>`;
+    const chip = (label, key) => `<button type="button" onclick="PautaMonitor._reportQuickRange('${key}')" class="text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-full px-3 py-1 transition-colors">${label}</button>`;
+
     return `
-    <div class="flex flex-col gap-6">
-      <div class="rounded-2xl border border-slate-700 bg-slate-800/40 p-5">
-        <p class="text-sm font-bold text-slate-100">Crear link privado para ${_esc(client.name)}</p>
-        <p class="text-xs text-slate-400 mt-1 mb-4">Página visual con historia (inversión, objetivos, leads por día, campañas destacadas) y descarga en PDF. No muestra cuentas ni datos de otros clientes.</p>
-
-        <div class="grid sm:grid-cols-2 gap-2 mb-4">
-          <label class="flex items-start gap-3 p-3 rounded-xl border border-indigo-500 bg-indigo-500/10 cursor-pointer" id="rp-opt-live">
-            <input type="radio" name="rp-mode" value="live" checked class="mt-1" onchange="PautaMonitor._reportModeChange()">
-            <span><strong class="text-sm text-slate-100">En tiempo real</strong><span class="block text-xs text-slate-400">Siempre actualizado. El cliente alterna entre este mes, últimos 30 días y mes anterior.</span></span>
-          </label>
-          <label class="flex items-start gap-3 p-3 rounded-xl border border-slate-700 cursor-pointer" id="rp-opt-range">
-            <input type="radio" name="rp-mode" value="range" class="mt-1" onchange="PautaMonitor._reportModeChange()">
-            <span><strong class="text-sm text-slate-100">Rango de fechas</strong><span class="block text-xs text-slate-400">Reporte cerrado de un período fijo (ej. cierre de mes o campaña).</span></span>
-          </label>
+    <div class="grid lg:grid-cols-5 gap-6">
+      <div class="lg:col-span-3 rounded-2xl border border-slate-700 bg-slate-800/40 p-5 flex flex-col gap-4">
+        <div>
+          <p class="text-sm font-bold text-slate-100">Nuevo reporte para ${_esc(client.name)}</p>
+          <p class="text-xs text-slate-400 mt-1 leading-relaxed">Página visual tipo historia: inversión, objetivos cumplidos, leads por día, comparación con el período anterior y campañas destacadas. El cliente puede descargarla en PDF. No muestra IDs de cuenta ni datos de otros clientes.</p>
         </div>
 
-        <div id="rp-range" style="display:none" class="grid grid-cols-2 gap-3 mb-4">
-          <label class="text-xs text-slate-400">Desde<input type="date" id="rp-from" value="${from}" class="${field} mt-1"></label>
-          <label class="text-xs text-slate-400">Hasta<input type="date" id="rp-to" value="${to}" class="${field} mt-1"></label>
+        <div class="grid sm:grid-cols-2 gap-2">
+          ${modeCard('live', true, '🟢', 'En tiempo real', 'Un solo link que siempre está al día. El cliente alterna entre este mes, últimos 30 días y mes anterior.')}
+          ${modeCard('range', false, '📅', 'Rango de fechas', 'Reporte cerrado de un período fijo: cierre de mes, de campaña o de trimestre.')}
         </div>
 
-        <div class="grid sm:grid-cols-3 gap-3 mb-3">
-          <label class="text-xs text-slate-400 sm:col-span-2">Título (opcional)<input type="text" id="rp-title" maxlength="190" placeholder="Así le fue a ${_esc(client.name)} este mes" class="${field} mt-1"></label>
-          <label class="text-xs text-slate-400">Meta de leads (opcional)<input type="number" min="0" id="rp-goal" placeholder="Ej. 120" class="${field} mt-1"></label>
+        <div id="rp-range" style="display:none" class="flex flex-col gap-2">
+          <div class="flex flex-wrap gap-1.5">${chip('Mes anterior', 'prev')}${chip('Este mes', 'this')}${chip('Período del monitor', 'monitor')}</div>
+          <div class="grid grid-cols-2 gap-3">
+            <label class="text-xs text-slate-400">Desde<input type="date" id="rp-from" value="${from}" data-monitor="${from}" class="${field} mt-1"></label>
+            <label class="text-xs text-slate-400">Hasta<input type="date" id="rp-to" value="${to}" data-monitor="${to}" class="${field} mt-1"></label>
+          </div>
         </div>
-        <label class="text-xs text-slate-400 block mb-4">Mensaje para el cliente (opcional)<textarea id="rp-msg" rows="2" maxlength="1000" placeholder="Hola, te comparto el resumen de resultados…" class="${field} mt-1"></textarea></label>
 
-        <button onclick="PautaMonitor._createReportLink()" id="rp-create" class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Generar link</button>
-        <div id="rp-result" class="mt-4"></div>
+        <div class="grid sm:grid-cols-3 gap-3">
+          <label class="text-xs text-slate-400 sm:col-span-2">Título <span class="text-slate-600">(opcional)</span><input type="text" id="rp-title" maxlength="190" placeholder="Así le fue a ${_esc(client.name)} este mes" class="${field} mt-1"></label>
+          <label class="text-xs text-slate-400">Meta de leads <span class="text-slate-600">(opcional)</span><input type="number" min="0" step="1" id="rp-goal" placeholder="Ej. 120" class="${field} mt-1"></label>
+        </div>
+        <label class="text-xs text-slate-400 block">Mensaje para el cliente <span class="text-slate-600">(opcional, aparece al inicio del reporte)</span><textarea id="rp-msg" rows="2" maxlength="1000" placeholder="Hola, te comparto cómo nos fue este período…" class="${field} mt-1 resize-y"></textarea></label>
+        <p class="text-[11px] text-slate-500 -mt-2">Con meta de leads, el reporte muestra el avance como objetivo cumplido o por cumplir.</p>
+
+        <div class="flex items-center gap-3">
+          <button onclick="PautaMonitor._createReportLink()" id="rp-create" class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Generar link</button>
+          <span id="rp-hint" class="text-xs text-slate-500"></span>
+        </div>
       </div>
 
-      <div>
-        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Links generados</p>
+      <div class="lg:col-span-2 flex flex-col gap-3">
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Links de este cliente</p>
         <div id="rp-list" class="flex flex-col gap-2"><p class="text-xs text-slate-500">Cargando…</p></div>
       </div>
     </div>`;
@@ -1534,11 +1567,68 @@ const PautaMonitor = (() => {
   function _reportModeChange() {
     const mode = document.querySelector('input[name="rp-mode"]:checked')?.value;
     document.getElementById('rp-range').style.display = mode === 'range' ? '' : 'none';
-    for (const [id, active] of [['rp-opt-live', mode === 'live'], ['rp-opt-range', mode === 'range']]) {
-      const el = document.getElementById(id);
-      ['border-indigo-500', 'bg-indigo-500/10'].forEach(c => el.classList.toggle(c, active));
+    for (const m of ['live', 'range']) {
+      const el = document.getElementById('rp-opt-' + m), active = m === mode;
+      el.classList.toggle('border-indigo-500', active);
+      el.classList.toggle('bg-indigo-500/10', active);
       el.classList.toggle('border-slate-700', !active);
     }
+  }
+
+  function _reportQuickRange(key) {
+    const f = document.getElementById('rp-from'), t = document.getElementById('rp-to');
+    const now = new Date();
+    if (key === 'prev') {
+      f.value = _isoDate(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+      t.value = _isoDate(new Date(now.getFullYear(), now.getMonth(), 0));
+    } else if (key === 'this') {
+      f.value = _isoDate(new Date(now.getFullYear(), now.getMonth(), 1));
+      t.value = _isoDate(now);
+    } else {
+      f.value = f.dataset.monitor;
+      t.value = t.dataset.monitor;
+    }
+  }
+
+  function _fmtDay(iso) {
+    return new Date(String(iso).slice(0, 10) + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  function _renderReportLinks() {
+    const box = document.getElementById('rp-list');
+    if (!box) return;
+    if (!_reportLinks.length) {
+      box.innerHTML = `
+        <div class="rounded-xl border border-dashed border-slate-700 px-4 py-8 text-center">
+          <p class="text-sm text-slate-400">Aún no hay links</p>
+          <p class="text-xs text-slate-500 mt-1">Crea uno en tiempo real para compartirlo una sola vez con el cliente.</p>
+        </div>`;
+      return;
+    }
+    const btn = 'text-xs font-semibold rounded-lg px-2.5 py-1.5 transition-colors';
+    box.innerHTML = _reportLinks.map(l => {
+      const isNew = l.id === _reportNewId;
+      const period = l.mode === 'live' ? 'Siempre al día' : `${_fmtDay(l.date_from)} → ${_fmtDay(l.date_to)}`;
+      return `
+      <div class="rounded-xl border ${isNew ? 'border-emerald-500/60 bg-emerald-500/10' : 'border-slate-700 bg-slate-800'} px-4 py-3">
+        <div class="flex items-start justify-between gap-2">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-slate-100 truncate">${l.title ? _esc(l.title) : (l.mode === 'live' ? 'Reporte en tiempo real' : 'Reporte por período')}</p>
+            <p class="text-xs text-slate-400 mt-0.5">${l.mode === 'live' ? '🟢' : '📅'} ${period}${l.lead_goal ? ` · meta ${l.lead_goal} leads` : ''}</p>
+          </div>
+          ${isNew ? '<span class="text-[10px] font-bold uppercase tracking-wider text-emerald-300 flex-shrink-0">Nuevo</span>' : ''}
+        </div>
+        <div class="flex items-center gap-1.5 mt-2.5 flex-wrap">
+          ${l.token ? `
+            <button onclick="PautaMonitor._reportAction('copy', ${l.id}, this)" class="${btn} bg-indigo-600 hover:bg-indigo-500 text-white">Copiar link</button>
+            <button onclick="PautaMonitor._reportAction('whatsapp', ${l.id})" class="${btn} bg-emerald-600/90 hover:bg-emerald-500 text-white">WhatsApp</button>
+            <button onclick="PautaMonitor._reportAction('open', ${l.id})" class="${btn} bg-slate-700 hover:bg-slate-600 text-slate-100">Ver ↗</button>`
+          : '<span class="text-[11px] text-slate-500">Creado antes de guardar links: revócalo y crea uno nuevo para copiarlo.</span>'}
+          <button onclick="PautaMonitor._reportAction('revoke', ${l.id}, this)" class="${btn} ml-auto text-red-400 hover:text-red-300 hover:bg-red-500/10">Revocar</button>
+        </div>
+        <p class="text-[10px] text-slate-600 mt-2">Creado ${_fmtDay(l.created_at)}</p>
+      </div>`;
+    }).join('');
   }
 
   async function _loadReportLinks(clientId) {
@@ -1546,66 +1636,93 @@ const PautaMonitor = (() => {
     if (!box) return;
     try {
       const { links } = await Session.apiFetch(`api/pauta_report_links.php?client_id=${encodeURIComponent(clientId)}`);
-      box.innerHTML = links.length ? links.map(l => `
-        <div class="flex items-center justify-between gap-3 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3">
-          <div class="min-w-0">
-            <p class="text-sm font-semibold text-slate-100 truncate">${l.mode === 'live' ? '🟢 En tiempo real' : `📅 ${_esc(l.date_from)} → ${_esc(l.date_to)}`}${l.title ? ` · ${_esc(l.title)}` : ''}</p>
-            <p class="text-xs text-slate-500">Creado ${_esc(l.created_at)}${l.lead_goal ? ` · meta ${l.lead_goal} leads` : ''}. El link original solo se muestra al crearlo.</p>
-          </div>
-          <button onclick="PautaMonitor._revokeReportLink(${l.id})" class="text-xs font-semibold text-red-400 hover:text-red-300 border border-red-500/40 rounded-lg px-3 py-1.5 flex-shrink-0">Revocar</button>
-        </div>`).join('') : '<p class="text-xs text-slate-500">Aún no hay links para este cliente.</p>';
+      _reportLinks = links || [];
+      _renderReportLinks();
     } catch (e) {
       box.innerHTML = `<p class="text-xs text-red-400">No se pudieron cargar los links: ${_esc(e.message)}</p>`;
     }
   }
 
   async function _createReportLink() {
-    const btn = document.getElementById('rp-create');
+    const btn  = document.getElementById('rp-create');
+    const hint = document.getElementById('rp-hint');
     const mode = document.querySelector('input[name="rp-mode"]:checked')?.value || 'live';
+    const from = document.getElementById('rp-from').value, to = document.getElementById('rp-to').value;
+    if (mode === 'range' && (!from || !to || from > to)) {
+      hint.innerHTML = '<span class="text-red-400">Revisa las fechas: "desde" debe ser anterior o igual a "hasta".</span>';
+      return;
+    }
     btn.disabled = true;
+    btn.innerHTML = '<span class="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>Generando…';
+    hint.textContent = '';
     try {
       const data = await Session.apiFetch('api/pauta_report_links.php', {
         method: 'POST',
         body: JSON.stringify({
-          action: 'create', client_id: _reportClientId, mode,
-          date_from: document.getElementById('rp-from').value, date_to: document.getElementById('rp-to').value,
+          action: 'create', client_id: _reportClientId, mode, date_from: from, date_to: to,
           title: document.getElementById('rp-title').value, message: document.getElementById('rp-msg').value,
-          lead_goal: Number(document.getElementById('rp-goal').value) || 0,
+          lead_goal: Math.max(0, Math.round(Number(document.getElementById('rp-goal').value) || 0)),
         }),
       });
-      const url = _reportUrl(data.token);
-      document.getElementById('rp-result').innerHTML = `
-        <div class="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4">
-          <p class="text-xs font-semibold text-emerald-300 mb-2">Link listo — cópialo ahora, no se vuelve a mostrar</p>
-          <div class="flex gap-2">
-            <input readonly id="rp-url" value="${_esc(url)}" onclick="this.select()" class="flex-1 min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200">
-            <button onclick="PautaMonitor._copyReportUrl()" id="rp-copy" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 rounded-lg">Copiar</button>
-            <a href="${_esc(url)}" target="_blank" rel="noopener" class="bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold px-3 rounded-lg grid place-items-center">Ver</a>
-          </div>
-        </div>`;
-      _loadReportLinks(_reportClientId);
+      _reportNewId = data.id;
+      await _loadReportLinks(_reportClientId);
+      // Si el listado no trae el token (migration_024 pendiente), se usa el recién devuelto para este link.
+      const created = _reportLinks.find(l => l.id === data.id);
+      if (created && !created.token) { created.token = data.token; _renderReportLinks(); }
+      await _copyText(_reportUrl(data.token));
+      hint.innerHTML = '<span class="text-emerald-400">✓ Link creado y copiado al portapapeles</span>';
+      ['rp-title', 'rp-msg', 'rp-goal'].forEach(id => { document.getElementById(id).value = ''; });
     } catch (e) {
-      if (window.Utils && Utils.showToast) Utils.showToast(e.message, 'error'); else alert(e.message);
+      hint.innerHTML = `<span class="text-red-400">${_esc(e.message)}</span>`;
     } finally {
       btn.disabled = false;
+      btn.textContent = 'Generar link';
     }
   }
 
-  async function _copyReportUrl() {
-    const input = document.getElementById('rp-url');
-    try { await navigator.clipboard.writeText(input.value); } catch (e) { input.select(); document.execCommand('copy'); }
-    const b = document.getElementById('rp-copy');
-    b.textContent = '¡Copiado!';
-    setTimeout(() => { if (b) b.textContent = 'Copiar'; }, 1800);
+  async function _copyText(text) {
+    try { await navigator.clipboard.writeText(text); return true; } catch (e) {
+      const ta = Object.assign(document.createElement('textarea'), { value: text });
+      document.body.appendChild(ta); ta.select();
+      const ok = document.execCommand('copy');
+      ta.remove();
+      return ok;
+    }
   }
 
-  async function _revokeReportLink(id) {
-    if (!confirm('¿Revocar este link? El cliente dejará de poder abrirlo.')) return;
-    try {
-      await Session.apiFetch('api/pauta_report_links.php', { method: 'POST', body: JSON.stringify({ action: 'revoke', id }) });
-      _loadReportLinks(_reportClientId);
-    } catch (e) {
-      if (window.Utils && Utils.showToast) Utils.showToast(e.message, 'error'); else alert(e.message);
+  async function _reportAction(action, id, el) {
+    const link = _reportLinks.find(l => l.id === id);
+    if (!link) return;
+    const url = link.token ? _reportUrl(link.token) : '';
+
+    if (action === 'copy') {
+      await _copyText(url);
+      el.textContent = '¡Copiado!';
+      setTimeout(() => { el.textContent = 'Copiar link'; }, 1800);
+    } else if (action === 'open') {
+      window.open(url, '_blank', 'noopener');
+    } else if (action === 'whatsapp') {
+      const text = `Hola 👋 Te comparto el reporte de resultados de la pauta de ${_reportClientName}${link.mode === 'live' ? ' (se actualiza en tiempo real)' : ''}: ${url}`;
+      window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank', 'noopener');
+    } else if (action === 'revoke') {
+      // Confirmación en el mismo botón (sin diálogos del navegador): segundo clic en 4 s revoca.
+      if (el.dataset.armed !== '1') {
+        el.dataset.armed = '1';
+        el.textContent = '¿Seguro? Revocar';
+        el.classList.add('bg-red-500/15');
+        setTimeout(() => { if (el.isConnected) { el.dataset.armed = ''; el.textContent = 'Revocar'; el.classList.remove('bg-red-500/15'); } }, 4000);
+        return;
+      }
+      el.disabled = true;
+      try {
+        await Session.apiFetch('api/pauta_report_links.php', { method: 'POST', body: JSON.stringify({ action: 'revoke', id }) });
+        _reportLinks = _reportLinks.filter(l => l.id !== id);
+        _renderReportLinks();
+      } catch (e) {
+        el.disabled = false;
+        const hint = document.getElementById('rp-hint');
+        if (hint) hint.innerHTML = `<span class="text-red-400">No se pudo revocar: ${_esc(e.message)}</span>`;
+      }
     }
   }
 
@@ -2033,7 +2150,7 @@ const PautaMonitor = (() => {
       .map(c => {
         const freq = c.frequency > 0 ? c.frequency : (c.reach > 0 ? c.impressions / c.reach : 0);
         const ctr  = c.impressions > 0 ? c.clicks / c.impressions * 100 : 0;
-        return { ...c, freq: Math.round(freq * 100) / 100, ctr: Math.round(ctr * 100) / 100 };
+        return { ...c, platform: 'meta', freq: Math.round(freq * 100) / 100, ctr: Math.round(ctr * 100) / 100 };
       });
 
     if (campaigns.length === 0) return null;
@@ -2085,7 +2202,7 @@ const PautaMonitor = (() => {
     <div class="px-5 py-4 bg-slate-900/60">
       <div class="flex items-start justify-between gap-3 mb-3">
         <div class="min-w-0">
-          <p class="text-sm font-semibold text-slate-100 truncate">${_esc(c.name)}</p>
+          ${_campaignTitle(c, 'text-sm font-semibold text-slate-100 truncate block')}
           <p class="text-xs text-slate-500 mt-0.5">${stageLabel} · ${_fmtNum(c.reach || 0)} personas alcanzadas</p>
         </div>
         <span class="text-xs font-bold ${cfg.badge} border px-2 py-0.5 rounded-lg flex-shrink-0">${cfg.label}</span>
@@ -2135,6 +2252,15 @@ const PautaMonitor = (() => {
     return '';
   }
 
+  // Nombre de campaña que abre la campaña en su plataforma (pestaña nueva); texto plano si no hay enlace.
+  function _campaignTitle(c, cls, prefix = '') {
+    const url = _campaignUrl(c);
+    if (!url) return `<span class="${cls}">${prefix}${_esc(c.name)}</span>`;
+    const where = c.platform === 'google' ? 'Google Ads' : 'Meta Ads Manager';
+    return `<a href="${_esc(url)}" target="_blank" rel="noopener noreferrer" title="Abrir en ${where}"
+      class="${cls} group hover:text-indigo-300 hover:underline decoration-indigo-400/50 underline-offset-2">${prefix}${_esc(c.name)}<span class="text-slate-500 group-hover:text-indigo-300 ml-1 no-underline">↗</span></a>`;
+  }
+
   function _renderCampaignList(stages) {
     const all = [
       ...stages.tof.map(c => ({ ...c, stL: 'TOF · F1', stC: 'text-blue-400',    stB: 'bg-blue-500/10 border-blue-500/30'    })),
@@ -2156,13 +2282,7 @@ const PautaMonitor = (() => {
           return `
           <div class="bg-slate-800 rounded-xl p-3.5 border border-slate-700">
             <div class="flex items-start justify-between gap-2 mb-3">
-              ${(() => {
-                const url = _campaignUrl(c);
-                return url
-                  ? `<a href="${_esc(url)}" target="_blank" rel="noopener noreferrer" title="Abrir la campaña en ${c.platform === 'google' ? 'Google Ads' : 'Meta Ads Manager'}"
-                       class="text-sm text-slate-200 hover:text-indigo-300 font-medium leading-snug group">${platIcon} ${_esc(c.name)}<span class="text-slate-500 group-hover:text-indigo-300 ml-1">↗</span></a>`
-                  : `<span class="text-sm text-slate-200 font-medium leading-snug">${platIcon} ${_esc(c.name)}</span>`;
-              })()}
+              ${_campaignTitle(c, 'text-sm text-slate-200 font-medium leading-snug', platIcon + ' ')}
               <span class="text-xs font-bold ${c.stC} border ${c.stB} rounded-lg px-2 py-0.5 flex-shrink-0">${c.stL}</span>
             </div>
             <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 text-xs">
@@ -2236,8 +2356,8 @@ const PautaMonitor = (() => {
     _saveLeadInput,
     _updateSimulation,
     _reportModeChange,
+    _reportQuickRange,
     _createReportLink,
-    _copyReportUrl,
-    _revokeReportLink,
+    _reportAction,
   };
 })();
