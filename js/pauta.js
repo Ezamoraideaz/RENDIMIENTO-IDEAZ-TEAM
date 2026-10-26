@@ -1560,6 +1560,7 @@ const PautaMonitor = (() => {
 
           <div id="bm-panel-leads" class="bm-panel flex flex-col gap-4" style="display:none">
             ${_renderLeadsTrend(daily)}
+            ${_renderPrecheckPanel(client, from, to)}
             <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mt-2">Calidad de leads</p>
             ${_renderLeadQuality(totLeads, qualified, unqual, qualRate, cpl, cpql, client.id, from, to, apiLeads)}
           </div>
@@ -1600,6 +1601,212 @@ const PautaMonitor = (() => {
     const scroll = document.getElementById('bm-scroll');
     if (scroll) scroll.scrollTop = 0;
     if (key === 'reporte') _loadReportLinks(_reportClientId);
+    if (key === 'leads') _loadPrecheck();
+  }
+
+  // ── Precalificación de leads contra la base de Leads Orgánicos ────────────
+  // Backend: backend/api/pauta_lead_precheck.php. Nuevo (no estaba en la base orgánica) = calificado.
+  let _pc = null;   // { clientId, clientName, from, to, orgClients, result, filter, loaded }
+
+  const _PC_STATUS = {
+    nuevo:        { label: 'Nuevo',            short: 'Nuevos (calificados)', cls: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' },
+    existente:    { label: 'Ya en orgánicos',  short: 'Ya en base orgánica',  cls: 'bg-orange-500/15 text-orange-300 border-orange-500/40' },
+    duplicado:    { label: 'Duplicado',        short: 'Duplicados',           cls: 'bg-slate-600/30 text-slate-300 border-slate-500/50' },
+    sin_contacto: { label: 'Sin contacto',     short: 'Sin contacto válido',  cls: 'bg-red-500/15 text-red-300 border-red-500/40' },
+  };
+
+  function _renderPrecheckPanel(client, from, to) {
+    _pc = { clientId: client.id, clientName: client.name, from, to, orgClients: null, result: null, filter: 'all', loaded: false };
+    const field = 'bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500';
+    return `
+    <div class="rounded-2xl border border-slate-700 bg-slate-800/30 p-4 sm:p-5">
+      <div class="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <p class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Precalificación automática</p>
+          <p class="text-[11px] text-slate-400 mt-0.5 max-w-xl">Cruza los leads de pauta con la base de Leads Orgánicos por teléfono y correo. Los que ya estaban en la base <strong class="text-slate-300">no son nuevos</strong>; los que no estaban cuentan como <strong class="text-emerald-300">calificados</strong>.</p>
+        </div>
+      </div>
+      <div class="grid sm:grid-cols-2 gap-3 mt-4">
+        <label class="text-xs text-slate-400">Base orgánica (cliente de Atención al Cliente)
+          <select id="pc-org" class="${field} w-full mt-1" onchange="PautaMonitor._pcOrgChange()"><option value="">Cargando…</option></select>
+        </label>
+        <label class="text-xs text-slate-400">Excel / CSV de leads de pauta <span class="text-slate-500">(opcional)</span>
+          <input type="file" id="pc-file" accept=".xlsx,.csv" class="w-full mt-1 text-xs text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-700 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-slate-100 hover:file:bg-slate-600">
+        </label>
+      </div>
+      <div class="flex items-center justify-between gap-3 flex-wrap mt-3">
+        <label class="inline-flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+          <input type="checkbox" id="pc-forms" checked class="accent-indigo-500">
+          Incluir formularios de Meta del período <span id="pc-forms-count" class="text-slate-500"></span>
+        </label>
+        <button onclick="PautaMonitor._runPrecheck()" id="pc-run" class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Analizar leads</button>
+      </div>
+      <div id="pc-result" class="mt-4"></div>
+    </div>`;
+  }
+
+  async function _loadPrecheck() {
+    if (!_pc || _pc.loaded) return;
+    _pc.loaded = true;
+    const sel = document.getElementById('pc-org');
+    try {
+      const data = await Session.apiFetch(`api/pauta_lead_precheck.php?pauta_client_id=${encodeURIComponent(_pc.clientId)}`);
+      _pc.orgClients = data.clients || [];
+      // Vinculado antes; si no, se sugiere el cliente con el nombre más parecido
+      const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+      const target = norm(_pc.clientName);
+      const guess = data.organic_client_id
+        || (_pc.orgClients.find(c => norm(c.name) === target)
+         || _pc.orgClients.find(c => target && (norm(c.name).includes(target) || target.includes(norm(c.name)))) || {}).id || '';
+      if (!sel) return;
+      sel.innerHTML = '<option value="">— Elige el cliente —</option>' + _pc.orgClients.map(c =>
+        `<option value="${c.id}" ${String(c.id) === String(guess) ? 'selected' : ''}>${_esc(c.name)} · ${c.organic_count} orgánicos${c.form_count ? ` · ${c.form_count} de formularios` : ''}</option>`).join('');
+      _pcOrgChange();
+      // Si ya estaba vinculado, el resultado de los formularios se muestra de una vez
+      if (data.organic_client_id) _runPrecheck();
+      else if (guess) _pcHint('Sugerimos la base por el nombre del cliente: confírmala y pulsa "Analizar leads".');
+    } catch (e) {
+      if (sel) sel.innerHTML = '<option value="">No disponible</option>';
+      _pcHint(`No se pudo cargar la lista de clientes: ${_esc(e.message)}`, true);
+    }
+  }
+
+  function _pcHint(msg, err) {
+    const box = document.getElementById('pc-result');
+    if (box) box.innerHTML = `<p class="text-xs ${err ? 'text-red-400' : 'text-slate-400'}">${msg}</p>`;
+  }
+
+  function _pcOrgChange() {
+    const id = Number(document.getElementById('pc-org')?.value || 0);
+    const c = (_pc?.orgClients || []).find(x => x.id === id);
+    const el = document.getElementById('pc-forms-count');
+    if (el) el.textContent = c ? `(${c.form_count} respaldados en total)` : '';
+  }
+
+  async function _runPrecheck() {
+    const orgId = document.getElementById('pc-org')?.value;
+    const file  = document.getElementById('pc-file')?.files?.[0];
+    const forms = document.getElementById('pc-forms')?.checked;
+    if (!orgId) { _pcHint('Elige primero la base orgánica del cliente.', true); return; }
+    if (!forms && !file) { _pcHint('Sube un archivo o incluye los formularios de Meta para tener leads que analizar.', true); return; }
+    const btn = document.getElementById('pc-run');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>Analizando…';
+    try {
+      const fd = new FormData();
+      fd.append('pauta_client_id', _pc.clientId);
+      fd.append('organic_client_id', orgId);
+      fd.append('from', _pc.from);
+      fd.append('to', _pc.to);
+      fd.append('include_forms', forms ? '1' : '0');
+      if (file) fd.append('file', file);
+      const res = await fetch('backend/api/pauta_lead_precheck.php', {
+        method: 'POST', credentials: 'include',
+        headers: Session.csrf ? { 'X-CSRF-Token': Session.csrf } : {}, body: fd,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+      _pc.result = data;
+      _pc.filter = 'all';
+      _renderPrecheckResult();
+    } catch (e) {
+      _pcHint(_esc(e.message), true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Analizar leads';
+    }
+  }
+
+  function _pcFilter(f) { if (_pc) { _pc.filter = f; _renderPrecheckResult(); } }
+
+  function _renderPrecheckResult() {
+    const box = document.getElementById('pc-result');
+    const r = _pc?.result;
+    if (!box || !r) return;
+    const s = r.summary;
+    if (!s.total) {
+      box.innerHTML = `<div class="rounded-xl border border-dashed border-slate-700 px-4 py-6 text-center text-xs text-slate-400">
+        No hay leads de pauta para analizar en este período${document.getElementById('pc-forms')?.checked ? ' (ningún formulario de Meta respaldado entre ' + _pc.from + ' y ' + _pc.to + ')' : ''}. Sube el Excel/CSV con los leads.</div>`;
+      return;
+    }
+    const unique = s.total - s.duplicado;
+    const rate = unique > 0 ? s.nuevo / unique * 100 : 0;
+    const chip = (key, label, n, cls) => `
+      <button onclick="PautaMonitor._pcFilter('${key}')" class="rounded-xl border px-3 py-2 text-left transition-colors ${_pc.filter === key ? 'ring-2 ring-indigo-400/60 ' : ''}${cls}">
+        <span class="block text-lg font-black leading-none">${n}</span><span class="block text-[11px] mt-1 opacity-90">${label}</span></button>`;
+    const sameMonth = _pc.from.slice(0, 7) === _pc.to.slice(0, 7);
+    const rows = r.rows.filter(x => _pc.filter === 'all' || x.status === _pc.filter);
+    const fmtD = d => d ? new Date(d + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: '2-digit' }) : '—';
+
+    box.innerHTML = `
+      <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+        ${chip('all', 'Leads analizados', s.total, 'border-slate-600 bg-slate-800/60 text-slate-100')}
+        ${['nuevo', 'existente', 'duplicado', 'sin_contacto'].map(k => chip(k, _PC_STATUS[k].short, s[k], _PC_STATUS[k].cls)).join('')}
+      </div>
+      <div class="flex items-center justify-between gap-3 flex-wrap mt-3">
+        <p class="text-xs text-slate-300">
+          <strong class="text-emerald-300">${s.nuevo}</strong> de ${unique} leads únicos son nuevos ·
+          tasa de calificación <strong class="${rate >= 60 ? 'text-emerald-300' : rate >= 40 ? 'text-yellow-300' : 'text-red-300'}">${rate.toFixed(0)}%</strong>
+          <span class="text-slate-500">· contra ${r.organic_count} registros orgánicos de ${_esc(r.organic_client.name)}${r.file ? ` · archivo ${_esc(r.file)}` : ''}</span>
+        </p>
+        <div class="flex items-center gap-2">
+          <button onclick="PautaMonitor._pcDownload()" class="text-xs font-semibold text-slate-200 bg-slate-700 hover:bg-slate-600 rounded-lg px-3 py-1.5">Descargar CSV</button>
+          <button onclick="PautaMonitor._pcApply()" class="text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg px-3 py-1.5" title="Guarda ${unique} leads totales y ${s.nuevo} calificados en el registro del mes">Usar como calificados${sameMonth ? '' : ' del mes inicial'}</button>
+        </div>
+      </div>
+      ${r.link_saved === false ? '<p class="text-[11px] text-yellow-300/80 mt-2">Corre migration_025 para que Pauta recuerde qué base orgánica corresponde a este cliente.</p>' : ''}
+      <div class="mt-3 max-h-80 overflow-auto rounded-xl border border-slate-700">
+        <table class="w-full text-xs">
+          <thead class="sticky top-0 bg-slate-800 text-slate-400 text-left">
+            <tr><th class="px-3 py-2 font-semibold">Estado</th><th class="px-3 py-2 font-semibold">Nombre</th><th class="px-3 py-2 font-semibold">Teléfono</th><th class="px-3 py-2 font-semibold">Correo</th><th class="px-3 py-2 font-semibold">Fecha</th><th class="px-3 py-2 font-semibold">Origen</th><th class="px-3 py-2 font-semibold">En la base orgánica</th></tr>
+          </thead>
+          <tbody class="divide-y divide-slate-800">
+            ${rows.slice(0, 500).map(x => `
+            <tr class="hover:bg-slate-800/50">
+              <td class="px-3 py-2"><span class="inline-block whitespace-nowrap border rounded-full px-2 py-0.5 text-[11px] font-semibold ${_PC_STATUS[x.status].cls}">${_PC_STATUS[x.status].label}</span></td>
+              <td class="px-3 py-2 text-slate-200">${_esc(x.name) || '—'}</td>
+              <td class="px-3 py-2 text-slate-300 whitespace-nowrap">${_esc(x.phone) || '—'}</td>
+              <td class="px-3 py-2 text-slate-300">${_esc(x.email) || '—'}</td>
+              <td class="px-3 py-2 text-slate-400 whitespace-nowrap">${fmtD(x.date)}</td>
+              <td class="px-3 py-2 text-slate-400">${_esc(x.origin)}${x.detail ? `<span class="block text-[10px] text-slate-500 truncate max-w-[160px]" title="${_esc(x.detail)}">${_esc(x.detail)}</span>` : ''}</td>
+              <td class="px-3 py-2 text-slate-400">${x.match ? `${_esc(x.match.name) || 'Sin nombre'} · ${fmtD(x.match.date)}${x.match.source ? ` · ${_esc(x.match.source)}` : ''}` : x.note ? `<span class="text-slate-500">${_esc(x.note)}</span>` : '—'}</td>
+            </tr>`).join('') || '<tr><td colspan="7" class="px-3 py-6 text-center text-slate-500">Ningún lead en este grupo</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+      ${rows.length > 500 ? `<p class="text-[11px] text-slate-500 mt-1">Mostrando 500 de ${rows.length}. Descarga el CSV para verlos todos.</p>` : ''}`;
+  }
+
+  function _pcDownload() {
+    const r = _pc?.result;
+    if (!r) return;
+    const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const lines = [['Estado', 'Nombre', 'Teléfono', 'Correo', 'Fecha', 'Origen', 'Detalle', 'En base orgánica: nombre', 'En base orgánica: fecha', 'En base orgánica: fuente', 'Nota'].map(q).join(',')];
+    r.rows.forEach(x => lines.push([_PC_STATUS[x.status].label, x.name, x.phone, x.email, x.date, x.origin, x.detail,
+      x.match?.name, x.match?.date, x.match?.source, x.note].map(q).join(',')));
+    const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const a = Object.assign(document.createElement('a'), {
+      href: URL.createObjectURL(blob),
+      download: `precalificacion-${(_pc.clientName || 'cliente').replace(/[^a-z0-9]+/gi, '-')}-${_pc.from}.csv`,
+    });
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+
+  async function _pcApply() {
+    const r = _pc?.result;
+    if (!r) return;
+    const total = r.summary.total - r.summary.duplicado, qualified = r.summary.nuevo;
+    try {
+      await _saveLeads(_pc.clientId, _pc.from, { total, qualified });
+    } catch (e) {
+      _pcHint(`No se pudo guardar: ${_esc(e.message)}`, true);
+      return;
+    }
+    const keep = _pc;
+    closeBrandModal();
+    await openBrandModal(keep.clientId);
+    _switchBrandTab('leads');
   }
 
   // ── Reporte privado para el cliente (reporte-pauta.html?t=<token>) ─────────
@@ -2721,6 +2928,11 @@ const PautaMonitor = (() => {
     _brandGoto,
     _switchBrandTab,
     _saveLeadInput,
+    _runPrecheck,
+    _pcOrgChange,
+    _pcFilter,
+    _pcDownload,
+    _pcApply,
     _updateSimulation,
     _reportModeChange,
     _reportQuickRange,
