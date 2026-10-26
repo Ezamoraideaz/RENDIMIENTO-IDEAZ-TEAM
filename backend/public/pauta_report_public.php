@@ -1,0 +1,191 @@
+<?php
+declare(strict_types=1);
+
+require_once __DIR__ . '/../bootstrap.php';
+
+// Reporte de pauta para el cliente final (reporte-pauta.html?t=<token>). Sin sesión ni CSRF:
+// se autentica solo con el token del link (en BD solo su hash), igual que organic_leads_public.php.
+// Devuelve cifras ya agregadas — nunca IDs de cuenta, tokens ni datos de otros clientes.
+
+$apiConfig = __DIR__ . '/../../api/config.php';
+if (!file_exists($apiConfig)) {
+    json_error('Reporte no disponible por ahora', 503);
+}
+require_once $apiConfig;
+require_once __DIR__ . '/../../api/spend_lib.php';
+
+$rawToken = trim((string)($_GET['t'] ?? ''));
+if ($rawToken === '') {
+    json_error('Falta el token', 400);
+}
+$tokenHash = hash('sha256', $rawToken);
+
+$pdo = db();
+$stmt = $pdo->prepare('SELECT l.*, c.name AS client_name, c.budgets, c.platforms
+                       FROM pauta_report_links l JOIN pauta_clients c ON c.id = l.pauta_client_id
+                       WHERE l.token_hash = ?');
+$stmt->execute([$tokenHash]);
+$link = $stmt->fetch();
+if (!$link) {
+    json_error('Este link ya no está disponible', 404);
+}
+
+// ── Período ──────────────────────────────────────────────────────────────────
+$today  = bogota_today();
+$preset = 'custom';
+if ($link['mode'] === 'range') {
+    $from = $link['date_from'];
+    $to   = $link['date_to'];
+} else {
+    // En tiempo real el cliente puede alternar entre períodos predefinidos (no fechas libres).
+    $preset = $_GET['range'] ?? 'month';
+    if ($preset === 'prev_month') {
+        $from = date('Y-m-01', strtotime(substr($today, 0, 8) . '01 -1 month'));
+        $to   = date('Y-m-t', strtotime($from));
+    } elseif ($preset === 'last30') {
+        $from = date('Y-m-d', strtotime($today . ' -29 days'));
+        $to   = $today;
+    } else {
+        $preset = 'month';
+        $from = substr($today, 0, 8) . '01';
+        $to   = $today;
+    }
+}
+if ($link['mode'] === 'live' && $to > $today) {
+    $to = $today;
+}
+
+// Presupuesto prorrateado del período (misma lógica que _budgetForRange de js/pauta.js).
+function report_budget(array $budgets, string $from, string $to): float
+{
+    $total  = 0.0;
+    $start  = new DateTime($from);
+    $end    = new DateTime($to);
+    $cursor = new DateTime($start->format('Y-m-01'));
+    while ($cursor <= $end) {
+        $mk     = $cursor->format('Y-m');
+        $dim    = (int)$cursor->format('t');
+        $mEnd   = new DateTime($cursor->format('Y-m-t'));
+        $rStart = $start > $cursor ? $start : $cursor;
+        $rEnd   = $end < $mEnd ? $end : $mEnd;
+        $days   = (int)$rStart->diff($rEnd)->days + 1;
+        $total += ((float)($budgets[$mk] ?? 0) / $dim) * $days;
+        $cursor->modify('first day of next month');
+    }
+    return round($total, 2);
+}
+
+// ── Caché (protege el rate-limit de Meta/Google; el cliente puede recargar a voluntad) ──
+$ttl       = $to < $today ? 3600 : 600;
+$cacheFile = sys_get_temp_dir() . '/pauta_report_' . md5($tokenHash . $from . $to);
+if (is_file($cacheFile) && (time() - filemtime($cacheFile)) < $ttl) {
+    header('Content-Type: application/json; charset=utf-8');
+    readfile($cacheFile);
+    exit;
+}
+
+// ── Datos de las plataformas ─────────────────────────────────────────────────
+$platforms = json_decode((string)$link['platforms'], true) ?: [];
+$budgets   = json_decode((string)$link['budgets'], true) ?: [];
+
+$daily      = [];   // date => [spend, leads]
+$campaigns  = [];
+$platTotals = [];
+$currencies = [];
+$errors     = 0;
+
+$labels = ['meta' => 'Meta Ads', 'google' => 'Google Ads'];
+foreach ($platforms as $plat) {
+    $key = $plat['platform'] ?? '';
+    if (empty($plat['enabled']) || !isset($labels[$key])) continue;
+    $accountIds = array_filter(array_map('trim', explode(',', (string)($plat['account_id'] ?? $plat['customer_id'] ?? ''))));
+
+    foreach ($accountIds as $accId) {
+        $spendRes  = $key === 'meta' ? getMetaSpend($accId, $from, $to) : getGoogleSpend($accId, $from, $to);
+        $detailRes = $key === 'meta' ? getMetaCampaignDetail($accId, $from, $to) : getGoogleCampaignDetail($accId, $from, $to);
+        if (!empty($spendRes['error'])) { $errors++; continue; }
+
+        if (!isset($platTotals[$key])) {
+            $platTotals[$key] = ['key' => $key, 'label' => $labels[$key], 'spend' => 0.0, 'leads' => 0.0, 'impressions' => 0, 'clicks' => 0, 'currency' => $spendRes['currency'] ?? ''];
+        }
+        $platTotals[$key]['spend'] += (float)($spendRes['total_spend'] ?? 0);
+        if (!empty($spendRes['currency'])) $currencies[$spendRes['currency']] = true;
+
+        foreach ($spendRes['daily_data'] ?? [] as $d) {
+            $daily[$d['date']] = $daily[$d['date']] ?? ['spend' => 0.0, 'leads' => 0.0];
+            $daily[$d['date']]['spend'] += (float)$d['spend'];
+            $daily[$d['date']]['leads'] += (float)($d['leads'] ?? 0);
+        }
+
+        if (!empty($detailRes['error'])) { $errors++; continue; }
+        foreach ($detailRes['campaigns'] ?? [] as $c) {
+            $platTotals[$key]['impressions'] += (int)($c['impressions'] ?? 0);
+            $platTotals[$key]['clicks']      += (int)($c['clicks'] ?? 0);
+            $platTotals[$key]['leads']       += (float)($c['leads'] ?? 0);
+            $campaigns[] = [
+                'name'        => (string)($c['name'] ?? ''),
+                'platform'    => $key,
+                'stage'       => (string)($c['stage'] ?? 'other'),
+                'spend'       => (float)($c['spend'] ?? 0),
+                'impressions' => (int)($c['impressions'] ?? 0),
+                'clicks'      => (int)($c['clicks'] ?? 0),
+                'leads'       => (float)($c['leads'] ?? 0),
+            ];
+        }
+    }
+}
+
+ksort($daily);
+$dailyOut = [];
+foreach ($daily as $date => $v) {
+    $dailyOut[] = ['date' => $date, 'spend' => round($v['spend'], 2), 'leads' => round($v['leads'], 1)];
+}
+
+$stages = [];
+foreach ($campaigns as $c) {
+    if (!isset($stages[$c['stage']])) {
+        $stages[$c['stage']] = ['spend' => 0.0, 'impressions' => 0, 'clicks' => 0, 'leads' => 0.0, 'campaigns' => 0];
+    }
+    $stages[$c['stage']]['spend']       += $c['spend'];
+    $stages[$c['stage']]['impressions'] += $c['impressions'];
+    $stages[$c['stage']]['clicks']      += $c['clicks'];
+    $stages[$c['stage']]['leads']       += $c['leads'];
+    $stages[$c['stage']]['campaigns']++;
+}
+
+$mixed  = count($currencies) > 1;
+$totals = [
+    'spend'       => $mixed ? null : round(array_sum(array_column($platTotals, 'spend')), 2),
+    'budget'      => $mixed ? null : report_budget($budgets, $from, $to),
+    'impressions' => array_sum(array_column($platTotals, 'impressions')),
+    'clicks'      => array_sum(array_column($platTotals, 'clicks')),
+    'leads'       => round(array_sum(array_column($platTotals, 'leads')), 1),
+];
+
+usort($campaigns, fn($a, $b) => [$b['leads'], $b['clicks']] <=> [$a['leads'], $a['clicks']]);
+
+$out = json_encode([
+    'client'       => ['name' => $link['client_name']],
+    'link'         => [
+        'mode'      => $link['mode'],
+        'title'     => $link['title'],
+        'message'   => $link['message'],
+        'lead_goal' => $link['lead_goal'] !== null ? (int)$link['lead_goal'] : null,
+        'preset'    => $link['mode'] === 'live' ? $preset : null,
+    ],
+    'period'       => ['from' => $from, 'to' => $to, 'days' => (int)(new DateTime($from))->diff(new DateTime($to))->days + 1],
+    'currency'     => $mixed ? '' : (array_key_first($currencies) ?? ''),
+    'totals'       => $totals,
+    'platforms'    => array_values($platTotals),
+    'daily'        => $dailyOut,
+    'stages'       => $stages,
+    'campaigns'    => array_slice($campaigns, 0, 40),
+    'partial'      => $errors > 0,
+    'generated_at' => (new DateTime('now', new DateTimeZone('America/Bogota')))->format('c'),
+], JSON_UNESCAPED_UNICODE);
+
+if ($errors === 0) {
+    @file_put_contents($cacheFile, $out);
+}
+header('Content-Type: application/json; charset=utf-8');
+echo $out;

@@ -180,12 +180,15 @@ const PautaMonitor = (() => {
       return;
     }
 
-    const dailyMap = {};
+    const dailyMap = {}, leadsMap = {};
     let total = 0, currency = '';
     for (const r of ok) {
       total += r.total_spend || 0;
       if (!currency) currency = r.currency || '';
-      for (const d of (r.daily_data || [])) dailyMap[d.date] = (dailyMap[d.date] || 0) + d.spend;
+      for (const d of (r.daily_data || [])) {
+        dailyMap[d.date] = (dailyMap[d.date] || 0) + d.spend;
+        leadsMap[d.date] = (leadsMap[d.date] || 0) + (d.leads || 0);
+      }
     }
     const failed = results.filter(r => r.error);
     if (failed.length) console.warn(`Pauta: ${failed.length}/${ids.length} cuentas de ${platform} fallaron para ${accountId}:`, failed.map(r => r.error));
@@ -195,7 +198,7 @@ const PautaMonitor = (() => {
       account_id: accountId,
       total_spend: Math.round(total * 100) / 100,
       currency,
-      daily_data: Object.entries(dailyMap).sort((a, b) => a[0].localeCompare(b[0])).map(([date, spend]) => ({ date, spend })),
+      daily_data: Object.entries(dailyMap).sort((a, b) => a[0].localeCompare(b[0])).map(([date, spend]) => ({ date, spend, leads: leadsMap[date] || 0 })),
       date_from: from,
       date_to: to,
     };
@@ -283,6 +286,34 @@ const PautaMonitor = (() => {
       <path d="${linePath}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
       ${dots}
     </svg></div>`;
+  }
+
+  // Barras de leads por día (tarjeta de cada cliente). Un <title> por barra da el tooltip nativo
+  // con fecha y cantidad. Los leads son los que reporta la plataforma (acciones de lead en Meta,
+  // conversiones en Google) — no los que se capturan a mano en la pestaña Leads del detalle.
+  function _leadsBarChart(dailyArr) {
+    const total = dailyArr.reduce((a, d) => a + d.leads, 0);
+    if (!dailyArr.length || total <= 0) return '';
+    const max  = Math.max(...dailyArr.map(d => d.leads), 1);
+    const best = dailyArr.reduce((a, d) => d.leads > a.leads ? d : a, dailyArr[0]);
+    const avg  = total / dailyArr.length;
+    const W = 300, H = 56, gap = 2;
+    const bw = Math.max(2, (W - gap * (dailyArr.length - 1)) / dailyArr.length);
+    const bars = dailyArr.map((d, i) => {
+      const h = d.leads > 0 ? Math.max(2, d.leads / max * (H - 4)) : 1;
+      const x = i * (bw + gap);
+      const label = new Date(d.date + 'T12:00:00').toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'short' });
+      return `<rect x="${x.toFixed(1)}" y="${(H - h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="1.5" fill="${d.leads > 0 ? '#6366f1' : '#334155'}" opacity="${d.date === best.date ? 1 : 0.8}"><title>${label}: ${Math.round(d.leads)} lead${Math.round(d.leads) === 1 ? '' : 's'}</title></rect>`;
+    }).join('');
+    const bestLabel = new Date(best.date + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
+    return `
+      <div class="border-t border-slate-800 pt-3">
+        <div class="flex items-baseline justify-between gap-2 mb-1.5">
+          <span class="text-xs text-slate-500">Leads por día</span>
+          <span class="text-xs text-slate-400 text-right"><strong class="text-slate-200">${Math.round(total)}</strong> en total · prom. ${avg.toFixed(1)}/día · mejor día <strong class="text-indigo-300">${bestLabel} (${Math.round(best.leads)})</strong></span>
+        </div>
+        <svg viewBox="0 0 ${W} ${H}" width="100%" height="56" preserveAspectRatio="none" style="display:block">${bars}</svg>
+      </div>`;
   }
 
   // ── Imán en las gráficas de gasto diario ──────────────────────────────────
@@ -687,6 +718,7 @@ const PautaMonitor = (() => {
     // Sum spend across enabled platforms and aggregate daily data
     let globalSpend = 0;
     const globalDailyMap = {};
+    const leadsDailyMap = {};
     const currencies = new Set();
     const platformRows = (client.platforms || []).map(plat => {
       if (!plat.enabled) return null;
@@ -703,6 +735,7 @@ const PautaMonitor = (() => {
       if (result.currency) currencies.add(result.currency);
       (result.daily_data || []).forEach(d => {
         globalDailyMap[d.date] = (globalDailyMap[d.date] || 0) + d.spend;
+        leadsDailyMap[d.date] = (leadsDailyMap[d.date] || 0) + (d.leads || 0);
       });
       return _renderPlatformRow(plat, spend, budget, dailyB, days, 'ok', null, result.daily_data || [], result.currency || '');
     }).filter(Boolean).join('');
@@ -733,6 +766,11 @@ const PautaMonitor = (() => {
         ${paceAlert === 'ok' ? '✓' : paceAlert === 'warn' ? `${Icons.svg('zap', 'w-3 h-3 inline -mt-0.5')}` : '<span class="inline-block w-2 h-2 rounded-full bg-red-500 align-middle"></span>'}
         $${_fmt(globalActualDaily)}/día vs $${_fmt(globalDaily)}/día meta
       </span>` : '';
+
+    const leadsDailyArr = Object.entries(leadsDailyMap)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, leads]) => ({ date, leads }));
+    const leadsChartHtml = _leadsBarChart(leadsDailyArr);
 
     const sparkHexColors = { ok: '#10b981', warn: '#eab308', over: '#ef4444' };
     const globalSparkHtml = globalDailyArr.length > 1 ? `
@@ -786,6 +824,9 @@ const PautaMonitor = (() => {
 
       <!-- Gráfica de gasto diario -->
       ${globalSparkHtml}
+
+      <!-- Leads que ingresan por día -->
+      ${leadsChartHtml}
 
       <!-- Platform breakdown -->
       ${platformRows ? `<div class="flex flex-col gap-3 border-t border-slate-800 pt-3">${platformRows}</div>` : ''}
@@ -1196,6 +1237,9 @@ const PautaMonitor = (() => {
       return fetch(url).then(r => r.json()).catch(() => ({ error: 'Sin conexión al servidor' }));
     }));
 
+    // Cada campaña recuerda su cuenta: se necesita para armar el enlace al administrador de anuncios.
+    results.forEach((r, i) => (r.campaigns || []).forEach(c => { c.account_id = ids[i]; }));
+
     if (ids.length <= 1) return results[0] || { error: 'Sin conexión al servidor' };
 
     const ok = results.filter(r => !r.error);
@@ -1336,6 +1380,7 @@ const PautaMonitor = (() => {
       { key: 'diagnostico', label: 'Diagnóstico' },
       { key: 'simulador',   label: 'Simulador' },
       { key: 'campanas',    label: 'Campañas' },
+      { key: 'reporte',     label: 'Reporte cliente' },
     ];
     const tabBtns = tabs.map((t, i) => `
       <button onclick="PautaMonitor._switchBrandTab('${t.key}')" data-tab="${t.key}"
@@ -1409,6 +1454,10 @@ const PautaMonitor = (() => {
           <div id="bm-panel-campanas" class="bm-panel" style="display:none">
             ${campHtml}
           </div>
+
+          <div id="bm-panel-reporte" class="bm-panel" style="display:none">
+            ${_renderReportPanel(client, from, to)}
+          </div>
         </div>
       </div>
     </div>`);
@@ -1427,6 +1476,137 @@ const PautaMonitor = (() => {
     });
     const scroll = document.getElementById('bm-scroll');
     if (scroll) scroll.scrollTop = 0;
+    if (key === 'reporte') _loadReportLinks(_reportClientId);
+  }
+
+  // ── Reporte privado para el cliente (reporte-pauta.html?t=<token>) ─────────
+  // Cada link es un token independiente: 'live' muestra siempre el período en curso (el cliente
+  // puede alternar mes / 30 días / mes anterior); 'range' congela un período cerrado.
+  // El token crudo solo se ve al crearlo (en BD queda su hash), por eso se muestra una vez con botón de copiar.
+  let _reportClientId = null;
+
+  function _reportUrl(token) {
+    return location.origin + location.pathname.replace(/[^/]*$/, '') + 'reporte-pauta.html?t=' + token;
+  }
+
+  function _renderReportPanel(client, from, to) {
+    _reportClientId = client.id;
+    const field = 'w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500';
+    return `
+    <div class="flex flex-col gap-6">
+      <div class="rounded-2xl border border-slate-700 bg-slate-800/40 p-5">
+        <p class="text-sm font-bold text-slate-100">Crear link privado para ${_esc(client.name)}</p>
+        <p class="text-xs text-slate-400 mt-1 mb-4">Página visual con historia (inversión, objetivos, leads por día, campañas destacadas) y descarga en PDF. No muestra cuentas ni datos de otros clientes.</p>
+
+        <div class="grid sm:grid-cols-2 gap-2 mb-4">
+          <label class="flex items-start gap-3 p-3 rounded-xl border border-indigo-500 bg-indigo-500/10 cursor-pointer" id="rp-opt-live">
+            <input type="radio" name="rp-mode" value="live" checked class="mt-1" onchange="PautaMonitor._reportModeChange()">
+            <span><strong class="text-sm text-slate-100">En tiempo real</strong><span class="block text-xs text-slate-400">Siempre actualizado. El cliente alterna entre este mes, últimos 30 días y mes anterior.</span></span>
+          </label>
+          <label class="flex items-start gap-3 p-3 rounded-xl border border-slate-700 cursor-pointer" id="rp-opt-range">
+            <input type="radio" name="rp-mode" value="range" class="mt-1" onchange="PautaMonitor._reportModeChange()">
+            <span><strong class="text-sm text-slate-100">Rango de fechas</strong><span class="block text-xs text-slate-400">Reporte cerrado de un período fijo (ej. cierre de mes o campaña).</span></span>
+          </label>
+        </div>
+
+        <div id="rp-range" style="display:none" class="grid grid-cols-2 gap-3 mb-4">
+          <label class="text-xs text-slate-400">Desde<input type="date" id="rp-from" value="${from}" class="${field} mt-1"></label>
+          <label class="text-xs text-slate-400">Hasta<input type="date" id="rp-to" value="${to}" class="${field} mt-1"></label>
+        </div>
+
+        <div class="grid sm:grid-cols-3 gap-3 mb-3">
+          <label class="text-xs text-slate-400 sm:col-span-2">Título (opcional)<input type="text" id="rp-title" maxlength="190" placeholder="Así le fue a ${_esc(client.name)} este mes" class="${field} mt-1"></label>
+          <label class="text-xs text-slate-400">Meta de leads (opcional)<input type="number" min="0" id="rp-goal" placeholder="Ej. 120" class="${field} mt-1"></label>
+        </div>
+        <label class="text-xs text-slate-400 block mb-4">Mensaje para el cliente (opcional)<textarea id="rp-msg" rows="2" maxlength="1000" placeholder="Hola, te comparto el resumen de resultados…" class="${field} mt-1"></textarea></label>
+
+        <button onclick="PautaMonitor._createReportLink()" id="rp-create" class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">Generar link</button>
+        <div id="rp-result" class="mt-4"></div>
+      </div>
+
+      <div>
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Links generados</p>
+        <div id="rp-list" class="flex flex-col gap-2"><p class="text-xs text-slate-500">Cargando…</p></div>
+      </div>
+    </div>`;
+  }
+
+  function _reportModeChange() {
+    const mode = document.querySelector('input[name="rp-mode"]:checked')?.value;
+    document.getElementById('rp-range').style.display = mode === 'range' ? '' : 'none';
+    for (const [id, active] of [['rp-opt-live', mode === 'live'], ['rp-opt-range', mode === 'range']]) {
+      const el = document.getElementById(id);
+      ['border-indigo-500', 'bg-indigo-500/10'].forEach(c => el.classList.toggle(c, active));
+      el.classList.toggle('border-slate-700', !active);
+    }
+  }
+
+  async function _loadReportLinks(clientId) {
+    const box = document.getElementById('rp-list');
+    if (!box) return;
+    try {
+      const { links } = await Session.apiFetch(`api/pauta_report_links.php?client_id=${encodeURIComponent(clientId)}`);
+      box.innerHTML = links.length ? links.map(l => `
+        <div class="flex items-center justify-between gap-3 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-slate-100 truncate">${l.mode === 'live' ? '🟢 En tiempo real' : `📅 ${_esc(l.date_from)} → ${_esc(l.date_to)}`}${l.title ? ` · ${_esc(l.title)}` : ''}</p>
+            <p class="text-xs text-slate-500">Creado ${_esc(l.created_at)}${l.lead_goal ? ` · meta ${l.lead_goal} leads` : ''}. El link original solo se muestra al crearlo.</p>
+          </div>
+          <button onclick="PautaMonitor._revokeReportLink(${l.id})" class="text-xs font-semibold text-red-400 hover:text-red-300 border border-red-500/40 rounded-lg px-3 py-1.5 flex-shrink-0">Revocar</button>
+        </div>`).join('') : '<p class="text-xs text-slate-500">Aún no hay links para este cliente.</p>';
+    } catch (e) {
+      box.innerHTML = `<p class="text-xs text-red-400">No se pudieron cargar los links: ${_esc(e.message)}</p>`;
+    }
+  }
+
+  async function _createReportLink() {
+    const btn = document.getElementById('rp-create');
+    const mode = document.querySelector('input[name="rp-mode"]:checked')?.value || 'live';
+    btn.disabled = true;
+    try {
+      const data = await Session.apiFetch('api/pauta_report_links.php', {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'create', client_id: _reportClientId, mode,
+          date_from: document.getElementById('rp-from').value, date_to: document.getElementById('rp-to').value,
+          title: document.getElementById('rp-title').value, message: document.getElementById('rp-msg').value,
+          lead_goal: Number(document.getElementById('rp-goal').value) || 0,
+        }),
+      });
+      const url = _reportUrl(data.token);
+      document.getElementById('rp-result').innerHTML = `
+        <div class="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4">
+          <p class="text-xs font-semibold text-emerald-300 mb-2">Link listo — cópialo ahora, no se vuelve a mostrar</p>
+          <div class="flex gap-2">
+            <input readonly id="rp-url" value="${_esc(url)}" onclick="this.select()" class="flex-1 min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200">
+            <button onclick="PautaMonitor._copyReportUrl()" id="rp-copy" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 rounded-lg">Copiar</button>
+            <a href="${_esc(url)}" target="_blank" rel="noopener" class="bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold px-3 rounded-lg grid place-items-center">Ver</a>
+          </div>
+        </div>`;
+      _loadReportLinks(_reportClientId);
+    } catch (e) {
+      if (window.Utils && Utils.showToast) Utils.showToast(e.message, 'error'); else alert(e.message);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function _copyReportUrl() {
+    const input = document.getElementById('rp-url');
+    try { await navigator.clipboard.writeText(input.value); } catch (e) { input.select(); document.execCommand('copy'); }
+    const b = document.getElementById('rp-copy');
+    b.textContent = '¡Copiado!';
+    setTimeout(() => { if (b) b.textContent = 'Copiar'; }, 1800);
+  }
+
+  async function _revokeReportLink(id) {
+    if (!confirm('¿Revocar este link? El cliente dejará de poder abrirlo.')) return;
+    try {
+      await Session.apiFetch('api/pauta_report_links.php', { method: 'POST', body: JSON.stringify({ action: 'revoke', id }) });
+      _loadReportLinks(_reportClientId);
+    } catch (e) {
+      if (window.Utils && Utils.showToast) Utils.showToast(e.message, 'error'); else alert(e.message);
+    }
   }
 
   function _emptyPanel(msg) {
@@ -1943,6 +2123,18 @@ const PautaMonitor = (() => {
     </div>`;
   }
 
+  // Enlace directo a la campaña en el administrador de anuncios de cada plataforma.
+  // Meta: Ads Manager filtrado por la campaña (act= lleva el ID numérico de la cuenta).
+  // Google: la vista de grupos de anuncios de la campaña; __e fija la cuenta (customer ID sin guiones).
+  function _campaignUrl(c) {
+    const acct = String(c.account_id || '').replace(/\D/g, '');
+    const id   = String(c.id || '').replace(/\D/g, '');
+    if (!acct || !id) return '';
+    if (c.platform === 'meta')   return `https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${acct}&selected_campaign_ids=${id}`;
+    if (c.platform === 'google') return `https://ads.google.com/aw/adgroups?campaignId=${id}&__e=${acct}`;
+    return '';
+  }
+
   function _renderCampaignList(stages) {
     const all = [
       ...stages.tof.map(c => ({ ...c, stL: 'TOF · F1', stC: 'text-blue-400',    stB: 'bg-blue-500/10 border-blue-500/30'    })),
@@ -1964,7 +2156,13 @@ const PautaMonitor = (() => {
           return `
           <div class="bg-slate-800 rounded-xl p-3.5 border border-slate-700">
             <div class="flex items-start justify-between gap-2 mb-3">
-              <span class="text-sm text-slate-200 font-medium leading-snug">${platIcon} ${_esc(c.name)}</span>
+              ${(() => {
+                const url = _campaignUrl(c);
+                return url
+                  ? `<a href="${_esc(url)}" target="_blank" rel="noopener noreferrer" title="Abrir la campaña en ${c.platform === 'google' ? 'Google Ads' : 'Meta Ads Manager'}"
+                       class="text-sm text-slate-200 hover:text-indigo-300 font-medium leading-snug group">${platIcon} ${_esc(c.name)}<span class="text-slate-500 group-hover:text-indigo-300 ml-1">↗</span></a>`
+                  : `<span class="text-sm text-slate-200 font-medium leading-snug">${platIcon} ${_esc(c.name)}</span>`;
+              })()}
               <span class="text-xs font-bold ${c.stC} border ${c.stB} rounded-lg px-2 py-0.5 flex-shrink-0">${c.stL}</span>
             </div>
             <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 text-xs">
@@ -2037,5 +2235,9 @@ const PautaMonitor = (() => {
     _switchBrandTab,
     _saveLeadInput,
     _updateSimulation,
+    _reportModeChange,
+    _createReportLink,
+    _copyReportUrl,
+    _revokeReportLink,
   };
 })();
