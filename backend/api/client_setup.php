@@ -25,6 +25,9 @@ require_once __DIR__ . '/../includes/telegram_api.php';
 //   POST {action:'create_trello_lists', client_id}                → crea en el tablero las listas del protocolo que falten
 //   POST {action:'save_project', client_id, ...}                  → project_settings del tablero (superadmin/admin/agenda_full)
 //   POST {action:'save_pauta', client_id, pauta_id?, platforms}   → vincula o crea el cliente de Pauta (superadmin/admin/agenda_full)
+//   GET  ?client_id=N&impact=1                                    → qué registros se borrarían al eliminar la marca
+//   POST {action:'set_status', client_id, status:'active'|'archived'} → archivar / reactivar (superadmin/admin/agenda_full)
+//   POST {action:'delete_client', client_id, confirm_name, delete_pauta?} → eliminar la marca (solo superadmin/admin)
 
 $operator = require_client_setup_access();
 $pdo = db();
@@ -264,6 +267,35 @@ try {
         $client = setup_load_client($pdo, $clientId);
         $check = (string)($_GET['check'] ?? '');
 
+        // ---- Qué se borra si se elimina la marca (para mostrarlo antes de confirmar)
+        if (isset($_GET['impact'])) {
+            $counts = [];
+            $queries = [
+                'Conversaciones'           => 'SELECT COUNT(*) FROM conversations cv JOIN social_accounts sa ON sa.id = cv.social_account_id WHERE sa.client_id = ?',
+                'Contactos'                => 'SELECT COUNT(*) FROM contacts WHERE client_id = ?',
+                'Flujos'                   => 'SELECT COUNT(*) FROM flows WHERE client_id = ?',
+                'Cuentas de Facebook/IG'   => 'SELECT COUNT(*) FROM social_accounts WHERE client_id = ?',
+                'Leads de formularios'     => 'SELECT COUNT(*) FROM ad_leads WHERE client_id = ?',
+                'Leads orgánicos'          => 'SELECT COUNT(*) FROM organic_leads WHERE client_id = ?',
+                'Tandas de aprobación'     => 'SELECT COUNT(*) FROM content_batches WHERE client_id = ?',
+                'Revisiones de Telegram'   => 'SELECT COUNT(*) FROM design_reviews WHERE client_id = ?',
+                'Rendiciones trimestrales' => 'SELECT COUNT(*) FROM rendicion_forms WHERE client_id = ?',
+                'Encuestas al cliente'     => 'SELECT COUNT(*) FROM client_surveys WHERE client_id = ?',
+                'Briefs'                   => 'SELECT COUNT(*) FROM client_briefs WHERE client_id = ? AND (token_hash IS NOT NULL OR status = "filled")',
+            ];
+            foreach ($queries as $label => $sql) {
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute([$clientId]);
+                $n = (int)$stmt->fetchColumn();
+                if ($n > 0) {
+                    $counts[] = ['label' => $label, 'count' => $n];
+                }
+            }
+            $stmt = $pdo->prepare('SELECT id, name FROM pauta_clients WHERE organic_client_id = ? LIMIT 1');
+            $stmt->execute([$clientId]);
+            json_response(['counts' => $counts, 'pauta' => $stmt->fetch() ?: null]);
+        }
+
         // ---- Verificaciones en vivo (consultan servicios externos; por eso van aparte del checklist)
         if ($check !== '') {
             $service = setup_service_email();
@@ -420,6 +452,7 @@ try {
             'pauta_candidates' => $candidates,
             'pauta_suggested'  => $suggested,
             'can_manage'    => $canManage,
+            'can_delete'    => in_array($operator['role'], ['superadmin', 'admin'], true),
             'project'       => $project ? [
                 'alias' => $project['alias'], 'category' => $project['category'], 'project_type' => $project['project_type'],
                 'budget' => (float)$project['budget'], 'revenue' => (float)$project['revenue'],
@@ -660,6 +693,50 @@ try {
                 ->execute([$id, $client['name'], '{}', $json, $clientId]);
         }
         json_response(['ok' => true, 'pauta_id' => $id]);
+    }
+
+    if ($action === 'set_status') {
+        // Archivar es reversible: la marca sale del resumen y de /vincular, sin perder nada.
+        if (!$canManage) {
+            json_error('Solo la PM o un administrador pueden archivar una marca', 403);
+        }
+        $status = (string)($input['status'] ?? '');
+        if (!in_array($status, ['active', 'archived'], true)) {
+            json_error('Estado inválido', 400);
+        }
+        $pdo->prepare('UPDATE clients SET status = ? WHERE id = ?')->execute([$status, $clientId]);
+        json_response(['ok' => true, 'status' => $status]);
+    }
+
+    if ($action === 'delete_client') {
+        // Único lugar del sistema donde se elimina una marca (clients.php ya no lo permite):
+        // borra en cascada conversaciones, leads, rendiciones, revisiones, etc.
+        if (!in_array($operator['role'], ['superadmin', 'admin'], true)) {
+            json_error('Solo un administrador puede eliminar una marca', 403);
+        }
+        if (mb_strtolower(trim((string)($input['confirm_name'] ?? ''))) !== mb_strtolower(trim((string)$client['name']))) {
+            json_error('El nombre escrito no coincide con el de la marca', 400);
+        }
+        $pdo->beginTransaction();
+        if (!empty($input['delete_pauta'])) {
+            // Presupuestos, leads de pauta y links de reporte se van con el cliente de Pauta (FK en cascada).
+            $pdo->prepare('DELETE FROM pauta_clients WHERE organic_client_id = ?')->execute([$clientId]);
+        } else {
+            $pdo->prepare('UPDATE pauta_clients SET organic_client_id = NULL WHERE organic_client_id = ?')->execute([$clientId]);
+        }
+        $pdo->prepare('DELETE FROM clients WHERE id = ?')->execute([$clientId]);
+        $pdo->commit();
+
+        // Logo subido desde el sistema (los links externos pegados a mano no se tocan).
+        $logo = (string)($client['logo_url'] ?? '');
+        if (str_contains($logo, 'backend/public/uploads/client_logos/')) {
+            $file = __DIR__ . '/../public/uploads/client_logos/' . basename($logo);
+            if (is_file($file)) {
+                @unlink($file);
+            }
+        }
+        error_log('[client_setup] Marca eliminada: #' . $clientId . ' «' . $client['name'] . '» por operador #' . $operator['id']);
+        json_response(['ok' => true]);
     }
 
     json_error('Acción desconocida', 400);
