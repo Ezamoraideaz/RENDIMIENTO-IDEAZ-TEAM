@@ -1,4 +1,4 @@
-// Asistente "Configurar cliente": un solo lugar, en orden, con verificación de cada paso.
+// Asistente de marcas (configuracion.html → pestaña Marcas): un solo lugar, en orden, con verificación de cada paso.
 // Backend: backend/api/client_setup.php (checklist + verificaciones en vivo + escrituras de cada paso).
 // Logo: backend/api/client_logo_upload.php. Facebook: backend/oauth/facebook_connect.php?return=asistente.
 const ClienteSetup = (() => {
@@ -81,7 +81,7 @@ const ClienteSetup = (() => {
     const fromUrl = Number(params.get('client_id')) || null;
     const fromOAuth = params.has('oauth_select_page') || params.has('oauth_error');
     if (params.get('oauth_error')) toast('Error al conectar Facebook: ' + params.get('oauth_error'), 'danger');
-    if (params.toString()) history.replaceState({}, '', 'configurar-cliente.html');
+    if (params.toString()) history.replaceState({}, '', 'configuracion.html?tab=marcas');
 
     if (fromUrl && clients.some((c) => c.id === fromUrl)) {
       await selectClient(fromUrl, fromOAuth ? 'meta' : null);
@@ -475,7 +475,7 @@ const ClienteSetup = (() => {
             <p class="text-xs text-amber-200 mb-2">El protocolo usa: Tareas → En Proceso → Enviado → Cambios → Aprobado (+ Montado en Drive, Publicado). Puedo crear las que faltan al final del tablero; luego ordénalas en Trello si hace falta.</p>
             <button data-act="create-lists" class="${btnCls}">Crear listas faltantes</button>
           </div>` : ''}
-        ${members && !members.pending && !members.ok && Session.canView('configuracion') ? '<a href="configuracion.html" class="text-indigo-400 text-xs underline">Poner las tarifas por hora en Configuración → Miembros</a>' : ''}`;
+        ${members && !members.pending && !members.ok && ['superadmin', 'admin'].includes(Session.user?.role) ? '<a href="configuracion.html?tab=general#section-team" class="text-indigo-400 text-xs underline">Poner las tarifas por hora en Configuración → General → Equipo</a>' : ''}`;
       }
 
       case 'proyecto': {
@@ -493,6 +493,7 @@ const ClienteSetup = (() => {
           <div><label class="text-xs text-slate-400 block mb-1">Presupuesto</label><input id="cs-pj-budget" type="number" min="0" step="1000" class="${inputCls}" value="${num(pr.budget)}"></div>
           <div><label class="text-xs text-slate-400 block mb-1">Ingreso mensual</label><input id="cs-pj-revenue" type="number" min="0" step="1000" class="${inputCls}" value="${num(pr.revenue)}"></div>
           <div><label class="text-xs text-slate-400 block mb-1">Horas estimadas al mes</label><input id="cs-pj-hours" type="number" min="0" step="1" class="${inputCls}" value="${num(pr.hours_estimated)}"></div>
+          <div><label class="text-xs text-slate-400 block mb-1">Periodo del tablero <span class="text-slate-600">(opcional)</span></label><input id="cs-pj-period" type="month" class="${inputCls}" value="${esc(pr.period || '')}"></div>
         </div>
         <button data-act="save-project" class="${btnCls}">Guardar datos del proyecto</button>`;
       }
@@ -689,7 +690,7 @@ const ClienteSetup = (() => {
           await post({
             action: 'save_project', client_id: activeId,
             alias: val('cs-pj-alias'), category: val('cs-pj-category'), project_type: val('cs-pj-type'), currency: val('cs-pj-currency'),
-            budget: val('cs-pj-budget'), revenue: val('cs-pj-revenue'), hours_estimated: val('cs-pj-hours'),
+            budget: val('cs-pj-budget'), revenue: val('cs-pj-revenue'), hours_estimated: val('cs-pj-hours'), period: val('cs-pj-period'),
           });
           toast('Datos del proyecto guardados', 'success');
           await reload({ saved: true });

@@ -7,7 +7,7 @@ require_once __DIR__ . '/../includes/google_drive.php';
 require_once __DIR__ . '/../includes/trello_sync.php';
 require_once __DIR__ . '/../includes/telegram_api.php';
 
-// Asistente "Configurar cliente" (configurar-cliente.html).
+// Asistente de marcas (configuracion.html → pestaña Marcas; configurar-cliente.html solo redirige).
 // Reúne en un solo endpoint el estado de TODO lo que una marca de retención
 // necesita para que el flujo de trabajo funcione (datos, Trello, proyecto,
 // parrilla, Drive, Telegram, Meta, flujos/leads, pauta), las verificaciones en
@@ -240,7 +240,7 @@ try {
     $method = $_SERVER['REQUEST_METHOD'];
 
     if ($method === 'GET' && isset($_GET['list'])) {
-        $rows = $pdo->query('SELECT id, name, slug, logo_url, status FROM clients ORDER BY name ASC')->fetchAll();
+        $rows = $pdo->query('SELECT id, name, slug, logo_url, status, trello_board_id FROM clients ORDER BY name ASC')->fetchAll();
         json_response(['clients' => $rows]);
     }
 
@@ -456,7 +456,7 @@ try {
             'project'       => $project ? [
                 'alias' => $project['alias'], 'category' => $project['category'], 'project_type' => $project['project_type'],
                 'budget' => (float)$project['budget'], 'revenue' => (float)$project['revenue'],
-                'hours_estimated' => (float)$project['hours_estimated'], 'currency' => $project['currency'],
+                'hours_estimated' => (float)$project['hours_estimated'], 'currency' => $project['currency'], 'period' => $project['period'],
             ] : null,
             'artes_folder_id' => $data['artes'],
         ]);
@@ -628,10 +628,15 @@ try {
             json_error('Primero vincula el tablero de Trello', 400);
         }
         $type = in_array($input['project_type'] ?? '', ['retencion', 'unico'], true) ? $input['project_type'] : 'retencion';
-        $pdo->prepare('INSERT INTO project_settings (board_id, alias, category, project_type, budget, revenue, hours_estimated, currency)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        $period = trim((string)($input['period'] ?? ''));
+        if ($period !== '' && !preg_match('/^\d{4}-\d{2}$/', $period)) {
+            json_error('Periodo inválido (formato AAAA-MM)', 400);
+        }
+        $pdo->prepare('INSERT INTO project_settings (board_id, alias, category, project_type, budget, revenue, hours_estimated, currency, period)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                        ON DUPLICATE KEY UPDATE alias = VALUES(alias), category = VALUES(category), project_type = VALUES(project_type),
-                           budget = VALUES(budget), revenue = VALUES(revenue), hours_estimated = VALUES(hours_estimated), currency = VALUES(currency)')
+                           budget = VALUES(budget), revenue = VALUES(revenue), hours_estimated = VALUES(hours_estimated), currency = VALUES(currency),
+                           period = VALUES(period)')
             ->execute([
                 $client['trello_board_id'],
                 mb_substr(trim((string)($input['alias'] ?? '')), 0, 190),
@@ -641,6 +646,7 @@ try {
                 max(0, (float)($input['revenue'] ?? 0)),
                 max(0, (float)($input['hours_estimated'] ?? 0)),
                 strtoupper(mb_substr(trim((string)($input['currency'] ?? '')), 0, 8)) ?: 'COP',
+                $period,
             ]);
         json_response(['ok' => true]);
     }

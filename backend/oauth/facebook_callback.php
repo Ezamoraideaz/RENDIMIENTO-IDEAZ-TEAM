@@ -5,19 +5,19 @@ require_once __DIR__ . '/../includes/meta_client.php';
 require_client_setup_access();
 
 $fromAssistant = ($_SESSION['fb_oauth_return'] ?? '') === 'asistente';
-$redirectBase = APP_BASE_URL . ($fromAssistant ? '/configurar-cliente.html' : '/atencion-cliente.html');
+$redirectBase = APP_BASE_URL . ($fromAssistant ? '/configuracion.html?tab=marcas&' : '/atencion-cliente.html?');
 
 $code  = $_GET['code'] ?? '';
 $state = $_GET['state'] ?? '';
 $error = $_GET['error_description'] ?? $_GET['error'] ?? '';
 
 if ($error !== '') {
-    header('Location: ' . $redirectBase . '?oauth_error=' . urlencode($error));
+    header('Location: ' . $redirectBase . 'oauth_error=' . urlencode($error));
     exit;
 }
 
 if (empty($_SESSION['fb_oauth_state']) || !hash_equals($_SESSION['fb_oauth_state'], $state)) {
-    header('Location: ' . $redirectBase . '?oauth_error=' . urlencode('Estado inválido, intenta de nuevo'));
+    header('Location: ' . $redirectBase . 'oauth_error=' . urlencode('Estado inválido, intenta de nuevo'));
     exit;
 }
 
@@ -30,7 +30,7 @@ try {
     $pages      = MetaClient::listManagedPages($longToken);
 
     if (empty($pages)) {
-        header('Location: ' . $redirectBase . '?oauth_error=' . urlencode('No se encontraron Páginas de Facebook administradas por esta cuenta'));
+        header('Location: ' . $redirectBase . 'oauth_error=' . urlencode('No se encontraron Páginas de Facebook administradas por esta cuenta'));
         exit;
     }
 
@@ -50,9 +50,9 @@ try {
         }, $pages),
     ];
 
-    header('Location: ' . $redirectBase . '?oauth_select_page=1&client_id=' . $clientId);
+    header('Location: ' . $redirectBase . 'oauth_select_page=1&client_id=' . $clientId);
     exit;
 } catch (Throwable $e) {
-    header('Location: ' . $redirectBase . '?oauth_error=' . urlencode($e->getMessage()));
+    header('Location: ' . $redirectBase . 'oauth_error=' . urlencode($e->getMessage()));
     exit;
 }
