@@ -76,6 +76,7 @@ CREATE TABLE IF NOT EXISTS clients (
     sheet_id VARCHAR(100) NULL,
     drive_approval_folder_id VARCHAR(128) NULL,
     trello_board_id VARCHAR(64) NULL,
+    telegram_setup_done TINYINT(1) NOT NULL DEFAULT 0,
     status ENUM('active','paused','archived') NOT NULL DEFAULT 'active',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
