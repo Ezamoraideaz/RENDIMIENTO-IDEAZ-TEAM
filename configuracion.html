@@ -43,8 +43,36 @@
 
     <div class="mb-4">
       <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-100">Configuración</h1>
-      <p class="text-slate-400 text-sm mt-1">Credenciales, equipo, carpetas de Drive, datos financieros y usuarios</p>
+      <p class="text-slate-400 text-sm mt-1">Marcas, credenciales, equipo, carpetas de Drive, datos financieros y usuarios</p>
     </div>
+
+    <!-- Pestañas: Marcas (asistente de configuración por marca) · General (ajustes del sistema) -->
+    <div class="flex gap-1.5 mb-4" id="cfg-tabs">
+      <button type="button" data-cfg-tab="marcas" class="ui-chip"><span data-icon="sliders"></span>Marcas</button>
+      <button type="button" data-cfg-tab="general" id="cfg-tab-btn-general" class="ui-chip"><span data-icon="settings"></span>General</button>
+    </div>
+
+    <!-- PESTAÑA MARCAS: asistente guiado (js/clienteSetup.js + backend/api/client_setup.php) -->
+    <div id="tab-marcas" style="display:none">
+      <p class="text-slate-400 text-sm mb-3">Deja montada cada marca en orden para que el flujo de trabajo funcione. Cada paso se verifica solo.</p>
+      <div class="ui-toolbar sticky top-[3.25rem] md:top-0 z-30 -mx-6 px-6 py-3 mb-6">
+        <div class="flex items-center gap-2 flex-wrap">
+          <label class="ui-field min-w-[240px]">
+            <span data-icon="users"></span>
+            <select id="cs-client-select" class="ui-select"><option value="">Cargando marcas…</option></select>
+            <span data-icon="chevron" class="ui-field-end"></span>
+          </label>
+          <button id="cs-new-client" class="ui-chip ui-chip-primary"><span data-icon="plus"></span>Nueva marca</button>
+          <button id="cs-refresh" class="ui-chip"><span data-icon="refresh"></span>Revisar todo</button>
+        </div>
+      </div>
+      <div id="cs-summary" class="hidden bg-slate-900 border border-slate-700 rounded-2xl p-4 mb-6"></div>
+      <div id="cs-steps" class="space-y-3"></div>
+      <div id="cs-empty"></div>
+    </div>
+
+    <!-- PESTAÑA GENERAL -->
+    <div id="tab-general" style="display:none">
 
     <!-- Accesos directos a las secciones visibles para este rol (los arma el script de abajo) -->
     <div class="ui-toolbar sticky top-[3.25rem] md:top-0 z-30 -mx-6 px-6 py-3 mb-6">
@@ -335,6 +363,8 @@
       </div>
     </div>
 
+    </div><!-- /tab-general -->
+
   </div>
 </main>
 
@@ -347,11 +377,44 @@
 <script src="js/sidebar.js?v=20261026"></script>
 <script src="js/drive.js"></script>
 <script src="js/alarm.js"></script>
+<script src="js/clienteSetup.js?v=20261027d"></script>
 <script>
   // Se resuelven cuando la sesión está lista (Session.ready); las funciones de
   // esta página los leen después de la inicialización.
   let _cmMode = false;
   let _isSuperAdmin = false;
+
+  // Tableros de Trello que ya pertenecen a una marca (clients.trello_board_id): sus datos de
+  // proyecto y carpeta ARTES se editan en la pestaña Marcas, no en las tablas de General.
+  let _brandBoards = {};
+  const _brandBoardsReady = Session.ready
+    .then(() => Session.apiFetch('api/client_setup.php?list=1'))
+    .then((d) => { (d.clients || []).forEach((c) => { if (c.trello_board_id) _brandBoards[c.trello_board_id] = c; }); })
+    .catch(() => {});
+
+  let _marcasStarted = false;
+  function showConfigTab(tab) {
+    document.getElementById('tab-marcas').style.display = tab === 'marcas' ? '' : 'none';
+    document.getElementById('tab-general').style.display = tab === 'general' ? '' : 'none';
+    document.querySelectorAll('[data-cfg-tab]').forEach((b) => b.classList.toggle('ui-chip-primary', b.dataset.cfgTab === tab));
+    if (tab === 'marcas' && !_marcasStarted) {
+      _marcasStarted = true;
+      ClienteSetup.init(); // lee ?client_id / regreso de Facebook y limpia la URL
+    } else {
+      history.replaceState({}, '', `configuracion.html?tab=${tab}${location.hash}`);
+    }
+  }
+
+  function setupConfigTabs(showGeneral) {
+    const params = new URLSearchParams(location.search);
+    if (!showGeneral) document.getElementById('cfg-tab-btn-general').style.display = 'none';
+    document.querySelectorAll('[data-cfg-tab]').forEach((b) => b.addEventListener('click', () => showConfigTab(b.dataset.cfgTab)));
+    const tab = showGeneral && params.get('tab') === 'general' ? 'general' : 'marcas';
+    showConfigTab(tab);
+    if (tab === 'general' && location.hash) {
+      setTimeout(() => document.querySelector(location.hash)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 600);
+    }
+  }
 
   Session.ready.then(() => {
     const _access = Auth.checkPageAccess('configuracion');
@@ -361,6 +424,14 @@
     }
     _cmMode = _access.role === 'cm';
     _isSuperAdmin = Auth.isSuperAdmin();
+
+    // La PM (agenda_full) solo entra a la pestaña Marcas: nada de credenciales, equipo ni tablas.
+    if (Session.user.role === 'agenda_full') {
+      Sidebar.init('configuracion');
+      Alarm.init();
+      setupConfigTabs(false);
+      return;
+    }
 
     // La alarma manual es para admin/superadmin (los PM), no para cm ni agenda
     if (_access.role === 'admin' || _isSuperAdmin) {
@@ -395,6 +466,7 @@
     if (monthSel) monthSel.value = now.getMonth();
 
     initCredentialsUI();
+    setupConfigTabs(true);
   });
 
   let allBoards = [];
@@ -511,6 +583,7 @@
     const api = new TrelloAPI(creds.key, creds.token);
 
     try {
+      await _brandBoardsReady;
       allBoards = await api.getBoards();
       // Collect unique members from all boards in parallel
       const memberSet = {};
@@ -597,6 +670,7 @@
       const pd     = Storage.getProjectData(b.id);
       const wsName = b.organization?.displayName || b.organization?.name || '';
       const catColor = pd.category ? Utils.categoryColor(pd.category) : '#6366f1';
+      if (_brandBoards[b.id]) return brandBoardRow(b, pd, wsName, true);
       return `
         <tr class="hover:bg-slate-800/30 transition-colors">
           <td class="px-4 py-3">
@@ -689,6 +763,7 @@
     tbody.innerHTML = allBoards.map(b => {
       const pd = Storage.getProjectData(b.id);
       const wsName = b.organization?.displayName || b.organization?.name || '';
+      if (_brandBoards[b.id]) return brandBoardRow(b, pd, wsName, false);
       return `
         <tr class="hover:bg-slate-800/30 transition-colors">
           <td class="px-4 py-3">
@@ -715,8 +790,23 @@
     }).join('');
   }
 
+  // Fila de solo lectura para un tablero que pertenece a una marca: se edita en la pestaña Marcas
+  // (así nadie lo cambia en dos lugares, y "Guardar datos financieros" no pisa lo guardado allá).
+  function brandBoardRow(b, pd, wsName, full) {
+    const brand = _brandBoards[b.id];
+    const e = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const cell = (v) => `<td class="px-4 py-3 text-sm text-slate-400">${v === '' || v == null ? '—' : e(v)}</td>`;
+    const link = `<a href="configuracion.html?tab=marcas&client_id=${brand.id}" class="inline-block mt-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500/25" style="text-decoration:none">Marca «${e(brand.name)}» · editar en Marcas</a>`;
+    const head = `<td class="px-4 py-3"><div class="font-semibold text-sm text-slate-100">${e(pd.alias || b.name)}</div><div class="text-xs text-slate-400">${e(wsName || b.id.slice(0, 8) + '…')}</div>${link}</td>`;
+    const type = Utils.typeLabel(Utils.resolveType(pd.type, wsName, b.name));
+    const folder = DriveAPI.getFolderForBoard(b.id);
+    if (!full) return `<tr class="bg-slate-800/20">${head}${cell(type)}${cell(folder)}</tr>`;
+    return `<tr class="bg-slate-800/20">${head}${cell(type)}${cell(pd.category)}${cell(pd.alias)}${cell(pd.period ? Utils.formatPeriod(pd.period) : '')}${cell(pd.budget || '')}${cell(pd.revenue || '')}${cell(pd.hoursEstimated || '')}${cell(pd.currency)}${cell(folder)}</tr>`;
+  }
+
   function saveAllFinancial() {
     for (const b of allBoards) {
+      if (_brandBoards[b.id]) continue; // se guarda desde la pestaña Marcas
       const ex = Storage.getProjectData(b.id);
       const _n = (id, fb) => { const v = parseFloat(document.getElementById(id)?.value); return isNaN(v) ? (fb ?? 0) : v; };
       const _s = (id, fb) => (document.getElementById(id)?.value ?? fb ?? '').trim();

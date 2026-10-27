@@ -2,76 +2,13 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script>try{if(localStorage.getItem('ideaz_theme')!=='dark')document.documentElement.classList.add('light');}catch(e){document.documentElement.classList.add('light');}</script>
-  <title>Configurar cliente – IDEAZ Dashboard</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <script src="https://cdn.tailwindcss.com"></script>
+  <title>Configuración – IDEAZ Dashboard</title>
   <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
-          colors: { brand: { DEFAULT: '#6366f1', light: '#818cf8', dark: '#4f46e5' } }
-        }
-      }
-    }
+    // El asistente de marcas ahora vive en Configuración → pestaña Marcas.
+    // Este archivo solo redirige (enlaces guardados y conexiones de Facebook en curso).
+    var q = location.search ? '&' + location.search.slice(1) : '';
+    location.replace('configuracion.html?tab=marcas' + q);
   </script>
-  <link rel="stylesheet" href="css/main.css?v=20261026">
 </head>
-<body class="bg-slate-950 text-slate-100 font-sans">
-
-<aside id="app-sidebar" class="fixed left-0 top-0 h-screen w-64 bg-slate-900 border-r border-slate-700 flex flex-col z-50 overflow-y-auto">
-  <div class="p-3 border-t border-slate-700 flex-shrink-0 sidebar-text mt-auto">
-    <span class="text-xs text-slate-400" id="last-updated"></span>
-  </div>
-</aside>
-
-<main class="ml-64 min-h-screen">
-  <div class="p-6 max-w-4xl mx-auto">
-
-    <div class="mb-4">
-      <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-100">Configurar cliente</h1>
-      <p class="text-slate-400 text-sm mt-1">Deja todo montado en orden para que el flujo de trabajo funcione. Cada paso se verifica solo.</p>
-    </div>
-
-    <!-- Selector de cliente -->
-    <div class="ui-toolbar sticky top-[3.25rem] md:top-0 z-30 -mx-6 px-6 py-3 mb-6">
-      <div class="flex items-center gap-2 flex-wrap">
-        <label class="ui-field min-w-[240px]">
-          <span data-icon="users"></span>
-          <select id="cs-client-select" class="ui-select"><option value="">Cargando clientes…</option></select>
-          <span data-icon="chevron" class="ui-field-end"></span>
-        </label>
-        <button id="cs-new-client" class="ui-chip ui-chip-primary"><span data-icon="plus"></span>Nuevo cliente</button>
-        <button id="cs-refresh" class="ui-chip"><span data-icon="refresh"></span>Revisar todo</button>
-      </div>
-    </div>
-
-    <!-- Progreso + resumen de pendientes -->
-    <div id="cs-summary" class="hidden bg-slate-900 border border-slate-700 rounded-2xl p-4 mb-6"></div>
-
-    <!-- Pasos -->
-    <div id="cs-steps" class="space-y-3"></div>
-
-    <div id="cs-empty"></div>
-  </div>
-</main>
-
-<script src="js/session.js"></script>
-<script src="js/sidebar.js?v=20261027"></script>
-<script src="js/utils.js?v=20260728"></script>
-<script src="js/storage.js?v=20260728"></script>
-<script src="js/cache.js?v=20260728"></script>
-<script src="js/api.js?v=20260728"></script>
-<script src="js/clienteSetup.js?v=20261027c"></script>
-<script>
-  Session.ready.then(() => {
-    Sidebar.init('configurar-cliente');
-    ClienteSetup.init();
-  });
-</script>
-</body>
+<body></body>
 </html>

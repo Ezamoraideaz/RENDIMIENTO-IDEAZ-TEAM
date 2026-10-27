@@ -9,7 +9,6 @@ const Sidebar = (() => {
     { href: 'egresos.html',       icon: 'wallet',    label: 'Egresos',        key: 'egresos'       },
     { href: 'rendicion.html',     icon: 'file',      label: 'Rendición CM',   key: 'rendicion'     },
     { href: 'rendicion-dashboard.html', icon: 'trend', label: 'Rendición Dashboard', key: 'rendicion-dashboard' },
-    { href: 'configurar-cliente.html', icon: 'sliders', label: 'Configurar cliente', key: 'configurar-cliente' },
     { href: 'configuracion.html', icon: 'settings',  label: 'Configuración', key: 'configuracion' },
   ];
 
