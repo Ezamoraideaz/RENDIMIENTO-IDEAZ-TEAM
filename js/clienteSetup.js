@@ -11,6 +11,7 @@ const ClienteSetup = (() => {
   let boards = null;          // tableros de Trello (se piden una sola vez)
   let pautaPick = null;       // cliente de Pauta elegido para vincular (o 'new')
   let showNewForm = false;
+  let deleting = null;        // null | 'loading' | {counts, pauta}: panel de eliminar abierto
 
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -191,6 +192,7 @@ const ClienteSetup = (() => {
     state = null;
     drafts = {};
     pautaPick = null;
+    deleting = null;
     openStep = step;
     $('cs-client-select').value = id ? String(id) : '';
     if (!id) return loadOverview();
@@ -328,6 +330,7 @@ const ClienteSetup = (() => {
 
     $('cs-summary').classList.remove('hidden');
     $('cs-summary').innerHTML = `
+      ${c.status === 'archived' ? '<div class="bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs rounded-lg px-3 py-2 mb-3">Esta marca está <b>archivada</b>: no aparece en el resumen ni se puede vincular en Telegram. Reactívala al final de la ficha.</div>' : ''}
       <div class="flex items-center gap-3 mb-2">
         ${c.logo_url ? `<img src="${esc(c.logo_url)}" class="w-10 h-10 rounded-lg object-cover bg-slate-800" alt="">` : ''}
         <div class="flex-1 min-w-0">
@@ -355,7 +358,7 @@ const ClienteSetup = (() => {
         </button>
         ${isOpen ? `<div class="px-4 pb-4 border-t border-slate-800"><div class="pt-4 space-y-4">${renderStep(s)}</div></div>` : ''}
       </section>`;
-    }).join('');
+    }).join('') + renderDanger();
 
     restoreDrafts();
     if (focus && $(focus.id)) {
@@ -366,6 +369,52 @@ const ClienteSetup = (() => {
     Icons.hydrate($('cs-steps'));
     bind();
     if (openStep === 'trello' && boards === null) loadBoards();
+  }
+
+  // Archivar / eliminar: solo existe aquí, dentro de la ficha de la marca.
+  function renderDanger() {
+    const c = state.client;
+    if (!state.can_manage && !state.can_delete) return '';
+    const archived = c.status === 'archived';
+    let panel = '';
+    if (deleting === 'loading') {
+      panel = '<p class="text-xs text-slate-400">Calculando qué se borraría…</p>';
+    } else if (deleting) {
+      const counts = deleting.counts || [];
+      panel = `
+        <div class="bg-rose-500/10 border border-rose-500/40 rounded-xl p-4 space-y-3">
+          <p class="text-sm text-rose-200 font-semibold">Esto no se puede deshacer.</p>
+          ${counts.length
+            ? `<div class="text-xs text-rose-100/90">Se borrarán junto con la marca:<ul class="list-disc ml-5 mt-1 space-y-0.5">${counts.map((x) => `<li>${esc(x.label)}: <b>${x.count}</b></li>`).join('')}</ul></div>`
+            : '<p class="text-xs text-rose-100/90">La marca no tiene conversaciones, leads, rendiciones ni revisiones guardadas.</p>'}
+          <p class="text-[11px] text-slate-400">No se toca nada fuera del sistema: el tablero de Trello, el Google Sheet, las carpetas de Drive y la Página de Facebook quedan como están.</p>
+          ${deleting.pauta ? `
+            <label class="flex items-center gap-2 text-xs text-slate-200 cursor-pointer">
+              <input type="checkbox" id="cs-del-pauta" class="w-4 h-4 accent-rose-500">
+              Eliminar también «${esc(deleting.pauta.name)}» de Pauta (presupuestos y links de reporte). Si no, solo se desvincula.
+            </label>` : ''}
+          <div>
+            <label class="text-xs text-slate-300 block mb-1">Para confirmar, escribe el nombre de la marca: <b class="select-all">${esc(c.name)}</b></label>
+            <input id="cs-del-name" class="${inputCls}" autocomplete="off" placeholder="${esc(c.name)}">
+          </div>
+          <div class="flex gap-2 flex-wrap">
+            <button data-act="do-delete" id="cs-del-go" class="bg-rose-600 hover:bg-rose-500 text-white text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-40" disabled>Eliminar la marca definitivamente</button>
+            <button data-act="cancel-delete" class="${btn2Cls}">Cancelar</button>
+          </div>
+        </div>`;
+    }
+    return `
+      <section class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 mt-8 space-y-3">
+        <div>
+          <h3 class="font-semibold text-slate-200 text-sm">Archivar o eliminar la marca</h3>
+          <p class="text-xs text-slate-500">Si la marca dejó de ser cliente, archívala: sale del resumen y de Telegram sin perder su historial, y se puede reactivar cuando quieras.</p>
+        </div>
+        ${deleting ? '' : `<div class="flex gap-2 flex-wrap">
+          ${state.can_manage ? `<button data-act="${archived ? 'unarchive' : 'archive'}" class="${btn2Cls}">${archived ? 'Reactivar marca' : 'Archivar marca'}</button>` : ''}
+          ${state.can_delete ? '<button data-act="open-delete" class="text-rose-400 hover:text-rose-300 text-sm font-semibold px-2">Eliminar definitivamente…</button>' : ''}
+        </div>`}
+        ${panel}
+      </section>`;
   }
 
   function badge(key) {
@@ -584,6 +633,13 @@ const ClienteSetup = (() => {
       if (await saveFields({ telegram_setup_done: tg.checked }, tg.checked ? 'Telegram marcado como configurado' : 'Telegram desmarcado')) await reload({ saved: tg.checked });
       else tg.checked = !tg.checked;
     });
+    // El botón de eliminar solo se habilita cuando el nombre escrito coincide.
+    const delName = $('cs-del-name');
+    if (delName) {
+      const sync = () => { $('cs-del-go').disabled = delName.value.trim().toLowerCase() !== state.client.name.trim().toLowerCase(); };
+      delName.addEventListener('input', sync);
+      sync();
+    }
     $('cs-pauta-pick')?.addEventListener('change', (e) => {
       pautaPick = e.target.value;
       ['cs-p-meta', 'cs-p-google', 'cs-p-tiktok'].forEach((id) => delete drafts[id]); // mostrar las cuentas del elegido
@@ -664,6 +720,41 @@ const ClienteSetup = (() => {
           const res = await post({ action: 'save_lead_emails', client_id: activeId, emails: splitList('cs-lead-emails') });
           toast(`${res.count} correo(s) guardado(s)`, 'success');
           await reload({ saved: true });
+          break;
+        }
+        case 'archive':
+        case 'unarchive': {
+          const status = name === 'archive' ? 'archived' : 'active';
+          await post({ action: 'set_status', client_id: activeId, status });
+          toast(status === 'archived' ? 'Marca archivada' : 'Marca reactivada', 'success');
+          await loadClients();
+          await reload({});
+          break;
+        }
+        case 'open-delete':
+          deleting = 'loading';
+          render();
+          try {
+            deleting = await api(`api/client_setup.php?client_id=${activeId}&impact=1`);
+          } catch (e) {
+            deleting = null;
+            throw e;
+          } finally {
+            render();
+          }
+          break;
+        case 'cancel-delete':
+          deleting = null;
+          delete drafts['cs-del-name'];
+          render();
+          break;
+        case 'do-delete': {
+          const deletedName = state.client.name;
+          await post({ action: 'delete_client', client_id: activeId, confirm_name: val('cs-del-name'), delete_pauta: !!$('cs-del-pauta')?.checked });
+          toast(`Marca «${deletedName}» eliminada`, 'success');
+          activeId = null;
+          await loadClients();
+          await selectClient(null);
           break;
         }
         case 'save-pauta': {

@@ -88,14 +88,10 @@ switch ($method) {
         break;
 
     case 'DELETE':
-        require_state_changing_request();
-        $id = (int)($_GET['id'] ?? 0);
-        if ($id <= 0) {
-            json_error('id requerido', 400);
-        }
-        $stmt = $pdo->prepare('DELETE FROM clients WHERE id = ?');
-        $stmt->execute([$id]);
-        json_response(['ok' => true]);
+        // Eliminar una marca borra en cascada conversaciones, leads, rendiciones, etc.:
+        // solo se permite desde la ficha de configurar-cliente.html (client_setup.php,
+        // con confirmación por nombre). Archivarla es la alternativa reversible.
+        json_error('Las marcas se eliminan desde Configurar cliente → ficha de la marca', 405);
         break;
 
     default:
