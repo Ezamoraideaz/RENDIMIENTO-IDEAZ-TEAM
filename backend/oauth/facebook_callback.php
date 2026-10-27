@@ -2,9 +2,10 @@
 require_once __DIR__ . '/../bootstrap.php';
 require_once __DIR__ . '/../includes/meta_client.php';
 
-require_atencion_access();
+require_client_setup_access();
 
-$redirectBase = APP_BASE_URL . '/atencion-cliente.html';
+$fromAssistant = ($_SESSION['fb_oauth_return'] ?? '') === 'asistente';
+$redirectBase = APP_BASE_URL . ($fromAssistant ? '/configurar-cliente.html' : '/atencion-cliente.html');
 
 $code  = $_GET['code'] ?? '';
 $state = $_GET['state'] ?? '';
@@ -21,7 +22,7 @@ if (empty($_SESSION['fb_oauth_state']) || !hash_equals($_SESSION['fb_oauth_state
 }
 
 $clientId = (int)($_SESSION['fb_oauth_client_id'] ?? 0);
-unset($_SESSION['fb_oauth_state'], $_SESSION['fb_oauth_client_id']);
+unset($_SESSION['fb_oauth_state'], $_SESSION['fb_oauth_client_id'], $_SESSION['fb_oauth_return']);
 
 try {
     $shortToken = MetaClient::exchangeCodeForUserToken($code);

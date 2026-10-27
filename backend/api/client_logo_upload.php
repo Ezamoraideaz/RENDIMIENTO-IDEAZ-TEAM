@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     json_error('Método no permitido', 405);
 }
 
-require_atencion_access();
+require_client_setup_access();
 require_state_changing_request();
 
 $pdo = db();

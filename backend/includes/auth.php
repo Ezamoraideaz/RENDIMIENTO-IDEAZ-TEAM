@@ -57,6 +57,14 @@ function require_atencion_access(): array
     return require_role(['superadmin', 'admin', 'agent', 'cm']);
 }
 
+// Asistente "Configurar cliente" (configurar-cliente.html): lo usan CM y PM
+// (agenda_full) además de los roles de Atención al Cliente. Cubre también los
+// endpoints que el asistente reutiliza (logo, conexión de Facebook/Instagram).
+function require_client_setup_access(): array
+{
+    return require_role(['superadmin', 'admin', 'agent', 'cm', 'agenda_full']);
+}
+
 function csrf_token(): string
 {
     if (empty($_SESSION['csrf_token'])) {
