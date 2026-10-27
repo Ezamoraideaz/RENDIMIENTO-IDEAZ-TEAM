@@ -595,6 +595,14 @@ const AtencionCliente = (() => {
 
   function handleOAuthRedirectParams() {
     const params = new URLSearchParams(window.location.search);
+    // Enlace directo desde el asistente "Configurar cliente": ?open_client=N&tab=flujos
+    if (params.get('open_client')) {
+      const clientId = parseInt(params.get('open_client'), 10);
+      const tab = params.get('tab');
+      window.history.replaceState({}, '', 'atencion-cliente.html');
+      if (clientId) openClient(clientId).then(() => { if (tab) _switchTab(tab); });
+      return;
+    }
     if (params.get('oauth_select_page')) {
       const clientId = parseInt(params.get('client_id'), 10);
       window.history.replaceState({}, '', 'atencion-cliente.html');
