@@ -15,7 +15,7 @@ declare(strict_types=1);
 // Devuelve ['post' => ?int, 'day' => ?int, 'hint' => string]. post=null si no hay "#número".
 function review_parse_caption(string $caption): array
 {
-    $out = ['post' => null, 'day' => null, 'hint' => '', 'extra' => false];
+    $out = ['post' => null, 'day' => null, 'month' => null, 'hint' => '', 'extra' => false];
 
     // "#extra - REEL FEED nota opcional": contenido fuera del cronograma (post_number = 0, sin fila que cruzar).
     if (preg_match('/#\s*extras?\b/iu', $caption, $x, PREG_OFFSET_CAPTURE)) {
@@ -34,8 +34,32 @@ function review_parse_caption(string $caption): array
         $out['day'] = ($day >= 1 && $day <= 31) ? $day : null;
     }
     $end = $m[0][1] + strlen($m[0][0]);
-    $out['hint'] = trim((string)preg_replace('/^[\s\-–—:.,]+/u', '', substr($caption, $end)));
+    $rest = substr($caption, $end);
+    // Mes explícito opcional justo después del día: "#5 - 20/11 REEL" o "#5 - 20 NOV REEL".
+    if ($out['day'] !== null && preg_match('/^\s*(?:\/\s*(\d{1,2})\b|(?:de\s+)?(\p{L}{3,}))/iu', $rest, $mm)) {
+        $month = !empty($mm[1]) ? (int)$mm[1] : review_month_from_name($mm[2] ?? '');
+        if ($month !== null && $month >= 1 && $month <= 12) {
+            $out['month'] = $month;
+            $rest = substr($rest, strlen($mm[0]));
+        }
+    }
+    $out['hint'] = trim((string)preg_replace('/^[\s\-–—:.,]+/u', '', $rest));
     return $out;
+}
+
+// "noviembre", "NOV", "Sept" -> 11, 11, 9. null si la palabra no es un mes (ej. "REEL").
+function review_month_from_name(string $word): ?int
+{
+    $w = mb_strtoupper(trim($word));
+    if (mb_strlen($w) < 3) {
+        return null;
+    }
+    foreach ([1 => 'ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'] as $n => $name) {
+        if (strpos($name, $w) === 0 || ($n === 9 && strpos('SETIEMBRE', $w) === 0)) {
+            return $n;
+        }
+    }
+    return null;
 }
 
 // Mes (primer día) al que pertenece un día de publicación, sabiendo que la fecha
@@ -54,6 +78,30 @@ function review_resolve_month(int $day, DateTimeImmutable $now): DateTimeImmutab
         $first = $first->modify('first day of next month');
     }
     return $first;
+}
+
+// Pestañas (meses) a probar, en orden, para cruzar la pieza con el cronograma.
+// La publicación es siempre futura, así que NUNCA se prueba un mes en el que ese día
+// ya pasó: el 27/oct, "#5 - 20" es el 20 de noviembre y no puede caer en OCTUBRE
+// aunque la pestaña de octubre también tenga un #5 el día 20.
+//  - Mes explícito ("20/11", "20 NOV"): solo ese mes (de este año o del siguiente).
+//  - Solo día: el mes que resuelve review_resolve_month y, de respaldo, el siguiente.
+//  - Sin día: este mes y el siguiente (el llamador descarta filas de este mes ya pasadas).
+function review_candidate_months(?int $day, ?int $month, DateTimeImmutable $now): array
+{
+    $thisMonth = $now->modify('first day of this month')->setTime(0, 0);
+    if ($month !== null) {
+        $first = $thisMonth->setDate((int)$now->format('Y'), $month, 1);
+        if ($first < $thisMonth) {
+            $first = $first->modify('+1 year');
+        }
+        return [$first];
+    }
+    if ($day !== null) {
+        $first = review_resolve_month($day, $now);
+        return [$first, $first->modify('first day of next month')];
+    }
+    return [$thisMonth, $thisMonth->modify('first day of next month')];
 }
 
 function review_month_name_es(int $month): string
