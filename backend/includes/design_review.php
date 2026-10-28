@@ -324,7 +324,8 @@ function design_review_format_report(array $review, array $row, array $report, ?
     $score = (int)$report['score'];
     $disq = !empty($report['disqualified']);
     [$icon, $label] = review_semaphore($score, $disq);
-    $dayTxt = $review['pub_day'] ? ' · publica ' . str_pad((string)$review['pub_day'], 2, '0', STR_PAD_LEFT) . ($pubMonth ? '/' . $pubMonth->format('m') : '') : '';
+    $pubDay = $review['pub_day'] ?: ($row['day'] ?? null); // sin día en el mensaje: el del cronograma
+    $dayTxt = $pubDay ? ' · publica ' . str_pad((string)$pubDay, 2, '0', STR_PAD_LEFT) . ($pubMonth ? '/' . $pubMonth->format('m') : '') : '';
 
     $isExtra = !empty($row['extra']);
     $tag = $isExtra ? 'EXTRA · ref ' . (int)$review['id'] : tg_h($row['label']) . ' · v' . (int)$review['version'];
@@ -577,20 +578,16 @@ function design_review_process(PDO $pdo, array $review): void
         $now = new DateTimeImmutable('now', $tz);
         $day = $review['pub_day'] !== null ? (int)$review['pub_day'] : null;
 
-        $months = [];
-        if ($day !== null) {
-            $months[] = review_resolve_month($day, $now);
-        }
-        foreach ([$now->modify('first day of this month')->setTime(0, 0), $now->modify('first day of next month')->setTime(0, 0)] as $alt) {
-            if (!array_filter($months, fn($m) => $m->format('Y-m') === $alt->format('Y-m'))) {
-                $months[] = $alt;
-            }
-        }
+        // Nunca un mes en el que ese día ya pasó (ver review_candidate_months).
+        $months = review_candidate_months($day, $parsed['month'] ?? null, $now);
+        $thisMonth = $now->format('Y-m');
+        $today = (int)$now->format('j');
 
         $row = null;
         $pubMonth = null;
         $tabUsed = null;
         $sheetError = null;
+        $pastRow = null; // sin día en el mensaje: fila de este mes cuya fecha ya pasó (último recurso)
         foreach ($months as $month) {
             $tab = google_sheets_find_tab((string)$client['sheet_id'], review_month_name_es((int)$month->format('n')));
             if ($tab === null) {
@@ -603,12 +600,30 @@ function design_review_process(PDO $pdo, array $review): void
                 continue;
             }
             $found = review_find_row($values, (int)$review['post_number'], $day);
-            if ($found !== null) {
-                $row = $found;
-                $pubMonth = $month;
-                $tabUsed = $tab;
-                break;
+            if ($found === null) {
+                continue;
             }
+            if ($day === null && $month->format('Y-m') === $thisMonth && $found['day'] !== null && $found['day'] < $today) {
+                $pastRow ??= [$found, $month, $tab];
+                continue;
+            }
+            $row = $found;
+            $pubMonth = $month;
+            $tabUsed = $tab;
+            break;
+        }
+        $monthWarning = null;
+        if ($row === null && $pastRow !== null) {
+            [$row, $pubMonth, $tabUsed] = $pastRow;
+            $monthWarning = 'Revisé contra ' . $tabUsed . ', pero ese post ya se publicó (día ' . $row['day_raw'] . '). Si es para el mes siguiente, reenvía con el día: #' . (int)$review['post_number'] . ' - DÍA FORMATO.';
+        } elseif ($row !== null && $day === null) {
+            // "POST #5 HISTORIA - correccion": sin día el mes es una deducción; se dice cuál se usó.
+            $monthWarning = 'No indicaste el día de publicación; revisé contra ' . $tabUsed
+                . ($row['day_raw'] !== '' ? ' (día ' . $row['day_raw'] . ')' : '') . '. Si no es ese, reenvía como #'
+                . (int)$review['post_number'] . ' - DÍA FORMATO.';
+        } elseif ($row !== null && $pubMonth->format('Y-m') !== $months[0]->format('Y-m')) {
+            $monthWarning = 'No encontré el #' . (int)$review['post_number'] . ' en ' . review_month_name_es((int)$months[0]->format('n'))
+                . ($sheetError ? ' (' . $sheetError . ')' : '') . '; revisé contra la pestaña ' . $tabUsed . '.';
         }
         if ($row === null) {
             $reason = 'No encontré el Post #' . (int)$review['post_number'] . ' en el cronograma (pestañas probadas: '
@@ -618,10 +633,10 @@ function design_review_process(PDO $pdo, array $review): void
             return;
         }
 
-        $warning = null;
-        if ($day !== null && $row['day'] !== null && $row['day'] !== $day) {
+        $warning = $monthWarning; // el aviso de mes tiene prioridad sobre los de día/duplicados
+        if ($warning === null && $day !== null && $row['day'] !== null && $row['day'] !== $day) {
             $warning = "El día indicado ({$day}) no coincide con el cronograma ({$row['day_raw']}). Verifica que sea el post correcto.";
-        } elseif (($row['duplicates'] ?? 1) > 1) {
+        } elseif ($warning === null && ($row['duplicates'] ?? 1) > 1) {
             $warning = 'El #' . (int)$review['post_number'] . ' aparece ' . $row['duplicates'] . ' veces en la pestaña; revisé contra la fila que coincide con el día.';
         }
     }
