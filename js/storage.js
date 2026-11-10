@@ -194,6 +194,20 @@ const Storage = {
       if (m.role) roles[id] = m.role;
     }
     return roles;
+  },
+
+  // ── Cumpleaños (solo día y mes) ───────────────────────────────────────────
+  getMemberBirthday(memberId) {
+    const m = this._members[memberId];
+    return m && m.birth_month && m.birth_day ? { month: m.birth_month, day: m.birth_day } : null;
+  },
+  setMemberBirthday(memberId, month, day) {
+    const mo = parseInt(month, 10) || null;
+    const d = parseInt(day, 10) || null;
+    const val = mo && d ? { birth_month: mo, birth_day: d } : { birth_month: null, birth_day: null };
+    this._members[memberId] = { ...(this._members[memberId] || {}), ...val };
+    this._dirtyMembers[memberId] = { ...(this._dirtyMembers[memberId] || {}), ...val };
+    this._scheduleFlush();
   }
 };
 

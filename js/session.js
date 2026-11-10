@@ -130,6 +130,10 @@ const Session = (() => {
         console.error('No se pudo precargar la configuración desde la BD:', e.message);
       }
     }
+    // Popup de cumpleaños (primera vez del día): se carga aparte, en cualquier vista
+    const bd = document.createElement('script');
+    bd.src = 'js/birthday.js';
+    document.head.appendChild(bd);
     return user;
   })();
 
