@@ -162,6 +162,7 @@
               <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Username</th>
               <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Sueldo Mensual (COP)</th>
               <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Rol</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider team-perm-col" style="display:none">Permisos</th>
             </tr>
           </thead>
           <tbody id="team-table-body" class="divide-y divide-slate-700/50">
@@ -170,7 +171,7 @@
         </table>
       </div>
       <div class="mt-2 text-xs text-slate-500">
-        Miembros de tus tableros de Trello. Datos guardados localmente.
+        Miembros de tus tableros de Trello. Datos guardados localmente. El superadministrador puede abrir «Permisos» de cada persona para activarle capacidades puntuales (por ejemplo, crear marcas).
       </div>
     </div>
 
@@ -615,7 +616,7 @@
     const tbody = document.getElementById('team-table-body');
     const members = Object.values(allMembers);
     if (members.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="4" class="text-slate-400 px-4 py-3">No se encontraron miembros.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" class="text-slate-400 px-4 py-3">No se encontraron miembros.</td></tr>';
       return;
     }
     const ROLE_OPTIONS = [
@@ -653,8 +654,13 @@
               ${options}
             </select>
           </td>
+          <td class="px-4 py-3 team-perm-col" style="display:${_isSuperAdmin ? 'table-cell' : 'none'}">
+            <button type="button" onclick="openPermissions('${m.id}')"
+              class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors inline-flex items-center gap-1.5">${Icons.svg('lock', 'w-3.5 h-3.5')}Permisos</button>
+          </td>
         </tr>`;
     }).join('');
+    document.querySelectorAll('th.team-perm-col').forEach(th => { th.style.display = _isSuperAdmin ? 'table-cell' : 'none'; });
     Utils.makeSortable(tbody.closest('table'));
   }
 
@@ -960,6 +966,7 @@
     cm: 'En el Monitor de Faltas, este CM solo verá sus propias faltas. Al seleccionarlo se autocompleta el nombre con el de Trello.',
   };
   let _users = [];
+  let _permCatalog = [];
 
   function _escHTML(s) {
     return String(s ?? '').replace(/[&<>"']/g, m =>
@@ -987,6 +994,7 @@
     try {
       const data = await Session.apiFetch('api/users.php');
       _users = data.users;
+      _permCatalog = data.permission_catalog || [];
       renderUsersTable();
     } catch (e) {
       tbody.innerHTML = `<tr><td colspan="6" class="text-red-400 px-4 py-3">Error cargando usuarios: ${_escHTML(e.message)}</td></tr>`;
@@ -1109,6 +1117,139 @@
     if (pass === null) return;
     if (pass.length < 8) { Utils.showToast('La contraseña debe tener al menos 8 caracteres', 'warning'); return; }
     updateUser(id, { password: pass });
+  }
+
+  // ---- Permisos por persona (Equipo → «Permisos», solo superadmin) ----
+  // Cada persona del Equipo (miembro de Trello) se enlaza con su usuario del sitio por
+  // trello_member_id (o por nombre). Los interruptores guardan operators.permissions.
+  function _normName(s) {
+    return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  }
+
+  function _userForMember(memberId) {
+    const byId = _users.find(u => u.trello_member_id && u.trello_member_id === memberId);
+    if (byId) return byId;
+    const m = allMembers[memberId];
+    if (!m) return null;
+    const matches = _users.filter(u => _normName(u.name) && _normName(u.name) === _normName(m.fullName));
+    return matches.length === 1 ? matches[0] : null;
+  }
+
+  let _permMemberId = null;
+
+  async function openPermissions(memberId) {
+    if (!_isSuperAdmin) return;
+    if (!_users.length) await loadUsers();
+    _permMemberId = memberId;
+    let modal = document.getElementById('perm-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'perm-modal';
+      modal.className = 'fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60';
+      modal.addEventListener('click', e => { if (e.target === modal) closePermissions(); });
+      document.body.appendChild(modal);
+    }
+    renderPermissions();
+  }
+
+  function closePermissions() {
+    const modal = document.getElementById('perm-modal');
+    if (modal) modal.remove();
+    _permMemberId = null;
+  }
+
+  function renderPermissions() {
+    const modal = document.getElementById('perm-modal');
+    const m = allMembers[_permMemberId];
+    if (!modal || !m) return;
+    const u = _userForMember(_permMemberId);
+    const full = u && ['superadmin', 'admin'].includes(u.role);
+
+    let body;
+    if (!u) {
+      const free = _users.filter(x => !x.trello_member_id && Number(x.active));
+      body = `
+        <p class="text-sm text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 mb-3">
+          ${_escHTML(m.fullName)} todavía no está enlazada a un usuario del sitio. Elige su usuario para poder asignarle permisos
+          (o créalo primero en la sección «Usuarios»).
+        </p>
+        <select id="perm-link-user" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 w-full mb-3">
+          <option value="">— Elegir usuario —</option>
+          ${free.map(x => `<option value="${x.id}">${_escHTML(x.name || x.email)} · ${_escHTML(x.email)} (${_escHTML(_userRoleLabel(x.role))})</option>`).join('')}
+        </select>
+        <button type="button" onclick="linkPermUser()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2 rounded-lg text-sm">Enlazar usuario</button>`;
+    } else {
+      body = `
+        <p class="text-xs text-slate-400 mb-3">Usuario: <span class="text-slate-200">${_escHTML(u.email)}</span> · Rol: <span class="text-slate-200">${_escHTML(_userRoleLabel(u.role))}</span></p>
+        ${full ? '<p class="text-xs text-indigo-300 bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-3 mb-3">Este rol ya tiene todos los permisos.</p>' : ''}
+        <div class="space-y-2">
+          ${_permCatalog.map(p => {
+            const on = full || (u.permissions || []).includes(p.key);
+            return `
+            <label class="flex items-center justify-between gap-4 p-3 rounded-xl bg-slate-800/60 border border-slate-700 ${full ? 'opacity-60' : 'cursor-pointer'}">
+              <span>
+                <span class="block text-sm font-semibold text-slate-100">${_escHTML(p.label)}</span>
+                <span class="block text-xs text-slate-400">${_escHTML(p.description)}</span>
+              </span>
+              <span class="relative inline-flex flex-shrink-0">
+                <input type="checkbox" class="peer sr-only" ${on ? 'checked' : ''} ${full ? 'disabled' : ''}
+                  onchange="togglePermission(${u.id}, '${p.key}', this.checked)">
+                <span class="w-11 h-6 rounded-full bg-slate-600 peer-checked:bg-indigo-600 transition-colors"></span>
+                <span class="absolute left-0.5 top-0.5 w-5 h-5 rounded-full bg-white transition-transform peer-checked:translate-x-5"></span>
+              </span>
+            </label>`;
+          }).join('')}
+        </div>`;
+    }
+
+    modal.innerHTML = `
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md p-5 shadow-2xl">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white" style="background:${Utils.avatarColor(m.id)}">${Utils.initials(m.fullName)}</div>
+            <div>
+              <div class="text-sm font-bold text-slate-100">${_escHTML(m.fullName)}</div>
+              <div class="text-xs text-slate-400">Permisos de la persona</div>
+            </div>
+          </div>
+          <button type="button" onclick="closePermissions()" class="text-slate-400 hover:text-slate-200 text-xl leading-none px-2" aria-label="Cerrar">×</button>
+        </div>
+        ${body}
+      </div>`;
+  }
+
+  async function togglePermission(userId, key, enabled) {
+    const u = _users.find(x => Number(x.id) === Number(userId));
+    if (!u) return;
+    const next = new Set(u.permissions || []);
+    if (enabled) next.add(key); else next.delete(key);
+    try {
+      await Session.apiFetch('api/users.php', {
+        method: 'PUT',
+        body: JSON.stringify({ id: userId, permissions: Array.from(next) }),
+      });
+      u.permissions = Array.from(next);
+      Utils.showToast('Permiso actualizado ✓', 'success');
+    } catch (e) {
+      Utils.showToast(e.message, 'error');
+    }
+    renderPermissions();
+  }
+
+  async function linkPermUser() {
+    const id = Number(document.getElementById('perm-link-user').value);
+    if (!id) { Utils.showToast('Elige un usuario', 'warning'); return; }
+    try {
+      await Session.apiFetch('api/users.php', {
+        method: 'PUT',
+        body: JSON.stringify({ id, trello_member_id: _permMemberId }),
+      });
+      await loadUsers();
+      Utils.showToast('Usuario enlazado ✓', 'success');
+    } catch (e) {
+      Utils.showToast(e.message, 'error');
+    }
+    renderPermissions();
   }
 
   async function resendPasswordReset(id) {

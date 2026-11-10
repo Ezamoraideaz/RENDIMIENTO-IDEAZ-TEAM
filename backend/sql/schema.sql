@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS operators (
     password_hash VARCHAR(255) NOT NULL,
     role ENUM('superadmin','admin','agent','agenda_full','agenda_member','cm') NOT NULL DEFAULT 'agenda_full',
     trello_member_id VARCHAR(64) NULL,
+    permissions TEXT NULL,
     active TINYINT(1) NOT NULL DEFAULT 1,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uq_operators_email (email)
