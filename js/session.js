@@ -69,6 +69,13 @@ const Session = (() => {
     return !!user && pagesFor(user.role).includes(page);
   }
 
+  // Permisos puntuales por usuario (Configuración → Equipo). superadmin/admin los tienen todos.
+  function can(permission) {
+    if (!user) return false;
+    if (user.role === 'superadmin' || user.role === 'admin') return true;
+    return Array.isArray(user.permissions) && user.permissions.includes(permission);
+  }
+
   function defaultPage(role) {
     const first = pagesFor(role)[0];
     return FILE_BY_PAGE[first] || 'login.html';
@@ -138,6 +145,7 @@ const Session = (() => {
     apiFetch,
     logout,
     canView,
+    can,
     allowedNavKeys,
     currentPage,
     defaultPage,

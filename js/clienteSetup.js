@@ -73,6 +73,8 @@ const ClienteSetup = (() => {
   async function init() {
     Icons.hydrate(document.body);
     $('cs-client-select').addEventListener('change', (e) => selectClient(Number(e.target.value) || null));
+    // Crear marcas es un permiso por usuario (Configuración → Equipo); admin/superadmin lo tienen siempre.
+    if (!Session.can('create_brands')) $('cs-new-client').classList.add('hidden');
     $('cs-new-client').addEventListener('click', () => { showNewForm = !showNewForm; if (activeId) selectClient(null); else renderOverview(); });
     $('cs-refresh').addEventListener('click', () => (activeId ? reload({ runLive: true }) : loadOverview()));
     await loadClients();
@@ -156,7 +158,7 @@ const ClienteSetup = (() => {
               ${c.missing.length ? `<span class="block text-[11px] text-slate-500 mt-2 truncate">${esc(c.missing.slice(0, 3).join(' · '))}${c.missing.length > 3 ? '…' : ''}</span>` : ''}
             </button>`;
           }).join('')}
-        </div>` : '<p class="text-slate-500 text-sm">Aún no hay marcas. Crea la primera con «Nuevo cliente».</p>'}`;
+        </div>` : `<p class="text-slate-500 text-sm">Aún no hay marcas.${Session.can('create_brands') ? ' Crea la primera con «Nueva marca».' : ''}</p>`}`;
 
     box.querySelectorAll('[data-open-client]').forEach((b) => b.addEventListener('click', () => selectClient(Number(b.dataset.openClient))));
     const save = $('cs-new-save');

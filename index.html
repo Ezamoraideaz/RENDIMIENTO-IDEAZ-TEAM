@@ -128,6 +128,7 @@
           <div class="ml-auto flex items-center gap-1.5">
             <span id="bar-updated" class="text-[11px] text-slate-400 hidden min-[1700px]:inline"></span>
             <span id="boards-count-badge" class="ui-chip hidden min-[1700px]:inline-flex" style="cursor:default;color:#6366f1"></span>
+            <button type="button" class="ui-chip !px-0 w-9" onclick="MoneyPrivacy.toggle()" data-money-toggle data-cls="w-4 h-4" title="Ocultar valores financieros" aria-label="Ocultar valores financieros"></button>
             <button type="button" class="ui-chip !px-0 w-9" onclick="Sidebar.toggleTheme()" data-theme-icon data-cls="w-4 h-4" title="Cambiar tema" aria-label="Cambiar tema"></button>
             <button type="button" class="ui-chip ui-chip-primary !px-2.5 min-[1700px]:!px-4" onclick="loadDashboard(true)" title="Actualizar datos de Trello" aria-label="Actualizar"><span data-icon="refresh"></span><span class="hidden min-[1700px]:inline">Actualizar</span></button>
           </div>
@@ -301,6 +302,16 @@
 <script src="js/utils.js"></script>
 <script src="js/sidebar.js?v=20261026"></script>
 <script src="js/alarm.js"></script>
+<script src="js/moneyPrivacy.js"></script>
+<script>
+  // El gráfico Presupuesto vs Ingresos es un canvas (el blur CSS no lo cubre): se ocultan eje y tooltip
+  MoneyPrivacy.onChange((hidden) => {
+    if (typeof chartFinancial === 'undefined' || !chartFinancial) return;
+    chartFinancial.options.scales.y.ticks.display = !hidden;
+    chartFinancial.options.plugins.tooltip = { enabled: !hidden };
+    chartFinancial.update();
+  });
+</script>
 <script>
   let dashboardData = null;
   let _cmDashboardMode = false;
@@ -749,10 +760,12 @@
         plugins: { legend: { display: true, labels: { color: Chart.defaults.color, boxWidth: 12 } } },
         scales: {
           x: { grid: { display: false } },
-          y: { grid: { color: CHART_GRID } }
+          y: { grid: { color: CHART_GRID }, ticks: { display: !MoneyPrivacy.hidden } }
         }
       }
     });
+    chartFinancial.options.plugins.tooltip = { enabled: !MoneyPrivacy.hidden };
+    chartFinancial.update();
 
     // Chart 3: ROI
     if (chartROI) chartROI.destroy();

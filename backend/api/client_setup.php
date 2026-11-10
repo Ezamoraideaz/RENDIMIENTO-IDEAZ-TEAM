@@ -471,6 +471,8 @@ try {
     $action = (string)($input['action'] ?? '');
 
     if ($action === 'create_client') {
+        // Crear marcas ya no es automático por rol: lo habilita el superadmin por usuario (Configuración → Equipo).
+        require_permission($operator, 'create_brands');
         $name = trim((string)($input['name'] ?? ''));
         if ($name === '') {
             json_error('El nombre del cliente es requerido', 400);

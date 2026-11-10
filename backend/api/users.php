@@ -17,8 +17,17 @@ function count_other_active_superadmins(PDO $pdo, int $excludeId): int
 
 switch ($_SERVER['REQUEST_METHOD']) {
     case 'GET':
-        $stmt = $pdo->query('SELECT id, email, name, role, trello_member_id, active, created_at FROM operators ORDER BY active DESC, name ASC, email ASC');
-        json_response(['users' => $stmt->fetchAll()]);
+        $cols = 'id, email, name, role, trello_member_id, active, created_at' . (operators_have_permissions_column() ? ', permissions' : '');
+        $users = $pdo->query("SELECT $cols FROM operators ORDER BY active DESC, name ASC, email ASC")->fetchAll();
+        foreach ($users as &$u) {
+            $u['permissions'] = decode_permissions($u['permissions'] ?? null);
+        }
+        unset($u);
+        $catalog = [];
+        foreach (OPERATOR_PERMISSIONS as $key => $def) {
+            $catalog[] = ['key' => $key, 'label' => $def['label'], 'description' => $def['description']];
+        }
+        json_response(['users' => $users, 'permission_catalog' => $catalog]);
         break;
 
     case 'POST':
@@ -98,6 +107,18 @@ switch ($_SERVER['REQUEST_METHOD']) {
         if (array_key_exists('trello_member_id', $input)) {
             $fields[] = 'trello_member_id = ?';
             $values[] = trim((string)$input['trello_member_id']) ?: null;
+        }
+        if (array_key_exists('permissions', $input)) {
+            if (!operators_have_permissions_column()) {
+                json_error('Falta correr backend/sql/migration_027_operator_permissions.sql en la base de datos', 500);
+            }
+            $sent = is_array($input['permissions']) ? $input['permissions'] : [];
+            $clean = [];
+            foreach (array_keys(OPERATOR_PERMISSIONS) as $key) {
+                $clean[$key] = in_array($key, $sent, true);
+            }
+            $fields[] = 'permissions = ?';
+            $values[] = json_encode($clean);
         }
         if (array_key_exists('active', $input)) {
             $active = (int)(!empty($input['active']));
