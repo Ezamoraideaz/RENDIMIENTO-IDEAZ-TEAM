@@ -162,6 +162,7 @@
               <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Username</th>
               <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Sueldo Mensual (COP)</th>
               <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Rol</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Cumpleaños</th>
               <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider team-perm-col" style="display:none">Permisos</th>
             </tr>
           </thead>
@@ -612,11 +613,27 @@
     }
   }
 
+  const MONTHS_ES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+  // Cumpleaños: solo día y mes. Se guarda cuando ambos están elegidos (o ambos vacíos para borrarlo).
+  function saveBirthday(memberId, el) {
+    const box = el.closest('[data-bday]');
+    const day = box.querySelector('[data-part="day"]').value;
+    const month = box.querySelector('[data-part="month"]').value;
+    if (!!day !== !!month) return; // falta una de las dos partes: espera
+    if (day && month && Number(day) > new Date(2000, Number(month), 0).getDate()) {
+      Utils.showToast('Ese mes no tiene ese día', 'warning');
+      return;
+    }
+    Storage.setMemberBirthday(memberId, month, day);
+    Utils.showToast(day ? 'Cumpleaños guardado ✓' : 'Cumpleaños borrado ✓', 'success');
+  }
+
   function renderTeamTable() {
     const tbody = document.getElementById('team-table-body');
     const members = Object.values(allMembers);
     if (members.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" class="text-slate-400 px-4 py-3">No se encontraron miembros.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" class="text-slate-400 px-4 py-3">No se encontraron miembros.</td></tr>';
       return;
     }
     const ROLE_OPTIONS = [
@@ -629,6 +646,7 @@
     tbody.innerHTML = members.map(m => {
       const salary  = Storage.getMemberRate(m.id);
       const current = Storage.getMemberRole(m.id);
+      const bday = Storage.getMemberBirthday(m.id);
       const options = ROLE_OPTIONS.map(o =>
         `<option value="${o.value}" ${o.value === current ? 'selected' : ''}>${o.label}</option>`
       ).join('');
@@ -653,6 +671,16 @@
               onchange="Storage.setMemberRole('${m.id}', this.value); Utils.showToast('Rol guardado ✓', 'success')">
               ${options}
             </select>
+          </td>
+          <td class="px-4 py-3">
+            <div class="flex gap-1.5" data-bday="${m.id}">
+              <select aria-label="Día" onchange="saveBirthday('${m.id}', this)" data-part="day" class="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+                <option value="">Día</option>${Array.from({ length: 31 }, (_, i) => `<option value="${i + 1}" ${bday && bday.day === i + 1 ? 'selected' : ''}>${i + 1}</option>`).join('')}
+              </select>
+              <select aria-label="Mes" onchange="saveBirthday('${m.id}', this)" data-part="month" class="bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+                <option value="">Mes</option>${MONTHS_ES.map((n, i) => `<option value="${i + 1}" ${bday && bday.month === i + 1 ? 'selected' : ''}>${n}</option>`).join('')}
+              </select>
+            </div>
           </td>
           <td class="px-4 py-3 team-perm-col" style="display:${_isSuperAdmin ? 'table-cell' : 'none'}">
             <button type="button" onclick="openPermissions('${m.id}')"
