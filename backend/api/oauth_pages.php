@@ -2,7 +2,7 @@
 require_once __DIR__ . '/../bootstrap.php';
 require_once __DIR__ . '/../includes/meta_client.php';
 
-require_atencion_access();
+require_client_setup_access();
 
 $method = $_SERVER['REQUEST_METHOD'];
 

@@ -1,37 +1,38 @@
 const DriveAPI = (() => {
-  const SCOPES  = 'https://www.googleapis.com/auth/drive';
   const MONTHS  = ['enero','febrero','marzo','abril','mayo','junio',
                    'julio','agosto','septiembre','octubre','noviembre','diciembre'];
   const MONTHS_UPPER = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO',
                         'JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
 
-  function _redirectUri() {
-    const loc = window.location;
-    const base = loc.origin + loc.pathname.replace(/\/[^/]*$/, '/');
-    return base + 'configuracion.html';
+  // ── Transporte ───────────────────────────────────────────────────────────────
+  // Antes este módulo hablaba directo con la API de Drive usando un token OAuth
+  // por usuario guardado en localStorage (flujo implícito de Google, que nunca
+  // entrega refresh_token y expira cada hora — cada CM/PM tenía que reconectar
+  // varias veces al día). Ahora las lecturas/escrituras pasan por el backend
+  // (backend/api/drive_browse.php), que usa la cuenta de servicio compartida —
+  // no hay conexión por usuario ni expiración que gestionar desde acá.
+  async function _listSubfolders(parentId) {
+    const r = await Session.apiFetch(`api/drive_browse.php?action=list_subfolders&parent_id=${encodeURIComponent(parentId)}`);
+    return r.files || [];
+  }
+  async function _listFiles(folderId) {
+    const r = await Session.apiFetch(`api/drive_browse.php?action=list_files&folder_id=${encodeURIComponent(folderId)}`);
+    return r.files || [];
+  }
+  async function _createFolder(name, parentId) {
+    const r = await Session.apiFetch('api/drive_browse.php', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'create_folder', name, parent_id: parentId })
+    });
+    return r.folder;
   }
 
-  // ── Credentials ──────────────────────────────────────────────────────────────
-  // El Client ID vive en la BD (app_settings) compartido para toda la agencia;
-  // solo el superadmin puede cambiarlo. saveClientId devuelve una promesa.
-  function getClientId()    { return Storage.getSetting('drive_client_id'); }
-  function saveClientId(id) { return Storage.saveSetting('drive_client_id', id.trim()); }
-
-  function getToken() {
-    try {
-      const d = JSON.parse(localStorage.getItem('ideaz_drive_token') || '{}');
-      if (!d.token || !d.expiry || Date.now() > d.expiry) return null;
-      return d.token;
-    } catch { return null; }
-  }
-  function _saveToken(token, expiresIn) {
-    localStorage.setItem('ideaz_drive_token', JSON.stringify({
-      token,
-      expiry: Date.now() + (parseInt(expiresIn) - 60) * 1000
-    }));
-  }
-  function clearToken()  { localStorage.removeItem('ideaz_drive_token'); }
-  function isConnected() { return !!getToken(); }
+  // Se mantiene por compatibilidad con las pantallas que todavía preguntan si
+  // Drive "está conectado" antes de buscar una carpeta — con la cuenta de
+  // servicio siempre lo está; si algo falla (carpeta no compartida, cuenta de
+  // servicio mal configurada), el error real llega al rechazar la promesa de
+  // la llamada correspondiente (findPostFolder/findApprovalMedia/etc.), no acá.
+  function isConnected() { return true; }
 
   // ── Per-board folder ──────────────────────────────────────────────────────────
   // La carpeta por tablero es parte de la configuración del proyecto en la BD
@@ -41,70 +42,6 @@ const DriveAPI = (() => {
   }
   function saveFolderForBoard(boardId, folderId) {
     Storage.saveProjectData(boardId, { driveFolderId: folderId.trim() });
-  }
-
-  // ── OAuth ─────────────────────────────────────────────────────────────────────
-  function connect() {
-    const clientId = getClientId();
-    if (!clientId) throw new Error('Guarda el Client ID antes de conectar');
-    const p = new URLSearchParams({
-      client_id:     clientId,
-      redirect_uri:  _redirectUri(),
-      response_type: 'token',
-      scope:         SCOPES,
-      prompt:        'consent'
-    });
-    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${p}`;
-  }
-
-  function handleCallback() {
-    const hash = window.location.hash;
-    if (!hash) return false;
-    if (hash.includes('error=')) {
-      const err = new URLSearchParams(hash.slice(1)).get('error') || 'oauth_error';
-      window.history.replaceState({}, document.title,
-        window.location.pathname + window.location.search);
-      throw new Error(err);
-    }
-    if (!hash.includes('access_token')) return false;
-    const p     = new URLSearchParams(hash.slice(1));
-    const token = p.get('access_token');
-    if (!token) return false;
-    _saveToken(token, p.get('expires_in') || 3600);
-    window.history.replaceState({}, document.title,
-      window.location.pathname + window.location.search);
-    return true;
-  }
-
-  // ── Drive API v3 ──────────────────────────────────────────────────────────────
-  async function _fetch(endpoint, params = {}) {
-    const token = getToken();
-    if (!token) throw new Error('No autenticado con Google Drive');
-    const url = new URL(`https://www.googleapis.com/drive/v3/${endpoint}`);
-    for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-    if (res.status === 401) { clearToken(); throw new Error('Sesión de Drive expirada — reconecta en Configuración'); }
-    if (!res.ok) throw new Error(`Drive API ${res.status}`);
-    return res.json();
-  }
-
-  // List all subfolders of a parent (up to 100)
-  async function _listSubfolders(parentId) {
-    const r = await _fetch('files', {
-      q:        `'${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-      fields:   'files(id,name)',
-      pageSize: '100'
-    });
-    return r.files || [];
-  }
-
-  async function _listFiles(folderId) {
-    const r = await _fetch('files', {
-      q:        `'${folderId}' in parents and trashed=false`,
-      fields:   'files(id,name,mimeType,webViewLink,thumbnailLink)',
-      pageSize: '20'
-    });
-    return r.files || [];
   }
 
   // ── Fuzzy matchers (client-side) ──────────────────────────────────────────────
@@ -192,26 +129,6 @@ const DriveAPI = (() => {
   }
 
   // ── Create folders ────────────────────────────────────────────────────────────
-  async function _createFolder(name, parentId) {
-    const token = getToken();
-    if (!token) throw new Error('No autenticado con Google Drive');
-    const res = await fetch('https://www.googleapis.com/drive/v3/files', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        name,
-        mimeType: 'application/vnd.google-apps.folder',
-        parents: [parentId]
-      })
-    });
-    if (res.status === 401) { clearToken(); throw new Error('Sesión de Drive expirada — reconecta en Configuración'); }
-    if (!res.ok) throw new Error(`Drive API ${res.status}`);
-    return res.json();
-  }
-
   // Creates year/month/POST#1..N under rootFolderId, skipping folders that already exist.
   // onProgress(i, total) is called for each post checked.
   async function createStructure(rootFolderId, year, monthIdx, postCount, onProgress) {
@@ -285,8 +202,7 @@ const DriveAPI = (() => {
   }
 
   return {
-    getClientId, saveClientId,
-    isConnected, connect, handleCallback, clearToken,
+    isConnected,
     getFolderForBoard, saveFolderForBoard,
     findPostFolder, createStructure, findApprovalMedia
   };

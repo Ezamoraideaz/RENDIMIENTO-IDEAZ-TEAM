@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../bootstrap.php';
 
-require_atencion_access(); // solo roles con acceso al módulo pueden iniciar la conexión
+require_client_setup_access(); // roles con acceso a Atención al Cliente o al asistente de configuración
 
 $clientId = (int)($_GET['client_id'] ?? 0);
 if ($clientId <= 0) {
@@ -18,6 +18,8 @@ if (!$stmt->fetch()) {
 $state = bin2hex(random_bytes(16));
 $_SESSION['fb_oauth_state']     = $state;
 $_SESSION['fb_oauth_client_id'] = $clientId;
+// ?return=asistente → al terminar vuelve a configurar-cliente.html en vez de Atención al Cliente
+$_SESSION['fb_oauth_return']    = ($_GET['return'] ?? '') === 'asistente' ? 'asistente' : '';
 
 // Estos son los permisos correctos para el flujo "API setup with Facebook Login"
 // (Página + cuenta de Instagram vinculada descubiertas juntas en un solo OAuth).

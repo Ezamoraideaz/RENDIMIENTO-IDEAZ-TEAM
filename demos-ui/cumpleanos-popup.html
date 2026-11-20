@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Demo – Popup de cumpleaños</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { background:#020617; color:#f1f5f9; font-family: Inter, system-ui, sans-serif; }
+
+  /* Confeti: canvas a pantalla completa, por encima de todo y sin bloquear clics */
+  #bday-confetti { position:fixed; inset:0; width:100%; height:100%; pointer-events:none; z-index:9998; }
+  #bday-overlay { position:fixed; inset:0; z-index:9999; display:flex; align-items:center; justify-content:center; padding:1rem;
+    background:radial-gradient(ellipse at center, rgba(79,70,229,.35), rgba(2,6,23,.85)); backdrop-filter:blur(3px);
+    animation:bdayFade .35s ease-out both; }
+  #bday-overlay.closing { animation:bdayFadeOut .3s ease-in both; }
+  @keyframes bdayFade { from{opacity:0} to{opacity:1} }
+  @keyframes bdayFadeOut { to{opacity:0} }
+
+  .bday-card { position:relative; width:100%; max-width:30rem; text-align:center; padding:2.5rem 1.75rem 2rem;
+    border-radius:1.75rem; border:1px solid rgba(165,180,252,.35);
+    background:linear-gradient(160deg, rgba(30,27,75,.96), rgba(15,23,42,.96));
+    box-shadow:0 0 0 1px rgba(255,255,255,.04), 0 30px 80px rgba(79,70,229,.45), inset 0 1px 0 rgba(255,255,255,.08);
+    animation:bdayPop .7s cubic-bezier(.2,1.4,.4,1) both; overflow:hidden; }
+  @keyframes bdayPop { from{opacity:0; transform:scale(.6) translateY(40px) rotate(-3deg)} to{opacity:1; transform:none} }
+
+  /* halo giratorio detrás de la tarjeta */
+  .bday-card::before { content:""; position:absolute; inset:-60%; z-index:0;
+    background:conic-gradient(from 0deg, transparent, rgba(244,114,182,.25), transparent 30%, rgba(250,204,21,.22), transparent 60%, rgba(56,189,248,.22), transparent);
+    animation:bdaySpin 9s linear infinite; }
+  @keyframes bdaySpin { to{transform:rotate(360deg)} }
+  .bday-card > * { position:relative; z-index:1; }
+
+  .bday-cake { font-size:4.5rem; line-height:1; display:inline-block; animation:bdayBounce 1.6s ease-in-out infinite; filter:drop-shadow(0 8px 14px rgba(0,0,0,.45)); }
+  @keyframes bdayBounce { 0%,100%{transform:translateY(0) rotate(-4deg)} 50%{transform:translateY(-14px) rotate(4deg)} }
+
+  .bday-title { font-size:2.1rem; font-weight:900; line-height:1.1; margin-top:.75rem;
+    background:linear-gradient(90deg,#f472b6,#facc15,#38bdf8,#f472b6); background-size:300% 100%;
+    -webkit-background-clip:text; background-clip:text; color:transparent; animation:bdayShine 4s linear infinite; }
+  @keyframes bdayShine { to{background-position:300% 0} }
+  .bday-name { font-size:1.6rem; font-weight:800; color:#fff; margin-top:.35rem; }
+  .bday-msg { color:#c7d2fe; font-size:.95rem; line-height:1.55; margin:1rem auto 0; max-width:24rem; }
+  .bday-sign { color:#a5b4fc; font-size:.8rem; margin-top:.85rem; font-weight:600; letter-spacing:.03em; }
+
+  .bday-btn { margin-top:1.5rem; background:linear-gradient(90deg,#6366f1,#a855f7); color:#fff; font-weight:700; font-size:.95rem;
+    padding:.75rem 1.75rem; border-radius:999px; border:0; cursor:pointer; transition:transform .15s, box-shadow .15s;
+    box-shadow:0 10px 30px rgba(99,102,241,.5); }
+  .bday-btn:hover { transform:translateY(-2px) scale(1.03); box-shadow:0 14px 36px rgba(168,85,247,.6); }
+  .bday-x { position:absolute; top:.6rem; right:.8rem; z-index:2; color:#94a3b8; font-size:1.5rem; background:none; border:0; cursor:pointer; line-height:1; padding:.25rem .5rem; }
+  .bday-x:hover { color:#fff; }
+
+  /* globos que suben por los lados de la tarjeta */
+  .bday-balloon { position:absolute; bottom:-60px; font-size:2.2rem; opacity:0; animation:bdayRise linear infinite; z-index:0; }
+  @keyframes bdayRise { 0%{transform:translateY(0) rotate(-8deg); opacity:0} 10%{opacity:.9} 100%{transform:translateY(-420px) rotate(8deg); opacity:0} }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bday-card, .bday-cake, .bday-title, .bday-card::before, .bday-balloon { animation:none !important; }
+  }
+</style>
+</head>
+<body>
+  <div class="max-w-xl mx-auto p-8">
+    <h1 class="text-2xl font-extrabold mb-1">Demo · Popup de cumpleaños 🎉</h1>
+    <p class="text-slate-400 text-sm mb-6">Así se vería al entrar el día del cumpleaños (en cualquier vista). El confeti cae hasta que cierres el popup.</p>
+    <div class="flex flex-wrap gap-2 items-center">
+      <input id="demo-name" value="Camila" class="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm w-44" placeholder="Nombre">
+      <button onclick="BirthdayPopup.show(document.getElementById('demo-name').value)" class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2 rounded-lg text-sm">▶ Ver popup</button>
+    </div>
+    <p class="text-slate-500 text-xs mt-6">Fondo de ejemplo: el dashboard real quedaría detrás, desenfocado.</p>
+  </div>
+
+<script>
+const BirthdayPopup = (() => {
+  const COLORS = ['#f472b6','#facc15','#38bdf8','#34d399','#a78bfa','#fb923c','#f87171','#ffffff'];
+  let raf = null, pieces = [], canvas = null, ctx = null, overlay = null;
+
+  const MESSAGES = [
+    'Gracias por poner tu talento y tu energía en cada proyecto. ¡Hoy te toca a ti brillar!',
+    'Que este nuevo año de vida venga lleno de ideas geniales, buena vibra y muchos logros.',
+    'El equipo IDEAZ te manda un abrazo gigante. ¡A celebrar como se debe!',
+  ];
+
+  function makePiece(w, h, fromTop) {
+    const size = 6 + Math.random() * 8;
+    return {
+      x: Math.random() * w, y: fromTop ? -20 - Math.random() * h : Math.random() * h,
+      w: size, h: size * (0.5 + Math.random() * 0.9),
+      vy: 1.4 + Math.random() * 2.6, vx: -0.8 + Math.random() * 1.6,
+      rot: Math.random() * Math.PI * 2, vr: -0.15 + Math.random() * 0.3,
+      sway: Math.random() * 2 * Math.PI, swaySpeed: 0.02 + Math.random() * 0.03,
+      color: COLORS[(Math.random() * COLORS.length) | 0], round: Math.random() < 0.25,
+    };
+  }
+
+  function loop() {
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    pieces.forEach((p, i) => {
+      p.y += p.vy; p.sway += p.swaySpeed; p.x += p.vx + Math.sin(p.sway) * 1.1; p.rot += p.vr;
+      if (p.y > h + 20) pieces[i] = makePiece(w, h, true); // vuelve a caer desde arriba: sin fin hasta cerrar
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.fillStyle = p.color;
+      if (p.round) { ctx.beginPath(); ctx.arc(0, 0, p.w / 2, 0, Math.PI * 2); ctx.fill(); }
+      else ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      ctx.restore();
+    });
+    raf = requestAnimationFrame(loop);
+  }
+
+  function resize() { if (canvas) { canvas.width = innerWidth; canvas.height = innerHeight; } }
+
+  function startConfetti() {
+    canvas = document.createElement('canvas'); canvas.id = 'bday-confetti';
+    document.body.appendChild(canvas); ctx = canvas.getContext('2d'); resize();
+    addEventListener('resize', resize);
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const n = reduced ? 40 : Math.min(220, Math.round(innerWidth / 7));
+    pieces = Array.from({ length: n }, () => makePiece(canvas.width, canvas.height, false));
+    loop();
+  }
+
+  function stopConfetti() {
+    cancelAnimationFrame(raf); raf = null; removeEventListener('resize', resize);
+    if (canvas) canvas.remove(); canvas = ctx = null; pieces = [];
+  }
+
+  function esc(s) { return String(s).replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
+
+  function show(name) {
+    if (overlay) return;
+    const msg = MESSAGES[(Math.random() * MESSAGES.length) | 0];
+    const balloons = ['🎈','🎈','🎉','🎈','✨','🎁'].map((e, i) =>
+      `<span class="bday-balloon" style="left:${6 + i * 17}%; animation-duration:${6 + (i % 3) * 2}s; animation-delay:${i * 0.9}s">${e}</span>`).join('');
+    overlay = document.createElement('div'); overlay.id = 'bday-overlay';
+    overlay.setAttribute('role', 'dialog'); overlay.setAttribute('aria-label', 'Feliz cumpleaños');
+    overlay.innerHTML = `
+      <div class="bday-card">
+        ${balloons}
+        <button class="bday-x" aria-label="Cerrar">×</button>
+        <div class="bday-cake">🎂</div>
+        <div class="bday-title">¡Feliz cumpleaños!</div>
+        <div class="bday-name">${esc(name || '')}</div>
+        <p class="bday-msg">${esc(msg)}</p>
+        <p class="bday-sign">— Tu equipo IDEAZ 💜</p>
+        <button class="bday-btn">¡Gracias! 🥳</button>
+      </div>`;
+    document.body.appendChild(overlay);
+    startConfetti();
+    overlay.querySelector('.bday-x').onclick = overlay.querySelector('.bday-btn').onclick = close;
+    addEventListener('keydown', onKey);
+  }
+  function onKey(e) { if (e.key === 'Escape') close(); }
+  function close() {
+    if (!overlay) return;
+    removeEventListener('keydown', onKey);
+    overlay.classList.add('closing');
+    const o = overlay; overlay = null;
+    setTimeout(() => { o.remove(); stopConfetti(); }, 280);
+  }
+  return { show, close };
+})();
+</script>
+</body>
+</html>

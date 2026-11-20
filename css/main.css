@@ -1,61 +1,246 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+/* ══════════════════════════════════════════════════════════════════════════
+   IDEAZ · Front "Bento" — capa de tema global
+   Los módulos siguen usando las clases slate de Tailwind de siempre; acá se
+   remapean a variables (--bg, --s1…) para que cada tema (oscuro por defecto
+   en :root, claro con html.light) cambie todo el sitio sin tocar los módulos.
+   ══════════════════════════════════════════════════════════════════════════ */
+:root {
+  --bg: #0b0f1a;   --s1: #121829;  --s2: #1a2236;  --s3: #232c44;  --s4: #2e3854;  --s5: #3b4763;
+  --ink: #f1f5f9;  --ink2: #e2e8f0; --ink3: #cbd5e1;
+  --mut: #94a3b8;  --mut2: #7c8aa3; --mut3: #56627a; --mut4: #3f4a60;
+  --line0: #182033; --line: #1f2a40; --line2: #2b3650; --line3: #3b4763;
+  --accent: #4f46e5;
+  --shadow: 0 1px 2px rgba(0,0,0,.25);
+  color-scheme: dark;
+}
+html.light {
+  --bg: #f3f1ec;   --s1: #ffffff;  --s2: #f6f4ef;  --s3: #ece9e2;  --s4: #e0dcd3;  --s5: #c9c4ba;
+  --ink: #1c1917;  --ink2: #292524; --ink3: #44403c;
+  --mut: #78716c;  --mut2: #a8a29e; --mut3: #b8b2ab; --mut4: #d6d3d1;
+  --line0: #efede8; --line: #e7e5e4; --line2: #d6d3d1; --line3: #a8a29e;
+  --shadow: 0 1px 2px rgba(28,25,23,.05), 0 8px 24px -16px rgba(28,25,23,.18);
+  color-scheme: light;
+}
+
+body, .font-sans { font-family: 'Plus Jakarta Sans', system-ui, sans-serif !important; }
+body { background-color: var(--bg) !important; color: var(--ink) !important; }
+html { overflow-x: hidden; }
+
+/* ── Superficies ───────────────────────────────────────────────────────── */
+.bg-slate-950        { background-color: var(--bg) !important; }
+.bg-slate-950\/95    { background-color: color-mix(in srgb, var(--bg) 95%, transparent) !important; }
+.bg-slate-950\/85    { background-color: color-mix(in srgb, var(--bg) 85%, transparent) !important; }
+.bg-slate-950\/50    { background-color: color-mix(in srgb, var(--bg) 50%, transparent) !important; }
+.bg-slate-900        { background-color: var(--s1) !important; }
+.bg-slate-900\/90    { background-color: color-mix(in srgb, var(--s1) 90%, transparent) !important; }
+.bg-slate-900\/60    { background-color: color-mix(in srgb, var(--s1) 60%, transparent) !important; }
+.bg-slate-900\/40    { background-color: color-mix(in srgb, var(--s1) 40%, transparent) !important; }
+.bg-slate-800        { background-color: var(--s2) !important; }
+.bg-slate-800\/60    { background-color: color-mix(in srgb, var(--s2) 60%, transparent) !important; }
+.bg-slate-800\/50    { background-color: color-mix(in srgb, var(--s2) 50%, transparent) !important; }
+.bg-slate-800\/40    { background-color: color-mix(in srgb, var(--s2) 40%, transparent) !important; }
+.bg-slate-800\/30    { background-color: color-mix(in srgb, var(--s2) 30%, transparent) !important; }
+.bg-slate-700        { background-color: var(--s3) !important; }
+.bg-slate-700\/40    { background-color: color-mix(in srgb, var(--s3) 40%, transparent) !important; }
+.bg-slate-700\/30    { background-color: color-mix(in srgb, var(--s3) 30%, transparent) !important; }
+.bg-slate-600        { background-color: var(--s4) !important; }
+.bg-slate-500        { background-color: var(--s5) !important; }
+
+.hover\:bg-slate-900\/60:hover { background-color: color-mix(in srgb, var(--s1) 60%, transparent) !important; }
+.hover\:bg-slate-800:hover     { background-color: var(--s2) !important; }
+.hover\:bg-slate-800\/60:hover { background-color: color-mix(in srgb, var(--s2) 60%, transparent) !important; }
+.hover\:bg-slate-800\/30:hover { background-color: color-mix(in srgb, var(--s2) 30%, transparent) !important; }
+.hover\:bg-slate-700:hover     { background-color: var(--s3) !important; }
+.hover\:bg-slate-700\/50:hover { background-color: color-mix(in srgb, var(--s3) 50%, transparent) !important; }
+.hover\:bg-slate-600:hover     { background-color: var(--s4) !important; }
+.focus\:bg-slate-800:focus     { background-color: var(--s2) !important; }
+
+/* ── Texto ─────────────────────────────────────────────────────────────── */
+.text-slate-100 { color: var(--ink)  !important; }
+.text-slate-200 { color: var(--ink2) !important; }
+.text-slate-300 { color: var(--ink3) !important; }
+.text-slate-400 { color: var(--mut)  !important; }
+.text-slate-500 { color: var(--mut2) !important; }
+.text-slate-600 { color: var(--mut3) !important; }
+.text-slate-700 { color: var(--mut4) !important; }
+.hover\:text-slate-100:hover { color: var(--ink)  !important; }
+.hover\:text-slate-200:hover { color: var(--ink2) !important; }
+.hover\:text-slate-300:hover { color: var(--ink3) !important; }
+.placeholder-slate-500::placeholder { color: var(--mut2) !important; }
+
+/* ── Bordes ────────────────────────────────────────────────────────────── */
+.border-slate-800      { border-color: var(--line0) !important; }
+.border-slate-800\/60  { border-color: color-mix(in srgb, var(--line0) 60%, transparent) !important; }
+.border-slate-700      { border-color: var(--line) !important; }
+.border-slate-700\/60  { border-color: color-mix(in srgb, var(--line) 60%, transparent) !important; }
+.border-slate-700\/50  { border-color: color-mix(in srgb, var(--line) 50%, transparent) !important; }
+.border-slate-700\/40  { border-color: color-mix(in srgb, var(--line) 40%, transparent) !important; }
+.border-slate-600      { border-color: var(--line2) !important; }
+.border-slate-500      { border-color: var(--line3) !important; }
+.hover\:border-slate-500:hover { border-color: var(--line3) !important; }
+/* Spinners (border-slate-* + border-t-*): el color de arriba debe ganarle al border-color de las reglas
+   anteriores, si no el anillo queda de un solo color y no se nota que gira. */
+.border-t-indigo-500   { border-top-color: #6366f1 !important; }
+.border-t-indigo-400   { border-top-color: #818cf8 !important; }
+.border-t-emerald-500  { border-top-color: #10b981 !important; }
+.border-t-transparent  { border-top-color: transparent !important; }
+.divide-slate-800 > :not([hidden]) ~ :not([hidden])     { border-color: var(--line0) !important; }
+.divide-slate-800\/60 > :not([hidden]) ~ :not([hidden]) { border-color: color-mix(in srgb, var(--line0) 60%, transparent) !important; }
+.divide-slate-700\/60 > :not([hidden]) ~ :not([hidden]) { border-color: color-mix(in srgb, var(--line) 60%, transparent) !important; }
+.divide-slate-700\/50 > :not([hidden]) ~ :not([hidden]) { border-color: color-mix(in srgb, var(--line) 50%, transparent) !important; }
+
+/* ── Forma "bento": tarjetas más redondeadas y suaves ──────────────────── */
+.rounded-2xl { border-radius: 1.5rem !important; }
+.rounded-xl  { border-radius: 1rem !important; }
+.rounded-lg  { border-radius: .7rem !important; }
+.bg-slate-900.rounded-2xl, .bg-slate-900.rounded-xl { box-shadow: var(--shadow); }
+
+/* Formularios */
+input, select, textarea { font-family: inherit; }
+html.light input:not([type=checkbox]):not([type=radio]):not([type=range]),
+html.light select,
+html.light textarea { background-color: #ffffff !important; color: var(--ink) !important; border-color: var(--line2) !important; }
+html.light input::placeholder, html.light textarea::placeholder { color: var(--mut2) !important; }
+option { background-color: var(--s1); color: var(--ink); }
+input:focus, select:focus, textarea:focus { border-color: #6366f1 !important; }
+
+/* Texto de acento legible en tema claro (los tonos 200-400 están pensados para fondo oscuro) */
+html.light .text-indigo-200, html.light .text-indigo-300 { color: #4338ca !important; } html.light .text-indigo-400 { color: #4f46e5 !important; }
+html.light .text-emerald-200, html.light .text-emerald-300 { color: #047857 !important; } html.light .text-emerald-400 { color: #059669 !important; }
+html.light .text-green-200, html.light .text-green-300 { color: #15803d !important; } html.light .text-green-400 { color: #16a34a !important; }
+html.light .text-red-200, html.light .text-red-300 { color: #b91c1c !important; } html.light .text-red-400 { color: #dc2626 !important; }
+html.light .text-rose-200, html.light .text-rose-300 { color: #be123c !important; } html.light .text-rose-400 { color: #e11d48 !important; }
+html.light .text-amber-200, html.light .text-amber-300 { color: #b45309 !important; } html.light .text-amber-400 { color: #d97706 !important; }
+html.light .text-yellow-200, html.light .text-yellow-300 { color: #a16207 !important; } html.light .text-yellow-400 { color: #ca8a04 !important; }
+html.light .text-orange-200, html.light .text-orange-300 { color: #c2410c !important; } html.light .text-orange-400 { color: #ea580c !important; }
+html.light .text-sky-200, html.light .text-sky-300 { color: #0369a1 !important; } html.light .text-sky-400 { color: #0284c7 !important; }
+html.light .text-cyan-200, html.light .text-cyan-300 { color: #0e7490 !important; } html.light .text-cyan-400 { color: #0891b2 !important; }
+html.light .text-blue-200, html.light .text-blue-300 { color: #1d4ed8 !important; } html.light .text-blue-400 { color: #2563eb !important; }
+html.light .text-teal-200, html.light .text-teal-300 { color: #0f766e !important; } html.light .text-teal-400 { color: #0d9488 !important; }
+html.light .text-violet-200, html.light .text-violet-300 { color: #6d28d9 !important; } html.light .text-violet-400 { color: #7c3aed !important; }
+html.light .text-purple-200, html.light .text-purple-300 { color: #7e22ce !important; } html.light .text-purple-400 { color: #9333ea !important; }
+html.light .text-fuchsia-200, html.light .text-fuchsia-300 { color: #a21caf !important; } html.light .text-fuchsia-400 { color: #c026d3 !important; }
+html.light .text-pink-200, html.light .text-pink-300 { color: #be185d !important; } html.light .text-pink-400 { color: #db2777 !important; }
+html.light .text-lime-200, html.light .text-lime-300 { color: #4d7c0f !important; } html.light .text-lime-400 { color: #65a30d !important; }
+
+/* Fondos de acento muy oscuros (pensados para tema oscuro) → tono suave en tema claro */
+html.light .bg-indigo-950 { background-color: #eef2ff !important; }
+
+/* Scrollbars finos */
+* { scrollbar-width: thin; scrollbar-color: var(--s4) transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--s4); border-radius: 8px; }
+
+/* ── Componentes del front nuevo (reutilizables por cualquier módulo) ──── */
+/* Marca dentro de la barra superior: solo con el menú flotante en escritorio
+   (con el menú lateral, o en celular con la barra móvil, la marca ya está visible) */
+.ui-brand { display: none; }
+@media (min-width: 768px) { body.ideaz-dock .ui-brand { display: inline-flex; } }
+/* Barra de filtros fija arriba */
+.ui-toolbar { background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+/* Chips / botones píldora — todos de la misma altura que los campos */
+.ui-chip { display:inline-flex; align-items:center; justify-content:center; gap:.4rem; box-sizing:border-box; height:2.25rem; padding:0 .9rem; border-radius:999px; border:1px solid var(--line); background:var(--s1); color:var(--ink); font-size:.78rem; font-weight:600; line-height:1; white-space:nowrap; cursor:pointer; transition:border-color .15s, background .15s, color .15s; }
+.ui-chip:hover { border-color:#6366f1; }
+.ui-chip.is-on, .ui-chip-primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+.ui-chip-primary:hover { background:#6366f1; }
+.ui-chip-success { background:#059669; border-color:#059669; color:#fff; }
+.ui-chip-success:hover { background:#10b981; border-color:#10b981; }
+.ui-chip:disabled { opacity:.45; cursor:not-allowed; }
+/* Campo con icono dentro (izquierda) y flechita (derecha) */
+.ui-field { position:relative; display:inline-flex; align-items:center; height:2.25rem; }
+.ui-field > svg { position:absolute; left:.75rem; pointer-events:none; color:var(--mut); }
+.ui-field > svg.ui-field-end { left:auto; right:.7rem; }
+.ui-select, .ui-input,
+html.light .ui-select, html.light .ui-input { appearance:none; -webkit-appearance:none; box-sizing:border-box; height:2.25rem; width:100%; border:1px solid var(--line) !important; background:var(--s1) !important; color:var(--ink) !important; border-radius:999px; padding:0 2rem 0 2.15rem; font-size:.78rem; font-weight:600; line-height:1; outline:none; cursor:pointer; }
+.ui-input, html.light .ui-input { padding-right:.9rem; cursor:text; }
+.ui-select:focus, .ui-input:focus { border-color:#6366f1 !important; }
+
+/* Tarjetas bento */
+.bento-card { background:var(--s1); border:1px solid var(--line); border-radius:1.75rem; padding:1.4rem; min-width:0; box-shadow:var(--shadow); transition:transform .2s, box-shadow .2s, border-color .2s; }
+a.bento-card:hover, .bento-card.is-hoverable:hover { transform:translateY(-2px); box-shadow:0 16px 32px -18px rgba(0,0,0,.35); border-color:#6366f1; }
+.bento-label { font-size:.7rem; font-weight:800; letter-spacing:.09em; text-transform:uppercase; color:var(--mut); }
+.bento-hero  { --hero-bg:#4f46e5; background:var(--hero-bg) !important; border-color:transparent !important; color:#fff; }
+html:not(.light) .bento-hero { --hero-bg:#4338ca; }
+.bento-amber { background:#fcd34d !important; border-color:transparent !important; color:#451a03; }
+.bento-rose  { background:#fecdd3 !important; border-color:transparent !important; color:#4c0519; }
+.bento-ink   { background:#0c0a09 !important; border-color:transparent !important; color:#fff; }
+html:not(.light) .bento-ink { background:#05070d !important; border-color:var(--line) !important; }
+.bento-ring { width:158px; height:158px; border-radius:50%; display:grid; place-items:center; flex:none; background:conic-gradient(#fff calc(var(--p) * 1%), rgba(255,255,255,.25) 0); }
+.bento-ring > div { width:120px; height:120px; border-radius:50%; background:var(--hero-bg); display:grid; place-items:center; text-align:center; }
+.bento-pill { display:inline-flex; align-items:center; gap:.3rem; border-radius:999px; padding:.15rem .6rem; font-size:.7rem; font-weight:800; white-space:nowrap; }
+.bento-track { height:.5rem; border-radius:999px; background:var(--s3); overflow:hidden; }
+.bento-track > div { height:100%; border-radius:999px; }
+
+/* ── Paneles de página (contenido del menú lateral visible con menú flotante/retraído) ── */
+.ideaz-pp { padding: 1rem 1.25rem; margin: 1.25rem 0; }
+.ideaz-pp-head { display:flex; align-items:center; gap:.55rem; width:100%; text-align:left; color:var(--mut); }
+.ideaz-pp-head:hover { color:var(--ink); }
+.ideaz-pp-count { min-width:1.35rem; height:1.35rem; padding:0 .4rem; border-radius:999px; background:var(--accent); color:#fff; font-size:.7rem; font-weight:800; display:inline-grid; place-items:center; }
+.ideaz-pp-count:empty { display:none; }
+.ideaz-pp-chev { margin-left:auto; display:grid; transition:transform .2s; }
+.ideaz-pp.is-collapsed .ideaz-pp-chev { transform:rotate(-90deg); }
+.ideaz-pp.is-collapsed .ideaz-pp-body { display:none; }
+.ideaz-pp-body { margin-top:.85rem; }
+.ideaz-pp-body > * { padding:0 !important; }
+/* "Mi actividad" de Agenda: un grupo (En Proceso / Cambios / Enviado) por columna */
+.ideaz-pp-body > #sidebar-locked-tasks { display:grid !important; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:.25rem 1.25rem; }
+.ideaz-pp-body > #sidebar-locked-tasks > div:first-child:not(.mb-3) { display:none; } /* título "Mi Actividad" (ya está en la sección) */
+
+/* ── Tablas ↔ tarjetas (js/sidebar.js agrega el selector y los data-label) ── */
+.tv-toggle { display:flex; justify-content:flex-end; gap:.35rem; margin:.5rem .5rem .6rem; }
+.tv-toggle button { display:inline-flex; align-items:center; gap:.35rem; height:1.9rem; padding:0 .75rem; border-radius:999px; border:1px solid var(--line); background:var(--s1); color:var(--mut); font-size:.72rem; font-weight:600; cursor:pointer; transition:border-color .15s, color .15s, background .15s; }
+.tv-toggle button:hover { border-color:#6366f1; color:var(--ink); }
+.tv-toggle button.is-on { background:var(--accent); border-color:var(--accent); color:#fff; }
+table.tv-cards { display:block; width:100%; }
+table.tv-cards thead { display:none; }
+table.tv-cards tbody, table.tv-cards tfoot { display:grid; grid-template-columns:repeat(auto-fill, minmax(270px, 1fr)); gap:1rem; padding:.25rem 0 .75rem; }
+table.tv-cards tr { display:flex; flex-direction:column; gap:.3rem; min-width:0; background:var(--s1); border:1px solid var(--line) !important; border-radius:1.25rem; padding:1rem 1.1rem; box-shadow:var(--shadow); }
+table.tv-cards tbody tr:hover { border-color:#6366f1 !important; }
+table.tv-cards td { display:flex; justify-content:space-between; align-items:center; gap:.75rem; padding:.2rem 0 !important; border:0 !important; text-align:right; white-space:normal !important; width:auto !important; min-width:0 !important; max-width:none !important; }
+table.tv-cards td::before { content:attr(data-label); flex-shrink:0; text-align:left; font-size:.66rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--mut); }
+table.tv-cards td:first-child { display:block; text-align:left; padding-bottom:.6rem !important; margin-bottom:.2rem; border-bottom:1px solid var(--line) !important; }
+table.tv-cards td:first-child::before, table.tv-cards td[data-label=""]::before, table.tv-cards td[colspan]::before { display:none; }
+table.tv-cards td[data-label=""] { justify-content:flex-end; }
+table.tv-cards td[colspan] { display:block; text-align:left; }
+table.tv-cards tr:has(> td[colspan]:only-child) { grid-column:1 / -1; }
+.tv-host-cards { border:0 !important; background:transparent !important; box-shadow:none !important; overflow:visible !important; }
+
+/* ── Reglas propias de módulos (se conservan) ───────────────────────────── */
 [x-cloak] { display: none !important; }
 .chart-container { position: relative; height: 260px; }
 .kanban-scroll { display:flex; gap:1rem; overflow-x:auto; padding-bottom:1rem; }
 .kanban-scroll::-webkit-scrollbar { height: 6px; }
 .kanban-scroll::-webkit-scrollbar-track { background: transparent; }
-.kanban-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius:3px; }
+.kanban-scroll::-webkit-scrollbar-thumb { background: var(--s4); border-radius:3px; }
 .avatar-stack { display:flex; gap:2px; }
 .sort-ind { margin-left:4px; opacity:0.4; font-size:0.7em; transition:opacity 0.15s; }
-@media print { aside { display:none; } main { margin-left:0 !important; } }
-
-/* ── Light Theme ──────────────────────────────────────────────────────────── */
-html.light body                              { background-color: #f1f5f9 !important; color: #0f172a !important; }
-
-/* Backgrounds */
-html.light .bg-slate-950                     { background-color: #f1f5f9 !important; }
-html.light .bg-slate-900                     { background-color: #ffffff !important; }
-html.light .bg-slate-800                     { background-color: #f8fafc !important; }
-html.light .bg-slate-800\/50                 { background-color: rgba(248,250,252,0.8) !important; }
-html.light .bg-slate-800\/30                 { background-color: rgba(248,250,252,0.6) !important; }
-html.light .bg-slate-700                     { background-color: #f1f5f9 !important; }
-
-/* Text */
-html.light .text-slate-100                   { color: #0f172a !important; }
-html.light .text-slate-200                   { color: #1e293b !important; }
-html.light .text-slate-300                   { color: #334155 !important; }
-html.light .text-slate-400                   { color: #64748b !important; }
-html.light .text-slate-500                   { color: #94a3b8 !important; }
-
-/* Borders */
-html.light .border-slate-800                 { border-color: #f1f5f9 !important; }
-html.light .border-slate-700                 { border-color: #e2e8f0 !important; }
-html.light .border-slate-700\/50             { border-color: rgba(226,232,240,0.5) !important; }
-html.light .border-slate-600                 { border-color: #cbd5e1 !important; }
-
-/* Hovers */
-html.light .hover\:bg-slate-800:hover        { background-color: #f1f5f9 !important; }
-html.light .hover\:bg-slate-700:hover        { background-color: #e2e8f0 !important; }
-html.light .hover\:bg-slate-800\/30:hover    { background-color: rgba(241,245,249,0.6) !important; }
-
-/* Form elements */
-html.light input,
-html.light select,
-html.light textarea                          { background-color: #ffffff !important; color: #0f172a !important; border-color: #cbd5e1 !important; }
-html.light input::placeholder,
-html.light textarea::placeholder             { color: #94a3b8 !important; }
-html.light option                            { background-color: #ffffff; color: #0f172a; }
-
-/* Scrollbar en modo claro */
-html.light .kanban-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; }
-
-/* Sidebar en modo claro */
-html.light #app-sidebar                      { background-color: #ffffff !important; border-color: #e2e8f0 !important; }
-html.light #app-sidebar .border-slate-700    { border-color: #e2e8f0 !important; }
-html.light #app-sidebar .border-slate-700\/50 { border-color: rgba(226,232,240,0.4) !important; }
+@media print { aside, #ideaz-dock, #sidebar-mobile-topbar { display:none !important; } main { margin-left:0 !important; } }
 
 /* Agenda cards en modo claro: invertir hover (oscurecer en vez de aclarar) */
 html.light .agenda-card:hover { filter: brightness(0.93) !important; }
 
+/* Agenda en tema claro — contraste. js/agenda.js (módulo de MCLuna) pinta colores en línea
+   pensados para fondo oscuro; se corrigen acá sin tocar su lógica. */
+/* Día de hoy: tinte índigo suave en vez de índigo casi negro translúcido (quedaba gris) */
+html.light .bg-indigo-950\/15 { background-color: rgba(99,102,241,.06) !important; }
+html.light .bg-indigo-950\/30 { background-color: rgba(99,102,241,.09) !important; }
+html.light .bg-indigo-950\/40 { background-color: rgba(99,102,241,.12) !important; }
+/* Tarjetas completadas / fuera de fecha / duplicadas: sin la transparencia del 75% */
+html.light .agenda-card[style*="opacity:0.75"] { opacity: 1 !important; }
+/* Colores de etapa usados como texto: un tono más oscuro para leerse sobre su tinte claro */
+html.light .agenda-card [style*="color:#10b981"] { color: #047857 !important; }
+html.light .agenda-card [style*="color:#ef4444"] { color: #b91c1c !important; }
+html.light .agenda-card [style*="color:#6366f1"] { color: #4338ca !important; }
+html.light .agenda-card [style*="color:#cbd5e1"] { color: #78716c !important; }
+/* Tarjetas "rezagadas" (fantasma): usan el color de etapa sin ajustar al tema */
+html.light .agenda-card [style*="color:#94a3b8"] { color: #57534e !important; }
+html.light .agenda-card [style*="color:#f59e0b"] { color: #b45309 !important; }
+html.light .agenda-card [style*="color:#0ea5e9"] { color: #0369a1 !important; }
+html.light .agenda-card [style*="color:#a855f7"] { color: #7c3aed !important; }
+
 /* Barra de días de la semana en vista Mes (modo claro) */
-html.light .cal-day-header                { background-color: #cbd5e1 !important; border-color: #94a3b8 !important; }
-html.light .cal-day-header > div          { color: #334155 !important; }
+html.light .cal-day-header                { background-color: var(--s4) !important; border-color: var(--line3) !important; }
+html.light .cal-day-header > div          { color: var(--ink3) !important; }

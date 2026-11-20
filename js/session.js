@@ -18,22 +18,25 @@ const Session = (() => {
     'configuracion.html': 'configuracion',
     'protocolo-trello.html': 'protocolo',
     'aprobaciones.html': 'aprobaciones',
+    'egresos.html': 'egresos',
+    'rendicion.html': 'rendicion',
+    'rendicion-dashboard.html': 'rendicion-dashboard',
   };
 
-  const ALL_PAGES = ['dashboard', 'proyecto', 'agenda', 'monitor', 'pauta', 'atencion-cliente', 'configuracion', 'protocolo', 'aprobaciones'];
+  const ALL_PAGES = ['dashboard', 'proyecto', 'agenda', 'monitor', 'pauta', 'atencion-cliente', 'configuracion', 'protocolo', 'aprobaciones', 'egresos', 'rendicion', 'rendicion-dashboard'];
 
   // Páginas visibles por rol (los roles del Control de Acceso + superadmin)
   const ACCESS = {
     superadmin:    ALL_PAGES,
     admin:         ALL_PAGES,
     agent:         ['atencion-cliente', 'protocolo'],
-    agenda_full:   ['agenda', 'protocolo'],
+    agenda_full:   ['agenda', 'protocolo', 'egresos', 'configuracion'],
     agenda_member: ['agenda', 'monitor', 'protocolo'],
-    cm:            ['dashboard', 'agenda', 'configuracion', 'monitor', 'protocolo', 'aprobaciones'],
+    cm:            ['dashboard', 'agenda', 'configuracion', 'monitor', 'protocolo', 'aprobaciones', 'atencion-cliente', 'rendicion'],
   };
 
   // Claves de navegación del sidebar (subconjunto de páginas)
-  const NAV_KEYS = ['dashboard', 'agenda', 'monitor', 'pauta', 'atencion-cliente', 'configuracion', 'aprobaciones'];
+  const NAV_KEYS = ['dashboard', 'agenda', 'monitor', 'pauta', 'atencion-cliente', 'configuracion', 'aprobaciones', 'egresos', 'rendicion', 'rendicion-dashboard'];
 
   const FILE_BY_PAGE = {
     dashboard: 'index.html',
@@ -45,6 +48,9 @@ const Session = (() => {
     configuracion: 'configuracion.html',
     protocolo: 'protocolo-trello.html',
     aprobaciones: 'aprobaciones.html',
+    egresos: 'egresos.html',
+    rendicion: 'rendicion.html',
+    'rendicion-dashboard': 'rendicion-dashboard.html',
   };
 
   let user = null;
@@ -61,6 +67,13 @@ const Session = (() => {
 
   function canView(page) {
     return !!user && pagesFor(user.role).includes(page);
+  }
+
+  // Permisos puntuales por usuario (Configuración → Equipo). superadmin/admin los tienen todos.
+  function can(permission) {
+    if (!user) return false;
+    if (user.role === 'superadmin' || user.role === 'admin') return true;
+    return Array.isArray(user.permissions) && user.permissions.includes(permission);
   }
 
   function defaultPage(role) {
@@ -117,6 +130,10 @@ const Session = (() => {
         console.error('No se pudo precargar la configuración desde la BD:', e.message);
       }
     }
+    // Popup de cumpleaños (primera vez del día): se carga aparte, en cualquier vista
+    const bd = document.createElement('script');
+    bd.src = 'js/birthday.js';
+    document.head.appendChild(bd);
     return user;
   })();
 
@@ -132,6 +149,7 @@ const Session = (() => {
     apiFetch,
     logout,
     canView,
+    can,
     allowedNavKeys,
     currentPage,
     defaultPage,

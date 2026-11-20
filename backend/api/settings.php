@@ -12,7 +12,6 @@ $pdo = db();
 $SETTING_READERS = [
     'trello_key'      => ['superadmin', 'admin', 'agent', 'agenda_full', 'agenda_member', 'cm'],
     'trello_token'    => ['superadmin', 'admin', 'agent', 'agenda_full', 'agenda_member', 'cm'],
-    'drive_client_id' => ['superadmin', 'admin', 'cm'],
 ];
 
 switch ($_SERVER['REQUEST_METHOD']) {

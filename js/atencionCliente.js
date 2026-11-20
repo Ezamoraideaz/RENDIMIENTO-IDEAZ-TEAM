@@ -113,7 +113,7 @@ const AtencionCliente = (() => {
       return;
     }
     wrap.innerHTML = clients.map((c) => `
-      <div class="bg-slate-900 border border-slate-700 rounded-xl p-4 hover:border-indigo-500 transition-colors cursor-pointer" onclick="AtencionCliente.openClient(${c.id})">
+      <div class="bento-card is-hoverable cursor-pointer" onclick="AtencionCliente.openClient(${c.id})">
         <div class="flex items-center gap-3 mb-2">
           ${_clientAvatar(c)}
           <div class="min-w-0 flex-1">
@@ -145,7 +145,7 @@ const AtencionCliente = (() => {
     activeClient = clients.find((c) => c.id === clientId);
     if (!activeClient) return;
     renderClientModal();
-    await Promise.all([loadAccountsTab(), loadFlowsTab(), loadConversationsTab(), loadAdLeadFormsTab(), loadContextoTab()]);
+    await Promise.all([loadAccountsTab(), loadFlowsTab(), loadConversationsTab(), loadAdLeadFormsTab(), loadOrganicLeadsTab(), loadBriefsTab(), loadContextoTab()]);
   }
 
   function renderClientModal() {
@@ -153,20 +153,26 @@ const AtencionCliente = (() => {
       { key: 'cuentas', label: 'Cuentas conectadas' },
       { key: 'flujos', label: 'Flujos' },
       { key: 'conversaciones', label: 'Conversaciones' },
-      { key: 'leads', label: '🧾 Leads de Ads' },
-      { key: 'contexto', label: '🧠 Contexto IA' },
+      { key: 'leads', label: 'Leads de Ads', icon: 'file' },
+      { key: 'organicos', label: 'Leads Orgánicos', icon: 'list' },
+      { key: 'briefs', label: 'Briefs', icon: 'pencil' },
+      { key: 'contexto', label: 'Contexto IA', icon: 'sparkles' },
     ];
     const tabBtns = tabs.map((t, i) => `
       <button onclick="AtencionCliente._switchTab('${t.key}')" data-tab="${t.key}"
         class="ac-tab whitespace-nowrap px-4 py-3 text-sm font-semibold border-b-2 transition-colors ${i === 0 ? 'text-indigo-300 border-indigo-500' : 'text-slate-400 border-transparent hover:text-slate-200'}">
-        ${t.label}</button>`).join('');
+        ${t.icon ? Icons.svg(t.icon, 'w-4 h-4 inline -mt-0.5 mr-1') : ''}${t.label}</button>`).join('');
 
     document.body.insertAdjacentHTML('beforeend', `
       <div id="client-modal-overlay" onclick="AtencionCliente._overlayClose(event)" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
         <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
           <div class="px-6 py-4 border-b border-slate-700 flex items-center justify-between gap-4 flex-shrink-0">
             <div class="flex items-center gap-3 min-w-0">
-              <button onclick="AtencionCliente.editClientLogo()" title="Cambiar logo" id="client-modal-logo" class="p-0 border-0 bg-transparent cursor-pointer flex-shrink-0 hover:opacity-80 transition-opacity">${_clientAvatar(activeClient, 40)}</button>
+              <div class="flex items-center gap-1 flex-shrink-0">
+                <button onclick="AtencionCliente.triggerClientLogoUpload()" title="Subir logo desde tu equipo" id="client-modal-logo" class="p-0 border-0 bg-transparent cursor-pointer hover:opacity-80 transition-opacity">${_clientAvatar(activeClient, 40)}</button>
+                <button onclick="AtencionCliente.editClientLogoLink()" title="O pegar un link de imagen" class="text-slate-500 hover:text-slate-300 text-xs leading-none px-0.5">${Icons.svg('link', 'w-3.5 h-3.5 inline -mt-0.5')}</button>
+              </div>
+              <input type="file" id="client-logo-file-input" accept=".png,.jpg,.jpeg,.webp,.svg" style="display:none">
               <h2 class="font-bold text-slate-100 text-lg truncate">${_esc(activeClient.name)}</h2>
             </div>
             <button onclick="AtencionCliente.closeClientModal()" class="text-slate-400 hover:text-slate-100 text-2xl leading-none">&times;</button>
@@ -177,10 +183,13 @@ const AtencionCliente = (() => {
             <div id="ac-panel-flujos" class="ac-panel" style="display:none"></div>
             <div id="ac-panel-conversaciones" class="ac-panel" style="display:none"></div>
             <div id="ac-panel-leads" class="ac-panel" style="display:none"></div>
+            <div id="ac-panel-organicos" class="ac-panel" style="display:none"></div>
+            <div id="ac-panel-briefs" class="ac-panel" style="display:none"></div>
             <div id="ac-panel-contexto" class="ac-panel" style="display:none"></div>
           </div>
         </div>
       </div>`);
+    document.getElementById('client-logo-file-input').addEventListener('change', onClientLogoFileSelected);
   }
 
   function _switchTab(key) {
@@ -205,21 +214,61 @@ const AtencionCliente = (() => {
   }
 
   // Logo de la marca: se muestra como avatar en la tarjeta del cliente y como
-  // fondo del splash del portal de revisión (revisar.html) — hasta ahora la
-  // columna logo_url existía en la BD/API pero no había forma de cargarla
-  // desde ningún lado de la interfaz.
-  async function editClientLogo() {
+  // fondo del splash de los portales sin login (revisar.html, leads-cliente.html,
+  // brief-publico.html) — por eso el archivo se guarda en backend/public/uploads/
+  // (pública) y no en backend/storage/ (bloqueada). Dos formas de cargarlo:
+  // subiendo un archivo directo (click en el avatar) o pegando un link ya
+  // hosteado en otro lado (el botón de enlace de al lado, flujo original vía clients.php PUT).
+
+  function _applyClientLogoUpdate(logoUrl) {
+    activeClient.logo_url = logoUrl;
+    const inClients = clients.find((c) => c.id === activeClient.id);
+    if (inClients) inClients.logo_url = logoUrl;
+    document.getElementById('client-modal-logo').innerHTML = _clientAvatar(activeClient, 40);
+    renderClientCards();
+  }
+
+  function triggerClientLogoUpload() {
+    document.getElementById('client-logo-file-input').click();
+  }
+
+  // Multipart: no puede pasar por api() (fuerza Content-Type: application/json),
+  // mismo criterio que importOrganicLeadsFile.
+  async function onClientLogoFileSelected(e) {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      Utils.showToast('El archivo pesa demasiado (máx. 5 MB)', 'danger');
+      return;
+    }
+    const formData = new FormData();
+    formData.append('client_id', activeClient.id);
+    formData.append('file', file);
+    try {
+      const res = await fetch(`${API}/api/client_logo_upload.php`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: csrfToken ? { 'X-CSRF-Token': csrfToken } : {},
+        body: formData,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+      _applyClientLogoUpdate(data.logo_url);
+      Utils.showToast('Logo actualizado', 'success');
+    } catch (err) {
+      Utils.showToast(err.message, 'danger');
+    }
+  }
+
+  async function editClientLogoLink() {
     const current = activeClient.logo_url || '';
     const url = prompt('URL del logo del cliente (imagen pública, ej. link directo de Drive/Imgur):', current);
     if (url === null) return;
     const logo_url = url.trim();
     try {
       await api('api/clients.php', { method: 'PUT', body: JSON.stringify({ id: activeClient.id, logo_url }) });
-      activeClient.logo_url = logo_url;
-      const inClients = clients.find((c) => c.id === activeClient.id);
-      if (inClients) inClients.logo_url = logo_url;
-      document.getElementById('client-modal-logo').innerHTML = _clientAvatar(activeClient, 40);
-      renderClientCards();
+      _applyClientLogoUpdate(logo_url);
       Utils.showToast('Logo actualizado', 'success');
     } catch (e) {
       Utils.showToast(e.message, 'danger');
@@ -254,7 +303,7 @@ const AtencionCliente = (() => {
     panel.innerHTML = `
       <p class="text-sm text-slate-400 mb-3">
         Contá acá lo básico del negocio de este cliente (servicios, horarios, precios, tono
-        de voz). Lo usa cualquier nodo "🤖 Respuesta IA" de sus flujos y la opción "Responder
+        de voz). Lo usa cualquier nodo "Respuesta IA" de sus flujos y la opción "Responder
         con IA" del disparador de comentarios, para que la IA responda con información real
         en vez de inventar datos.
       </p>
@@ -303,7 +352,7 @@ const AtencionCliente = (() => {
           <div class="flex items-center gap-2 flex-shrink-0">
             <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full ${f.status === 'active' ? 'bg-emerald-500/15 text-emerald-400' : f.status === 'paused' ? 'bg-amber-500/15 text-amber-400' : 'bg-slate-700 text-slate-400'}">${_esc(f.status)}</span>
             <button onclick="event.stopPropagation(); AtencionCliente.toggleFlowStatus(${f.id}, '${f.status}')" title="${f.status === 'active' ? 'Pausar' : 'Activar'}" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 px-2 py-1 rounded-lg text-xs transition-colors">${f.status === 'active' ? '⏸' : '▶'}</button>
-            <button onclick="event.stopPropagation(); AtencionCliente.duplicateFlow(${f.id})" title="Duplicar como borrador" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 px-2 py-1 rounded-lg text-xs transition-colors">📋</button>
+            <button onclick="event.stopPropagation(); AtencionCliente.duplicateFlow(${f.id})" title="Duplicar como borrador" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 px-2 py-1 rounded-lg text-xs transition-colors">${Icons.svg('copy', 'w-3.5 h-3.5 inline -mt-0.5')}</button>
           </div>
         </div>`).join('');
       panel.innerHTML = `
@@ -359,7 +408,7 @@ const AtencionCliente = (() => {
 
   function windowBadge(conv) {
     if (conv.status === 'handed_off') {
-      return { label: '🙋 Con humano', cls: 'bg-sky-500/15 text-sky-400' };
+      return { label: 'Con humano', cls: 'bg-sky-500/15 text-sky-400' };
     }
     if ((conv.pending_followups || 0) > 0) {
       return { label: 'Requiere seguimiento manual', cls: 'bg-amber-500/15 text-amber-400' };
@@ -391,7 +440,7 @@ const AtencionCliente = (() => {
         let tags = [];
         try { tags = JSON.parse(conv.state_vars || '{}').tags || []; } catch (_) { /* ignorar */ }
         const tagsHtml = tags.length
-          ? `<div class="flex flex-wrap gap-1 mt-1">${tags.map((t) => `<span class="text-[9px] font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 px-1.5 py-0.5 rounded-full">🏷️ ${_esc(String(t))}</span>`).join('')}</div>`
+          ? `<div class="flex flex-wrap gap-1 mt-1">${tags.map((t) => `<span class="text-[9px] font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 px-1.5 py-0.5 rounded-full">${Icons.svg('tag', 'w-3 h-3 inline -mt-0.5')} ${_esc(String(t))}</span>`).join('')}</div>`
           : '';
         return `<div class="flex items-center justify-between bg-slate-800/60 border border-slate-700/60 rounded-lg px-4 py-3 cursor-pointer hover:border-indigo-500" onclick="AtencionCliente.openConversationThread(${conv.id})">
           <div class="min-w-0">
@@ -422,9 +471,9 @@ const AtencionCliente = (() => {
       // Origen del mensaje: DM normal vs. comentario/postback — para no confundir
       // una respuesta pública/privada de comentario con un mensaje directo.
       const MSG_TYPE_LABEL = {
-        comment_reply: '💭 Comentario',
-        private_reply: '💭 Respuesta a comentario',
-        postback: '👆 Botón',
+        comment_reply: 'Comentario',
+        private_reply: 'Respuesta a comentario',
+        postback: 'Botón',
       };
       const bubbles = data.messages.map((m) => {
         const mine = m.direction === 'out';
@@ -447,8 +496,8 @@ const AtencionCliente = (() => {
       // Datos de lead capturados por el flujo (nodos "Pregunta") + ficha del contacto.
       // Las etiquetas del flujo van aparte (tagsHtml), más visibles, justo bajo el título.
       const leadChips = [];
-      if (data.conversation.contact_email) leadChips.push(`✉️ ${_esc(data.conversation.contact_email)}`);
-      if (data.conversation.contact_phone) leadChips.push(`📞 ${_esc(data.conversation.contact_phone)}`);
+      if (data.conversation.contact_email) leadChips.push(`${Icons.svg('mail', 'w-3 h-3 inline -mt-0.5')} ${_esc(data.conversation.contact_email)}`);
+      if (data.conversation.contact_phone) leadChips.push(`${Icons.svg('phone', 'w-3 h-3 inline -mt-0.5')} ${_esc(data.conversation.contact_phone)}`);
       let tags = [];
       let csat = null;
       try {
@@ -463,10 +512,10 @@ const AtencionCliente = (() => {
         ? `<div class="flex flex-wrap gap-1.5 mb-2">${leadChips.map((c) => `<span class="text-[10px] font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 px-2 py-0.5 rounded-full">${c}</span>`).join('')}</div>`
         : '';
       const tagsHtml = tags.length
-        ? `<div class="flex flex-wrap gap-1.5 mb-2">${tags.map((t) => `<span class="text-[11px] font-semibold bg-indigo-500/15 border border-indigo-500/40 text-indigo-300 px-2 py-0.5 rounded-full">🏷️ ${_esc(String(t))}</span>`).join('')}${csat ? `<span class="text-[11px] font-semibold bg-amber-500/15 border border-amber-500/40 text-amber-300 px-2 py-0.5 rounded-full">⭐ CSAT ${csat}/5</span>` : ''}</div>`
-        : (csat ? `<div class="mb-2"><span class="text-[11px] font-semibold bg-amber-500/15 border border-amber-500/40 text-amber-300 px-2 py-0.5 rounded-full">⭐ CSAT ${csat}/5</span></div>` : '');
+        ? `<div class="flex flex-wrap gap-1.5 mb-2">${tags.map((t) => `<span class="text-[11px] font-semibold bg-indigo-500/15 border border-indigo-500/40 text-indigo-300 px-2 py-0.5 rounded-full">${Icons.svg('tag', 'w-3 h-3 inline -mt-0.5')} ${_esc(String(t))}</span>`).join('')}${csat ? `<span class="text-[11px] font-semibold bg-amber-500/15 border border-amber-500/40 text-amber-300 px-2 py-0.5 rounded-full">${Icons.svg('star', 'w-3 h-3 inline -mt-0.5')} CSAT ${csat}/5</span>` : ''}</div>`
+        : (csat ? `<div class="mb-2"><span class="text-[11px] font-semibold bg-amber-500/15 border border-amber-500/40 text-amber-300 px-2 py-0.5 rounded-full">${Icons.svg('star', 'w-3 h-3 inline -mt-0.5')} CSAT ${csat}/5</span></div>` : '');
       const handoffBanner = data.conversation.status === 'handed_off'
-        ? `<div class="bg-sky-500/10 border border-sky-500/30 rounded-lg px-3 py-2 text-xs text-sky-300 mb-2">🙋 Conversación transferida a humano — el bot está pausado aquí; responde tú desde abajo.</div>`
+        ? `<div class="bg-sky-500/10 border border-sky-500/30 rounded-lg px-3 py-2 text-xs text-sky-300 mb-2">${Icons.svg('hand', 'w-3.5 h-3.5 inline -mt-0.5')} Conversación transferida a humano — el bot está pausado aquí; responde tú desde abajo.</div>`
         : '';
 
       thread.innerHTML = `
@@ -546,6 +595,14 @@ const AtencionCliente = (() => {
 
   function handleOAuthRedirectParams() {
     const params = new URLSearchParams(window.location.search);
+    // Enlace directo desde el asistente "Configurar cliente": ?open_client=N&tab=flujos
+    if (params.get('open_client')) {
+      const clientId = parseInt(params.get('open_client'), 10);
+      const tab = params.get('tab');
+      window.history.replaceState({}, '', 'atencion-cliente.html');
+      if (clientId) openClient(clientId).then(() => { if (tab) _switchTab(tab); });
+      return;
+    }
     if (params.get('oauth_select_page')) {
       const clientId = parseInt(params.get('client_id'), 10);
       window.history.replaceState({}, '', 'atencion-cliente.html');
@@ -651,7 +708,7 @@ const AtencionCliente = (() => {
 
     const rulesHtml = rules.map((r) => `
       <div class="flex items-center justify-between bg-slate-800/60 border border-slate-700/60 rounded-lg px-3 py-2 text-xs">
-        <span class="text-slate-300">${r.campaign_name ? 'Campaña contiene "' + _esc(r.campaign_name) + '"' : 'Cualquier campaña'}${r.tag ? ' · 🏷️ ' + _esc(r.tag) : ''}${r.notify_email ? ' · ✉️ ' + _esc(r.notify_email) : ''}</span>
+        <span class="text-slate-300">${r.campaign_name ? 'Campaña contiene "' + _esc(r.campaign_name) + '"' : 'Cualquier campaña'}${r.tag ? ' · ' + Icons.svg('tag', 'w-3 h-3 inline -mt-0.5') + ' ' + _esc(r.tag) : ''}${r.notify_email ? ' · ' + Icons.svg('mail', 'w-3 h-3 inline -mt-0.5') + ' ' + _esc(r.notify_email) : ''}</span>
         <button onclick="AtencionCliente.deleteAdLeadRule(${r.id}, '${form.form_id}')" class="text-red-400 hover:text-red-300">✕</button>
       </div>`).join('');
 
@@ -727,8 +784,8 @@ const AtencionCliente = (() => {
               <p class="text-sm font-semibold">${_esc(lead.name || 'Sin nombre')}</p>
               <span class="text-[10px] text-slate-500">${lead.lead_created_at ? new Date(lead.lead_created_at).toLocaleString('es-MX') : ''}</span>
             </div>
-            <p class="text-xs text-slate-400 mb-2">${lead.email ? '✉️ ' + _esc(lead.email) + '  ' : ''}${lead.phone ? '📞 ' + _esc(lead.phone) : ''}</p>
-            ${lead.tag ? `<span class="text-[10px] font-semibold bg-indigo-500/15 border border-indigo-500/40 text-indigo-300 px-2 py-0.5 rounded-full inline-block mb-2">🏷️ ${_esc(lead.tag)}</span>` : ''}
+            <p class="text-xs text-slate-400 mb-2">${lead.email ? Icons.svg('mail', 'w-3 h-3 inline -mt-0.5') + ' ' + _esc(lead.email) + '  ' : ''}${lead.phone ? Icons.svg('phone', 'w-3 h-3 inline -mt-0.5') + ' ' + _esc(lead.phone) : ''}</p>
+            ${lead.tag ? `<span class="text-[10px] font-semibold bg-indigo-500/15 border border-indigo-500/40 text-indigo-300 px-2 py-0.5 rounded-full inline-block mb-2">${Icons.svg('tag', 'w-3 h-3 inline -mt-0.5')} ${_esc(lead.tag)}</span>` : ''}
             <div class="flex flex-wrap gap-1.5 mt-1">${chips}</div>
           </div>`;
       }).join('');
@@ -751,12 +808,631 @@ const AtencionCliente = (() => {
     if (listEl) listEl.style.display = '';
   }
 
+  // ── Leads Orgánicos (base propia por cliente, importada desde Excel/CSV) ──
+  // Importar / Notificar / Link público van en <details> colapsables (cerrados
+  // por defecto) para no mostrar las 3 áreas de administración a la vez — la
+  // tabla de leads es lo único que queda siempre visible. Cada acción (agregar
+  // correo, generar link, borrar un lead) actualiza solo su propio bloque en
+  // vez de recargar toda la pestaña, así los <details> abiertos no se cierran solos.
+
+  const ORGANIC_LEADS_HELP_HTML = `
+    <div class="space-y-2">
+      <p><strong class="text-slate-300">Formatos:</strong> .xlsx o .csv, máx. 5 MB. La primera fila debe ser encabezados, y de un .xlsx solo se lee la primera hoja.</p>
+      <p><strong class="text-slate-300">Encabezados que reconoce</strong> (sin importar mayúsculas/tildes):</p>
+      <ul class="list-disc list-inside space-y-0.5">
+        <li><strong class="text-slate-300">Fecha:</strong> fecha, fecha de contacto, fecha del lead, fecha de registro, date</li>
+        <li><strong class="text-slate-300">Nombre:</strong> nombre, nombre completo, name, full name, cliente, contacto</li>
+        <li><strong class="text-slate-300">Correo:</strong> correo, correo electronico, email, e-mail, mail</li>
+        <li><strong class="text-slate-300">Teléfono:</strong> telefono, celular, whatsapp, phone, phone number, numero</li>
+        <li><strong class="text-slate-300">Fuente:</strong> fuente, origen, plataforma, canal, medio, como nos conociste, source</li>
+        <li><strong class="text-slate-300">Motivo:</strong> motivo, servicio, producto, interes, mensaje, comentarios, observaciones, detalle, notas</li>
+      </ul>
+      <p>La fecha acepta formatos como 31/12/2025, 2025-12-31 o la fecha nativa de Excel; si no se reconoce, el lead se guarda igual pero sin fecha.</p>
+      <p>El resto de columnas (no reconocidas) se guarda igual — sale en el CSV exportado aunque no se muestre en esta tabla.</p>
+      <p>Reimportar el mismo archivo duplica los leads — no hay detección automática de duplicados.</p>
+    </div>`;
+
+  let _organicLeadManualRowSeq = 0;
+  let _organicLeadsDateFrom = '';
+  let _organicLeadsDateTo = '';
+
+  async function loadOrganicLeadsTab() {
+    const panel = document.getElementById('ac-panel-organicos');
+    panel.innerHTML = `<p class="text-slate-500 text-sm">Cargando…</p>`;
+    _organicLeadManualRowSeq = 0;
+    _organicLeadsDateFrom = '';
+    _organicLeadsDateTo = '';
+    try {
+      const [leadsData, notifyData, shareData] = await Promise.all([
+        api(`api/organic_leads.php?client_id=${activeClient.id}`),
+        api(`api/organic_lead_notify_emails.php?client_id=${activeClient.id}`),
+        api(`api/organic_lead_share.php?client_id=${activeClient.id}`),
+      ]);
+      panel.innerHTML = renderOrganicLeadsPanel(leadsData, notifyData, shareData);
+      bindOrganicLeadsPanel();
+    } catch (e) {
+      panel.innerHTML = `<p class="text-red-400 text-sm">${_esc(e.message)}</p>`;
+    }
+  }
+
+  function renderOrganicLeadsPanel(leadsData, notifyData, shareData) {
+    const emails = notifyData.emails || [];
+    return `
+      <details class="bg-slate-900 border border-slate-700 rounded-lg mb-3 overflow-hidden">
+        <summary class="px-4 py-3 cursor-pointer select-none text-sm font-semibold text-slate-200 hover:bg-slate-800/60">${Icons.svg('download', 'w-4 h-4 inline -mt-0.5 mr-1')}Importar leads</summary>
+        <div class="px-4 pb-4 pt-1">
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <p class="text-xs text-slate-500">Sube un Excel (.xlsx) o CSV para sumar leads a este cliente.</p>
+            <button type="button" id="organic-leads-help-btn" class="text-slate-400 hover:text-slate-200 text-xs font-semibold flex-shrink-0">❓ Ayuda con el formato</button>
+          </div>
+          <div id="organic-leads-help" style="display:none" class="mb-3 bg-slate-800/60 border border-slate-700/60 rounded-lg p-3 text-xs text-slate-400">${ORGANIC_LEADS_HELP_HTML}</div>
+          <form id="organic-leads-import-form" class="flex flex-wrap items-center gap-2">
+            <input type="file" id="organic-leads-file" accept=".xlsx,.csv" required
+              class="text-xs text-slate-400 file:mr-2 file:bg-slate-800 file:border file:border-slate-700 file:text-slate-200 file:rounded-lg file:px-3 file:py-1.5 file:text-xs file:font-semibold file:cursor-pointer">
+            <button type="submit" id="organic-leads-import-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors">Importar</button>
+          </form>
+        </div>
+      </details>
+
+      <details class="bg-slate-900 border border-slate-700 rounded-lg mb-3 overflow-hidden">
+        <summary class="px-4 py-3 cursor-pointer select-none text-sm font-semibold text-slate-200 hover:bg-slate-800/60">${Icons.svg('pencil', 'w-4 h-4 inline -mt-0.5 mr-1')}Agregar leads a mano</summary>
+        <div class="px-4 pb-4 pt-1">
+          <p class="text-xs text-slate-500 mb-2">Cargá uno o varios leads a mano — usá "+ Fila" para agregar varios de una vez y "Guardar" al terminar.</p>
+          <datalist id="organic-leads-source-suggestions">${ORGANIC_LEAD_SOURCE_SUGGESTIONS.map((s) => `<option value="${_esc(s)}">`).join('')}</datalist>
+          <div id="organic-leads-manual-rows" class="flex flex-col gap-2 mb-3">${[0, 1].map(() => renderOrganicLeadManualRow(_organicLeadManualRowSeq++)).join('')}</div>
+          <div class="flex items-center gap-2">
+            <button type="button" id="organic-leads-manual-add-row" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">+ Fila</button>
+            <button type="button" id="organic-leads-manual-save" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors">Guardar leads</button>
+          </div>
+        </div>
+      </details>
+
+      <details class="bg-slate-900 border border-slate-700 rounded-lg mb-3 overflow-hidden">
+        <summary class="px-4 py-3 cursor-pointer select-none text-sm font-semibold text-slate-200 hover:bg-slate-800/60">${Icons.svg('mail', 'w-4 h-4 inline -mt-0.5 mr-1')}Notificar por correo <span id="organic-leads-notify-count" class="text-slate-500 font-normal">(${emails.length})</span></summary>
+        <div class="px-4 pb-4 pt-1">
+          <div id="organic-leads-notify-list" class="flex flex-col gap-1.5 mb-2">${renderOrganicLeadsNotifyList(emails)}</div>
+          <form id="organic-leads-notify-form" class="flex gap-2">
+            <input id="organic-leads-notify-email" type="email" required placeholder="correo@ejemplo.com" class="bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs flex-1">
+            <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-xs font-semibold">+ Agregar</button>
+          </form>
+        </div>
+      </details>
+
+      <details class="bg-slate-900 border border-slate-700 rounded-lg mb-4 overflow-hidden">
+        <summary class="px-4 py-3 cursor-pointer select-none text-sm font-semibold text-slate-200 hover:bg-slate-800/60">${Icons.svg('link', 'w-4 h-4 inline -mt-0.5 mr-1')}Link público de solo lectura <span id="organic-leads-share-status" class="text-slate-500 font-normal">${shareData.link_generated ? '· activo' : ''}</span></summary>
+        <div class="px-4 pb-4 pt-1">
+          <div id="organic-leads-share-box">${renderOrganicLeadsShareBox(shareData.link_generated)}</div>
+        </div>
+      </details>
+
+      <div id="organic-leads-table-section">${renderOrganicLeadsTableSection(leadsData)}</div>`;
+  }
+
+  function renderOrganicLeadsNotifyList(emails) {
+    return emails.map((e) => `
+      <div class="flex items-center justify-between bg-slate-800/60 border border-slate-700/60 rounded-lg px-3 py-1.5 text-xs">
+        <span class="text-slate-300">${Icons.svg('mail', 'w-3 h-3 inline -mt-0.5')} ${_esc(e.email)}</span>
+        <button onclick="AtencionCliente.removeOrganicLeadNotifyEmail(${e.id})" class="text-red-400 hover:text-red-300">✕</button>
+      </div>`).join('') || '<p class="text-xs text-slate-600">Sin correos todavía — el import se guarda igual, solo sin avisar a nadie.</p>';
+  }
+
+  function renderOrganicLeadsShareBox(linkGenerated) {
+    return linkGenerated
+      ? `<p class="text-xs text-slate-400 mb-2">Ya hay un link activo para este cliente. Si lo perdiste, regenera uno nuevo (el anterior deja de funcionar).</p>
+         <div class="flex gap-2">
+           <button onclick="AtencionCliente.generateOrganicLeadShareLink()" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">Regenerar</button>
+           <button onclick="AtencionCliente.revokeOrganicLeadShareLink()" class="bg-slate-800 hover:bg-red-900/40 border border-red-700/50 text-red-400 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">Revocar</button>
+         </div>`
+      : `<p class="text-xs text-slate-500 mb-2">Todavía no hay link generado para este cliente.</p>
+         <button onclick="AtencionCliente.generateOrganicLeadShareLink()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">Generar link</button>`;
+  }
+
+  // Se muestra una sola vez, justo al generar/regenerar — el backend nunca
+  // vuelve a devolver el token crudo (solo guarda su hash).
+  function renderOrganicLeadsShareReveal(url) {
+    return `
+      <div class="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3">
+        <p class="text-xs text-slate-400 mb-2">Cópialo ahora y compártelo con el equipo comercial — no se puede volver a ver:</p>
+        <div class="flex gap-2">
+          <input type="text" id="organic-leads-share-url" readonly value="${_esc(url)}" onclick="this.select()"
+            class="flex-1 min-w-0 bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-300">
+          <button type="button" id="organic-leads-copy-link-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-xs font-semibold flex-shrink-0">${Icons.svg('copy', 'w-3.5 h-3.5 inline -mt-0.5 mr-1')}Copiar</button>
+        </div>
+      </div>
+      ${renderOrganicLeadsShareBox(true)}`;
+  }
+
+  function _organicLeadsFilterQS() {
+    let qs = '';
+    if (_organicLeadsDateFrom) qs += `&date_from=${_organicLeadsDateFrom}`;
+    if (_organicLeadsDateTo) qs += `&date_to=${_organicLeadsDateTo}`;
+    return qs;
+  }
+
+  function renderOrganicLeadsTableSection(leadsData) {
+    const leads = leadsData.leads || [];
+    const filterHtml = `
+      <div class="flex flex-wrap items-center gap-2 mb-2">
+        <label class="text-xs text-slate-500 flex items-center gap-1">Desde
+          <input type="date" id="organic-leads-filter-from" value="${_organicLeadsDateFrom}" class="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs">
+        </label>
+        <label class="text-xs text-slate-500 flex items-center gap-1">Hasta
+          <input type="date" id="organic-leads-filter-to" value="${_organicLeadsDateTo}" class="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs">
+        </label>
+        ${(_organicLeadsDateFrom || _organicLeadsDateTo)
+          ? `<button type="button" id="organic-leads-filter-clear" class="text-xs text-slate-400 hover:text-slate-200">✕ Limpiar filtro</button>`
+          : ''}
+      </div>`;
+
+    const tableHtml = leads.length ? `
+      <div class="max-h-96 overflow-y-auto border border-slate-800 rounded-lg">
+        <table class="w-full text-xs">
+          <thead class="sticky top-0 bg-slate-900">
+            <tr class="text-left text-slate-500 border-b border-slate-700">
+              <th class="py-2 px-3">Fecha</th><th class="py-2 px-3">Nombre</th><th class="py-2 px-3">Correo</th><th class="py-2 px-3">Teléfono</th><th class="py-2 px-3">Fuente</th><th class="py-2 px-3">Motivo</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${leads.map((l) => `
+              <tr class="border-b border-slate-800/60">
+                <td class="py-1.5 px-3 text-slate-500 whitespace-nowrap">${l.lead_date ? new Date(l.lead_date + 'T00:00:00').toLocaleDateString('es-MX') : '—'}</td>
+                <td class="py-1.5 px-3">${_esc(l.name || '—')}</td>
+                <td class="py-1.5 px-3">${_esc(l.email || '—')}</td>
+                <td class="py-1.5 px-3">${_esc(l.phone || '—')}</td>
+                <td class="py-1.5 px-3 text-slate-400 whitespace-nowrap">${_esc(l.source || '—')}</td>
+                <td class="py-1.5 px-3 max-w-[240px]">${l.reason
+                  ? `<span class="line-clamp-2 cursor-pointer hover:text-slate-100" title="Click para expandir/contraer" onclick="this.classList.toggle('line-clamp-2')">${_esc(l.reason)}</span>`
+                  : '—'}</td>
+                <td class="py-1.5 px-3 text-right"><button onclick="AtencionCliente.deleteOrganicLead(${l.id})" class="text-red-400 hover:text-red-300">✕</button></td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>` : `<p class="text-slate-500 text-sm">Todavía no hay leads importados.</p>`;
+
+    return `
+      ${filterHtml}
+      <div class="flex items-center justify-between mb-2">
+        <p class="text-sm font-semibold text-slate-200">${leads.length} de ${leadsData.total ?? leads.length} lead(s)</p>
+        <a href="${API}/api/organic_leads.php?client_id=${activeClient.id}&export=csv${_organicLeadsFilterQS()}" class="text-xs font-semibold text-indigo-400 hover:text-indigo-300">⬇️ Exportar CSV</a>
+      </div>
+      ${tableHtml}`;
+  }
+
+  async function refreshOrganicLeadsTable() {
+    const section = document.getElementById('organic-leads-table-section');
+    if (!section) return;
+    const data = await api(`api/organic_leads.php?client_id=${activeClient.id}${_organicLeadsFilterQS()}`);
+    section.innerHTML = renderOrganicLeadsTableSection(data);
+    bindOrganicLeadsFilterInputs();
+  }
+
+  function bindOrganicLeadsFilterInputs() {
+    const fromInput = document.getElementById('organic-leads-filter-from');
+    const toInput = document.getElementById('organic-leads-filter-to');
+    const clearBtn = document.getElementById('organic-leads-filter-clear');
+    if (fromInput) fromInput.addEventListener('change', () => {
+      _organicLeadsDateFrom = fromInput.value;
+      refreshOrganicLeadsTable();
+    });
+    if (toInput) toInput.addEventListener('change', () => {
+      _organicLeadsDateTo = toInput.value;
+      refreshOrganicLeadsTable();
+    });
+    if (clearBtn) clearBtn.addEventListener('click', () => {
+      _organicLeadsDateFrom = '';
+      _organicLeadsDateTo = '';
+      refreshOrganicLeadsTable();
+    });
+  }
+
+  const ORGANIC_LEAD_SOURCE_SUGGESTIONS = ['Facebook', 'Instagram', 'WhatsApp', 'Referido', 'Sitio web', 'Google', 'TikTok', 'Llamada', 'Otro'];
+
+  // Una fila = un lead a mano. Cada una tiene su propio data-row-id para poder
+  // quitarla sin afectar a las demás; los primeros 5 campos van en una fila
+  // (12 columnas), Motivo se envuelve solo a la siguiente por ser más largo.
+  function renderOrganicLeadManualRow(rowId) {
+    return `
+      <div class="grid grid-cols-2 sm:grid-cols-12 gap-2 items-start bg-slate-800/40 border border-slate-700/40 rounded-lg p-2" data-row-id="${rowId}">
+        <input type="date" class="ol-manual-date sm:col-span-2 bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs">
+        <input type="text" placeholder="Nombre" class="ol-manual-name sm:col-span-2 bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs">
+        <input type="email" placeholder="Correo" class="ol-manual-email sm:col-span-3 bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs">
+        <input type="text" placeholder="Teléfono" class="ol-manual-phone sm:col-span-2 bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs">
+        <input type="text" placeholder="Fuente" list="organic-leads-source-suggestions" class="ol-manual-source sm:col-span-3 bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs">
+        <textarea placeholder="Motivo" rows="1" class="ol-manual-reason col-span-2 sm:col-span-11 bg-slate-800 border border-slate-700 rounded px-2 py-1.5 text-xs resize-y"></textarea>
+        <button type="button" onclick="AtencionCliente.removeOrganicLeadManualRow(${rowId})" title="Quitar fila" class="sm:col-span-1 text-red-400 hover:text-red-300 text-xs justify-self-end">✕</button>
+      </div>`;
+  }
+
+  function addOrganicLeadManualRow() {
+    document.getElementById('organic-leads-manual-rows')
+      .insertAdjacentHTML('beforeend', renderOrganicLeadManualRow(_organicLeadManualRowSeq++));
+  }
+
+  function removeOrganicLeadManualRow(rowId) {
+    document.querySelector(`#organic-leads-manual-rows [data-row-id="${rowId}"]`)?.remove();
+  }
+
+  async function saveOrganicLeadManualRows() {
+    const rows = Array.from(document.querySelectorAll('#organic-leads-manual-rows [data-row-id]'));
+    const leads = rows.map((row) => ({
+      lead_date: row.querySelector('.ol-manual-date').value.trim(),
+      name: row.querySelector('.ol-manual-name').value.trim(),
+      email: row.querySelector('.ol-manual-email').value.trim(),
+      phone: row.querySelector('.ol-manual-phone').value.trim(),
+      source: row.querySelector('.ol-manual-source').value.trim(),
+      reason: row.querySelector('.ol-manual-reason').value.trim(),
+    })).filter((l) => l.name || l.email || l.phone || l.source || l.reason);
+
+    if (!leads.length) {
+      Utils.showToast('Completa al menos un campo en alguna fila', 'warning');
+      return;
+    }
+
+    const btn = document.getElementById('organic-leads-manual-save');
+    btn.disabled = true;
+    try {
+      const data = await api('api/organic_lead_manual.php', {
+        method: 'POST',
+        body: JSON.stringify({ client_id: activeClient.id, leads }),
+      });
+      Utils.showToast(`${data.row_count} lead(s) agregado(s) ✓`, 'success');
+      _organicLeadManualRowSeq = 0;
+      document.getElementById('organic-leads-manual-rows').innerHTML =
+        [0, 1].map(() => renderOrganicLeadManualRow(_organicLeadManualRowSeq++)).join('');
+      await refreshOrganicLeadsTable();
+    } catch (e) {
+      Utils.showToast(e.message, 'danger');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function bindOrganicLeadsPanel() {
+    const importForm = document.getElementById('organic-leads-import-form');
+    if (importForm) importForm.addEventListener('submit', importOrganicLeadsFile);
+    const notifyForm = document.getElementById('organic-leads-notify-form');
+    if (notifyForm) notifyForm.addEventListener('submit', addOrganicLeadNotifyEmail);
+    const helpBtn = document.getElementById('organic-leads-help-btn');
+    if (helpBtn) helpBtn.addEventListener('click', () => {
+      const box = document.getElementById('organic-leads-help');
+      box.style.display = box.style.display === 'none' ? '' : 'none';
+    });
+    const manualAddBtn = document.getElementById('organic-leads-manual-add-row');
+    if (manualAddBtn) manualAddBtn.addEventListener('click', addOrganicLeadManualRow);
+    const manualSaveBtn = document.getElementById('organic-leads-manual-save');
+    if (manualSaveBtn) manualSaveBtn.addEventListener('click', saveOrganicLeadManualRows);
+    bindOrganicLeadsFilterInputs();
+  }
+
+  function bindOrganicLeadsCopyButton() {
+    const btn = document.getElementById('organic-leads-copy-link-btn');
+    const input = document.getElementById('organic-leads-share-url');
+    if (!btn || !input) return;
+    btn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(input.value);
+        Utils.showToast('Link copiado ✓', 'success');
+      } catch (_) {
+        input.select();
+        Utils.showToast('No se pudo copiar solo — selecciónalo y usa Ctrl+C', 'warning');
+      }
+    });
+  }
+
+  // Multipart: no puede pasar por api() (fuerza Content-Type: application/json),
+  // así que arma su propio fetch — pero igual manda X-CSRF-Token a mano.
+  async function importOrganicLeadsFile(e) {
+    e.preventDefault();
+    const fileInput = document.getElementById('organic-leads-file');
+    const file = fileInput.files[0];
+    if (!file) return;
+    const btn = document.getElementById('organic-leads-import-btn');
+    btn.disabled = true;
+    btn.textContent = 'Importando…';
+    try {
+      const formData = new FormData();
+      formData.append('client_id', activeClient.id);
+      formData.append('file', file);
+      const res = await fetch(`${API}/api/organic_lead_import.php`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: csrfToken ? { 'X-CSRF-Token': csrfToken } : {},
+        body: formData,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+      Utils.showToast(`${data.row_count} lead(s) importado(s) ✓`, 'success');
+      fileInput.value = '';
+      await refreshOrganicLeadsTable();
+    } catch (err) {
+      Utils.showToast(err.message, 'danger');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Importar';
+    }
+  }
+
+  async function deleteOrganicLead(id) {
+    if (!confirm('¿Eliminar este lead?')) return;
+    try {
+      await api(`api/organic_leads.php?id=${id}`, { method: 'DELETE' });
+      await refreshOrganicLeadsTable();
+    } catch (e) {
+      Utils.showToast(e.message, 'danger');
+    }
+  }
+
+  async function addOrganicLeadNotifyEmail(e) {
+    e.preventDefault();
+    const input = document.getElementById('organic-leads-notify-email');
+    const email = input.value.trim();
+    if (!email) return;
+    try {
+      await api('api/organic_lead_notify_emails.php', {
+        method: 'POST',
+        body: JSON.stringify({ client_id: activeClient.id, email }),
+      });
+      input.value = '';
+      const data = await api(`api/organic_lead_notify_emails.php?client_id=${activeClient.id}`);
+      document.getElementById('organic-leads-notify-list').innerHTML = renderOrganicLeadsNotifyList(data.emails || []);
+      document.getElementById('organic-leads-notify-count').textContent = `(${(data.emails || []).length})`;
+    } catch (err) {
+      Utils.showToast(err.message, 'danger');
+    }
+  }
+
+  async function removeOrganicLeadNotifyEmail(id) {
+    try {
+      await api(`api/organic_lead_notify_emails.php?id=${id}`, { method: 'DELETE' });
+      const data = await api(`api/organic_lead_notify_emails.php?client_id=${activeClient.id}`);
+      document.getElementById('organic-leads-notify-list').innerHTML = renderOrganicLeadsNotifyList(data.emails || []);
+      document.getElementById('organic-leads-notify-count').textContent = `(${(data.emails || []).length})`;
+    } catch (e) {
+      Utils.showToast(e.message, 'danger');
+    }
+  }
+
+  async function generateOrganicLeadShareLink() {
+    try {
+      const data = await api('api/organic_lead_share.php', {
+        method: 'POST',
+        body: JSON.stringify({ client_id: activeClient.id, action: 'generate_link' }),
+      });
+      const base = location.origin + location.pathname.replace(/[^/]*$/, '');
+      const url = `${base}leads-cliente.html?t=${data.token}`;
+      document.getElementById('organic-leads-share-box').innerHTML = renderOrganicLeadsShareReveal(url);
+      document.getElementById('organic-leads-share-status').textContent = '· activo';
+      bindOrganicLeadsCopyButton();
+    } catch (e) {
+      Utils.showToast(e.message, 'danger');
+    }
+  }
+
+  async function revokeOrganicLeadShareLink() {
+    if (!confirm('¿Revocar el link público? El equipo comercial dejará de poder acceder a los registros.')) return;
+    try {
+      await api('api/organic_lead_share.php', {
+        method: 'POST',
+        body: JSON.stringify({ client_id: activeClient.id, action: 'revoke_link' }),
+      });
+      Utils.showToast('Link revocado', 'success');
+      document.getElementById('organic-leads-share-box').innerHTML = renderOrganicLeadsShareBox(false);
+      document.getElementById('organic-leads-share-status').textContent = '';
+    } catch (e) {
+      Utils.showToast(e.message, 'danger');
+    }
+  }
+
+  // ── Briefs (pestaña dentro del cliente — 3 tipos: sitio web, mercadeo
+  // digital, branding). Cada tipo tiene su propio link público independiente
+  // (client_briefs.php), llenado sin login por la marca en brief-publico.html.
+  // Los campos y etiquetas salen de BRIEF_SCHEMAS (js/briefSchemas.js), la
+  // misma fuente que usa el formulario público — así el visor de respuestas
+  // nunca se desincroniza de lo que realmente se le pregunta a la marca.
+
+  const BRIEF_TYPE_ORDER = ['sitio_web', 'marketing_digital', 'branding'];
+  let _briefsByType = {};
+
+  async function loadBriefsTab() {
+    const panel = document.getElementById('ac-panel-briefs');
+    panel.innerHTML = `<p class="text-slate-500 text-sm">Cargando…</p>`;
+    try {
+      const data = await api(`api/client_briefs.php?client_id=${activeClient.id}`);
+      _briefsByType = {};
+      (data.briefs || []).forEach((b) => { _briefsByType[b.brief_type] = b; });
+      panel.innerHTML = renderBriefsPanel();
+    } catch (e) {
+      panel.innerHTML = `<p class="text-red-400 text-sm">${_esc(e.message)}</p>`;
+    }
+  }
+
+  function _briefOf(type) {
+    return _briefsByType[type] || { brief_type: type, status: 'pending', link_generated: false, has_answers: false };
+  }
+
+  function renderBriefsPanel() {
+    return `
+      <p class="text-xs text-slate-500 mb-4">Genera un link para que la marca llene su brief desde el celular. Cada tipo tiene su propio link independiente.</p>
+      <div class="grid gap-3">${BRIEF_TYPE_ORDER.map(renderBriefCard).join('')}</div>
+      <div id="brief-answers-detail"></div>`;
+  }
+
+  function _briefStatusLabel(brief) {
+    if (brief.status === 'filled') {
+      const date = brief.filled_at ? new Date(brief.filled_at.replace(' ', 'T')).toLocaleDateString('es-MX') : '';
+      return `<span class="text-emerald-400 font-semibold">✅ Completado${date ? ' el ' + date : ''}${brief.filled_by_name ? ' — ' + _esc(brief.filled_by_name) : ''}</span>`;
+    }
+    if (brief.link_generated) {
+      return `<span class="text-amber-400 font-semibold">${Icons.svg('link', 'w-3.5 h-3.5 inline -mt-0.5')} Link enviado — pendiente de respuesta</span>`;
+    }
+    return `<span class="text-slate-500">Sin generar</span>`;
+  }
+
+  function renderBriefCard(type) {
+    return `
+      <div class="bg-slate-900 border border-slate-700 rounded-xl p-4" data-brief-card="${type}">
+        <h4 class="font-bold text-slate-100 mb-1">${_esc(BRIEF_SCHEMAS[type].label)}</h4>
+        <p class="text-xs mb-3" data-brief-status="${type}">${_briefStatusLabel(_briefOf(type))}</p>
+        <div data-brief-share="${type}">${renderBriefShareBox(type)}</div>
+      </div>`;
+  }
+
+  function renderBriefShareBox(type) {
+    const brief = _briefOf(type);
+    const btns = [];
+    if (brief.link_generated) {
+      btns.push(`<button onclick="AtencionCliente.generateBriefLink('${type}')" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">Regenerar</button>`);
+      btns.push(`<button onclick="AtencionCliente.revokeBriefLink('${type}')" class="bg-slate-800 hover:bg-red-900/40 border border-red-700/50 text-red-400 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">Revocar</button>`);
+    } else {
+      btns.push(`<button onclick="AtencionCliente.generateBriefLink('${type}')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">Generar link</button>`);
+    }
+    if (brief.has_answers) {
+      btns.push(`<button onclick="AtencionCliente.viewBriefAnswers('${type}')" class="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">Ver respuestas</button>`);
+    }
+    return `<div class="flex flex-wrap gap-2">${btns.join('')}</div>`;
+  }
+
+  // Se muestra una sola vez, justo al generar/regenerar — el backend nunca
+  // vuelve a devolver el token crudo (solo guarda su hash), mismo criterio
+  // que renderOrganicLeadsShareReveal.
+  function renderBriefShareReveal(type, url) {
+    return `
+      <div class="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-3">
+        <p class="text-xs text-slate-400 mb-2">Cópialo ahora y envíalo a la marca — no se puede volver a ver:</p>
+        <div class="flex gap-2">
+          <input type="text" id="brief-share-url-${type}" readonly value="${_esc(url)}" onclick="this.select()"
+            class="flex-1 min-w-0 bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-300">
+          <button type="button" onclick="AtencionCliente._copyBriefLink('${type}')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-xs font-semibold flex-shrink-0">${Icons.svg('copy', 'w-3.5 h-3.5 inline -mt-0.5 mr-1')}Copiar</button>
+        </div>
+      </div>
+      ${renderBriefShareBox(type)}`;
+  }
+
+  function _refreshBriefCardStatus(type) {
+    const card = document.querySelector(`[data-brief-card="${type}"]`);
+    if (card) card.querySelector(`[data-brief-status="${type}"]`).innerHTML = _briefStatusLabel(_briefOf(type));
+  }
+
+  async function generateBriefLink(type) {
+    try {
+      const data = await api('api/client_briefs.php', {
+        method: 'POST',
+        body: JSON.stringify({ client_id: activeClient.id, brief_type: type, action: 'generate_link' }),
+      });
+      // Regenerar un brief ya lleno lo vuelve a 'pending' en el backend, pero
+      // conserva has_answers/answers hasta que llegue un envío nuevo.
+      _briefsByType[type] = Object.assign({}, _briefOf(type), { status: 'pending', link_generated: true });
+      const base = location.origin + location.pathname.replace(/[^/]*$/, '');
+      const url = `${base}brief-publico.html?t=${data.token}`;
+      document.querySelector(`[data-brief-share="${type}"]`).innerHTML = renderBriefShareReveal(type, url);
+      _refreshBriefCardStatus(type);
+    } catch (e) {
+      Utils.showToast(e.message, 'danger');
+    }
+  }
+
+  async function revokeBriefLink(type) {
+    if (!confirm('¿Revocar este link? La marca ya no podrá usarlo para llenar el brief.')) return;
+    try {
+      await api('api/client_briefs.php', {
+        method: 'POST',
+        body: JSON.stringify({ client_id: activeClient.id, brief_type: type, action: 'revoke_link' }),
+      });
+      _briefsByType[type] = Object.assign({}, _briefOf(type), { link_generated: false });
+      Utils.showToast('Link revocado', 'success');
+      document.querySelector(`[data-brief-share="${type}"]`).innerHTML = renderBriefShareBox(type);
+    } catch (e) {
+      Utils.showToast(e.message, 'danger');
+    }
+  }
+
+  function _copyBriefLink(type) {
+    const input = document.getElementById(`brief-share-url-${type}`);
+    if (!input) return;
+    navigator.clipboard.writeText(input.value)
+      .then(() => Utils.showToast('Link copiado ✓', 'success'))
+      .catch(() => { input.select(); Utils.showToast('No se pudo copiar solo — selecciónalo y usa Ctrl+C', 'warning'); });
+  }
+
+  function _briefFieldOf(type, key) {
+    for (const section of BRIEF_SCHEMAS[type].sections) {
+      const field = section.fields.find((f) => f.key === key);
+      if (field) return field;
+    }
+    return null;
+  }
+
+  function _briefFormatValue(field, value) {
+    if (value === undefined || value === null || value === '') return '—';
+    if (Array.isArray(value)) {
+      if (!value.length) return '—';
+      return value.map((v) => (field && field.options ? (field.options.find((o) => o.value === v) || {}).label || v : v)).join(', ');
+    }
+    if (field && field.options) {
+      const opt = field.options.find((o) => o.value === value);
+      return opt ? opt.label : value;
+    }
+    return String(value);
+  }
+
+  function _briefFileSize(bytes) {
+    bytes = Number(bytes) || 0;
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  function renderBriefAnswers(type, brief) {
+    const answers = brief.answers || {};
+    const rows = Object.keys(answers).map((key) => {
+      const field = _briefFieldOf(type, key);
+      const label = field ? field.label : key;
+
+      if (field && field.type === 'file') {
+        const files = Array.isArray(answers[key]) ? answers[key] : [];
+        if (!files.length) return '';
+        const links = files.map((f) => `
+          <a href="${API}/api/brief_attachment.php?client_id=${activeClient.id}&brief_type=${type}&file=${encodeURIComponent(f.stored_name)}"
+             class="text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg px-2.5 py-1.5 text-indigo-300 inline-flex items-center gap-1">
+             ${Icons.svg('clip', 'w-3.5 h-3.5 inline -mt-0.5')} ${_esc(f.original_name)} <span class="text-slate-500">(${_briefFileSize(f.size)})</span>
+          </a>`).join('');
+        return `<div class="py-2 border-b border-slate-800/60"><p class="text-xs text-slate-500 mb-1.5">${_esc(label)}</p><div class="flex flex-wrap gap-2">${links}</div></div>`;
+      }
+
+      return `<div class="py-2 border-b border-slate-800/60"><p class="text-xs text-slate-500 mb-0.5">${_esc(label)}</p><p class="text-sm text-slate-200 whitespace-pre-wrap">${_esc(_briefFormatValue(field, answers[key]))}</p></div>`;
+    }).join('');
+    return `
+      <div class="bg-slate-900 border border-slate-700 rounded-xl p-4 mt-2">
+        <div class="flex items-center justify-between mb-3">
+          <h4 class="font-bold text-slate-100">Respuestas — ${_esc(BRIEF_SCHEMAS[type].label)}</h4>
+          <button onclick="document.getElementById('brief-answers-detail').innerHTML=''" class="text-slate-400 hover:text-slate-200 text-lg leading-none">&times;</button>
+        </div>
+        <p class="text-xs text-slate-500 mb-3">Enviado por ${_esc(brief.filled_by_name || '—')}${brief.filled_by_email ? ' · ' + _esc(brief.filled_by_email) : ''}${brief.filled_at ? ' · ' + new Date(brief.filled_at.replace(' ', 'T')).toLocaleString('es-MX') : ''}</p>
+        ${rows || '<p class="text-slate-500 text-sm">Sin respuestas.</p>'}
+      </div>`;
+  }
+
+  async function viewBriefAnswers(type) {
+    const detail = document.getElementById('brief-answers-detail');
+    detail.innerHTML = `<p class="text-slate-500 text-sm mt-2">Cargando respuestas…</p>`;
+    try {
+      const data = await api(`api/client_briefs.php?client_id=${activeClient.id}&brief_type=${type}&detail=1`);
+      detail.innerHTML = renderBriefAnswers(type, data.brief);
+      detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } catch (e) {
+      detail.innerHTML = `<p class="text-red-400 text-sm">${_esc(e.message)}</p>`;
+    }
+  }
+
   return {
-    init, openNewClientPrompt, openClient, closeClientModal, editClientLogo, _switchTab, _overlayClose,
+    init, openNewClientPrompt, openClient, closeClientModal, triggerClientLogoUpload, editClientLogoLink, _switchTab, _overlayClose,
     createFlow, duplicateFlow, toggleFlowStatus, openBuilder, closeBuilder,
     openConversationThread, resolveFollowup, _closeThread,
     _selectPendingPage,
     loadAdLeadFormsTab, openAdLeadForm, _closeAdLeadForm, deleteAdLeadRule,
+    loadOrganicLeadsTab, deleteOrganicLead, addOrganicLeadNotifyEmail, removeOrganicLeadNotifyEmail,
+    generateOrganicLeadShareLink, revokeOrganicLeadShareLink, removeOrganicLeadManualRow,
+    loadBriefsTab, generateBriefLink, revokeBriefLink, viewBriefAnswers, _copyBriefLink,
   };
 })();
 

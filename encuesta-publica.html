@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Encuesta de satisfacción — IDEAZ</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .survey-input {
+      width: 100%; background: #1e293b; border: 1px solid #334155; border-radius: 0.75rem;
+      padding: 0.75rem 1rem; font-size: 1rem; color: #f1f5f9; outline: none; transition: border-color .15s;
+    }
+    .survey-input:focus { border-color: #6366f1; }
+    .survey-input-error { border-color: #f87171 !important; }
+    textarea.survey-input { resize: vertical; min-height: 4.5rem; }
+    .face-btn {
+      display: flex; flex-direction: column; align-items: center; gap: 0.25rem; flex: 1;
+      background: #1e293b; border: 1.5px solid #334155; border-radius: 0.75rem; padding: 0.6rem 0.25rem;
+      color: #94a3b8; cursor: pointer; transition: all .15s;
+    }
+    .face-btn-active { border-color: #6366f1; background: #312e8133; color: #e2e8f0; }
+    .nps-btn {
+      width: 2.1rem; height: 2.1rem; border-radius: 0.5rem; border: 1.5px solid #334155; background: #1e293b;
+      color: #cbd5e1; font-size: 0.8rem; font-weight: 700; cursor: pointer; transition: all .15s;
+    }
+    .nps-btn-active { border-color: #6366f1; background: #6366f1; color: #fff; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+
+  <!-- Portal público de la Encuesta Trimestral de Satisfacción (Formulario 2
+       del módulo de Rendición) — sin login, autenticado solo por el token de
+       la URL (?t=...), igual patrón que brief-publico.html. Una sola
+       pantalla con scroll: la meta es responderla en 2-3 minutos. -->
+
+  <div id="state-loading" class="min-h-screen flex items-center justify-center">
+    <div class="w-10 h-10 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+  </div>
+
+  <div id="state-error" style="display:none" class="min-h-screen flex items-center justify-center p-6">
+    <div class="text-center max-w-sm">
+      <p class="text-4xl mb-3">🔒</p>
+      <h1 class="text-lg font-bold mb-1">Este link ya no está disponible</h1>
+      <p class="text-slate-400 text-sm">Puede haber sido revocado o el link estar incompleto. Pide uno nuevo a tu contacto en la agencia.</p>
+    </div>
+  </div>
+
+  <div id="state-filled" style="display:none" class="min-h-screen flex items-center justify-center p-6">
+    <div class="text-center max-w-sm">
+      <p class="text-4xl mb-3">✅</p>
+      <h1 class="text-lg font-bold mb-1">Ya respondiste esta encuesta</h1>
+      <p class="text-slate-400 text-sm">Gracias por tu tiempo. Si necesitas cambiar algo, pide un nuevo link a tu contacto en la agencia.</p>
+    </div>
+  </div>
+
+  <div id="state-done" style="display:none" class="min-h-screen flex items-center justify-center p-6">
+    <div class="text-center max-w-sm">
+      <p class="text-4xl mb-3">🎉</p>
+      <h1 class="text-lg font-bold mb-1">¡Gracias por tu tiempo!</h1>
+      <p class="text-slate-400 text-sm">Tu opinión nos ayuda a mejorar el servicio que te damos cada trimestre.</p>
+    </div>
+  </div>
+
+  <div id="state-content" style="display:none" class="min-h-screen max-w-lg mx-auto px-5 py-6">
+    <div class="flex items-center gap-3 mb-1">
+      <img id="client-logo" style="display:none" class="w-9 h-9 rounded-full object-cover flex-shrink-0" alt="">
+      <div class="min-w-0">
+        <p id="client-name" class="font-bold truncate"></p>
+        <p class="text-xs text-slate-500">Encuesta trimestral de satisfacción</p>
+      </div>
+    </div>
+    <p class="text-slate-400 text-sm mb-6">Tu opinión sincera nos ayuda a mejorar. Toma menos de 3 minutos.</p>
+
+    <form id="survey-form">
+      <div class="mb-5">
+        <label class="block text-sm font-semibold text-slate-200 mb-1.5">Tu nombre <span class="text-red-400">*</span></label>
+        <input type="text" id="f-name" class="survey-input" placeholder="Nombre completo">
+      </div>
+      <div class="mb-6">
+        <label class="block text-sm font-semibold text-slate-200 mb-1.5">Tu correo (opcional)</label>
+        <input type="email" id="f-email" class="survey-input" placeholder="correo@marca.com">
+      </div>
+
+      <div id="rating-fields"></div>
+
+      <div class="mb-6">
+        <label class="block text-sm font-semibold text-slate-200 mb-2">¿Qué tan probable es que recomiendes IDeaz? <span class="text-red-400">*</span></label>
+        <div id="nps-scale" class="flex gap-1.5 flex-wrap"></div>
+        <div class="flex justify-between text-xs text-slate-500 mt-1"><span>Nada probable</span><span>Muy probable</span></div>
+      </div>
+
+      <div class="mb-5">
+        <label class="block text-sm font-semibold text-slate-200 mb-1.5">¿Qué es lo que más valoras de trabajar con IDeaz? <span class="text-red-400">*</span></label>
+        <textarea id="f-value-most" maxlength="300" class="survey-input" placeholder="Cuéntanos brevemente"></textarea>
+      </div>
+      <div class="mb-5">
+        <label class="block text-sm font-semibold text-slate-200 mb-1.5">¿Qué deberíamos mejorar?</label>
+        <textarea id="f-improve" maxlength="300" class="survey-input"></textarea>
+      </div>
+      <div class="mb-6">
+        <label class="block text-sm font-semibold text-slate-200 mb-1.5">¿Hay algo que te gustaría que IDeaz hiciera y actualmente no está haciendo?</label>
+        <textarea id="f-wish" maxlength="300" class="survey-input"></textarea>
+      </div>
+
+      <p id="survey-form-error" style="display:none" class="text-sm text-red-400 bg-red-950/40 border border-red-800/50 rounded-lg px-3 py-2 mb-4"></p>
+      <button id="survey-submit-btn" type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-3 rounded-xl text-sm font-bold transition-colors">Enviar encuesta ✓</button>
+    </form>
+  </div>
+
+  <script>
+    const API = 'backend/public/survey_public.php';
+
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+    }
+    function setState(name) {
+      ['loading', 'error', 'filled', 'done', 'content'].forEach((s) => {
+        document.getElementById('state-' + s).style.display = (name === s) ? '' : 'none';
+      });
+    }
+
+    const RATING_FIELDS = [
+      { key: 'rating_ideaz', label: '¿Cómo calificarías la atención recibida por parte de IDeaz?' },
+      { key: 'rating_cm', label: '¿Cómo calificarías la atención de tu Community Manager?' },
+      { key: 'rating_response_time', label: '¿Cómo calificas los tiempos de respuesta?' },
+      { key: 'rating_quality', label: '¿Cómo calificas la calidad del contenido desarrollado?' },
+      { key: 'rating_creativity', label: '¿Cómo calificas la creatividad y propuestas del equipo?' },
+      { key: 'rating_commitment', label: '¿Qué tan satisfecho estás con el cumplimiento de lo acordado?' },
+      { key: 'rating_communication', label: '¿Qué tan satisfecho estás con la comunicación del equipo?' },
+      { key: 'rating_understands_business', label: '¿Sientes que el equipo entiende el negocio de tu empresa?' },
+      { key: 'rating_overall', label: '¿Cómo calificarías de manera general tu experiencia con IDeaz?' },
+    ];
+    const FACES = [
+      { value: 5, emoji: '😍', label: 'Excelente' },
+      { value: 4, emoji: '🙂', label: 'Bueno' },
+      { value: 3, emoji: '😐', label: 'Regular' },
+      { value: 2, emoji: '🙁', label: 'Malo' },
+      { value: 1, emoji: '😡', label: 'Muy malo' },
+    ];
+
+    let token = '';
+    const ratings = {};
+    let nps = null;
+
+    function renderRatingFields() {
+      const wrap = document.getElementById('rating-fields');
+      wrap.innerHTML = RATING_FIELDS.map((f) => `
+        <div class="mb-6" data-rating-wrap="${f.key}">
+          <label class="block text-sm font-semibold text-slate-200 mb-2">${esc(f.label)} <span class="text-red-400">*</span></label>
+          <div class="flex gap-1.5" data-rating="${f.key}">
+            ${FACES.map((face) => `
+              <button type="button" class="face-btn" data-value="${face.value}">
+                <span class="text-xl leading-none">${face.emoji}</span>
+                <span class="text-[10px] font-medium leading-none">${face.label}</span>
+              </button>`).join('')}
+          </div>
+        </div>`).join('');
+
+      wrap.querySelectorAll('[data-rating]').forEach((group) => {
+        const key = group.dataset.rating;
+        group.addEventListener('click', (e) => {
+          const btn = e.target.closest('.face-btn');
+          if (!btn) return;
+          ratings[key] = Number(btn.dataset.value);
+          group.querySelectorAll('.face-btn').forEach((b) => b.classList.toggle('face-btn-active', Number(b.dataset.value) === ratings[key]));
+        });
+      });
+    }
+
+    function renderNpsScale() {
+      const wrap = document.getElementById('nps-scale');
+      wrap.innerHTML = Array.from({ length: 11 }, (_, n) => `<button type="button" class="nps-btn" data-value="${n}">${n}</button>`).join('');
+      wrap.addEventListener('click', (e) => {
+        const btn = e.target.closest('.nps-btn');
+        if (!btn) return;
+        nps = Number(btn.dataset.value);
+        wrap.querySelectorAll('.nps-btn').forEach((b) => b.classList.toggle('nps-btn-active', Number(b.dataset.value) === nps));
+      });
+    }
+
+    function flashError(msg) {
+      const el = document.getElementById('survey-form-error');
+      el.textContent = msg;
+      el.style.display = '';
+      window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 100, behavior: 'smooth' });
+    }
+
+    async function submitForm(e) {
+      e.preventDefault();
+      const btn = document.getElementById('survey-submit-btn');
+      document.getElementById('survey-form-error').style.display = 'none';
+
+      const filledByName = document.getElementById('f-name').value.trim();
+      if (!filledByName) return flashError('Tu nombre es requerido');
+      const missingRating = RATING_FIELDS.find((f) => !ratings[f.key]);
+      if (missingRating) return flashError('Falta completar todas las calificaciones');
+      if (nps === null) return flashError('Falta calificar qué tan probable es que recomiendes IDeaz');
+      const valueMost = document.getElementById('f-value-most').value.trim();
+      if (!valueMost) return flashError('Falta responder qué es lo que más valoras de trabajar con IDeaz');
+
+      btn.disabled = true;
+      btn.textContent = 'Enviando…';
+      try {
+        const res = await fetch(API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(Object.assign({
+            t: token,
+            filled_by_name: filledByName,
+            filled_by_email: document.getElementById('f-email').value.trim(),
+            nps,
+            value_most: valueMost,
+            improve_what: document.getElementById('f-improve').value.trim(),
+            wish_feature: document.getElementById('f-wish').value.trim(),
+          }, ratings)),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+        setState('done');
+      } catch (err) {
+        flashError(err.message);
+        btn.disabled = false;
+        btn.textContent = 'Enviar encuesta ✓';
+      }
+    }
+
+    async function init() {
+      token = new URLSearchParams(location.search).get('t') || '';
+      if (!token) { setState('error'); return; }
+
+      try {
+        const res = await fetch(`${API}?t=${encodeURIComponent(token)}`);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Error');
+
+        if (data.status === 'invalid') { setState('error'); return; }
+        if (data.status === 'filled') { setState('filled'); return; }
+
+        document.getElementById('client-name').textContent = data.client.name;
+        if (data.client.logo_url) {
+          const img = document.getElementById('client-logo');
+          img.src = data.client.logo_url;
+          img.style.display = '';
+        }
+
+        renderRatingFields();
+        renderNpsScale();
+        document.getElementById('survey-form').addEventListener('submit', submitForm);
+        setState('content');
+      } catch (e) {
+        setState('error');
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

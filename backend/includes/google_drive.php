@@ -85,6 +85,19 @@ function google_drive_list_subfolders(string $parentId): ?array
     return $data === null ? null : ($data['files'] ?? []);
 }
 
+// Archivos (no carpetas) sueltos dentro de una carpeta — usado para listar el
+// contenido de un POST #N tanto en "Para aprobación" (aprobaciones.html) como
+// en ARTES (agenda.html). thumbnailLink queda vacío para archivos que Drive
+// todavía no terminó de procesar (recién subidos); el frontend ya sabe
+// resolver eso mostrando el ícono genérico del tipo de archivo.
+function google_drive_list_files(string $folderId): ?array
+{
+    $q = rawurlencode("'{$folderId}' in parents and trashed=false");
+    $fields = rawurlencode('files(id,name,mimeType,webViewLink,thumbnailLink)');
+    $data = google_drive_request('GET', "https://www.googleapis.com/drive/v3/files?q={$q}&fields={$fields}&pageSize=100");
+    return $data === null ? null : ($data['files'] ?? []);
+}
+
 function google_drive_create_folder(string $name, string $parentId): ?string
 {
     $data = google_drive_request('POST', 'https://www.googleapis.com/drive/v3/files', [

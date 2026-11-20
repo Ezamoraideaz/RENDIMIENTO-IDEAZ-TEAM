@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS operators (
     password_hash VARCHAR(255) NOT NULL,
     role ENUM('superadmin','admin','agent','agenda_full','agenda_member','cm') NOT NULL DEFAULT 'agenda_full',
     trello_member_id VARCHAR(64) NULL,
+    permissions TEXT NULL,
     active TINYINT(1) NOT NULL DEFAULT 1,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uq_operators_email (email)
@@ -63,6 +64,8 @@ CREATE TABLE IF NOT EXISTS member_settings (
     name VARCHAR(190) NOT NULL DEFAULT '',
     member_role VARCHAR(32) NOT NULL DEFAULT '',
     hourly_rate DECIMAL(12,2) NOT NULL DEFAULT 0,
+    birth_month TINYINT UNSIGNED NULL,
+    birth_day TINYINT UNSIGNED NULL,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -76,6 +79,7 @@ CREATE TABLE IF NOT EXISTS clients (
     sheet_id VARCHAR(100) NULL,
     drive_approval_folder_id VARCHAR(128) NULL,
     trello_board_id VARCHAR(64) NULL,
+    telegram_setup_done TINYINT(1) NOT NULL DEFAULT 0,
     status ENUM('active','paused','archived') NOT NULL DEFAULT 'active',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -129,10 +133,36 @@ CREATE TABLE IF NOT EXISTS content_reviews (
     decision ENUM('approved','changes_requested') NOT NULL,
     comment TEXT NULL,
     reason_tags JSON NULL,        -- ["Cambiar el copy", "Ortografía", ...] — solo si decision = changes_requested
+    time_notes JSON NULL,         -- [{"t": 4, "text": "..."}, ...] — notas ancladas a un segundo del video
     reviewed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     reviewer_ip VARCHAR(45) NULL,
+    reviewer_name VARCHAR(190) NULL,      -- autodeclarado una sola vez por dispositivo en revisar.html (sin login)
+    reviewer_role VARCHAR(190) NULL,      -- opcional
+    reviewer_device_id VARCHAR(64) NULL,  -- persistido en localStorage del cliente, correlaciona con content_review_activity
+    user_agent VARCHAR(400) NULL,
     KEY idx_content_reviews_item (content_item_id),
     CONSTRAINT fk_content_reviews_item FOREIGN KEY (content_item_id) REFERENCES content_items(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Bitácora de actividad del portal de revisión (revisar.html) — material
+-- probatorio de quién accedió y qué hizo, independiente de content_reviews
+-- (que solo registra decisiones finales). Append-only, nunca se edita ni se
+-- borra salvo por CASCADE al borrar la tanda completa.
+CREATE TABLE IF NOT EXISTS content_review_activity (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    batch_id INT UNSIGNED NOT NULL,
+    content_item_id INT UNSIGNED NULL,
+    event_type ENUM('opened','identified','decision') NOT NULL,
+    reviewer_name VARCHAR(190) NULL,
+    reviewer_role VARCHAR(190) NULL,
+    reviewer_device_id VARCHAR(64) NULL,
+    ip VARCHAR(45) NULL,
+    user_agent VARCHAR(400) NULL,
+    metadata JSON NULL,           -- ej. { "decision": "changes_requested", "comment_excerpt": "..." }
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_content_review_activity_batch (batch_id, created_at),
+    CONSTRAINT fk_content_review_activity_batch FOREIGN KEY (batch_id) REFERENCES content_batches(id) ON DELETE CASCADE,
+    CONSTRAINT fk_content_review_activity_item FOREIGN KEY (content_item_id) REFERENCES content_items(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS social_accounts (
@@ -340,6 +370,7 @@ CREATE TABLE IF NOT EXISTS pauta_clients (
     name VARCHAR(190) NOT NULL,
     budgets JSON NOT NULL,
     platforms JSON NOT NULL,
+    organic_client_id INT UNSIGNED NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -354,6 +385,29 @@ CREATE TABLE IF NOT EXISTS pauta_leads (
     CONSTRAINT fk_pauta_leads_client FOREIGN KEY (client_id) REFERENCES pauta_clients(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Ejecutar una sola vez. Varios links por cliente de pauta (ej. uno en tiempo real y varios de períodos cerrados).
+-- El token crudo nunca se guarda, solo su hash (mismo patrón que organic_lead_share_links / content_batches).
+--   mode = 'range' → período fijo (date_from..date_to). mode = 'live' → siempre el período en curso, en tiempo real.
+CREATE TABLE IF NOT EXISTS pauta_report_links (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    pauta_client_id VARCHAR(32) NOT NULL,
+    token_hash CHAR(64) NOT NULL,
+    token_encrypted TEXT NULL,
+    token_iv VARCHAR(32) NULL,
+    mode ENUM('range','live') NOT NULL DEFAULT 'live',
+    date_from DATE NULL,
+    date_to DATE NULL,
+    title VARCHAR(190) NOT NULL DEFAULT '',
+    message TEXT NULL,
+    lead_goal INT UNSIGNED NULL,
+    created_by INT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_pauta_report_token (token_hash),
+    KEY idx_pauta_report_client (pauta_client_id),
+    CONSTRAINT fk_pauta_report_client FOREIGN KEY (pauta_client_id) REFERENCES pauta_clients(id) ON DELETE CASCADE,
+    CONSTRAINT fk_pauta_report_operator FOREIGN KEY (created_by) REFERENCES operators(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Alarma manual: un admin/superadmin dispara un aviso a todos los usuarios
 -- logueados en ese momento (además del recordatorio automático de las 5pm
 -- que ya corre solo, por reloj, en el navegador de cada quien). Cada fila es
@@ -363,4 +417,302 @@ CREATE TABLE IF NOT EXISTS alarm_broadcasts (
     created_by INT UNSIGNED NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_alarm_broadcasts_operator FOREIGN KEY (created_by) REFERENCES operators(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Leads orgánicos (pestaña "Leads Orgánicos" en Atención al Cliente) — ver
+-- migration_015_organic_leads.sql para el detalle de cada tabla.
+CREATE TABLE IF NOT EXISTS organic_lead_imports (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    client_id INT UNSIGNED NOT NULL,
+    filename VARCHAR(255) NOT NULL,
+    row_count INT UNSIGNED NOT NULL DEFAULT 0,
+    imported_by INT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_organic_lead_imports_client (client_id, created_at),
+    CONSTRAINT fk_organic_lead_imports_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
+    CONSTRAINT fk_organic_lead_imports_operator FOREIGN KEY (imported_by) REFERENCES operators(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS organic_leads (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    client_id INT UNSIGNED NOT NULL,
+    import_id INT UNSIGNED NOT NULL,
+    name VARCHAR(190) NULL,
+    email VARCHAR(190) NULL,
+    phone VARCHAR(64) NULL,
+    source VARCHAR(100) NULL,
+    lead_date DATE NULL,
+    extra JSON NULL,
+    reason TEXT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_organic_leads_client (client_id, created_at),
+    KEY idx_organic_leads_import (import_id),
+    CONSTRAINT fk_organic_leads_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
+    CONSTRAINT fk_organic_leads_import FOREIGN KEY (import_id) REFERENCES organic_lead_imports(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS organic_lead_notify_emails (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    client_id INT UNSIGNED NOT NULL,
+    email VARCHAR(190) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_organic_lead_notify (client_id, email),
+    CONSTRAINT fk_organic_lead_notify_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS organic_lead_share_links (
+    client_id INT UNSIGNED NOT NULL PRIMARY KEY,
+    token_hash CHAR(64) NOT NULL,
+    created_by INT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_organic_lead_share_token (token_hash),
+    CONSTRAINT fk_organic_lead_share_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
+    CONSTRAINT fk_organic_lead_share_operator FOREIGN KEY (created_by) REFERENCES operators(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Módulo "Briefs" (pestaña dentro de Atención al Cliente) — una fila por
+-- (cliente, tipo de brief). Ver migration_018_client_briefs.sql para el detalle.
+CREATE TABLE IF NOT EXISTS client_briefs (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    client_id INT UNSIGNED NOT NULL,
+    brief_type ENUM('sitio_web','marketing_digital','branding') NOT NULL,
+    token_hash CHAR(64) NULL,
+    status ENUM('pending','filled') NOT NULL DEFAULT 'pending',
+    answers JSON NULL,
+    filled_by_name VARCHAR(190) NULL,
+    filled_by_email VARCHAR(190) NULL,
+    filled_at DATETIME NULL,
+    created_by INT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_client_briefs_token (token_hash),
+    UNIQUE KEY uq_client_briefs_type (client_id, brief_type),
+    CONSTRAINT fk_client_briefs_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
+    CONSTRAINT fk_client_briefs_operator FOREIGN KEY (created_by) REFERENCES operators(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Módulo "Egresos" (gastos y préstamos del equipo) — registro general de
+-- agencia, sin ligar a clientes/tableros de Trello. Ver migration_019_expenses.sql.
+CREATE TABLE IF NOT EXISTS expenses (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    expense_date DATE NOT NULL,
+    type ENUM('gasto','prestamo') NOT NULL DEFAULT 'gasto',
+    category VARCHAR(100) NOT NULL DEFAULT '',
+    account VARCHAR(100) NOT NULL DEFAULT '',
+    concept VARCHAR(255) NOT NULL,
+    amount DECIMAL(14,2) NOT NULL,
+    currency VARCHAR(8) NOT NULL DEFAULT 'COP',
+    paid_by_name VARCHAR(190) NULL,
+    reimbursement_status ENUM('pendiente','reembolsado') NULL,
+    reimbursed_at DATETIME NULL,
+    notes TEXT NULL,
+    created_by INT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_expenses_date (expense_date),
+    KEY idx_expenses_type (type, reimbursement_status),
+    CONSTRAINT fk_expenses_operator FOREIGN KEY (created_by) REFERENCES operators(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS expense_attachments (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    expense_id INT UNSIGNED NOT NULL,
+    stored_name VARCHAR(64) NOT NULL,
+    original_name VARCHAR(190) NULL,
+    size INT UNSIGNED NOT NULL DEFAULT 0,
+    width SMALLINT UNSIGNED NULL,
+    height SMALLINT UNSIGNED NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_expense_attachments_expense (expense_id),
+    CONSTRAINT fk_expense_attachments_expense FOREIGN KEY (expense_id) REFERENCES expenses(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Módulo "Rendición Trimestral" (evaluación interna de CMs + encuesta de
+-- satisfacción al cliente). Ver migration_020_rendicion.sql para el detalle.
+CREATE TABLE IF NOT EXISTS rendicion_forms (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    client_id INT UNSIGNED NOT NULL,
+    operator_id INT UNSIGNED NOT NULL,
+    quarter VARCHAR(7) NOT NULL,
+    status ENUM('draft','submitted') NOT NULL DEFAULT 'draft',
+    activity_level ENUM('baja','media','alta') NULL,
+    contracted_services JSON NULL,
+
+    meetings_total SMALLINT UNSIGNED NULL,
+    meetings_planning SMALLINT UNSIGNED NULL,
+    meetings_client_requested SMALLINT UNSIGNED NULL,
+    meetings_cm_initiated SMALLINT UNSIGNED NULL,
+    followups_count SMALLINT UNSIGNED NULL,
+    avg_response_time VARCHAR(32) NULL,
+    proactivity_self_score TINYINT UNSIGNED NULL,
+
+    pieces_generated SMALLINT UNSIGNED NULL,
+    pieces_delivered SMALLINT UNSIGNED NULL,
+    pieces_approved SMALLINT UNSIGNED NULL,
+    pieces_rework SMALLINT UNSIGNED NULL,
+    creation_sessions SMALLINT UNSIGNED NULL,
+    client_visits SMALLINT UNSIGNED NULL,
+
+    incidents_count SMALLINT UNSIGNED NULL,
+
+    account_health ENUM('verde','amarillo','rojo') NULL,
+    has_risk BOOLEAN NULL,
+
+    answers JSON NULL,
+
+    submitted_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_rendicion_forms (client_id, quarter, operator_id),
+    KEY idx_rendicion_forms_quarter (quarter),
+    KEY idx_rendicion_forms_operator (operator_id, quarter),
+    CONSTRAINT fk_rendicion_forms_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
+    CONSTRAINT fk_rendicion_forms_operator FOREIGN KEY (operator_id) REFERENCES operators(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS rendicion_opportunities (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    rendicion_form_id INT UNSIGNED NOT NULL,
+    client_id INT UNSIGNED NOT NULL,
+    needs JSON NULL,
+    services JSON NULL,
+    stage ENUM('detectada','reportada','presentada','cotizada','en_negociacion','aprobada','vendida','perdida','pendiente') NOT NULL DEFAULT 'detectada',
+    estimated_value DECIMAL(14,2) NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_rendicion_opportunities_form (rendicion_form_id),
+    KEY idx_rendicion_opportunities_client (client_id, stage),
+    CONSTRAINT fk_rendicion_opportunities_form FOREIGN KEY (rendicion_form_id) REFERENCES rendicion_forms(id) ON DELETE CASCADE,
+    CONSTRAINT fk_rendicion_opportunities_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS client_surveys (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    client_id INT UNSIGNED NOT NULL,
+    quarter VARCHAR(7) NOT NULL,
+    token_hash CHAR(64) NULL,
+    status ENUM('pending','filled') NOT NULL DEFAULT 'pending',
+
+    rating_ideaz TINYINT UNSIGNED NULL,
+    rating_cm TINYINT UNSIGNED NULL,
+    rating_response_time TINYINT UNSIGNED NULL,
+    rating_quality TINYINT UNSIGNED NULL,
+    rating_creativity TINYINT UNSIGNED NULL,
+    rating_commitment TINYINT UNSIGNED NULL,
+    rating_communication TINYINT UNSIGNED NULL,
+    rating_understands_business TINYINT UNSIGNED NULL,
+    rating_overall TINYINT UNSIGNED NULL,
+    nps TINYINT UNSIGNED NULL,
+
+    value_most VARCHAR(300) NULL,
+    improve_what VARCHAR(300) NULL,
+    wish_feature VARCHAR(300) NULL,
+
+    filled_by_name VARCHAR(190) NULL,
+    filled_by_email VARCHAR(190) NULL,
+    filled_at DATETIME NULL,
+    created_by INT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_client_surveys_token (token_hash),
+    UNIQUE KEY uq_client_surveys_period (client_id, quarter),
+    CONSTRAINT fk_client_surveys_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
+    CONSTRAINT fk_client_surveys_operator FOREIGN KEY (created_by) REFERENCES operators(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Recordatorios por correo de Rendición Trimestral (backend/cron/rendicion_reminders.php).
+-- Ver migration_021_rendicion_reminders.sql para el detalle.
+CREATE TABLE IF NOT EXISTS rendicion_reminders_sent (
+    quarter VARCHAR(7) NOT NULL,
+    reminder_type ENUM('kickoff','meeting') NOT NULL,
+    sent_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (quarter, reminder_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Revisión de piezas con IA vía Telegram (ver migration_022_telegram_design_review.sql).
+-- Grupo de Telegram <-> cliente (se vincula con el comando /vincular <slug> dentro del grupo)
+CREATE TABLE IF NOT EXISTS telegram_groups (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    chat_id BIGINT NOT NULL,
+    client_id INT UNSIGNED NOT NULL,
+    title VARCHAR(190) NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_telegram_groups_chat (chat_id),
+    CONSTRAINT fk_telegram_groups_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Quién es CM o PM: se compara match_text (sin mayúsculas) contra el @usuario + nombre + apellido
+-- de Telegram de quien escribe. client_id NULL = aplica a todas las marcas.
+-- Quien no coincida con ninguna regla se trata como diseñador.
+CREATE TABLE IF NOT EXISTS telegram_role_rules (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    role ENUM('cm','pm') NOT NULL,
+    match_text VARCHAR(100) NOT NULL,
+    client_id INT UNSIGNED NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_telegram_role_rules_client (client_id),
+    CONSTRAINT fk_telegram_role_rules_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO telegram_role_rules (role, match_text, client_id)
+SELECT 'cm', 'brenda', NULL FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM telegram_role_rules WHERE role='cm' AND match_text='brenda' AND client_id IS NULL);
+INSERT INTO telegram_role_rules (role, match_text, client_id)
+SELECT 'cm', 'zharick', NULL FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM telegram_role_rules WHERE role='cm' AND match_text='zharick' AND client_id IS NULL);
+INSERT INTO telegram_role_rules (role, match_text, client_id)
+SELECT 'pm', 'andrea', NULL FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM telegram_role_rules WHERE role='pm' AND match_text='andrea' AND client_id IS NULL);
+
+-- Una revisión = un envío del diseñador (1 mensaje o 1 álbum) = 1 post del cronograma.
+-- status: collecting (álbum sin # todavía) | pending | processing | done | failed | ignored
+CREATE TABLE IF NOT EXISTS design_reviews (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    client_id INT UNSIGNED NOT NULL,
+    chat_id BIGINT NOT NULL,
+    message_id BIGINT NOT NULL,
+    media_group_id VARCHAR(64) NULL,
+    from_user_id BIGINT NOT NULL,
+    from_name VARCHAR(190) NOT NULL DEFAULT '',
+    post_number INT UNSIGNED NULL,
+    pub_day TINYINT UNSIGNED NULL,
+    caption TEXT NULL,
+    version SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+    status ENUM('collecting','pending','processing','done','failed','ignored') NOT NULL DEFAULT 'pending',
+    attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    sheet_tab VARCHAR(100) NULL,
+    score TINYINT UNSIGNED NULL,
+    report_json MEDIUMTEXT NULL,
+    error TEXT NULL,
+    report_message_id BIGINT NULL,
+    claimed_at DATETIME NULL,
+    last_file_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    processed_at DATETIME NULL,
+    KEY idx_design_reviews_status (status, last_file_at),
+    KEY idx_design_reviews_group (chat_id, media_group_id),
+    KEY idx_design_reviews_post (client_id, post_number),
+    CONSTRAINT fk_design_reviews_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS design_review_files (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    review_id INT UNSIGNED NOT NULL,
+    tg_file_id VARCHAR(255) NOT NULL,
+    kind ENUM('image','video') NOT NULL,
+    mime VARCHAR(100) NULL,
+    size_bytes BIGINT UNSIGNED NULL,
+    file_name VARCHAR(255) NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_design_review_files_review (review_id),
+    CONSTRAINT fk_design_review_files_review FOREIGN KEY (review_id) REFERENCES design_reviews(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Auditoría de los botones de CM/PM (solo comunicación; no dispara acciones en Trello ni en el sistema)
+CREATE TABLE IF NOT EXISTS design_review_events (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    review_id INT UNSIGNED NOT NULL,
+    telegram_user_id BIGINT NOT NULL,
+    user_name VARCHAR(190) NOT NULL DEFAULT '',
+    role ENUM('cm','pm') NOT NULL,
+    action ENUM('approve','adjust','comment') NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_design_review_events_review (review_id),
+    CONSTRAINT fk_design_review_events_review FOREIGN KEY (review_id) REFERENCES design_reviews(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
