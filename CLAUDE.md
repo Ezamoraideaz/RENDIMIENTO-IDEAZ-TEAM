@@ -56,6 +56,20 @@ Dashboard web de rendimiento del equipo IDEAZ, conectado a Trello via API REST.
 | `reporte-pauta.html`, `backend/api/pauta_report_links.php`, `backend/public/pauta_report_public.php`, `api/spend_lib.php` | Ezamoraideaz | Reporte de pauta para el cliente final por link privado (token, solo hash en BD; modo tiempo real o rango de fechas; exporta PDF con imprimir). Se genera en `pauta.html` → detalle → pestaña "Reporte cliente". Requiere `backend/sql/migration_023_pauta_report_links.sql`. `api/spend_lib.php` contiene las consultas a Meta/Google que antes vivían en `api/spend.php` |
 | `backend/api/pauta_lead_precheck.php` | Ezamoraideaz | Calificados preliminares de pauta (Pauta → detalle de una marca): si la marca tuvo inversión en el período, los leads que entraron a Leads Orgánicos (`organic_leads`, por `lead_date` o fecha de importación) y por formularios de Meta (`ad_leads`) cuentan como calificados; una misma persona en ambas fuentes (teléfono/correo) se cuenta una vez. El registro manual de `pauta_leads` tiene prioridad. Requiere `backend/sql/migration_025_pauta_organic_link.sql` para vincular cada cliente de Pauta con su cliente de Atención al Cliente |
 
+| `reuniones.html` / `js/reuniones.js` | MCLuna | Módulo **Reuniones**: transcripciones de Google Meet por fecha/hora, detalle con transcripción buscable, notas, descarga .txt y dona de **% de participación** (tiempo de habla por persona). superadmin/admin ven todas; `cm`/`agenda_full`/`agenda_member` solo las que grabaron. Ver sección "Reuniones" abajo |
+| `chrome-extension/` | MCLuna | Extensión de Chrome **IDEAZ Reuniones** (Manifest V3, estilo Tactiq). El zip instalable se publica en `descargas/ideaz-reuniones-extension.zip` — **regenerarlo** cada vez que cambie la carpeta |
+| `backend/api/{meetings,meeting_ingest,meeting_tokens}.php`, `backend/includes/meetings.php` | MCLuna | Backend del módulo Reuniones. Requiere `backend/sql/migration_029_meetings.sql` |
+
+---
+
+## Reuniones — extensión de Chrome para Google Meet
+
+- **Cómo captura:** igual que Tactiq, no graba audio. `chrome-extension/content.js` activa los subtítulos de Meet (CC) y lee del DOM quién habla y qué dice. Cada bloque de subtítulos es un fragmento que crece; se envía cada 8 s (upsert por id) a `backend/api/meeting_ingest.php` vía el service worker. Si Meet cambia su HTML y deja de capturar, ajustar `captionRegion` / `findBlocks` / `readBlock` en `content.js`.
+- **Autenticación:** cada usuario genera una **llave personal** en Reuniones → «Conectar extensión» (`meeting_extension_tokens`, solo se guarda el hash SHA-256) y la pega en el popup. Viaja en el encabezado `X-Ideaz-Token` (no `Authorization`, que algunos hostings descartan). No usa la cookie de sesión.
+- **Participación:** % del tiempo total hablado = Σ(fin − inicio de cada fragmento, mínimo por palabras) por persona (`meetings_participation()`). Quien estuvo en la llamada sin hablar aparece con 0 %. Los subtítulos propios («Tú»/«You») se renombran con el nombre del usuario.
+- **Horas:** se guardan en UTC; el dashboard filtra y agrupa por días de America/Bogota.
+- **Puesta en marcha:** correr `migration_029_meetings.sql`; el backend debe estar en `https://marketingdigitalideaz.com/dashboard/backend` (URL por defecto de la extensión, cambiable en el popup → Avanzado; si el dominio cambia, actualizar `host_permissions` en `manifest.json`).
+
 ---
 
 ## Pauta — Google Ads y marcas que requieren atención

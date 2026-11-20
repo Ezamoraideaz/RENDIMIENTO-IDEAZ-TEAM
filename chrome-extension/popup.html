@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>IDEAZ Reuniones</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; width: 330px; font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color: #0b0b0b; background: #f9f9f7; }
+    header { display: flex; align-items: center; gap: 10px; padding: 14px 16px; background: #0c0a09; color: #fff; }
+    .logo { width: 30px; height: 30px; border-radius: 9px; background: #4f46e5; display: grid; place-items: center; font-weight: 900; }
+    header b { display: block; font-size: 14px; }
+    header small { color: #a8a29e; font-size: 11px; }
+    main { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 12px; }
+    label { display: block; font-size: 11px; font-weight: 700; color: #52514e; margin-bottom: 4px; }
+    input[type=text], input[type=password], input[type=url] { width: 100%; height: 34px; border: 1px solid #e1e0d9; border-radius: 10px; padding: 0 10px; font: inherit; background: #fff; }
+    input:focus { outline: none; border-color: #6366f1; }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .check { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #0b0b0b; font-weight: 500; margin: 0; }
+    .card { background: #fff; border: 1px solid #e1e0d9; border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+    button { height: 34px; border: 0; border-radius: 999px; padding: 0 14px; font: inherit; font-weight: 700; cursor: pointer; background: #4f46e5; color: #fff; }
+    button.ghost { background: #fff; color: #0b0b0b; border: 1px solid #e1e0d9; }
+    #status { font-size: 12px; border-radius: 10px; padding: 8px 10px; display: none; }
+    #status.ok { display: block; background: #ecfdf5; color: #065f46; }
+    #status.err { display: block; background: #fef2f2; color: #991b1b; }
+    .hint { font-size: 11px; color: #898781; }
+    details summary { cursor: pointer; font-size: 11px; font-weight: 700; color: #52514e; }
+    a { color: #4f46e5; font-weight: 700; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">I</div>
+    <div><b>IDEAZ Reuniones</b><small>Transcripción en vivo de Google Meet</small></div>
+  </header>
+  <main>
+    <div>
+      <label for="token">Llave de la extensión</label>
+      <input id="token" type="password" placeholder="idz_…" autocomplete="off">
+      <p class="hint">Genérala en el dashboard → Reuniones → «Conectar extensión».</p>
+    </div>
+
+    <div>
+      <label for="selfName">Tu nombre en las transcripciones</label>
+      <input id="selfName" type="text" placeholder="Se completa al probar la conexión">
+      <p class="hint">Meet muestra tus propios subtítulos como «Tú»; se reemplaza por este nombre.</p>
+    </div>
+
+    <div class="card">
+      <label class="check"><input type="checkbox" id="autoRecord"> Transcribir automáticamente al entrar a una llamada</label>
+      <label class="check"><input type="checkbox" id="autoCaptions"> Activar los subtítulos de Meet automáticamente</label>
+      <label class="check"><input type="checkbox" id="hideCaptions"> Ocultar los subtítulos en pantalla</label>
+      <label class="check"><input type="checkbox" id="showOverlay"> Mostrar el indicador de IDEAZ en Meet</label>
+    </div>
+
+    <details>
+      <summary>Avanzado</summary>
+      <div style="margin-top:8px">
+        <label for="server">URL del backend</label>
+        <input id="server" type="url">
+      </div>
+    </details>
+
+    <div id="status"></div>
+
+    <div class="row">
+      <a id="openDashboard" href="#" target="_blank">Abrir Reuniones ↗</a>
+      <button id="save">Guardar y probar</button>
+    </div>
+    <p class="hint">Importante: los subtítulos de Meet deben estar en el idioma de la reunión (Configuración de Meet → Subtítulos).</p>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>

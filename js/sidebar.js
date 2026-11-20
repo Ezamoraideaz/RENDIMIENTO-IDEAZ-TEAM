@@ -9,6 +9,7 @@ const Sidebar = (() => {
     { href: 'egresos.html',       icon: 'wallet',    label: 'Egresos',        key: 'egresos'       },
     { href: 'rendicion.html',     icon: 'file',      label: 'Rendición CM',   key: 'rendicion'     },
     { href: 'rendicion-dashboard.html', icon: 'trend', label: 'Rendición Dashboard', key: 'rendicion-dashboard' },
+    { href: 'reuniones.html',     icon: 'video',     label: 'Reuniones',      key: 'reuniones'     },
     { href: 'configuracion.html', icon: 'settings',  label: 'Configuración', key: 'configuracion' },
   ];
 
@@ -81,6 +82,7 @@ const Sidebar = (() => {
     clip:      '<path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>',
     link:      '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
     idCard:    '<rect width="20" height="14" x="2" y="5" rx="2"/><circle cx="8" cy="12" r="2"/><path d="M14 10h4M14 14h4"/>',
+    video:     '<path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/>',
     sheet:     '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/>',
   };
   function icon(name, cls = 'w-5 h-5') {
