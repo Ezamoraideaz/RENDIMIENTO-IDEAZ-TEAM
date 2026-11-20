@@ -21,22 +21,23 @@ const Session = (() => {
     'egresos.html': 'egresos',
     'rendicion.html': 'rendicion',
     'rendicion-dashboard.html': 'rendicion-dashboard',
+    'reuniones.html': 'reuniones',
   };
 
-  const ALL_PAGES = ['dashboard', 'proyecto', 'agenda', 'monitor', 'pauta', 'atencion-cliente', 'configuracion', 'protocolo', 'aprobaciones', 'egresos', 'rendicion', 'rendicion-dashboard'];
+  const ALL_PAGES = ['dashboard', 'proyecto', 'agenda', 'monitor', 'pauta', 'atencion-cliente', 'configuracion', 'protocolo', 'aprobaciones', 'egresos', 'rendicion', 'rendicion-dashboard', 'reuniones'];
 
   // Páginas visibles por rol (los roles del Control de Acceso + superadmin)
   const ACCESS = {
     superadmin:    ALL_PAGES,
     admin:         ALL_PAGES,
     agent:         ['atencion-cliente', 'protocolo'],
-    agenda_full:   ['agenda', 'protocolo', 'egresos', 'configuracion'],
-    agenda_member: ['agenda', 'monitor', 'protocolo'],
-    cm:            ['dashboard', 'agenda', 'configuracion', 'monitor', 'protocolo', 'aprobaciones', 'atencion-cliente', 'rendicion'],
+    agenda_full:   ['agenda', 'protocolo', 'egresos', 'configuracion', 'reuniones'],
+    agenda_member: ['agenda', 'monitor', 'protocolo', 'reuniones'],
+    cm:            ['dashboard', 'agenda', 'configuracion', 'monitor', 'protocolo', 'aprobaciones', 'atencion-cliente', 'rendicion', 'reuniones'],
   };
 
   // Claves de navegación del sidebar (subconjunto de páginas)
-  const NAV_KEYS = ['dashboard', 'agenda', 'monitor', 'pauta', 'atencion-cliente', 'configuracion', 'aprobaciones', 'egresos', 'rendicion', 'rendicion-dashboard'];
+  const NAV_KEYS = ['dashboard', 'agenda', 'monitor', 'pauta', 'atencion-cliente', 'configuracion', 'aprobaciones', 'egresos', 'rendicion', 'rendicion-dashboard', 'reuniones'];
 
   const FILE_BY_PAGE = {
     dashboard: 'index.html',
@@ -51,6 +52,7 @@ const Session = (() => {
     egresos: 'egresos.html',
     rendicion: 'rendicion.html',
     'rendicion-dashboard': 'rendicion-dashboard.html',
+    reuniones: 'reuniones.html',
   };
 
   let user = null;

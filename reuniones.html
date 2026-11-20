@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>try{if(localStorage.getItem('ideaz_theme')!=='dark')document.documentElement.classList.add('light');}catch(e){document.documentElement.classList.add('light');}</script>
+  <title>Reuniones – IDEAZ Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          colors: { brand: { DEFAULT: '#6366f1', light: '#818cf8', dark: '#4f46e5' } }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="css/main.css?v=20261026">
+  <style>
+    /* Paleta categórica de participantes (validada para daltonismo), tema oscuro por defecto
+       y tema claro con html.light — mismo mecanismo de tema que el resto del dashboard. */
+    .viz-root {
+      --viz-surface: var(--s1);
+      --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500;
+      --series-5: #d55181; --series-6: #0ca30c; --series-7: #9085e9; --series-8: #e66767;
+      --series-other: #6b6a66;
+    }
+    html.light .viz-root {
+      --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100;
+      --series-5: #e87ba4; --series-6: #008300; --series-7: #6250d6; --series-8: #e34948;
+      --series-other: #b5b3ac;
+    }
+    .rn-donut-seg { transition: opacity .15s; }
+    .rn-donut:hover .rn-donut-seg { opacity: .45; }
+    .rn-donut .rn-donut-seg:hover, .rn-donut .rn-donut-seg.is-hot { opacity: 1; }
+    .rn-part-row { border-radius: .75rem; transition: background .15s; }
+    .rn-part-row:hover, .rn-part-row.is-hot { background: var(--s2); }
+    .rn-bar { height: .45rem; border-radius: 4px; background: var(--s3); overflow: hidden; }
+    .rn-bar > div { height: 100%; border-radius: 4px; }
+    .rn-stack { display: flex; gap: 2px; height: .4rem; border-radius: 4px; overflow: hidden; background: var(--s3); }
+    .rn-stack > div { height: 100%; }
+    .rn-dot { width: .7rem; height: .7rem; border-radius: 50%; flex: none; }
+    #rn-tip { position: fixed; z-index: 70; pointer-events: none; opacity: 0; transition: opacity .1s; background: #0c0a09; color: #fff; border-radius: .6rem; padding: .45rem .65rem; font-size: 11px; line-height: 1.4; box-shadow: 0 10px 25px -8px rgba(0,0,0,.5); transform: translate(-50%, calc(-100% - 10px)); white-space: nowrap; }
+    .rn-seg-text mark { background: #fde68a; color: #0b0b0b; border-radius: 3px; padding: 0 1px; }
+    .rn-live { display:inline-flex; align-items:center; gap:.3rem; font-size:10px; font-weight:800; padding:.15rem .5rem; border-radius:999px; background:#fee2e2; color:#991b1b; }
+    .rn-live::before { content:""; width:.45rem; height:.45rem; border-radius:50%; background:#d03b3b; animation: rnpulse 1.4s infinite; }
+    @keyframes rnpulse { 50% { opacity:.3; } }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans">
+
+<!-- SIDEBAR -->
+<aside id="app-sidebar" class="fixed left-0 top-0 h-screen w-64 bg-slate-900 border-r border-slate-700 flex flex-col z-50 overflow-y-auto"></aside>
+
+<!-- MAIN -->
+<main class="ml-64 min-h-screen viz-root">
+  <div class="p-4 sm:p-6 max-w-7xl mx-auto">
+
+    <!-- ═══ Vista: listado ═══ -->
+    <section id="rn-list-view">
+      <div class="flex items-end justify-between mb-6 flex-wrap gap-4">
+        <div class="min-w-0">
+          <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-100">Reuniones</h1>
+          <p class="text-slate-400 text-sm mt-1">Transcripciones de Google Meet capturadas con la extensión IDEAZ Reuniones</p>
+        </div>
+        <button onclick="Reuniones.openConnect()" class="ui-chip ui-chip-primary w-full sm:w-auto"><span data-icon="link"></span>Conectar extensión</button>
+      </div>
+
+      <!-- Indicadores -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div class="bento-card">
+          <div class="flex items-center justify-between gap-3"><p class="bento-label">Reuniones</p><span data-icon="video" data-size="w-5 h-5" class="text-slate-400"></span></div>
+          <p id="st-count" class="text-3xl font-extrabold mt-2">—</p>
+          <p class="text-xs text-slate-500 mt-1">en el período filtrado</p>
+        </div>
+        <div class="bento-card">
+          <div class="flex items-center justify-between gap-3"><p class="bento-label">Tiempo en reunión</p><span data-icon="clock" data-size="w-5 h-5" class="text-slate-400"></span></div>
+          <p id="st-hours" class="text-3xl font-extrabold mt-2">—</p>
+          <p class="text-xs text-slate-500 mt-1">suma de duraciones</p>
+        </div>
+        <div class="bento-card">
+          <div class="flex items-center justify-between gap-3"><p class="bento-label">Duración promedio</p><span data-icon="timer" data-size="w-5 h-5" class="text-slate-400"></span></div>
+          <p id="st-avg" class="text-3xl font-extrabold mt-2">—</p>
+          <p class="text-xs text-slate-500 mt-1">por reunión</p>
+        </div>
+        <div class="bento-card">
+          <div class="flex items-center justify-between gap-3"><p class="bento-label">Participantes</p><span data-icon="users" data-size="w-5 h-5" class="text-slate-400"></span></div>
+          <p id="st-people" class="text-3xl font-extrabold mt-2">—</p>
+          <p class="text-xs text-slate-500 mt-1">personas distintas</p>
+        </div>
+      </div>
+
+      <!-- Filtros -->
+      <div class="ui-toolbar sticky top-[3.25rem] md:top-0 z-30 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3 mb-4">
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="flex items-center gap-1" id="f-presets">
+            <button type="button" class="ui-chip" data-preset="today">Hoy</button>
+            <button type="button" class="ui-chip" data-preset="7">7 días</button>
+            <button type="button" class="ui-chip" data-preset="30">30 días</button>
+            <button type="button" class="ui-chip" data-preset="month">Este mes</button>
+          </div>
+          <div class="flex items-center gap-1.5 flex-1 min-w-[260px] sm:flex-none">
+            <label class="ui-field flex-1" title="Desde"><input type="date" id="f-from" class="ui-input" style="padding:0 .6rem 0 .9rem"></label>
+            <span class="text-slate-500 text-sm">→</span>
+            <label class="ui-field flex-1" title="Hasta"><input type="date" id="f-to" class="ui-input" style="padding:0 .6rem 0 .9rem"></label>
+          </div>
+          <label class="ui-field flex-1 min-w-[200px] sm:flex-none sm:w-64">
+            <span data-icon="search"></span>
+            <input type="search" id="f-q" placeholder="Título, persona o lo que se dijo…" class="ui-input">
+          </label>
+          <label class="ui-field flex-1 min-w-[170px] sm:flex-none hidden" id="f-operator-wrap">
+            <span data-icon="users"></span>
+            <select id="f-operator" class="ui-select"><option value="">Grabadas por cualquiera</option></select>
+            <span data-icon="chevron" class="ui-field-end"></span>
+          </label>
+          <button id="f-clear" type="button" class="ui-chip"><span data-icon="x"></span>Limpiar</button>
+          <span id="rn-count" class="w-full sm:w-auto sm:ml-auto text-xs font-semibold text-slate-400 text-center sm:text-right"></span>
+        </div>
+      </div>
+
+      <div id="rn-list"><p class="text-slate-500 text-sm p-4">Cargando…</p></div>
+    </section>
+
+    <!-- ═══ Vista: detalle ═══ -->
+    <section id="rn-detail-view" class="hidden"></section>
+
+  </div>
+</main>
+
+<!-- Modal: conectar extensión -->
+<div id="rn-connect" class="fixed inset-0 z-[60] hidden items-center justify-center p-4 bg-black/50" role="dialog" aria-modal="true">
+  <div class="bento-card w-full max-w-xl max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-extrabold text-slate-100">Conectar la extensión de Chrome</h2>
+      <button onclick="Reuniones.closeConnect()" class="ui-chip !px-2" aria-label="Cerrar"><span data-icon="x"></span></button>
+    </div>
+    <ol class="text-sm text-slate-300 space-y-2 list-decimal pl-5 mb-5">
+      <li><a href="descargas/ideaz-reuniones-extension.zip" class="font-bold text-indigo-500 hover:underline" download>Descarga la extensión</a> y descomprime el .zip en una carpeta que no vayas a borrar.</li>
+      <li>En Chrome abre <code class="px-1 rounded bg-slate-800">chrome://extensions</code>, activa <b>Modo de desarrollador</b> y pulsa <b>Cargar descomprimida</b>; elige esa carpeta.</li>
+      <li>Genera abajo tu llave personal, ábrela desde el icono <b>IDEAZ</b> de Chrome, pégala y pulsa <b>Guardar y probar</b>.</li>
+      <li>Entra a una reunión de Google Meet: la transcripción empieza sola (verás el indicador <b>IDEAZ · Transcribiendo</b>).</li>
+    </ol>
+
+    <div class="flex flex-wrap items-end gap-2 mb-3">
+      <label class="flex-1 min-w-[180px]">
+        <span class="bento-label">Nombre de la llave</span>
+        <input id="rn-token-label" type="text" class="ui-input w-full mt-1" placeholder="Ej. Chrome portátil" style="padding:0 .9rem">
+      </label>
+      <button onclick="Reuniones.createToken()" class="ui-chip ui-chip-primary"><span data-icon="key"></span>Generar llave</button>
+    </div>
+    <div id="rn-new-token" class="hidden mb-4 p-3 rounded-xl border border-emerald-500/40 bg-emerald-500/10">
+      <p class="text-xs font-semibold text-emerald-400 mb-2">Cópiala ahora: por seguridad no se volverá a mostrar.</p>
+      <div class="flex items-center gap-2">
+        <code id="rn-new-token-value" class="flex-1 text-xs break-all text-slate-100"></code>
+        <button onclick="Reuniones.copyToken()" class="ui-chip"><span data-icon="copy"></span>Copiar</button>
+      </div>
+    </div>
+    <p class="bento-label mb-2">Mis llaves activas</p>
+    <div id="rn-tokens" class="text-sm"></div>
+  </div>
+</div>
+
+<div id="rn-tip"></div>
+
+<script src="js/session.js"></script>
+<script src="js/sidebar.js?v=20261120"></script>
+<script src="js/utils.js?v=20260831"></script>
+<script src="js/reuniones.js?v=20261120"></script>
+<script>
+  Session.ready.then(() => {
+    Sidebar.init('reuniones');
+    Reuniones.init();
+  });
+</script>
+</body>
+</html>
