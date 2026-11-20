@@ -102,6 +102,14 @@ switch ($_SERVER['REQUEST_METHOD']) {
             $viewStmt->execute([$meeting['id']]);
             $attendees = array_column($viewStmt->fetchAll(), 'name');
 
+            // Peso aproximado en la base de datos: texto + nombre de quien habla +
+            // ~60 bytes por fila (ids, fechas y encabezado de InnoDB). Sin índices.
+            $sizeBytes = 0;
+            foreach ($segments as $s) {
+                $sizeBytes += strlen((string)$s['text']) + strlen((string)$s['speaker']) + 60;
+            }
+            $sizeBytes += 40 * count($participantNames) + strlen((string)$meeting['notes']) + 200;
+
             $end = meetings_effective_end($meeting);
             json_response([
                 'meeting' => [
@@ -118,6 +126,8 @@ switch ($_SERVER['REQUEST_METHOD']) {
                     'operator_name'    => $meeting['operator_name'] ?: $meeting['operator_email'],
                     'can_edit'         => $isAdmin || (int)$meeting['operator_id'] === (int)$operator['id'],
                     'attendees'        => $attendees,
+                    'size_bytes'       => $sizeBytes,
+                    'word_count'       => array_sum(array_map(fn($s) => (int)$s['word_count'], $segments)),
                 ],
                 'segments' => array_map(fn($s) => [
                     'id'         => (int)$s['id'],

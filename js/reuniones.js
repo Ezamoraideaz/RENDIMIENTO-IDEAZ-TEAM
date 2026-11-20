@@ -35,6 +35,13 @@ const Reuniones = (() => {
     return `${sec} s`;
   }
 
+  function fmtBytes(b) {
+    b = Math.max(0, b || 0);
+    if (b < 1024) return `${b} B`;
+    if (b < 1024 * 1024) return `${(b / 1024).toLocaleString('es-CO', { maximumFractionDigits: 1 })} KB`;
+    return `${(b / 1024 / 1024).toLocaleString('es-CO', { maximumFractionDigits: 2 })} MB`;
+  }
+
   function fmtClock(sec) {
     sec = Math.max(0, Math.round(sec));
     const h = Math.floor(sec / 3600);
@@ -245,13 +252,15 @@ const Reuniones = (() => {
           </div>
           ${m.is_live ? '<span class="rn-live">EN VIVO</span>' : ''}
         </div>
-        <dl class="grid grid-cols-2 md:grid-cols-5 gap-4 mt-4 text-sm">
+        <dl class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mt-4 text-sm">
           <div><dt class="bento-label">Inicio</dt><dd class="font-bold text-slate-100 tabular-nums mt-1">${fmtTime(m.started_at)}</dd></div>
           <div><dt class="bento-label">Fin</dt><dd class="font-bold text-slate-100 tabular-nums mt-1">${m.is_live ? 'En curso' : fmtTime(m.ended_at)}</dd></div>
           <div><dt class="bento-label">Duración</dt><dd class="font-bold text-slate-100 mt-1">${fmtDuration(m.duration_seconds)}</dd></div>
           <div><dt class="bento-label">Código Meet</dt><dd class="font-bold text-slate-100 mt-1 font-mono">${m.meeting_code ? `<a class="hover:text-indigo-500" href="https://meet.google.com/${esc(m.meeting_code)}" target="_blank" rel="noopener">${esc(m.meeting_code)}</a>` : '—'}</dd></div>
           <div class="min-w-0"><dt class="bento-label">Grabada por</dt><dd class="font-bold text-slate-100 mt-1 truncate">${esc(m.operator_name || '—')}</dd>
             ${(m.attendees || []).length ? `<dd class="text-[11px] text-slate-400 mt-0.5 truncate" title="También tenían la extensión en la llamada (en espera, sin duplicar la grabación)">+ ${esc(m.attendees.join(', '))}</dd>` : ''}</div>
+          <div title="Espacio aproximado que ocupa en la base de datos (solo texto: no se guarda audio ni video)"><dt class="bento-label">Peso</dt><dd class="font-bold text-slate-100 tabular-nums mt-1">${fmtBytes(m.size_bytes)}</dd>
+            <dd class="text-[11px] text-slate-400 mt-0.5">${(m.word_count || 0).toLocaleString('es-CO')} palabras</dd></div>
         </dl>
       </div>
 
