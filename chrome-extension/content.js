@@ -6,6 +6,11 @@
 // envía al backend cada pocos segundos (upsert por id de fragmento) junto con
 // la lista de personas vistas en la llamada.
 //
+// Una sola grabación por llamada: si otra extensión IDEAZ ya graba esa reunión,
+// el servidor responde 'standby' y esta queda en espera (no envía nada, solo
+// pregunta cada 20 s). Si quien graba sale, el servidor responde 'recording' y
+// esta toma el relevo en la misma reunión.
+//
 // Meet cambia sus clases CSS con frecuencia. Por eso todo se busca primero por
 // atributos accesibles (role/aria-label) y, si no, por clases conocidas o por
 // la estructura (avatar + nombre + texto). Si Meet cambia y deja de capturar,
@@ -22,7 +27,12 @@
   const SELF_LABELS = ['tú', 'tu', 'you', 'vous', 'você', 'du', 'yo'];
 
   const SYNC_EVERY_MS = 8000;
-  const HEARTBEAT_MS = 60000;
+  // Señal de vida de quien graba. El servidor considera que dejó de grabar a los
+  // 120 s sin señal (MEETINGS_RECORDER_STALE_SECONDS) y deja que otro tome el relevo.
+  const HEARTBEAT_MS = 30000;
+  // En espera (otra extensión ya graba esta llamada) solo se pregunta cada 20 s
+  // si hace falta tomar el relevo; no se envía la transcripción.
+  const STANDBY_PING_MS = 20000;
   const RESUME_WINDOW_MS = 30 * 60 * 1000; // recargar la pestaña dentro de 30 min continúa la misma reunión
 
   let settings = {};
@@ -244,11 +254,14 @@
       participants: new Set(),
       paused: false, syncing: false,
       lastSync: 0, lastActivity: now(), error: '',
+      // 'starting' hasta que el servidor responda; luego 'recording' o 'standby'
+      mode: 'starting', recorder: '',
     };
     captionAttempts = 0;
     send({ type: 'badge', on: true });
     persist();
     renderOverlay();
+    sync(false); // saber de inmediato si otra extensión ya graba esta llamada
   }
 
   async function stop(final = true) {
@@ -269,8 +282,12 @@
 
   async function sync(final = false) {
     if (!state || state.syncing) return;
-    const pending = state.order.map((id) => state.segments.get(id)).filter((s) => s.version !== s.sent).slice(0, 400);
-    if (!pending.length && !final && now() - state.lastSync < HEARTBEAT_MS) return;
+    const standby = state.mode === 'standby';
+    // En espera los subtítulos se siguen leyendo en local (por si toca tomar el
+    // relevo), pero no se envían: el servidor los descartaría.
+    if (standby && (final || now() - state.lastSync < STANDBY_PING_MS)) return;
+    const pending = standby ? [] : state.order.map((id) => state.segments.get(id)).filter((s) => s.version !== s.sent).slice(0, 400);
+    if (!standby && !pending.length && !final && now() - state.lastSync < HEARTBEAT_MS) return;
     if (!settings.token) { state.error = 'Falta la llave: abre la extensión IDEAZ y pégala.'; renderOverlay(); return; }
 
     state.syncing = true;
@@ -289,15 +306,29 @@
     const current = state;
     const res = await send({ type: 'sync', payload });
     current.syncing = false;
+    let takeover = false;
     if (res && res.ok) {
-      pending.forEach((s, i) => { s.sent = versions[i]; });
+      const data = res.data || {};
       current.lastSync = now();
       current.error = '';
-      current.meetingId = res.data && res.data.meeting_id;
+      current.meetingId = data.meeting_id;
+      if (data.status === 'standby') {
+        // Otra extensión graba esta llamada: nada de lo enviado se guardó
+        current.mode = 'standby';
+        current.recorder = data.recorder || '';
+      } else {
+        takeover = current.mode === 'standby';
+        current.mode = 'recording';
+        current.recorder = '';
+        pending.forEach((s, i) => { s.sent = versions[i]; });
+      }
     } else {
       current.error = (res && res.error) || 'No se pudo conectar con el servidor';
     }
-    send({ type: 'badge', on: !!state, error: !!current.error });
+    send({ type: 'badge', on: !!state, standby: current.mode === 'standby', error: !!current.error });
+    // Relevo: enviar ya lo capturado en espera (el servidor se queda solo con lo
+    // posterior a la última señal de quien grababa).
+    if (takeover && state === current) setTimeout(() => sync(false), 300);
     persist();
     renderOverlay();
   }
@@ -373,15 +404,24 @@
     host.style.display = '';
     const count = state ? state.order.length : 0;
     const error = state ? state.error : (!settings.token ? 'Configura tu llave en la extensión IDEAZ para transcribir.' : '');
-    ui.dot.className = 'dot' + (state && !state.paused ? (error ? ' err' : ' rec') : '');
-    ui.label.textContent = state
-      ? (state.paused ? 'IDEAZ · En pausa' : `IDEAZ · Transcribiendo · ${count}`)
-      : 'IDEAZ · Sin transcribir';
-    ui.actions.innerHTML = state
-      ? `<button data-act="panel">${panelOpen ? 'Ocultar' : 'Ver'}</button>
-         <button data-act="pause">${state.paused ? 'Reanudar' : 'Pausar'}</button>
-         <button data-act="stop">Detener</button>`
-      : (settings.token ? '<button data-act="start" class="primary">Transcribir</button>' : '');
+    const standby = state && state.mode === 'standby';
+    ui.dot.className = 'dot' + (state && !state.paused && !standby ? (error ? ' err' : ' rec') : '');
+    ui.label.textContent = !state
+      ? 'IDEAZ · Sin transcribir'
+      : standby
+        ? `IDEAZ · En espera · ya la graba ${state.recorder || 'otra persona'}`
+        : (state.paused ? 'IDEAZ · En pausa' : `IDEAZ · Transcribiendo · ${count}`);
+    ui.label.title = standby
+      ? 'Otra persona ya está grabando esta reunión con IDEAZ, así que no se duplica. Si sale de la llamada, esta extensión sigue grabando sola y la reunión aparece en tu módulo Reuniones.'
+      : '';
+    ui.actions.innerHTML = !state
+      ? (settings.token ? '<button data-act="start" class="primary">Transcribir</button>' : '')
+      : standby
+        ? `<button data-act="panel">${panelOpen ? 'Ocultar' : 'Ver'}</button>
+           <button data-act="stop">Detener</button>`
+        : `<button data-act="panel">${panelOpen ? 'Ocultar' : 'Ver'}</button>
+           <button data-act="pause">${state.paused ? 'Reanudar' : 'Pausar'}</button>
+           <button data-act="stop">Detener</button>`;
     ui.err.hidden = !error;
     ui.err.textContent = error || '';
     ui.panel.hidden = !(panelOpen && state);

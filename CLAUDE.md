@@ -58,7 +58,7 @@ Dashboard web de rendimiento del equipo IDEAZ, conectado a Trello via API REST.
 
 | `reuniones.html` / `js/reuniones.js` | MCLuna | Módulo **Reuniones**: transcripciones de Google Meet por fecha/hora, detalle con transcripción buscable, notas, descarga .txt y dona de **% de participación** (tiempo de habla por persona). superadmin/admin ven todas; `cm`/`agenda_full`/`agenda_member` solo las que grabaron. Ver sección "Reuniones" abajo |
 | `chrome-extension/` | MCLuna | Extensión de Chrome **IDEAZ Reuniones** (Manifest V3, estilo Tactiq). El zip instalable se publica en `descargas/ideaz-reuniones-extension.zip` — **regenerarlo** cada vez que cambie la carpeta |
-| `backend/api/{meetings,meeting_ingest,meeting_tokens}.php`, `backend/includes/meetings.php` | MCLuna | Backend del módulo Reuniones. Requiere `backend/sql/migration_029_meetings.sql` |
+| `backend/api/{meetings,meeting_ingest,meeting_tokens}.php`, `backend/includes/meetings.php` | MCLuna | Backend del módulo Reuniones. Requiere `backend/sql/migration_029_meetings.sql` y `migration_030_meeting_single_recorder.sql` |
 
 ---
 
@@ -68,7 +68,8 @@ Dashboard web de rendimiento del equipo IDEAZ, conectado a Trello via API REST.
 - **Autenticación:** cada usuario genera una **llave personal** en Reuniones → «Conectar extensión» (`meeting_extension_tokens`, solo se guarda el hash SHA-256) y la pega en el popup. Viaja en el encabezado `X-Ideaz-Token` (no `Authorization`, que algunos hostings descartan). No usa la cookie de sesión.
 - **Participación:** % del tiempo total hablado = Σ(fin − inicio de cada fragmento, mínimo por palabras) por persona (`meetings_participation()`). Quien estuvo en la llamada sin hablar aparece con 0 %. Los subtítulos propios («Tú»/«You») se renombran con el nombre del usuario.
 - **Horas:** se guardan en UTC; el dashboard filtra y agrupa por días de America/Bogota.
-- **Puesta en marcha:** correr `migration_029_meetings.sql`; el backend debe estar en `https://marketingdigitalideaz.com/dashboard/backend` (URL por defecto de la extensión, cambiable en el popup → Avanzado; si el dominio cambia, actualizar `host_permissions` en `manifest.json`).
+- **Una sola grabación por reunión:** si varios asistentes tienen la extensión, graba la primera que llega (mismo código de Meet, con señal en los últimos 10 min); las demás quedan **en espera** (indicador «En espera · ya la graba X», insignia ESP), no envían nada y su usuario queda en `meeting_viewers` para ver (no editar) la reunión. Quien graba da señal cada 30 s; con 120 s sin señal, una extensión en espera toma el relevo en la **misma** reunión y solo se guardan sus fragmentos posteriores a la última señal (`meeting_sessions.accept_from`). La decisión es del servidor (`meeting_ingest.php`, serializada con `GET_LOCK` por código de Meet).
+- **Puesta en marcha:** correr `migration_029_meetings.sql` y `migration_030_meeting_single_recorder.sql`; el backend debe estar en `https://marketingdigitalideaz.com/dashboard/backend` (URL por defecto de la extensión, cambiable en el popup → Avanzado; si el dominio cambia, actualizar `host_permissions` en `manifest.json`).
 
 ---
 

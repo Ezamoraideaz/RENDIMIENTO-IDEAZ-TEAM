@@ -162,7 +162,7 @@ const Reuniones = (() => {
             ${m.is_live ? '<span class="rn-live">EN VIVO</span>' : ''}
           </div>
           <p class="text-xs text-slate-500 truncate mt-0.5">
-            ${m.meeting_code ? `<span class="font-mono">${esc(m.meeting_code)}</span> · ` : ''}${m.participants.length} participante(s) · ${m.word_count.toLocaleString('es-CO')} palabras${isAdmin ? ` · grabó ${esc(m.operator_name || '—')}` : ''}
+            ${m.meeting_code ? `<span class="font-mono">${esc(m.meeting_code)}</span> · ` : ''}${m.participants.length} participante(s) · ${m.word_count.toLocaleString('es-CO')} palabras${isAdmin || !m.can_edit ? ` · grabó ${esc(m.operator_name || '—')}` : ''}
           </p>
           ${speaking.length ? `
             <div class="rn-stack mt-2 max-w-md" aria-hidden="true">
@@ -250,7 +250,8 @@ const Reuniones = (() => {
           <div><dt class="bento-label">Fin</dt><dd class="font-bold text-slate-100 tabular-nums mt-1">${m.is_live ? 'En curso' : fmtTime(m.ended_at)}</dd></div>
           <div><dt class="bento-label">Duración</dt><dd class="font-bold text-slate-100 mt-1">${fmtDuration(m.duration_seconds)}</dd></div>
           <div><dt class="bento-label">Código Meet</dt><dd class="font-bold text-slate-100 mt-1 font-mono">${m.meeting_code ? `<a class="hover:text-indigo-500" href="https://meet.google.com/${esc(m.meeting_code)}" target="_blank" rel="noopener">${esc(m.meeting_code)}</a>` : '—'}</dd></div>
-          <div><dt class="bento-label">Grabada por</dt><dd class="font-bold text-slate-100 mt-1 truncate">${esc(m.operator_name || '—')}</dd></div>
+          <div class="min-w-0"><dt class="bento-label">Grabada por</dt><dd class="font-bold text-slate-100 mt-1 truncate">${esc(m.operator_name || '—')}</dd>
+            ${(m.attendees || []).length ? `<dd class="text-[11px] text-slate-400 mt-0.5 truncate" title="También tenían la extensión en la llamada (en espera, sin duplicar la grabación)">+ ${esc(m.attendees.join(', '))}</dd>` : ''}</div>
         </dl>
       </div>
 
