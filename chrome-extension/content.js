@@ -153,12 +153,15 @@
     if (!state) return;
     const add = (name) => {
       name = String(name || '').replace(/\s+/g, ' ').trim();
+      // La tarjeta trae el nombre dos veces (visible + accesible): "Ana PérezAna Pérez" → "Ana Pérez"
+      const twice = name.match(/^(.{2,}?) ?\1$/);
+      if (twice) name = twice[1];
       if (!name || name.length > 80 || isSelfLabel(name) || /\(t[uú]\)|\(you\)/i.test(name)) return;
       state.participants.add(name);
     };
     document.querySelectorAll('[data-participant-id]').forEach((tile) => {
       const el = tile.querySelector('.zWGUib, .XEazBc, .dwSJ2e');
-      if (el) add(el.textContent);
+      if (el) add(el.innerText || el.textContent);
     });
     // Panel "Personas" abierto: cada fila trae el nombre en aria-label
     document.querySelectorAll('[role="list"] [role="listitem"][aria-label]').forEach((li) => add(li.getAttribute('aria-label')));

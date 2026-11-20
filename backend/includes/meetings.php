@@ -104,7 +104,23 @@ function meetings_bogota_day_to_utc(string $day, bool $endOfDay): ?string
 function meetings_clean_name(string $name): string
 {
     $name = trim(preg_replace('/\s+/u', ' ', $name) ?? '');
+    // Meet pinta el nombre dos veces dentro de la tarjeta (visible + accesible) y
+    // textContent los une: "Ana PérezAna Pérez" → "Ana Pérez".
+    if (preg_match('/^(.{2,}?) ?\1$/u', $name, $m)) {
+        $name = $m[1];
+    }
     return mb_substr($name, 0, 160);
+}
+
+function meetings_name_key(string $name): string
+{
+    return mb_strtolower(meetings_clean_name($name));
+}
+
+function meetings_first_name(string $name): string
+{
+    $parts = explode(' ', meetings_name_key($name));
+    return $parts[0] ?? '';
 }
 
 // Tiempo de habla de un fragmento. Los subtítulos aparecen cuando la persona
@@ -139,10 +155,36 @@ function meetings_participation(array $segments, array $participantNames): array
         $by[$name]['words'] += (int)$seg['word_count'];
         $by[$name]['segments']++;
     }
+    // Personas que estuvieron sin hablar. Se descartan las que ya figuran como
+    // hablantes con otra escritura (mayúsculas, nombre repetido) y las que son la
+    // misma persona con otro nombre: Meet rotula los subtítulos propios como «Tú»
+    // (la extensión pone el nombre configurado) mientras la tarjeta de video
+    // muestra el nombre de la cuenta de Google. Si el nombre de pila coincide con
+    // un único hablante, se toma como la misma persona.
+    $cleanParticipants = [];
     foreach ($participantNames as $name) {
-        if ($name !== '' && !isset($by[$name])) {
-            $by[$name] = ['name' => $name, 'seconds' => 0.0, 'words' => 0, 'segments' => 0];
+        $name = meetings_clean_name((string)$name);
+        if ($name !== '') {
+            $cleanParticipants[meetings_name_key($name)] = $name;
         }
+    }
+    $speakerKeys = [];
+    foreach (array_keys($by) as $speaker) {
+        $speakerKeys[meetings_name_key($speaker)] = $speaker;
+    }
+    foreach ($cleanParticipants as $key => $name) {
+        if (isset($speakerKeys[$key])) {
+            continue;
+        }
+        $first = meetings_first_name($name);
+        $sameFirst = array_filter(
+            array_keys($speakerKeys),
+            fn($sk) => meetings_first_name($sk) === $first
+        );
+        if ($first !== '' && count($sameFirst) === 1) {
+            continue;
+        }
+        $by[$name] = ['name' => $name, 'seconds' => 0.0, 'words' => 0, 'segments' => 0];
     }
     $total = array_sum(array_column($by, 'seconds'));
     $out = [];
