@@ -5,7 +5,7 @@ declare(strict_types=1);
 //   backend/api/meeting_ingest.php  (la extensión de Chrome envía la transcripción)
 //   backend/api/meetings.php        (reuniones.html consulta/edita)
 //   backend/api/meeting_tokens.php  (llaves personales de la extensión)
-// Requiere backend/sql/migration_029_meetings.sql.
+// Requiere backend/sql/migration_029_meetings.sql y migration_030_meeting_single_recorder.sql.
 
 const MEETINGS_ADMIN_ROLES = ['superadmin', 'admin'];
 // Roles que pueden usar el módulo (ven sus propias grabaciones; admin/superadmin ven todas).
@@ -14,6 +14,14 @@ const MEETINGS_ROLES = ['superadmin', 'admin', 'cm', 'agenda_full', 'agenda_memb
 
 // Nombres con que Meet rotula los subtítulos propios según el idioma de la interfaz.
 const MEETINGS_SELF_LABELS = ['tú', 'tu', 'you', 'vous', 'você', 'du', 'tu (presentando)', 'you (presenting)'];
+
+// Una sola grabación por reunión (migration_030). La extensión que graba da
+// señal cada 30 s; si pasan estos segundos sin señal, otra en espera la releva.
+const MEETINGS_RECORDER_STALE_SECONDS = 120;
+// Una extensión que entra a una llamada se une a la reunión existente con ese
+// código si tuvo señal en este lapso; si no, es una reunión nueva (los códigos
+// de Meet se repiten en reuniones recurrentes).
+const MEETINGS_JOIN_WINDOW_SECONDS = 600;
 
 function require_meetings_access(): array
 {

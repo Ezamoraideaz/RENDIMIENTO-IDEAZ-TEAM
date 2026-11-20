@@ -5,7 +5,9 @@ require_once __DIR__ . '/../bootstrap.php';
 require_once __DIR__ . '/../includes/meetings.php';
 
 // Módulo Reuniones (reuniones.html). superadmin/admin ven todas las grabaciones;
-// el resto de roles con acceso ve solo las que grabó con su extensión.
+// el resto de roles con acceso ve las que grabó con su extensión y aquellas en
+// las que estuvo con la extensión en espera (meeting_viewers): esas puede verlas
+// pero no editarlas ni borrarlas.
 //
 // GET                         → listado (filtros: date_from, date_to [días de Bogotá], q, operator_id)
 // GET ?id=N                   → detalle: reunión + transcripción + participación
@@ -17,7 +19,15 @@ $operator = require_meetings_access();
 $pdo = db();
 $isAdmin = meetings_is_admin($operator);
 
-function meetings_load_owned(PDO $pdo, int $id, array $operator, bool $isAdmin): array
+function meetings_is_viewer(PDO $pdo, int $meetingId, int $operatorId): bool
+{
+    $stmt = $pdo->prepare('SELECT 1 FROM meeting_viewers WHERE meeting_id = ? AND operator_id = ?');
+    $stmt->execute([$meetingId, $operatorId]);
+    return (bool)$stmt->fetchColumn();
+}
+
+// Lectura: admin, quien la grabó o un asistente. Edición: solo admin o quien la grabó.
+function meetings_load_owned(PDO $pdo, int $id, array $operator, bool $isAdmin, bool $forEdit = true): array
 {
     $stmt = $pdo->prepare('
         SELECT m.*, o.name AS operator_name, o.email AS operator_email
@@ -29,8 +39,16 @@ function meetings_load_owned(PDO $pdo, int $id, array $operator, bool $isAdmin):
     if (!$meeting) {
         json_error('Reunión no encontrada', 404);
     }
-    if (!$isAdmin && (int)$meeting['operator_id'] !== (int)$operator['id']) {
-        json_error('No tienes acceso a esta reunión', 403);
+    $isOwner = (int)$meeting['operator_id'] === (int)$operator['id'];
+    if (!$isAdmin && !$isOwner) {
+        if ($forEdit) {
+            json_error(meetings_is_viewer($pdo, (int)$meeting['id'], (int)$operator['id'])
+                ? 'Solo quien grabó la reunión puede modificarla'
+                : 'No tienes acceso a esta reunión', 403);
+        }
+        if (!meetings_is_viewer($pdo, (int)$meeting['id'], (int)$operator['id'])) {
+            json_error('No tienes acceso a esta reunión', 403);
+        }
     }
     return $meeting;
 }
@@ -63,7 +81,7 @@ switch ($_SERVER['REQUEST_METHOD']) {
         }
 
         if (isset($_GET['id'])) {
-            $meeting = meetings_load_owned($pdo, (int)$_GET['id'], $operator, $isAdmin);
+            $meeting = meetings_load_owned($pdo, (int)$_GET['id'], $operator, $isAdmin, false);
             $segStmt = $pdo->prepare('
                 SELECT id, speaker, text, started_at, ended_at, word_count
                 FROM meeting_segments WHERE meeting_id = ? ORDER BY started_at ASC, id ASC
@@ -74,6 +92,15 @@ switch ($_SERVER['REQUEST_METHOD']) {
             $partStmt = $pdo->prepare('SELECT name FROM meeting_participants WHERE meeting_id = ? ORDER BY first_seen_at');
             $partStmt->execute([$meeting['id']]);
             $participantNames = array_column($partStmt->fetchAll(), 'name');
+
+            // Usuarios del dashboard que estuvieron con la extensión en espera
+            $viewStmt = $pdo->prepare('
+                SELECT COALESCE(NULLIF(o.name, \'\'), o.email) AS name
+                FROM meeting_viewers v JOIN operators o ON o.id = v.operator_id
+                WHERE v.meeting_id = ? ORDER BY v.added_at
+            ');
+            $viewStmt->execute([$meeting['id']]);
+            $attendees = array_column($viewStmt->fetchAll(), 'name');
 
             $end = meetings_effective_end($meeting);
             json_response([
@@ -90,6 +117,7 @@ switch ($_SERVER['REQUEST_METHOD']) {
                     'operator_id'      => (int)$meeting['operator_id'],
                     'operator_name'    => $meeting['operator_name'] ?: $meeting['operator_email'],
                     'can_edit'         => $isAdmin || (int)$meeting['operator_id'] === (int)$operator['id'],
+                    'attendees'        => $attendees,
                 ],
                 'segments' => array_map(fn($s) => [
                     'id'         => (int)$s['id'],
@@ -106,7 +134,8 @@ switch ($_SERVER['REQUEST_METHOD']) {
         $where = [];
         $params = [];
         if (!$isAdmin) {
-            $where[] = 'm.operator_id = ?';
+            $where[] = '(m.operator_id = ? OR EXISTS (SELECT 1 FROM meeting_viewers v WHERE v.meeting_id = m.id AND v.operator_id = ?))';
+            $params[] = $operator['id'];
             $params[] = $operator['id'];
         } elseif ((int)($_GET['operator_id'] ?? 0) > 0) {
             $where[] = 'm.operator_id = ?';

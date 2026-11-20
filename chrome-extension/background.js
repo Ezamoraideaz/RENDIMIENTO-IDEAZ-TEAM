@@ -61,8 +61,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   if (msg.type === 'badge' && sender.tab) {
     const tabId = sender.tab.id;
-    chrome.action.setBadgeText({ tabId, text: msg.on ? 'REC' : '' });
-    chrome.action.setBadgeBackgroundColor({ tabId, color: msg.error ? '#d03b3b' : '#4f46e5' });
+    // REC = esta extensión graba; ESP = en espera (otra extensión ya graba la llamada)
+    chrome.action.setBadgeText({ tabId, text: msg.on ? (msg.standby ? 'ESP' : 'REC') : '' });
+    chrome.action.setBadgeBackgroundColor({ tabId, color: msg.error ? '#d03b3b' : (msg.standby ? '#78716c' : '#4f46e5') });
     return false;
   }
 
