@@ -159,14 +159,49 @@
     return SELF_LABELS.includes(String(name || '').trim().toLowerCase());
   }
 
+  // Nombre de la cuenta de Google con que Meet muestra a este usuario ante los
+  // demás (ej. «CM IDeaz»), distinto del configurado en la extensión (ej.
+  // «ZHARICK CEPEDA»). Se envía al servidor para unificar ambos en el dashboard.
+  const ACCOUNT_RE = /^(?:cuenta de google|google account|conta do google|compte google|google-konto|account google)\s*:\s*([^\n(]+?)\s*(?:\n|\(|$)/i;
+  const SELF_MARK_RE = /\s*\((?:t[uú]|you|vous|você|du)\)\s*$/i;
+
+  function cleanName(name) {
+    name = String(name || '').replace(/\s+/g, ' ').trim();
+    // La tarjeta trae el nombre dos veces (visible + accesible): "Ana PérezAna Pérez" → "Ana Pérez"
+    const twice = name.match(/^(.{2,}?) ?\1$/);
+    return twice ? twice[1] : name;
+  }
+
+  function rememberMeetName(name) {
+    name = cleanName(name);
+    if (!name || name.length > 80 || isSelfLabel(name) || name === settings.meetNameDetected) return;
+    settings.meetNameDetected = name;
+    try { chrome.storage.local.set({ meetNameDetected: name }); } catch (e) {}
+  }
+
+  function detectMeetName() {
+    // Botón de la cuenta (pantalla previa y barra superior): "Cuenta de Google: CM IDeaz (correo)"
+    document.querySelectorAll('[aria-label*="@"]').forEach((el) => {
+      const m = (el.getAttribute('aria-label') || '').match(ACCOUNT_RE);
+      if (m) rememberMeetName(m[1]);
+    });
+    // Panel "Personas": la fila propia dice "CM IDeaz (Tú)"
+    document.querySelectorAll('[role="list"] [role="listitem"][aria-label]').forEach((li) => {
+      const label = (li.getAttribute('aria-label') || '').trim();
+      if (SELF_MARK_RE.test(label)) rememberMeetName(label.replace(SELF_MARK_RE, ''));
+    });
+  }
+
+  // Alias a enviar: el que el usuario escribió en el popup y el detectado.
+  function selfAliases() {
+    return Array.from(new Set([settings.meetName, settings.meetNameDetected].map(cleanName).filter(Boolean)));
+  }
+
   function scanParticipants() {
     if (!state) return;
     const add = (name) => {
-      name = String(name || '').replace(/\s+/g, ' ').trim();
-      // La tarjeta trae el nombre dos veces (visible + accesible): "Ana PérezAna Pérez" → "Ana Pérez"
-      const twice = name.match(/^(.{2,}?) ?\1$/);
-      if (twice) name = twice[1];
-      if (!name || name.length > 80 || isSelfLabel(name) || /\(t[uú]\)|\(you\)/i.test(name)) return;
+      name = cleanName(name);
+      if (!name || name.length > 80 || isSelfLabel(name) || SELF_MARK_RE.test(name)) return;
       state.participants.add(name);
     };
     document.querySelectorAll('[data-participant-id]').forEach((tile) => {
@@ -301,6 +336,8 @@
       last_activity_at: now(),
       segments: pending.map((s) => ({ id: s.id, speaker: s.speaker, text: s.text, started_at: s.started_at, ended_at: s.ended_at })),
       participants: Array.from(state.participants),
+      self_name: settings.selfName || settings.operatorName || '',
+      self_aliases: selfAliases(),
     };
     if (final) payload.ended_at = now();
     const current = state;
@@ -452,7 +489,7 @@
 
     if (state && !state.paused && settings.autoCaptions) ensureCaptions();
     scanCaptions();
-    if (tickCount % 5 === 0) scanParticipants();
+    if (tickCount % 5 === 0) { detectMeetName(); scanParticipants(); }
     if (tickCount % 30 === 0) persist();
     applyHideCaptions();
     if (tickCount % 2 === 0) renderOverlay();

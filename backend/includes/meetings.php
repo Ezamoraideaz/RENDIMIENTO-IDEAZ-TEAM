@@ -210,3 +210,74 @@ function meetings_word_count(string $text): int
     $parts = preg_split('/\s+/u', trim($text), -1, PREG_SPLIT_NO_EMPTY);
     return $parts ? count($parts) : 0;
 }
+
+// ── Alias de nombre (migration_031) ────────────────────────────────────────
+// Meet rotula los subtítulos con el nombre de la cuenta de Google (ej. «CM IDeaz»)
+// mientras que el usuario configuró otro en la extensión (ej. «ZHARICK CEPEDA»).
+// La extensión informa ambos; al leer las reuniones se unifican.
+
+function meetings_save_aliases(PDO $pdo, array $operator, $selfName, $aliases): void
+{
+    $display = meetings_clean_name(is_string($selfName) ? $selfName : '');
+    if ($display === '' || in_array(mb_strtolower($display), MEETINGS_SELF_LABELS, true)) {
+        $display = meetings_clean_name((string)($operator['name'] ?? ''));
+    }
+    if ($display === '' || !is_array($aliases)) {
+        return;
+    }
+    try {
+        $stmt = $pdo->prepare('
+            INSERT INTO meeting_name_aliases (alias_key, alias, display_name, operator_id)
+            VALUES (?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE alias = VALUES(alias), display_name = VALUES(display_name),
+                operator_id = VALUES(operator_id), updated_at = CURRENT_TIMESTAMP
+        ');
+        foreach (array_slice($aliases, 0, 5) as $alias) {
+            $alias = meetings_clean_name(is_string($alias) ? $alias : '');
+            $key = mb_strtolower($alias);
+            if ($alias === '' || mb_strlen($alias) > 80 || $key === mb_strtolower($display)
+                || in_array($key, MEETINGS_SELF_LABELS, true)) {
+                continue;
+            }
+            $stmt->execute([$key, $alias, $display, $operator['id']]);
+        }
+    } catch (Throwable $e) {
+        // Sin migration_031 se sigue funcionando, solo sin unificar nombres.
+        error_log('meetings_save_aliases: ' . $e->getMessage());
+    }
+}
+
+// alias en minúsculas => nombre configurado
+function meetings_load_aliases(PDO $pdo): array
+{
+    try {
+        $out = [];
+        foreach ($pdo->query('SELECT alias_key, display_name FROM meeting_name_aliases')->fetchAll() as $row) {
+            $out[$row['alias_key']] = $row['display_name'];
+        }
+        return $out;
+    } catch (Throwable $e) {
+        return [];
+    }
+}
+
+function meetings_alias_name(string $name, array $aliases): string
+{
+    if ($name === '' || !$aliases) {
+        return $name;
+    }
+    return $aliases[meetings_name_key($name)] ?? $name;
+}
+
+// Reemplaza el alias en los fragmentos (campo speaker) y en la lista de asistentes.
+function meetings_apply_aliases(array $segments, array $names, array $aliases): array
+{
+    if ($aliases) {
+        foreach ($segments as &$seg) {
+            $seg['speaker'] = meetings_alias_name((string)$seg['speaker'], $aliases);
+        }
+        unset($seg);
+        $names = array_values(array_unique(array_map(fn($n) => meetings_alias_name((string)$n, $aliases), $names)));
+    }
+    return [$segments, $names];
+}

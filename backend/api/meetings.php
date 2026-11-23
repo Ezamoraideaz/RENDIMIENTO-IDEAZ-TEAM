@@ -92,6 +92,8 @@ switch ($_SERVER['REQUEST_METHOD']) {
             $partStmt = $pdo->prepare('SELECT name FROM meeting_participants WHERE meeting_id = ? ORDER BY first_seen_at');
             $partStmt->execute([$meeting['id']]);
             $participantNames = array_column($partStmt->fetchAll(), 'name');
+            // «CM IDeaz» (cuenta de Google) → «ZHARICK CEPEDA» (nombre en la extensión)
+            [$segments, $participantNames] = meetings_apply_aliases($segments, $participantNames, meetings_load_aliases($pdo));
 
             // Usuarios del dashboard que estuvieron con la extensión en espera
             $viewStmt = $pdo->prepare('
@@ -166,6 +168,19 @@ switch ($_SERVER['REQUEST_METHOD']) {
                 OR EXISTS (SELECT 1 FROM meeting_participants p WHERE p.meeting_id = m.id AND p.name LIKE ?)
                 OR EXISTS (SELECT 1 FROM meeting_segments s WHERE s.meeting_id = m.id AND (s.speaker LIKE ? OR s.text LIKE ?)))';
             array_push($params, $like, $like, $like, $like, $like);
+            // Buscar «Zharick» también encuentra reuniones donde quedó como «CM IDeaz»
+            $qKey = mb_strtolower($q);
+            $aliasHits = array_keys(array_filter(
+                meetings_load_aliases($pdo),
+                fn($display) => mb_strpos(mb_strtolower($display), $qKey) !== false
+            ));
+            if ($aliasHits) {
+                $aliasIn = implode(',', array_fill(0, count($aliasHits), '?'));
+                $where[count($where) - 1] = '(' . end($where) . "
+                    OR EXISTS (SELECT 1 FROM meeting_participants p WHERE p.meeting_id = m.id AND p.name IN ($aliasIn))
+                    OR EXISTS (SELECT 1 FROM meeting_segments s WHERE s.meeting_id = m.id AND s.speaker IN ($aliasIn)))";
+                array_push($params, ...$aliasHits, ...$aliasHits);
+            }
         }
         $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
@@ -199,8 +214,10 @@ switch ($_SERVER['REQUEST_METHOD']) {
             foreach ($partStmt->fetchAll() as $p) {
                 $partsBy[$p['meeting_id']][] = $p['name'];
             }
+            $aliases = meetings_load_aliases($pdo);
             foreach ($ids as $id) {
-                $speakersBy[$id] = meetings_participation($segsBy[$id] ?? [], $partsBy[$id] ?? []);
+                [$segs, $parts] = meetings_apply_aliases($segsBy[$id] ?? [], $partsBy[$id] ?? [], $aliases);
+                $speakersBy[$id] = meetings_participation($segs, $parts);
             }
         }
 

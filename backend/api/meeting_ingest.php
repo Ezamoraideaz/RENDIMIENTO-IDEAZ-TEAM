@@ -30,6 +30,12 @@ $operator = require_extension_operator();
 $input = json_body();
 $action = $input['action'] ?? '';
 
+// self_name / self_aliases (ping y sync): nombre configurado en la extensión y
+// nombre(s) de la cuenta de Google con que Meet muestra al usuario (migration_031).
+if ($action === 'ping' || $action === 'sync') {
+    meetings_save_aliases(db(), $operator, $input['self_name'] ?? '', $input['self_aliases'] ?? []);
+}
+
 if ($action === 'ping') {
     json_response(['operator' => ['name' => $operator['name'], 'email' => $operator['email']]]);
 }
