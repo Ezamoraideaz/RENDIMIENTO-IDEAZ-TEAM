@@ -1,4 +1,4 @@
-const FIELDS = ['token', 'selfName', 'server'];
+const FIELDS = ['token', 'selfName', 'meetName', 'server'];
 const CHECKS = ['autoRecord', 'autoCaptions', 'hideCaptions', 'showOverlay'];
 const DEFAULT_SERVER = 'https://marketingdigitalideaz.com/dashboard/backend';
 
@@ -18,6 +18,7 @@ async function load() {
   const s = await chrome.storage.local.get(null);
   $('token').value = s.token || '';
   $('selfName').value = s.selfName || s.operatorName || '';
+  $('meetName').value = s.meetName || s.meetNameDetected || '';
   $('server').value = s.server || DEFAULT_SERVER;
   $('autoRecord').checked = s.autoRecord !== false;
   $('autoCaptions').checked = s.autoCaptions !== false;
@@ -43,7 +44,7 @@ async function save() {
     return;
   }
   $('save').disabled = true;
-  const res = await chrome.runtime.sendMessage({ type: 'ping' });
+  const res = await chrome.runtime.sendMessage({ type: 'ping', self_name: data.selfName, self_aliases: data.meetName ? [data.meetName] : [] });
   $('save').disabled = false;
   if (res && res.ok) {
     const name = (res.data.operator && res.data.operator.name) || '';

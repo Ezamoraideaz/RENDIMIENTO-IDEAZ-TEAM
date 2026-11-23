@@ -823,3 +823,14 @@ CREATE TABLE IF NOT EXISTS meeting_viewers (
     CONSTRAINT fk_meeting_viewers_meeting FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+
+-- migration_031_meeting_name_aliases.sql — nombre de la cuenta de Google en Meet
+-- → nombre configurado en la extensión (unifica «CM IDeaz» con «ZHARICK CEPEDA»).
+CREATE TABLE IF NOT EXISTS meeting_name_aliases (
+    alias_key VARCHAR(160) NOT NULL PRIMARY KEY,
+    alias VARCHAR(160) NOT NULL,
+    display_name VARCHAR(160) NOT NULL,
+    operator_id INT UNSIGNED NOT NULL,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_meeting_name_aliases_operator (operator_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -38,7 +38,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (!msg || typeof msg !== 'object') return false;
 
   if (msg.type === 'ping') {
-    callBackend({ action: 'ping' })
+    callBackend({ action: 'ping', self_name: msg.self_name || '', self_aliases: Array.isArray(msg.self_aliases) ? msg.self_aliases : [] })
       .then(async (data) => {
         if (data.operator) await chrome.storage.local.set({ operatorName: data.operator.name || '' });
         sendResponse({ ok: true, data });
