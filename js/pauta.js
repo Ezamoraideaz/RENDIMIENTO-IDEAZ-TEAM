@@ -67,7 +67,9 @@ const PautaMonitor = (() => {
     return { from, to };
   }
 
-  // Returns pro-rated budget for a date range across one or multiple months
+  // Presupuesto del rango. Si arranca el día 1 ("Este mes", "Mes anterior") se toma el
+  // presupuesto mensual completo, tal como se asignó; solo un rango que empieza a mitad
+  // de mes se prorratea por días.
   function _budgetForRange(budgetsObj, dateFrom, dateTo) {
     let total = 0;
     const start = new Date(dateFrom + 'T00:00:00');
@@ -87,7 +89,7 @@ const PautaMonitor = (() => {
       const rEnd   = end   < mEnd   ? end   : mEnd;
       const days   = Math.round((rEnd - rStart) / 86400000) + 1;
 
-      total += (monthlyBudget / daysInM) * days;
+      total += start.getDate() === 1 ? monthlyBudget : (monthlyBudget / daysInM) * days;
       cursor = new Date(y, m, 1); // first of next month
     }
     return Math.round(total * 100) / 100;

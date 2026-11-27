@@ -55,7 +55,8 @@ if ($link['mode'] === 'live' && $to > $today) {
     $to = $today;
 }
 
-// Presupuesto prorrateado del período (misma lógica que _budgetForRange de js/pauta.js).
+// Presupuesto del período (misma lógica que _budgetForRange de js/pauta.js): mensual completo
+// si el rango arranca el día 1; prorrateado por días si empieza a mitad de mes.
 function report_budget(array $budgets, string $from, string $to): float
 {
     $total  = 0.0;
@@ -69,7 +70,8 @@ function report_budget(array $budgets, string $from, string $to): float
         $rStart = $start > $cursor ? $start : $cursor;
         $rEnd   = $end < $mEnd ? $end : $mEnd;
         $days   = (int)$rStart->diff($rEnd)->days + 1;
-        $total += ((float)($budgets[$mk] ?? 0) / $dim) * $days;
+        $monthly = (float)($budgets[$mk] ?? 0);
+        $total  += $start->format('j') === '1' ? $monthly : ($monthly / $dim) * $days;
         $cursor->modify('first day of next month');
     }
     return round($total, 2);
