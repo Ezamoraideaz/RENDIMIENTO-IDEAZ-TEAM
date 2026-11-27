@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es" class="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Esta página NO carga scripts externos (ni Tailwind CDN) ni admite código en línea: no agregarlos. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; connect-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <title>Accesos – IDEAZ Dashboard</title>
+  <link rel="stylesheet" href="css/main.css?v=20261026">
+  <link rel="stylesheet" href="css/boveda.css?v=20261127">
+</head>
+<body class="bg-slate-950 text-slate-100">
+
+<aside id="app-sidebar" class="bg-slate-900"></aside>
+
+<main>
+  <div class="bv-wrap">
+    <header class="bv-head">
+      <div>
+        <h1>Accesos</h1>
+        <p class="bv-muted">Credenciales de clientes cifradas. Cada consulta pide un código de superadmin y queda registrada.</p>
+      </div>
+      <div class="bv-actions" id="bv-actions">
+        <button type="button" class="ui-chip bv-super" hidden data-action="enroll">Mi autenticador</button>
+        <button type="button" class="ui-chip bv-super" hidden data-action="audit">Registro</button>
+        <button type="button" class="ui-chip bv-super" hidden data-action="trash">Papelera</button>
+        <button type="button" class="ui-chip ui-chip-primary" data-action="new">Nuevo acceso</button>
+      </div>
+    </header>
+
+    <div id="bv-banner" class="bv-banner" hidden></div>
+
+    <div class="bv-filters">
+      <input type="search" id="bv-q" class="bv-input" placeholder="Buscar marca, plataforma o URL…" autocomplete="off">
+      <select id="bv-brand" class="bv-input" aria-label="Marca"></select>
+      <select id="bv-cat" class="bv-input" aria-label="Tipo"></select>
+      <span id="bv-count" class="bv-muted"></span>
+    </div>
+
+    <div id="bv-list" class="bento-card bv-table-box">Cargando…</div>
+  </div>
+</main>
+
+<dialog id="bv-dialog" class="bento-card"></dialog>
+
+<script src="js/session.js"></script>
+<script src="js/sidebar.js?v=20261127"></script>
+<script src="js/boveda.js?v=20261127"></script>
+</body>
+</html>

@@ -10,6 +10,7 @@ const Sidebar = (() => {
     { href: 'rendicion.html',     icon: 'file',      label: 'Rendición CM',   key: 'rendicion'     },
     { href: 'rendicion-dashboard.html', icon: 'trend', label: 'Rendición Dashboard', key: 'rendicion-dashboard' },
     { href: 'reuniones.html',     icon: 'video',     label: 'Reuniones',      key: 'reuniones'     },
+    { href: 'boveda.html',        icon: 'lock',      label: 'Accesos',        key: 'boveda'        },
     { href: 'configuracion.html', icon: 'settings',  label: 'Configuración', key: 'configuracion' },
   ];
 

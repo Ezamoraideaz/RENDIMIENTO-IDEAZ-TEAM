@@ -22,9 +22,10 @@ const Session = (() => {
     'rendicion.html': 'rendicion',
     'rendicion-dashboard.html': 'rendicion-dashboard',
     'reuniones.html': 'reuniones',
+    'boveda.html': 'boveda',
   };
 
-  const ALL_PAGES = ['dashboard', 'proyecto', 'agenda', 'monitor', 'pauta', 'atencion-cliente', 'configuracion', 'protocolo', 'aprobaciones', 'egresos', 'rendicion', 'rendicion-dashboard', 'reuniones'];
+  const ALL_PAGES = ['dashboard', 'proyecto', 'agenda', 'monitor', 'pauta', 'atencion-cliente', 'configuracion', 'protocolo', 'aprobaciones', 'egresos', 'rendicion', 'rendicion-dashboard', 'reuniones', 'boveda'];
 
   // Páginas visibles por rol (los roles del Control de Acceso + superadmin)
   const ACCESS = {
@@ -33,11 +34,11 @@ const Session = (() => {
     agent:         ['atencion-cliente', 'protocolo'],
     agenda_full:   ['agenda', 'protocolo', 'egresos', 'configuracion', 'reuniones'],
     agenda_member: ['agenda', 'monitor', 'protocolo', 'reuniones'],
-    cm:            ['dashboard', 'agenda', 'configuracion', 'monitor', 'protocolo', 'aprobaciones', 'atencion-cliente', 'rendicion', 'reuniones'],
+    cm:            ['dashboard', 'agenda', 'configuracion', 'monitor', 'protocolo', 'aprobaciones', 'atencion-cliente', 'rendicion', 'reuniones', 'boveda'],
   };
 
   // Claves de navegación del sidebar (subconjunto de páginas)
-  const NAV_KEYS = ['dashboard', 'agenda', 'monitor', 'pauta', 'atencion-cliente', 'configuracion', 'aprobaciones', 'egresos', 'rendicion', 'rendicion-dashboard', 'reuniones'];
+  const NAV_KEYS = ['dashboard', 'agenda', 'monitor', 'pauta', 'atencion-cliente', 'configuracion', 'aprobaciones', 'egresos', 'rendicion', 'rendicion-dashboard', 'reuniones', 'boveda'];
 
   const FILE_BY_PAGE = {
     dashboard: 'index.html',
@@ -53,6 +54,7 @@ const Session = (() => {
     rendicion: 'rendicion.html',
     'rendicion-dashboard': 'rendicion-dashboard.html',
     reuniones: 'reuniones.html',
+    boveda: 'boveda.html',
   };
 
   let user = null;
