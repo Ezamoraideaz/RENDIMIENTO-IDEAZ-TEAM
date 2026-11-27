@@ -206,6 +206,89 @@ const PautaMonitor = (() => {
     };
   }
 
+  // ── Objetivo de la marca (Leads · Ventas · Ambos) ─────────────────────────
+  // Se guarda repetido en cada plataforma del cliente: no requiere cambiar la BD y el
+  // asistente de marcas (client_setup.php) conserva esos campos.
+  let _sales = {}; // mismas claves que _spend, con compras y leads por campaña
+
+  function _goalOf(client) {
+    const p = (client?.platforms || []).find(pl => pl.objective);
+    return { objective: p?.objective || 'leads', roas: Number(p?.roas_target) || 0 };
+  }
+
+  async function _fetchSales(platform, accountId, from, to, fresh) {
+    const results = await Promise.all(_splitIds(accountId).map(id => _fetchOneSpend(platform + '_sales', id, from, to, fresh)));
+    const ok = results.filter(r => !r.error && r.campaigns);
+    const errors = results.filter(r => r.error || !r.campaigns).map(r => r.error || 'Respuesta inesperada del servidor');
+    _sales[_spendKey(platform, accountId, from, to)] = {
+      campaigns: ok.flatMap(r => r.campaigns),
+      currency: ok.find(r => r.currency)?.currency || '',
+      error: errors.join(' · '),
+    };
+  }
+
+  function _salesHtml(client, from, to) {
+    const goal = _goalOf(client);
+    if (goal.objective === 'leads') return '';
+    const plats = (client.platforms || []).filter(p => p.enabled && (p.platform === 'meta' || p.platform === 'google') && _accountIdOf(p));
+    const data = plats.map(p => ({ label: p.platform === 'meta' ? 'Meta' : 'Google', d: _sales[_spendKey(p.platform, _accountIdOf(p), from, to)] }));
+    if (data.some(x => !x.d)) return '<div class="border-t border-slate-800 pt-3 text-xs text-slate-500 animate-pulse">Cargando ventas…</div>';
+
+    const campaigns = data.flatMap(x => x.d.campaigns.map(c => ({ ...c, platform: x.label })));
+    const errors = data.filter(x => x.d.error).map(x => `${x.label}: ${x.d.error}`);
+    const mixed = new Set(data.map(x => x.d.currency).filter(Boolean)).size > 1;
+    const sum = (list, k) => list.reduce((t, c) => t + (Number(c[k]) || 0), 0);
+    const of = type => campaigns.filter(c => c.type === type);
+    const salesSpend = sum(of('sales'), 'spend');
+    const leadsSpend = sum(of('leads'), 'spend');
+    const otherSpend = sum(of('other'), 'spend');
+    const purchases = sum(campaigns, 'purchases');
+    const value = sum(campaigns, 'value');
+    const leads = sum(campaigns, 'leads');
+    const roas = salesSpend > 0 ? sum(of('sales'), 'value') / salesSpend : 0;
+    const money = n => mixed ? '—' : '$' + _fmt(n);
+    const num = n => Number(n.toFixed(1)).toLocaleString('es-CO');
+
+    const roasColor = !goal.roas || !salesSpend ? 'text-slate-100'
+      : roas >= goal.roas ? 'text-emerald-400' : roas >= goal.roas * 0.8 ? 'text-yellow-400' : 'text-red-400';
+    const cell = (label, val, cls = 'text-slate-100') =>
+      `<div class="bg-slate-800 rounded-lg px-2.5 py-1.5"><div class="text-slate-500">${label}</div><div class="font-bold ${cls}">${val}</div></div>`;
+
+    const salesBlock = `
+      <div class="text-slate-400 font-semibold">Ventas en el sitio <span class="text-slate-500 font-normal">· inversión ${money(salesSpend)}</span></div>
+      <div class="grid grid-cols-2 gap-2">
+        ${cell('Compras', num(purchases))}
+        ${cell('Valor atribuido', money(value))}
+        ${cell(goal.roas ? `ROAS (meta ${goal.roas}x)` : 'ROAS', salesSpend > 0 && !mixed ? roas.toFixed(2) + 'x' : '—', roasColor)}
+        ${cell('Costo por compra', purchases > 0 ? money(salesSpend / purchases) : '—')}
+        ${cell('Ticket promedio', purchases > 0 ? money(value / purchases) : '—')}
+      </div>`;
+
+    const leadsBlock = goal.objective !== 'both' ? '' : `
+      <div class="text-slate-400 font-semibold mt-1">Leads y mensajes <span class="text-slate-500 font-normal">· inversión ${money(leadsSpend)}</span></div>
+      <div class="grid grid-cols-2 gap-2">
+        ${cell('Leads', num(leads))}
+        ${cell('Costo por lead', leads > 0 && leadsSpend > 0 ? money(leadsSpend / leads) : '—')}
+      </div>`;
+
+    const rows = campaigns.filter(c => c.spend > 0 || c.purchases > 0 || c.leads > 0).sort((a, b) => b.spend - a.spend).map(c => `
+      <div class="border-t border-slate-800 py-1.5">
+        <div class="text-slate-300">${_esc(c.name)} <span class="text-slate-500">· ${c.platform} · ${c.type === 'sales' ? 'Ventas' : c.type === 'leads' ? 'Leads' : 'Otra'}</span></div>
+        <div class="text-slate-500">$${_fmt(c.spend)}${c.type === 'sales' ? ` · ${num(c.purchases)} compras · $${_fmt(c.value)} · ROAS ${c.spend > 0 ? (c.value / c.spend).toFixed(2) : '—'}x` : ''}${c.leads > 0 ? ` · ${num(c.leads)} leads` : ''}</div>
+      </div>`).join('');
+
+    return `
+      <div class="border-t border-slate-800 pt-3 flex flex-col gap-2 text-xs">
+        ${errors.length ? `<div class="text-red-400">No se pudieron leer las ventas — ${_esc(errors.join(' · '))}. Las cifras están incompletas.</div>` : ''}
+        ${mixed ? '<div class="text-red-400">Las cuentas usan monedas distintas: revisa cada campaña.</div>' : ''}
+        ${salesBlock}
+        ${leadsBlock}
+        ${otherSpend > 0 ? `<div class="text-slate-500">Otras campañas (sin compras ni leads): ${money(otherSpend)}</div>` : ''}
+        ${rows ? `<details><summary class="cursor-pointer text-indigo-400">Ver por campaña</summary>${rows}</details>` : ''}
+        <div class="text-slate-500">Compras atribuidas por cada plataforma: pueden no coincidir con Shopify.</div>
+      </div>`;
+  }
+
   // fresh = true (botón "Actualizar") salta el caché de 10 min del servidor.
   async function loadData(fresh = false) {
     if (_loading) return;
@@ -222,6 +305,9 @@ const PautaMonitor = (() => {
         const accountId = _accountIdOf(plat);
         if (!accountId) continue;
         calls.push(_fetchSpend(plat.platform, accountId, from, to, fresh));
+        if (_goalOf(client).objective !== 'leads' && (plat.platform === 'meta' || plat.platform === 'google')) {
+          calls.push(_fetchSales(plat.platform, accountId, from, to, fresh));
+        }
         if (plat.platform === 'meta' || plat.platform === 'google') {
           _splitIds(accountId).forEach(id => calls.push(_fetchStatus(plat.platform, id, fresh)));
         }
@@ -786,7 +872,7 @@ const PautaMonitor = (() => {
     const leadsDailyArr = Object.entries(leadsDailyMap)
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([date, leads]) => ({ date, leads }));
-    const leadsChartHtml = _leadsBarChart(leadsDailyArr, globalSpend);
+    const leadsChartHtml = _goalOf(client).objective === 'leads' ? _leadsBarChart(leadsDailyArr, globalSpend) : '';
 
     const sparkHexColors = { ok: '#10b981', warn: '#eab308', over: '#ef4444' };
     const globalSparkHtml = globalDailyArr.length > 1 ? `
@@ -840,6 +926,9 @@ const PautaMonitor = (() => {
 
       <!-- Gráfica de gasto diario -->
       ${globalSparkHtml}
+
+      <!-- Compras y leads (marcas ecommerce) -->
+      ${_salesHtml(client, from, to)}
 
       <!-- Leads que ingresan por día -->
       ${leadsChartHtml}
@@ -985,6 +1074,19 @@ const PautaMonitor = (() => {
               class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
             <p class="text-xs text-slate-600 mt-1">Define el presupuesto global para habilitar la asignación por plataforma.</p>
           </div>
+          <div class="flex gap-2">
+            <div class="flex-1">
+              <label class="text-xs text-slate-400 block mb-1">Objetivo</label>
+              <select id="modal-objective" class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+                ${[['leads', 'Leads'], ['sales', 'Ventas en el sitio'], ['both', 'Ambos: ventas y leads']].map(([k, l]) => `<option value="${k}" ${_goalOf(client).objective === k ? 'selected' : ''}>${l}</option>`).join('')}
+              </select>
+            </div>
+            <div class="w-36">
+              <label class="text-xs text-slate-400 block mb-1">Meta de ROAS (ventas)</label>
+              <input type="number" id="modal-roas" value="${_goalOf(client).roas || ''}" min="0" step="0.1" placeholder="ej. 3"
+                class="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-indigo-500">
+            </div>
+          </div>
           <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Plataformas</div>
           ${platformFields}
           <div id="plat-budget-summary" class="bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-xs flex items-center justify-between${globalBudget > 0 ? '' : ' hidden'}">
@@ -1107,6 +1209,8 @@ const PautaMonitor = (() => {
       const rawAcct   = document.getElementById(`plat-account-${p.key}`)?.value.trim() || '';
       const budget    = parseFloat(document.getElementById(`plat-budget-${p.key}`)?.value || '0') || 0;
       const platData  = { platform: p.key, enabled };
+      platData.objective   = document.getElementById('modal-objective')?.value || 'leads';
+      platData.roas_target = parseFloat(document.getElementById('modal-roas')?.value || '0') || 0;
       if (p.key === 'google') platData.customer_id  = rawAcct;
       else if (p.key === 'tiktok') platData.advertiser_id = rawAcct;
       else platData.account_id = rawAcct;

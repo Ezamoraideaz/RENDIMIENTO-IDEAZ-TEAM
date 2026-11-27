@@ -68,6 +68,13 @@ switch ($platform) {
     case 'google_status':
         $result = getGoogleAccountStatus($account_id, $debug);
         break;
+    case 'meta_sales':    // compras y leads por campaña (marcas ecommerce)
+    case 'google_sales':
+        require_once __DIR__ . '/sales_lib.php';
+        $result = $platform === 'meta_sales'
+            ? getMetaSales($account_id, $date_from, $date_to)
+            : getGoogleSales($account_id, $date_from, $date_to);
+        break;
     default:
         http_response_code(400);
         echo json_encode(['error' => "Plataforma no soportada: {$platform}"]);
