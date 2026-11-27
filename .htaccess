@@ -9,3 +9,15 @@
     Header set Cache-Control "no-cache, must-revalidate"
   </FilesMatch>
 </IfModule>
+
+# Módulo Accesos (bóveda de credenciales): no se puede incrustar en otro sitio
+# (clickjacking), no se guarda en caché y no filtra la URL a otros sitios.
+<IfModule mod_headers.c>
+  <FilesMatch "^boveda\.(html|js|css)$">
+    Header always set X-Frame-Options "DENY"
+    Header always set Content-Security-Policy "frame-ancestors 'none'"
+    Header always set Referrer-Policy "no-referrer"
+    Header always set X-Content-Type-Options "nosniff"
+    Header set Cache-Control "no-store"
+  </FilesMatch>
+</IfModule>

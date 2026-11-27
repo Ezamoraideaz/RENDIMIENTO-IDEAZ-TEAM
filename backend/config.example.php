@@ -12,6 +12,11 @@ define('DB_PASS', '');
 // php -r "echo base64_encode(random_bytes(32)), PHP_EOL;"
 define('ENCRYPTION_KEY', '');
 
+// Módulo Accesos (bóveda): ruta a un archivo FUERA de public_html que contiene solo la
+// clave maestra (32 bytes en base64). Ej.: '/home/USUARIO/ideaz_vault.key'
+// Sin copia de esa clave los accesos guardados no se pueden recuperar.
+define('VAULT_KEY_FILE', '');
+
 // App de Meta (developers.facebook.com) — tipo Business
 define('META_APP_ID', '');
 define('META_APP_SECRET', '');
